@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package resonance.mq.v1;
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/mq/v1;mqv1";
+
+// PushEvent 是 Logic -> Task 通过 MQ 传输的消息结构
+message PushEvent {
+  int64  msg_id        = 1;
+  int64  seq_id        = 2;
+  string session_id    = 3;
+  string from_username = 4;
+  string to_username   = 5;
+  string content       = 6;
+  string type          = 7;
+  int64  timestamp     = 8;
+}

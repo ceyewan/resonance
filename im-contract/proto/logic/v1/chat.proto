@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package resonance.logic.v1;
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/logic/v1;logicv1";
+
+// ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
+service ChatService {
+  // SendMessage 处理来自网关的上行消息 (双向流)
+  // Gateway 持续发送消息，Logic 持续返回处理结果
+  rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
+}
+
+message SendMessageRequest {
+  // 1, 2 预留给 id, seq
+  string session_id    = 3;
+  string from_username = 4;
+  string to_username   = 5;
+  string content       = 6;
+  string type          = 7;
+  int64  timestamp     = 8;
+}
+
+message SendMessageResponse {
+  int64  msg_id = 1; // 对应消息ID
+  int64  seq_id = 2; // 对应消息序号
+  string error  = 3; // 错误信息
+}

@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/gateway/v1;gatewayv1";
+
+// WsPacket 是所有 WebSocket 消息的封装
+message WsPacket {
+  // 用于确认的序列号（可选）
+  string seq = 1;
+
+  // 消息负载
+  oneof payload {
+    Pulse       pulse = 10; // 心跳
+    ChatRequest chat  = 11; // 来自客户端的聊天消息
+    PushMessage push  = 12; // 推送给客户端的消息
+    Ack         ack   = 13; // 确认
+  }
+}
+
+// Pulse 是心跳信号
+message Pulse {}
+
+// ChatRequest 是用户发送的消息
+// 字段编号与 PushMessage 保持一致，方便转换
+message ChatRequest {
+  // 1, 2 预留给 id, seq (客户端发送时通常没有)
+  string session_id    = 3; // 会话ID
+  string from_username = 4; // 发送者 (客户端可不填，由网关填充)
+  string to_username   = 5; // 目标用户 (私聊时可能需要)
+  string content       = 6; // 内容
+  string type          = 7; // 类型
+  int64  timestamp     = 8; // timestamp 可选字段，可由网关填充
+}
+
+// PushMessage 是推送给用户的消息
+message PushMessage {
+  int64  msg_id        = 1; // 全局唯一物理ID (Snowflake)
+  int64  seq_id        = 2; // 会话内逻辑时钟
+  string session_id    = 3; // 会话ID
+  string from_username = 4; // 发送者
+  string to_username   = 5; // 接收者/目标用户
+  string content       = 6; // 内容
+  string type          = 7; // 类型
+  int64  timestamp     = 8; // 时间戳
+}
+
+// Ack 是可靠交付的确认
+message Ack {
+  string ref_seq = 1; // 引用的序列号
+}

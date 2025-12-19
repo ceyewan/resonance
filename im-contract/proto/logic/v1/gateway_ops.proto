@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package resonance.logic.v1;
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/logic/v1;logicv1";
+
+// GatewayOpsService 处理网关状态同步相关的请求
+service GatewayOpsService {
+  // SyncState 网关通过双向流同步用户在线状态到 Logic
+  rpc SyncState(stream SyncStateRequest) returns (stream SyncStateResponse);
+}
+
+message SyncStateRequest {
+  int64  seq_id     = 1; // 序列号，用于回执
+  string gateway_id = 2; // 网关实例ID
+  oneof event {
+    UserOnline  online  = 3; // 用户上线
+    UserOffline offline = 4; // 用户下线
+  }
+}
+
+message UserOnline {
+  string username  = 1;
+  string remote_ip = 2;
+  int64  timestamp = 3;
+}
+
+message UserOffline {
+  string username  = 1;
+  int64  timestamp = 2;
+}
+
+message SyncStateResponse {
+  int64  seq_id = 1; // 确认的序列号
+  string error  = 2; // 错误信息
+}

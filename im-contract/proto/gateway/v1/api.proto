@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+import "common/v1/types.proto";
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/gateway/v1;gatewayv1";
+
+// AuthService 处理用户认证相关的请求
+service AuthService {
+  // Login 验证用户身份并返回令牌
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Register 创建一个新的用户账户
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Logout 使当前令牌失效
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string                   access_token = 1;
+  resonance.common.v1.User user         = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string nickname = 3;
+}
+
+message RegisterResponse {
+  string                   access_token = 1;
+  resonance.common.v1.User user         = 2;
+}
+
+message LogoutRequest {
+  string access_token = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+}
