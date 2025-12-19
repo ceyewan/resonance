@@ -6,6 +6,18 @@ import (
 	"github.com/ceyewan/resonance/im-sdk/model"
 )
 
+// RouterRepo 定义了路由表（用户与网关实例映射）的数据访问接口，通常由 Redis 实现
+type RouterRepo interface {
+	// SetUserGateway 设置用户的网关映射关系
+	SetUserGateway(ctx context.Context, router *model.Router) error
+	// GetUserGateway 获取用户的网关映射关系
+	GetUserGateway(ctx context.Context, username string) (*model.Router, error)
+	// DeleteUserGateway 删除用户的网关映射关系
+	DeleteUserGateway(ctx context.Context, username string) error
+	// BatchGetUsersGateway 批量获取用户的网关映射关系
+	BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, error)
+}
+
 // UserRepo defines the interface for user data access
 type UserRepo interface {
 	// CreateUser 创建新用户
