@@ -13,11 +13,20 @@ Gateway 的 PushService（Task → Gateway）
 应该用普通 gRPC ✅
 协议： gateway/v1/push.proto
 原因：Task → Gateway 也是服务间调用
-📋 当前问题
-你的 buf.gen.go.yaml 可能配置有问题，应该：
 
-gateway/v1/api.proto → 生成 ConnectRPC + TypeScript
-gateway/v1/push.proto → 生成普通 gRPC（Go only）
-logic/v1/*.proto → 生成普通 gRPC（Go only）
-gateway/v1/packet.proto → 只生成 Go 消息类型（不需要服务）
-所以你现在的代码框架中，Logic 服务使用 ConnectRPC 是不合适的，应该改用标准 gRPC。Gateway 调用 Logic 也应该用 gRPC 客户端，而不是 ConnectRPC 客户端。
+✅ 已修复的配置
+buf.gen.go.yaml 配置：
+- gateway/v1/api.proto → 生成 gRPC + ConnectRPC（对外）
+- gateway/v1/push.proto → 只生成 gRPC（Task → Gateway）
+- logic/v1/*.proto → 只生成 gRPC（服务间调用）
+- gateway/v1/packet.proto → 只生成消息类型
+
+buf.gen.ts.yaml 配置：
+- gateway/v1/api.proto → 生成 TypeScript + ConnectRPC（前端使用）
+- common/*.proto → 生成 TypeScript（共享类型）
+
+代码使用指南：
+1. Gateway 暴露给客户端的 API：使用 ConnectRPC Handler
+2. Gateway 调用 Logic：使用标准 gRPC Client
+3. Task 调用 Gateway：使用标准 gRPC Client
+4. 前端调用 Gateway：使用 ConnectRPC Client (TypeScript)

@@ -1,0 +1,8 @@
+version: v2
+managed:
+  enabled: true
+plugins:
+  # ConnectRPC（仅用于 gateway/v1/api.proto - 对外的 HTTP/JSON API）
+  - remote: buf.build/connectrpc/go
+    out: gen/go
+    opt: paths=source_relative
