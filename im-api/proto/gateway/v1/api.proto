@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+import "common/v1/types.proto";
+import "gateway/v1/packet.proto";
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/gateway/v1;gatewayv1";
+
+// AuthService 处理用户认证相关的请求
+service AuthService {
+  // Login 验证用户身份并返回令牌
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Register 创建一个新的用户账户
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Logout 使当前令牌失效
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// SessionService 处理网关层转发的会话请求
+service SessionService {
+  // GetSessionList 获取用户的会话列表
+  rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
+
+  // CreateSession 创建会话
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // GetRecentMessages 拉取最近历史消息
+  rpc GetRecentMessages(GetRecentMessagesRequest) returns (GetRecentMessagesResponse);
+
+  // GetContactList 获取联系人列表
+  rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
+
+  // SearchUser 搜索用户
+  rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string                   access_token = 1;
+  resonance.common.v1.User user         = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string nickname = 3;
+}
+
+message RegisterResponse {
+  string                   access_token = 1;
+  resonance.common.v1.User user         = 2;
+}
+
+message LogoutRequest {
+  string access_token = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+}
+
+message GetSessionListRequest {
+  string access_token = 1;
+}
+
+message SessionInfo {
+  string                           session_id    = 1;
+  string                           name          = 2;
+  int32                            type          = 3;
+  string                           avatar_url    = 4;
+  int64                            unread_count  = 5;
+  int64                            last_read_seq = 6;
+  resonance.gateway.v1.PushMessage last_message  = 7;
+}
+
+message GetSessionListResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+message CreateSessionRequest {
+  string          access_token = 1;
+  repeated string members      = 2;
+  string          name         = 3;
+  int32           type         = 4;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message GetRecentMessagesRequest {
+  string access_token = 1;
+  string session_id   = 2;
+  int64  limit        = 3;
+  int64  before_seq   = 4;
+}
+
+message GetRecentMessagesResponse {
+  repeated resonance.gateway.v1.PushMessage messages = 1;
+}
+
+message GetContactListRequest {
+  string access_token = 1;
+}
+
+message ContactInfo {
+  string username   = 1;
+  string nickname   = 2;
+  string avatar_url = 3;
+}
+
+message GetContactListResponse {
+  repeated ContactInfo contacts = 1;
+}
+
+message SearchUserRequest {
+  string access_token = 1;
+  string query        = 2;
+}
+
+message SearchUserResponse {
+  repeated ContactInfo users = 1;
+}

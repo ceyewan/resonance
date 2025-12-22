@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package resonance.logic.v1;
+
+import "common/v1/types.proto";
+import "gateway/v1/packet.proto";
+
+option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/logic/v1;logicv1";
+
+// SessionService 处理会话管理相关的请求
+service SessionService {
+  // GetSessionList 获取用户的会话列表（包含每个会话的最新一条消息）
+  rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
+
+  // CreateSession 创建会话（单聊或群聊）
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // GetRecentMessages 拉取会话的历史消息（登录同步或翻页）
+  rpc GetRecentMessages(GetRecentMessagesRequest) returns (GetRecentMessagesResponse);
+
+  // GetContactList 获取联系人列表（即与当前用户有过单聊往来的用户）
+  rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
+
+  // SearchUser 搜索用户（用于发起新聊天）
+  rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
+}
+
+message GetSessionListRequest {
+  string username = 1;
+}
+
+message SessionInfo {
+  string                           session_id    = 1;
+  string                           name          = 2; // 单聊通常是对方昵称，群聊是群名
+  int32                            type          = 3; // 1-单聊, 2-群聊
+  string                           avatar_url    = 4;
+  int64                            unread_count  = 5;
+  int64                            last_read_seq = 6;
+  resonance.gateway.v1.PushMessage last_message  = 7; // 最新一条消息
+}
+
+message GetSessionListResponse {
+  repeated SessionInfo sessions = 1;
+}
+
+message CreateSessionRequest {
+  string          creator_username = 1;
+  repeated string members          = 2; // 对于单聊，长度为1；群聊则为多个
+  string          name             = 3; // 仅群聊有效
+  int32           type             = 4; // 1-单聊, 2-群聊
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message GetRecentMessagesRequest {
+  string session_id = 1;
+  int64  limit      = 2;
+  int64  before_seq = 3; // 用于翻页，如果是登录拉取可传 0
+}
+
+message GetRecentMessagesResponse {
+  repeated resonance.gateway.v1.PushMessage messages = 1;
+}
+
+message GetContactListRequest {
+  string username = 1;
+}
+
+message ContactInfo {
+  string username   = 1;
+  string nickname   = 2;
+  string avatar_url = 3;
+}
+
+message GetContactListResponse {
+  repeated ContactInfo contacts = 1;
+}
+
+message SearchUserRequest {
+  string query = 1; // username or nickname
+}
+
+message SearchUserResponse {
+  repeated ContactInfo users = 1;
+}

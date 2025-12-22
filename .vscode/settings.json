@@ -1,7 +1,7 @@
 {
     // 1. 核心路径配置：让插件能找到 import "common/v1/types.proto"
     "protobuf.includes": [
-        "${workspaceFolder}/im-contract/proto"
+        "${workspaceFolder}/im-api/proto"
     ],
 
     // 2. 启用对 Buf 的支持：插件会自动关联你的 buf.yaml
@@ -14,6 +14,6 @@
 
     // 4. 这里的配置是为了让插件在执行“编译”命令时也生效
     "protobuf.protoc.options": [
-        "--proto_path=${workspaceFolder}/im-contract/proto"
+        "--proto_path=${workspaceFolder}/im-api/proto"
     ]
 }

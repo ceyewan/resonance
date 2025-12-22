@@ -32,4 +32,4 @@ go.work.sum
 # .vscode/
 
 # Buf build output
-im-contract/gen
+im-api/gen
