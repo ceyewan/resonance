@@ -33,3 +33,5 @@ go.work.sum
 
 # Buf build output
 im-api/gen
+
+genesis/

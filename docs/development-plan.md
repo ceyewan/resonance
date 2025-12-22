@@ -84,7 +84,7 @@ graph TD
 ### 第一阶段：基础设施与 SDK 完善 (Foundation)
 
 * **目标**: 夯实地基，确保 Logic 和 Gateway 开发时有趁手的工具。
-* [ ] **Proto 契约冻结**: 确认 `im-contract` 所有接口定义无误。
+* [ ] **Proto 契约冻结**: 确认 `im-api` 所有接口定义无误。
 * [ ] **SDK 增强**:
   * 实现 `Generator` (Snowflake & Redis Seq)。
   * 集成 **Genesis Framework**:
@@ -97,7 +97,7 @@ graph TD
 
 * **目标**: 实现长连接维护与消息转发，同时提供面向前端的 RESTful API。
 * [ ] **API Strategy (HTTP + JSON)**:
-  * **协议定义**: 沿用 `im-contract` 中的 Proto 定义作为 Source of Truth。
+  * **协议定义**: 沿用 `im-api` 中的 Proto 定义作为 Source of Truth。
   * **实现方式**: 使用 **Gin** 框架暴露 HTTP 接口 (如 `/api/v1/login`, `/api/v1/sessions`)。
   * **双模兼容**:
     * 支持标准 HTTP JSON 请求，便于调试和普通 HTTP 客户端调用。
@@ -133,5 +133,5 @@ graph TD
 ## 5. 协作与规范
 
 * **Git Flow**: `main` 为稳定分支，`develop` 为开发分支，`feature/*` 为功能分支。
-* **Error Code**: 统一制定错误码规范 (im-contract/errors)。
+* **Error Code**: 统一制定错误码规范 (im-api/errors)。
 * **Logging**: 统一使用 **Genesis Clog** (`slog` based)，自动注入 TraceID 以便于全链路追踪。

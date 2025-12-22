@@ -4,7 +4,7 @@ package resonance.gateway.v1;
 
 import "gateway/v1/packet.proto";
 
-option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/gateway/v1;gatewayv1";
+option go_package = "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1;gatewayv1";
 
 // PushService 处理从 Logic 推送消息到网关的请求
 service PushService {

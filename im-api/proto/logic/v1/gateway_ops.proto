@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package resonance.logic.v1;
 
-option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/logic/v1;logicv1";
+option go_package = "github.com/ceyewan/resonance/im-api/gen/go/logic/v1;logicv1";
 
 // GatewayOpsService 处理网关状态同步相关的请求
 service GatewayOpsService {

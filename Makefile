@@ -3,11 +3,11 @@
 # 1. 生成代码 (使用 buf)
 gen:
 	@echo "🔧 Generating contract code..."
-	@cd im-contract && rm -rf gen
+	@cd im-api && rm -rf gen
 	@echo "  > Generating Go (All)..."
-	@cd im-contract && buf generate --template buf.gen.go.yaml
+	@cd im-api && buf generate --template buf.gen.go.yaml
 	@echo "  > Generating TypeScript (Filtered)..."
-	@cd im-contract && buf generate --template buf.gen.ts.yaml --path proto/gateway --path proto/common
+	@cd im-api && buf generate --template buf.gen.ts.yaml --path proto/gateway --path proto/common
 
 # 2. 整理依赖
 tidy:

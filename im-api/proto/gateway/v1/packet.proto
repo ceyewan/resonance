@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package resonance.gateway.v1;
 
-option go_package = "github.com/ceyewan/resonance/im-contract/gen/go/gateway/v1;gatewayv1";
+option go_package = "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1;gatewayv1";
 
 // WsPacket 是所有 WebSocket 消息的封装
 message WsPacket {
