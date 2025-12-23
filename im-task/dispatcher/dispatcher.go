@@ -8,7 +8,7 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/im-api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/im-sdk/repo"
-	"github.com/ceyewan/resonance/internal/task/pusher"
+	"github.com/ceyewan/resonance/im-task/pusher"
 )
 
 // Dispatcher 消息分发器（写扩散）
@@ -119,4 +119,3 @@ func (d *Dispatcher) isUserOnline(ctx context.Context, username string) (bool, s
 
 	return true, gatewayAddr, nil
 }
-

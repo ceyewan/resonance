@@ -16,6 +16,8 @@ type RouterRepo interface {
 	DeleteUserGateway(ctx context.Context, username string) error
 	// BatchGetUsersGateway 批量获取用户的网关映射关系
 	BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, error)
+	// Close 释放资源（如数据库连接等）
+	Close() error
 }
 
 // UserRepo 定义了用户数据访问接口
@@ -28,6 +30,8 @@ type UserRepo interface {
 	SearchUsers(ctx context.Context, query string) ([]*model.User, error)
 	// UpdateUser 更新用户信息
 	UpdateUser(ctx context.Context, user *model.User) error
+	// Close 释放资源（如数据库连接等）
+	Close() error
 }
 
 // SessionRepo 定义了会话数据访问接口
@@ -48,6 +52,8 @@ type SessionRepo interface {
 	UpdateMaxSeqID(ctx context.Context, sessionID string, newSeqID int64) error
 	// GetContactList 获取联系人列表（有过单聊关系的用户）
 	GetContactList(ctx context.Context, username string) ([]*model.User, error)
+	// Close 释放资源（如数据库连接等）
+	Close() error
 }
 
 // MessageRepo 定义了消息数据访问接口
@@ -62,4 +68,6 @@ type MessageRepo interface {
 	GetLastMessage(ctx context.Context, sessionID string) (*model.MessageContent, error)
 	// GetUnreadMessages 获取用户未读消息 (从小群信箱)
 	GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error)
+	// Close 释放资源（如数据库连接等）
+	Close() error
 }

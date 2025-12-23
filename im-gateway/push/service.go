@@ -9,7 +9,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/im-api/gen/go/gateway/v1/gatewayv1connect"
-	"github.com/ceyewan/resonance/internal/gateway/connection"
+	"github.com/ceyewan/resonance/im-gateway/connection"
 )
 
 // Service 实现 PushService，接收 Task 服务的推送请求

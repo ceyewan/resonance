@@ -19,7 +19,7 @@ Gateway 是 Resonance IM 系统的网关服务，负责处理客户端连接、�
 ### 目录结构
 
 ```
-internal/gateway/
+im-gateway/
 ├── config.go              # 配置管理
 ├── gateway.go             # 主服务入口
 ├── logic_client.go        # Logic RPC 客户端封装
@@ -150,7 +150,7 @@ type WSConfig struct {
 package main
 
 import (
-    "github.com/ceyewan/resonance/internal/gateway"
+    "github.com/ceyewan/resonance/im-gateway"
 )
 
 func main() {

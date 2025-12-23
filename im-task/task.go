@@ -10,9 +10,9 @@ import (
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/resonance/im-sdk/repo"
-	"github.com/ceyewan/resonance/internal/task/consumer"
-	"github.com/ceyewan/resonance/internal/task/dispatcher"
-	"github.com/ceyewan/resonance/internal/task/pusher"
+	"github.com/ceyewan/resonance/im-task/consumer"
+	"github.com/ceyewan/resonance/im-task/dispatcher"
+	"github.com/ceyewan/resonance/im-task/pusher"
 )
 
 // Task Task 服务

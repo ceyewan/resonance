@@ -14,7 +14,7 @@ Task 是 Resonance IM 系统的异步任务处理服务，负责消息的写扩�
 ### 目录结构
 
 ```
-internal/task/
+im-task/
 ├── config.go              # 配置管理
 ├── task.go                # 主服务入口
 ├── README.md              # 服务文档
@@ -104,7 +104,7 @@ import (
     "os/signal"
     "syscall"
 
-    "github.com/ceyewan/resonance/internal/task"
+    "github.com/ceyewan/resonance/im-task"
     "github.com/ceyewan/resonance/im-sdk/repo"
 )
 

@@ -8,10 +8,10 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/internal/gateway/api"
-	"github.com/ceyewan/resonance/internal/gateway/connection"
-	"github.com/ceyewan/resonance/internal/gateway/protocol"
-	"github.com/ceyewan/resonance/internal/gateway/push"
+	"github.com/ceyewan/resonance/im-gateway/api"
+	"github.com/ceyewan/resonance/im-gateway/connection"
+	"github.com/ceyewan/resonance/im-gateway/protocol"
+	"github.com/ceyewan/resonance/im-gateway/push"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )

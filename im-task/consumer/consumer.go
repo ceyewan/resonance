@@ -7,7 +7,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
 	mqv1 "github.com/ceyewan/resonance/im-api/gen/go/mq/v1"
-	"github.com/ceyewan/resonance/internal/task/dispatcher"
+	"github.com/ceyewan/resonance/im-task/dispatcher"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -171,4 +171,3 @@ func (c *Consumer) Stop() error {
 	c.logger.Info("consumer stopped")
 	return nil
 }
-

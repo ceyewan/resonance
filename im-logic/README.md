@@ -20,7 +20,7 @@ Logic 是 Resonance IM 系统的核心业务逻辑服务，负责处理认证、
 ### 目录结构
 
 ```
-internal/logic/
+im-logic/
 ├── config.go              # 配置管理
 ├── logic.go               # 主服务入口
 ├── README.md              # 服务文档
@@ -140,7 +140,7 @@ type Config struct {
 package main
 
 import (
-    "github.com/ceyewan/resonance/internal/logic"
+    "github.com/ceyewan/resonance/im-logic"
     "github.com/ceyewan/resonance/im-sdk/repo"
 )
 

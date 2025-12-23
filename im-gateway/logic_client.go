@@ -12,7 +12,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/im-api/gen/go/logic/v1/logicv1connect"
+	// "github.com/ceyewan/resonance/im-api/gen/go/logic/v1/logicv1connect"
 )
 
 // LogicClient 封装与 Logic 服务的 RPC 调用

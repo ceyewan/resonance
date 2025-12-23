@@ -8,7 +8,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/internal/gateway/protocol"
+	"github.com/ceyewan/resonance/im-gateway/protocol"
 	"github.com/gorilla/websocket"
 )
 
@@ -178,4 +178,3 @@ func (c *Conn) writePump() {
 		}
 	}
 }
-

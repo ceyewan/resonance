@@ -11,9 +11,10 @@ import (
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	"github.com/ceyewan/resonance/im-api/gen/go/logic/v1/logicv1connect"
+
+	// "github.com/ceyewan/resonance/im-api/gen/go/logic/v1/logicv1connect"
+	"github.com/ceyewan/resonance/im-logic/service"
 	"github.com/ceyewan/resonance/im-sdk/repo"
-	"github.com/ceyewan/resonance/internal/logic/service"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"

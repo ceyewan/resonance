@@ -1,4 +1,4 @@
-.PHONY: gen tidy build-gateway build-logic build-task
+.PHONY: gen tidy build-gateway build-logic build-task up down logs ps network-create
 
 # 1. 生成代码 (使用 buf)
 gen:
@@ -48,3 +48,53 @@ run-task:
 
 # 5. 一键完成所有生成和依赖整理
 all: gen tidy
+
+# ============================================================================
+# Docker Compose 指令 (基础设施)
+# ============================================================================
+
+# 创建 Docker 网络
+network-create:
+	@echo "🌐 Creating Docker network..."
+	@docker network create resonance-net 2>/dev/null || true
+
+# 启动所有基础服务 (etcd, mysql, redis, nats, prometheus, grafana)
+up: network-create
+	@echo "🚀 Starting Resonance infrastructure..."
+	@docker compose --env-file .env -f deploy/compose.yaml up -d
+	@echo "✅ Infrastructure started!"
+	@echo ""
+	@echo "📊 Service URLs:"
+	@echo "  - Prometheus: http://localhost:9090"
+	@echo "  - Grafana:    http://localhost:3000 (admin/admin)"
+	@echo "  - MySQL:      localhost:3306"
+	@echo "  - Redis:      localhost:6379"
+	@echo "  - NATS:       localhost:4222"
+	@echo "  - etcd:       localhost:2379"
+
+# 停止所有服务
+down:
+	@echo "🛑 Stopping Resonance infrastructure..."
+	@docker compose -f deploy/compose.yaml down
+	@echo "✅ Infrastructure stopped!"
+
+# 查看所有服务的日志
+logs:
+	@docker compose -f deploy/compose.yaml logs -f
+
+# 查看具体服务日志 (用法: make logs-service SERVICE=mysql)
+logs-service:
+	@docker compose -f deploy/compose.yaml logs -f ${SERVICE}
+
+# 查看服务状态
+ps:
+	@docker compose -f deploy/compose.yaml ps
+
+# 重启所有服务
+restart: down up
+
+# 清理所有数据 (包括卷)
+clean:
+	@echo "🗑️ Cleaning Resonance infrastructure..."
+	@docker compose -f deploy/compose.yaml down -v
+	@echo "✅ Infrastructure cleaned!"

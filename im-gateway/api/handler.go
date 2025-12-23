@@ -8,7 +8,7 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/im-api/gen/go/gateway/v1/gatewayv1connect"
 	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/internal/gateway"
+	gateway "github.com/ceyewan/resonance/im-gateway"
 	"github.com/gin-gonic/gin"
 )
 
