@@ -1,26 +1,27 @@
-import { useEffect, useState } from 'react'
-import { useAuthStore } from '@/stores/auth'
-import { useSessionStore } from '@/stores/session'
-import { useMessageStore } from '@/stores/message'
-import { sessionClient } from '@/api/client'
-import type { SessionInfo as SessionInfoType } from '@/gen/gateway/v1/api_pb'
+import { useEffect, useState } from "react";
+import { useAuthStore } from "@/stores/auth";
+import { useSessionStore } from "@/stores/session";
+import { useMessageStore } from "@/stores/message";
+import { sessionClient } from "@/api/client";
+import type { SessionInfo as SessionInfoType } from "@/gen/gateway/v1/api_pb";
 
 export default function ChatPage() {
-  const { user, accessToken, logout } = useAuthStore()
-  const { sessions, currentSession, setSessions, setCurrentSession } = useSessionStore()
-  const { getSessionMessages } = useMessageStore()
-  const [isLoading, setIsLoading] = useState(false)
+  const { user, accessToken, logout } = useAuthStore();
+  const { sessions, currentSession, setSessions, setCurrentSession } =
+    useSessionStore();
+  const { getSessionMessages } = useMessageStore();
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load sessions on mount
   useEffect(() => {
-    if (!accessToken) return
+    if (!accessToken) return;
 
     const loadSessions = async () => {
-      setIsLoading(true)
+      setIsLoading(true);
       try {
         const response = (await sessionClient.getSessionList({
           accessToken,
-        })) as any
+        })) as any;
         setSessions(
           response.sessions.map((s: SessionInfoType) => ({
             sessionId: s.sessionId,
@@ -30,20 +31,24 @@ export default function ChatPage() {
             isGroup: false,
             unreadCount: Number(s.unreadCount),
             lastMessage: s.lastMessage?.content,
-            lastMessageTime: s.lastMessage ? Number(s.lastMessage.timestamp) : undefined,
-          }))
-        )
+            lastMessageTime: s.lastMessage
+              ? Number(s.lastMessage.timestamp)
+              : undefined,
+          })),
+        );
       } catch (err) {
-        console.error('Failed to load sessions:', err)
+        console.error("Failed to load sessions:", err);
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
+    };
 
-    loadSessions()
-  }, [accessToken, setSessions])
+    loadSessions();
+  }, [accessToken, setSessions]);
 
-  const messages = currentSession ? getSessionMessages(currentSession.sessionId) : []
+  const messages = currentSession
+    ? getSessionMessages(currentSession.sessionId)
+    : [];
 
   return (
     <div className="flex h-full flex-col">
@@ -52,7 +57,9 @@ export default function ChatPage() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">Resonance IM</h1>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user?.username}</span>
+            <span className="text-sm text-muted-foreground">
+              {user?.username}
+            </span>
             <button
               onClick={logout}
               className="rounded-md bg-destructive px-3 py-1 text-sm text-destructive-foreground hover:bg-destructive/90"
@@ -79,7 +86,9 @@ export default function ChatPage() {
           ) : (
             <div className="overflow-y-auto">
               {sessions.length === 0 ? (
-                <p className="p-4 text-center text-sm text-muted-foreground">暂无对话</p>
+                <p className="p-4 text-center text-sm text-muted-foreground">
+                  暂无对话
+                </p>
               ) : (
                 sessions.map((session) => (
                   <div
@@ -87,15 +96,17 @@ export default function ChatPage() {
                     onClick={() => setCurrentSession(session)}
                     className={`border-b border-border p-4 cursor-pointer transition-colors ${
                       currentSession?.sessionId === session.sessionId
-                        ? 'bg-primary/10'
-                        : 'hover:bg-muted'
+                        ? "bg-primary/10"
+                        : "hover:bg-muted"
                     }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 overflow-hidden">
-                        <h3 className="font-semibold text-foreground">{session.userName}</h3>
+                        <h3 className="font-semibold text-foreground">
+                          {session.userName}
+                        </h3>
                         <p className="truncate text-sm text-muted-foreground">
-                          {session.lastMessage || '暂无消息'}
+                          {session.lastMessage || "暂无消息"}
                         </p>
                       </div>
                       {session.unreadCount > 0 && (
@@ -121,7 +132,9 @@ export default function ChatPage() {
             <>
               {/* Chat Header */}
               <div className="border-b border-border bg-card px-6 py-4">
-                <h2 className="text-lg font-semibold text-foreground">{currentSession.userName}</h2>
+                <h2 className="text-lg font-semibold text-foreground">
+                  {currentSession.userName}
+                </h2>
               </div>
 
               {/* Messages */}
@@ -133,13 +146,13 @@ export default function ChatPage() {
                     {messages.map((msg) => (
                       <div
                         key={msg.msgId}
-                        className={`flex ${msg.isOwn ? 'justify-end' : 'justify-start'}`}
+                        className={`flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
                       >
                         <div
                           className={`rounded-lg px-4 py-2 max-w-xs ${
                             msg.isOwn
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-foreground'
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-foreground"
                           }`}
                         >
                           <p>{msg.content}</p>
@@ -174,5 +187,5 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

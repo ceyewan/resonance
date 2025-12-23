@@ -74,22 +74,26 @@ Resonance 采用经典的三层微服务架构：
 ### 安装运行
 
 1. **克隆项目**
+
    ```bash
    git clone https://github.com/ceyewan/resonance.git
    cd resonance
    ```
 
 2. **生成协议代码**
+
    ```bash
    make gen
    ```
 
 3. **整理依赖**
+
    ```bash
    make tidy
    ```
 
 4. **启动服务**
+
    ```bash
    # 启动网关服务
    make run-gateway
@@ -119,7 +123,7 @@ resonance/
 ├── main.go                 # 统一程序入口
 ├── Makefile               # 构建和运行脚本
 ├── go.mod                 # Go 模块定义
-├── im-api/                # API 协议定义
+├── api/                # API 协议定义
 │   ├── proto/             # Protobuf 原文件
 │   │   ├── gateway/       # 网关服务协议
 │   │   ├── logic/         # 逻辑服务协议
@@ -139,7 +143,7 @@ resonance/
 
 ```bash
 # 代码生成
-make gen                   # 基于 im-api 生成代码
+make gen                   # 基于 api 生成代码
 make tidy                  # 整理 Go 依赖
 
 # 开发运行

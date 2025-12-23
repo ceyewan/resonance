@@ -4,7 +4,7 @@ package resonance.mq.v1;
 
 import "common/v1/options.proto";
 
-option go_package = "github.com/ceyewan/resonance/im-api/gen/go/mq/v1;mqv1";
+option go_package = "github.com/ceyewan/resonance/api/gen/go/mq/v1;mqv1";
 
 // PushEvent 是 Logic -> Task 通过 MQ 传输的消息结构
 message PushEvent {

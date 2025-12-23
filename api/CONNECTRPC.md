@@ -11,16 +11,18 @@
 ConnectRPC 实际上支持三种协议格式，客户端和服务器可以自动协商：
 
 ### 1. **Connect Protocol**（默认，推荐用于浏览器）
+
 - **传输**: HTTP/1.1 或 HTTP/2
 - **格式**: JSON（默认）或 Binary (Protobuf)
 - **路径**: `/package.service/Method`
-- **特点**: 
+- **特点**:
   - ✅ 完全兼容浏览器（支持 HTTP/1.1）
   - ✅ 人类可读的 JSON 格式
   - ✅ 支持流式传输（Server Streaming）
   - ✅ 不需要 gRPC-web proxy
 
 **示例请求**：
+
 ```http
 POST /resonance.gateway.v1.AuthService/Login HTTP/1.1
 Host: localhost:8080
@@ -34,6 +36,7 @@ Accept: application/json
 ```
 
 **示例响应**：
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
@@ -50,6 +53,7 @@ Content-Type: application/json
 ---
 
 ### 2. **gRPC-Web Protocol**
+
 - **传输**: HTTP/1.1 或 HTTP/2
 - **格式**: Binary (Protobuf) + Base64 编码
 - **路径**: `/package.service/Method`
@@ -58,6 +62,7 @@ Content-Type: application/json
 ---
 
 ### 3. **gRPC Protocol**
+
 - **传输**: HTTP/2 only
 - **格式**: Binary (Protobuf)
 - **特点**: 原生 gRPC，最高性能
@@ -88,7 +93,7 @@ const client = createPromiseClient(AuthService, transport);
 // 3. 调用方法（看起来像本地函数调用）
 const response = await client.login({
   username: "user123",
-  password: "pass456"
+  password: "pass456",
 });
 
 console.log(response.token);
@@ -111,16 +116,16 @@ curl -X POST http://localhost:8080/resonance.gateway.v1.AuthService/Login \
 
 ## 🆚 ConnectRPC vs RESTful API
 
-| 特性 | ConnectRPC | RESTful API |
-|-----|-----------|------------|
-| **URL 格式** | `/package.Service/Method` | `/api/v1/users/login` |
-| **HTTP 方法** | 总是 POST（除非配置 GET） | GET/POST/PUT/DELETE |
-| **数据格式** | JSON/Binary (由 protobuf 定义) | 自定义 JSON |
-| **类型安全** | ✅ 强类型（从 .proto 生成） | ❌ 需要手动定义 |
-| **代码生成** | ✅ 自动生成客户端/服务端 | ❌ 需要手动编写 |
-| **协议** | HTTP/1.1 或 HTTP/2 | HTTP/1.1 |
-| **流式传输** | ✅ 支持（Server/Client/Bidirectional） | ❌ 通常不支持 |
-| **向后兼容** | ✅ Protobuf 内置版本管理 | 需要手动管理 |
+| 特性          | ConnectRPC                             | RESTful API           |
+| ------------- | -------------------------------------- | --------------------- |
+| **URL 格式**  | `/package.Service/Method`              | `/api/v1/users/login` |
+| **HTTP 方法** | 总是 POST（除非配置 GET）              | GET/POST/PUT/DELETE   |
+| **数据格式**  | JSON/Binary (由 protobuf 定义)         | 自定义 JSON           |
+| **类型安全**  | ✅ 强类型（从 .proto 生成）            | ❌ 需要手动定义       |
+| **代码生成**  | ✅ 自动生成客户端/服务端               | ❌ 需要手动编写       |
+| **协议**      | HTTP/1.1 或 HTTP/2                     | HTTP/1.1              |
+| **流式传输**  | ✅ 支持（Server/Client/Bidirectional） | ❌ 通常不支持         |
+| **向后兼容**  | ✅ Protobuf 内置版本管理               | 需要手动管理          |
 
 ---
 
@@ -132,8 +137,8 @@ curl -X POST http://localhost:8080/resonance.gateway.v1.AuthService/Login \
 import (
     "net/http"
     "connectrpc.com/connect"
-    gatewayv1 "resonance/im-api/gen/go/gateway/v1"
-    "resonance/im-api/gen/go/gateway/v1/gatewayv1connect"
+    gatewayv1 "resonance/api/gen/go/gateway/v1"
+    "resonance/api/gen/go/gateway/v1/gatewayv1connect"
 )
 
 // 1. 实现服务
@@ -153,10 +158,10 @@ func (s *authServer) Login(
 // 2. 注册 Handler（支持 Connect、gRPC-Web、gRPC 三种协议）
 func main() {
     mux := http.NewServeMux()
-    
+
     path, handler := gatewayv1connect.NewAuthServiceHandler(&authServer{})
     mux.Handle(path, handler)
-    
+
     // 启动服务器
     http.ListenAndServe(":8080", mux)
 }
@@ -165,6 +170,7 @@ func main() {
 ### 协议自动协商
 
 服务端会根据 `Content-Type` 自动识别协议：
+
 - `application/json` → Connect Protocol (JSON)
 - `application/proto` → Connect Protocol (Binary)
 - `application/grpc-web+proto` → gRPC-Web
@@ -174,12 +180,12 @@ func main() {
 
 ## 📊 性能对比
 
-| 协议 | 格式 | 大小 | 解析速度 | 浏览器兼容 |
-|-----|------|------|---------|-----------|
-| Connect (JSON) | JSON | 100% | 中等 | ✅ 完美 |
-| Connect (Binary) | Protobuf | ~30% | 快 | ✅ 完美 |
-| gRPC-Web | Protobuf | ~35% | 快 | ✅ 需要 polyfill |
-| gRPC | Protobuf | ~30% | 最快 | ❌ 不支持 |
+| 协议             | 格式     | 大小 | 解析速度 | 浏览器兼容       |
+| ---------------- | -------- | ---- | -------- | ---------------- |
+| Connect (JSON)   | JSON     | 100% | 中等     | ✅ 完美          |
+| Connect (Binary) | Protobuf | ~30% | 快       | ✅ 完美          |
+| gRPC-Web         | Protobuf | ~35% | 快       | ✅ 需要 polyfill |
+| gRPC             | Protobuf | ~30% | 最快     | ❌ 不支持        |
 
 ---
 
@@ -190,7 +196,7 @@ func main() {
 1. **传输协议**: HTTP/1.1 或 HTTP/2（浏览器自动选择）
 2. **数据格式**: JSON（默认）或 Binary Protobuf
 3. **请求方式**: POST 到 `/package.Service/Method`
-4. **不是 RESTful**: 
+4. **不是 RESTful**:
    - 不使用 REST 的 URL 设计（如 `/users/:id`）
    - 不使用多种 HTTP 方法（GET/PUT/DELETE）
    - 使用类似 RPC 的调用方式
@@ -205,12 +211,12 @@ func main() {
 
 ### 与传统 gRPC 的区别：
 
-| 特性 | ConnectRPC | 传统 gRPC |
-|-----|-----------|----------|
+| 特性       | ConnectRPC  | 传统 gRPC                |
+| ---------- | ----------- | ------------------------ |
 | 浏览器支持 | ✅ 原生支持 | ❌ 需要 gRPC-Web + proxy |
-| HTTP/1.1 | ✅ 支持 | ❌ 只支持 HTTP/2 |
-| JSON 格式 | ✅ 支持 | ❌ 只支持 Binary |
-| 服务间调用 | ✅ 可以 | ✅ 推荐 |
+| HTTP/1.1   | ✅ 支持     | ❌ 只支持 HTTP/2         |
+| JSON 格式  | ✅ 支持     | ❌ 只支持 Binary         |
+| 服务间调用 | ✅ 可以     | ✅ 推荐                  |
 
 ---
 

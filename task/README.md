@@ -7,6 +7,7 @@ Task 是 Resonance IM 系统的异步任务处理服务，负责消息的写扩�
 ### 核心职责
 
 **消息处理流程**:
+
 1. **消费 MQ** - 订阅 NATS 的 PushEvent 消息
 2. **写扩散** - 查询会话成员，为每个用户生成推送任务
 3. **服务发现** - 通过 Registry 查找用户连接的 Gateway 实例
@@ -57,10 +58,12 @@ WebSocket Client
 ### 服务发现机制
 
 **GatewayID 是逻辑标识符**（如 `gateway-001`），存储在：
+
 - Registry 的 ServiceInstance.Metadata 中：`metadata["gateway_id"] = "gateway-001"`
 - Router 表中：`router.gateway_id` 记录用户连接的 Gateway
 
 **查找流程**:
+
 ```go
 // 1. RouterRepo 获取用户的 GatewayID
 router, _ := routerRepo.GetUserGateway(ctx, username)
@@ -201,12 +204,14 @@ func main() {
 ### 1. Consumer (MQ 消费者)
 
 **职责**:
+
 - 订阅 NATS 的 `resonance.push.event.v1` 主题
 - 使用 Handler 模式处理消息
 - 解析 PushEvent 并调用 Dispatcher
 - 处理成功后 Ack，失败后 Nak 重新入队
 
 **特性**:
+
 - 队列组订阅（多个 Task 实例负载均衡）
 - 带重试机制（最多重试 3 次，间隔 5 秒）
 - 优雅关闭（等待正在处理的消息完成）
@@ -226,11 +231,13 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 ### 2. Dispatcher (消息分发器)
 
 **职责**:
+
 - 查询会话成员列表（SessionRepo）
 - 查询每个成员的路由信息（RouterRepo）
 - 调用 Pusher 推送消息
 
 **写扩散逻辑**:
+
 ```go
 func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error {
     // 1. 获取会话成员
@@ -262,12 +269,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 ### 3. ConnectionManager (连接管理器)
 
 **职责**:
+
 - 管理 gatewayID → gRPC 连接的映射
 - 通过 Registry 查找 Gateway 实例
 - 为每个 Gateway 维护一个双向流
 - 连接健康检查和自动重连
 
 **核心方法**:
+
 ```go
 type ConnectionManager struct {
     registry registry.Registry                  // 服务发现
@@ -285,6 +294,7 @@ func (cm *ConnectionManager) findGatewayInstance(ctx context.Context, gatewayID 
 ```
 
 **连接特性**:
+
 - **懒加载连接**: 首次使用时创建连接
 - **连接复用**: 后续推送复用已有连接
 - **健康检查**: 5 分钟未使用的连接被视为不健康
@@ -293,6 +303,7 @@ func (cm *ConnectionManager) findGatewayInstance(ctx context.Context, gatewayID 
 ### 4. GatewayPusher (Gateway 推送客户端)
 
 **职责**:
+
 - 封装 ConnectionManager，提供简洁的推送接口
 
 ```go

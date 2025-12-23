@@ -5,8 +5,8 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/xerrors"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	mqv1 "github.com/ceyewan/resonance/im-api/gen/go/mq/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/im-sdk/repo"
 	"github.com/ceyewan/resonance/task/pusher"
 )

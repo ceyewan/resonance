@@ -10,37 +10,37 @@
 
 ### 核心框架
 
-| 类别 | 技术 | 版本 | 说明 |
-|-----|------|-----|------|
-| **框架** | React | 18.x | 主框架 |
-| **语言** | TypeScript | 5.x | 类型安全 |
-| **构建工具** | Vite | 5.x | 极速 HMR，原生 ESM |
-| **状态管理** | Zustand | 4.x | 轻量级状态管理 |
-| **路由** | React Router | 7.x | 声明式路由 |
+| 类别         | 技术         | 版本 | 说明               |
+| ------------ | ------------ | ---- | ------------------ |
+| **框架**     | React        | 18.x | 主框架             |
+| **语言**     | TypeScript   | 5.x  | 类型安全           |
+| **构建工具** | Vite         | 5.x  | 极速 HMR，原生 ESM |
+| **状态管理** | Zustand      | 4.x  | 轻量级状态管理     |
+| **路由**     | React Router | 7.x  | 声明式路由         |
 
 ### UI 相关
 
-| 类别 | 技术 | 说明 |
-|-----|------|------|
-| **组件库** | Shadcn/ui | 无依赖锁定，可定制 |
-| **样式** | Tailwind CSS | 原子化 CSS |
-| **图标** | Lucide React | 轻量图标库 |
+| 类别       | 技术         | 说明               |
+| ---------- | ------------ | ------------------ |
+| **组件库** | Shadcn/ui    | 无依赖锁定，可定制 |
+| **样式**   | Tailwind CSS | 原子化 CSS         |
+| **图标**   | Lucide React | 轻量图标库         |
 
 ### 通信层
 
-| 类别 | 技术 | 说明 |
-|-----|------|------|
-| **HTTP API** | @connectrpc/connect-web | 类型安全的 RPC 调用 |
-| **Protobuf** | @bufbuild/protobuf | 消息序列化 |
-| **WebSocket** | 原生 WebSocket + Protobuf | 实时消息通信 |
+| 类别          | 技术                      | 说明                |
+| ------------- | ------------------------- | ------------------- |
+| **HTTP API**  | @connectrpc/connect-web   | 类型安全的 RPC 调用 |
+| **Protobuf**  | @bufbuild/protobuf        | 消息序列化          |
+| **WebSocket** | 原生 WebSocket + Protobuf | 实时消息通信        |
 
 ### 开发工具
 
-| 类别 | 技术 | 说明 |
-|-----|------|------|
-| **代码规范** | ESLint + Prettier | 代码质量保障 |
-| **Git Hooks** | Husky + lint-staged | 提交前检查 |
-| **测试** | Vitest | 单元测试 |
+| 类别          | 技术                | 说明         |
+| ------------- | ------------------- | ------------ |
+| **代码规范**  | ESLint + Prettier   | 代码质量保障 |
+| **Git Hooks** | Husky + lint-staged | 提交前检查   |
+| **测试**      | Vitest              | 单元测试     |
 
 ---
 
@@ -121,7 +121,7 @@ web/
     │   └── index.ts         # 全局类型
     │
     └── gen/                 # 生成的代码 (软链接或复制)
-        └── ...              # 指向 im-api/gen/ts/
+        └── ...              # 指向 api/gen/ts/
 ```
 
 ---
@@ -198,7 +198,11 @@ export async function login(username: string, password: string) {
   return authClient.login({ username, password });
 }
 
-export async function register(username: string, password: string, nickname: string) {
+export async function register(
+  username: string,
+  password: string,
+  nickname: string,
+) {
   return authClient.register({ username, password, nickname });
 }
 
@@ -221,7 +225,7 @@ export async function createSession(
   accessToken: string,
   members: string[],
   name: string,
-  type: number
+  type: number,
 ) {
   return sessionClient.createSession({ accessToken, members, name, type });
 }
@@ -230,7 +234,7 @@ export async function getRecentMessages(
   accessToken: string,
   sessionId: string,
   limit: bigint,
-  beforeSeq?: bigint
+  beforeSeq?: bigint,
 ) {
   return sessionClient.getRecentMessages({
     accessToken,
@@ -390,7 +394,7 @@ export class WebSocketManager {
   private handleMessage(data: ArrayBuffer): void {
     try {
       const packet = fromBinary(WsPacketSchema, new Uint8Array(data));
-      
+
       switch (packet.payload.case) {
         case "push":
           const pushMessage = packet.payload.value;
@@ -436,7 +440,7 @@ export class WebSocketManager {
 
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts);
     console.log(`[WS] Reconnecting in ${delay}ms...`);
-    
+
     setTimeout(() => {
       this.reconnectAttempts++;
       this.connect();
@@ -523,7 +527,7 @@ interface AuthState {
   accessToken: string | null;
   user: User | null;
   isAuthenticated: boolean;
-  
+
   // Actions
   setAuth: (token: string, user: User) => void;
   logout: () => void;
@@ -557,8 +561,8 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         isAuthenticated: state.isAuthenticated,
       }),
-    }
-  )
+    },
+  ),
 );
 ```
 
@@ -572,7 +576,7 @@ import type { SessionInfo } from "@/gen/gateway/v1/api_pb";
 interface SessionState {
   sessions: SessionInfo[];
   activeSessionId: string | null;
-  
+
   // Actions
   setSessions: (sessions: SessionInfo[]) => void;
   setActiveSession: (sessionId: string | null) => void;
@@ -590,9 +594,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   updateSession: (sessionId, updates) =>
     set((state) => ({
       sessions: state.sessions.map((session) =>
-        session.sessionId === sessionId
-          ? { ...session, ...updates }
-          : session
+        session.sessionId === sessionId ? { ...session, ...updates } : session,
       ),
     })),
 }));
@@ -610,7 +612,7 @@ interface MessageState {
   messagesBySession: Record<string, PushMessage[]>;
   // WebSocket 连接状态
   connected: boolean;
-  
+
   // Actions
   addMessage: (message: PushMessage) => void;
   setMessages: (sessionId: string, messages: PushMessage[]) => void;
@@ -686,7 +688,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
     <div
       className={cn(
         "flex items-center gap-3 p-3 cursor-pointer rounded-lg transition-colors",
-        isActive ? "bg-accent" : "hover:bg-muted"
+        isActive ? "bg-accent" : "hover:bg-muted",
       )}
       onClick={onClick}
     >
@@ -694,7 +696,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <AvatarImage src={session.avatarUrl} alt={session.name} />
         <AvatarFallback>{session.name[0]?.toUpperCase()}</AvatarFallback>
       </Avatar>
-      
+
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span className="font-medium truncate">{session.name}</span>
@@ -756,7 +758,6 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
 - [ ] **性能优化**
   - [ ] 消息虚拟滚动
   - [ ] 图片懒加载
-  
 - [ ] **离线支持**
   - [ ] 离线消息队列
   - [ ] 断线重连优化
@@ -783,7 +784,7 @@ cp .env.example .env.local
 
 ```bash
 # 创建软链接指向生成的 TypeScript 代码
-ln -s ../im-api/gen/ts src/gen
+ln -s ../api/gen/ts src/gen
 ```
 
 ### 4. 启动开发服务器
@@ -801,7 +802,7 @@ npm run dev
 ## 📚 相关文档
 
 - [AGENTS.md](./AGENTS.md) - AI 开发助手指引
-- [im-api/ARCHITECTURE.md](../im-api/ARCHITECTURE.md) - API 架构说明
+- [api/ARCHITECTURE.md](../api/ARCHITECTURE.md) - API 架构说明
 - [ConnectRPC 文档](https://connectrpc.com/docs/web/getting-started)
 - [Zustand 文档](https://docs.pmnd.rs/zustand)
 - [Shadcn/ui 文档](https://ui.shadcn.com)

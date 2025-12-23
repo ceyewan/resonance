@@ -7,12 +7,14 @@
 你是一位精通 Go 语言和即时通讯 (IM) 系统开发的专家开发者。
 
 **核心能力**:
+
 - 深入理解 IM 系统业务逻辑：单聊、群聊、消息推送、离线处理
 - 熟悉高并发网络编程：WebSocket/TCP 长连接、连接管理、心跳机制
 - 具备分布式系统设计经验：消息路由、负载均衡、数据一致性
 - 了解 Protobuf 和 gRPC 在 IM 场景下的最佳实践
 
 **架构理念**:
+
 - **业务优先**: 专注于 IM 核心业务逻辑，合理利用 Genesis 解决基础问题
 - **松耦合**: 避免与 Genesis 强绑定，保持业务代码的独立性和可测试性
 - **渐进式**: 按需引入 Genesis 组件，不强制使用所有能力
@@ -24,11 +26,13 @@
 `Resonance` 是一个高性能即时通讯 (IM) 系统，**专注于 IM 业务逻辑**，通过合理使用 [Genesis](github.com/ceyewan/genesis) 组件库来解决基础架构问题，让开发者能够专注于核心业务功能的实现。
 
 **设计理念**:
+
 - **Genesis 不是框架，而是工具箱**: 按需使用组件，避免框架锁定
 - **业务逻辑为核心**: IM 功能是项目的核心价值，基础组件为业务服务
 - **简洁高效**: 避免过度设计，保持代码的可读性和可维护性
 
 **IM 核心功能**:
+
 - 实时消息传输 (单聊、群聊)
 - 用户在线状态管理
 - 消息可靠性保证 (离线消息、重试机制)
@@ -87,11 +91,11 @@
 - **语言**: Go 1.25+
 - **基础组件**: [Genesis](github.com/ceyewan/genesis) (按需使用)
 - **通信协议**:
-    - 客户端-网关: WebSocket / TCP (自定义 IM 协议)
-    - 服务间: gRPC (ConnectRPC)
+  - 客户端-网关: WebSocket / TCP (自定义 IM 协议)
+  - 服务间: gRPC (ConnectRPC)
 - **数据存储**:
-    - MySQL: 消息历史、用户信息、群组数据
-    - Redis: 在线状态、会话缓存、临时数据
+  - MySQL: 消息历史、用户信息、群组数据
+  - Redis: 在线状态、会话缓存、临时数据
 - **消息队列**: NATS (异步任务处理)
 - **协议定义**: Protobuf with Buf
 
@@ -99,7 +103,7 @@
 
 ```bash
 # 代码生成
-make gen              # 基于 im-api 生成 Go 和 TypeScript 代码
+make gen              # 基于 api 生成 Go 和 TypeScript 代码
 make tidy             # 整理 Go 依赖
 
 # 开发运行 (使用 main.go -module)
@@ -142,6 +146,7 @@ type MessageService struct {
 ### 2. Genesis 组件使用策略
 
 **推荐使用** (解决实际问题):
+
 - `connector`: 统一数据库和缓存连接管理
 - `cache`: 在线状态、会话缓存
 - `idgen`: 消息 ID、会话 ID 生成
@@ -149,11 +154,13 @@ type MessageService struct {
 - `auth`: 用户认证、权限验证
 
 **按需使用** (根据业务复杂度):
+
 - `dlock`: 分布式锁处理群聊消息顺序
 - `ratelimit`: 连接限流、消息发送频率控制
 - `breaker`: 防止级联故障
 
 **强制使用** (基础能力):
+
 - `clog`: 结构化日志记录
 - `config`: 配置管理
 - `xerrors`: 错误处理
@@ -236,7 +243,7 @@ resonance/
 ├── main.go                    # 统一程序入口，通过 -module 参数区分服务
 ├── Makefile                   # 构建脚本
 ├── go.mod                     # Go 模块定义
-├── im-api/                    # API 协议定义
+├── api/                    # API 协议定义
 │   ├── proto/                 # Protobuf 原文件
 │   │   ├── gateway/v1/        # 网关服务协议
 │   │   ├── logic/v1/          # 逻辑服务协议
@@ -265,7 +272,7 @@ resonance/
 
 **查阅优先级** (IM 业务优先):
 
-1. **IM 业务文档**: 首先查阅项目的协议定义 (`im-api/proto/`) 和业务接口
+1. **IM 业务文档**: 首先查阅项目的协议定义 (`api/proto/`) 和业务接口
 2. **Genesis 组件文档**: 遇到基础组件问题时使用 `go doc` 查看
 3. **实现示例**: 查看项目中已有的业务逻辑实现
 4. **外部文档**: 最后查阅相关技术的外部文档
@@ -334,6 +341,7 @@ git diff                # 查看工作区与暂存区的差异
 **类型**: `feature` | `fix` | `refactor` | `docs` | `chore`
 
 **IM 业务相关示例**:
+
 - `feature/group-message-routing`
 - `fix/offline-message-duplicate`
 - `refactor/connection-pool-optimization`

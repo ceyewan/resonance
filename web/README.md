@@ -43,7 +43,7 @@ web/
 ├── src/
 │   ├── api/              # API 客户端和通信层
 │   │   └── client.ts     # ConnectRPC 客户端初始化
-│   ├── gen/              # 生成的代码（软链接到 im-api/gen/ts）
+│   ├── gen/              # 生成的代码（软链接到 api/gen/ts）
 │   ├── hooks/            # 自定义 Hooks
 │   │   ├── useAuth.ts    # 认证 Hook
 │   │   └── useWebSocket.ts # WebSocket Hook
@@ -86,18 +86,18 @@ web/
 使用 ConnectRPC 与后端通信：
 
 ```typescript
-import { authClient, sessionClient } from '@/api/client'
+import { authClient, sessionClient } from "@/api/client";
 
 // 登录
 const response = await authClient.login({
-  username: 'user',
-  password: 'pass',
-})
+  username: "user",
+  password: "pass",
+});
 
 // 获取会话列表
 const sessions = await sessionClient.getSessionList({
   accessToken: token,
-})
+});
 ```
 
 ### 状态管理
@@ -105,18 +105,18 @@ const sessions = await sessionClient.getSessionList({
 使用 Zustand 管理应用状态：
 
 ```typescript
-import { useAuthStore } from '@/stores/auth'
-import { useSessionStore } from '@/stores/session'
-import { useMessageStore } from '@/stores/message'
+import { useAuthStore } from "@/stores/auth";
+import { useSessionStore } from "@/stores/session";
+import { useMessageStore } from "@/stores/message";
 
 // 获取状态
-const { user, isAuthenticated } = useAuthStore()
-const { sessions, currentSession } = useSessionStore()
-const { messages } = useMessageStore()
+const { user, isAuthenticated } = useAuthStore();
+const { sessions, currentSession } = useSessionStore();
+const { messages } = useMessageStore();
 
 // 更新状态
-const { setUser, logout } = useAuthStore()
-const { setCurrentSession } = useSessionStore()
+const { setUser, logout } = useAuthStore();
+const { setCurrentSession } = useSessionStore();
 ```
 
 ### WebSocket 连接
@@ -124,22 +124,22 @@ const { setCurrentSession } = useSessionStore()
 使用 useWebSocket Hook 管理 WebSocket 连接：
 
 ```typescript
-import { useWebSocket } from '@/hooks/useWebSocket'
+import { useWebSocket } from "@/hooks/useWebSocket";
 
 const { isConnected, send, connect, disconnect } = useWebSocket({
   onMessage: (packet) => {
-    console.log('Received:', packet)
+    console.log("Received:", packet);
   },
-})
+});
 
 // 连接
-connect()
+connect();
 
 // 发送消息
-send(packet)
+send(packet);
 
 // 断开连接
-disconnect()
+disconnect();
 ```
 
 ## 🎨 样式

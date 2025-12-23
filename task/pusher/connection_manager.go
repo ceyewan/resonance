@@ -10,7 +10,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/registry"
 	"github.com/ceyewan/genesis/xerrors"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -37,8 +37,8 @@ type GatewayConn struct {
 
 // ConnectionManager 管理 gatewayID -> gRPC 连接的映射
 type ConnectionManager struct {
-	registry registry.Registry // 服务发现
-	service  string            // Gateway 服务名
+	registry registry.Registry       // 服务发现
+	service  string                  // Gateway 服务名
 	clients  map[string]*GatewayConn // gatewayID -> 连接
 	mu       sync.RWMutex
 	logger   clog.Logger

@@ -9,6 +9,7 @@
 你是一位精通 **React + TypeScript** 的前端开发专家，专注于 IM（即时通讯）应用开发。
 
 **核心能力**:
+
 - 深入理解 React 18 特性：Hooks、Suspense、并发模式
 - 精通 TypeScript 类型系统和泛型编程
 - 熟悉 IM 应用前端架构：实时通信、状态同步、消息渲染
@@ -24,21 +25,21 @@
 
 ### 技术栈概览
 
-| 类别 | 技术 |
-|-----|------|
-| 框架 | React 18 + TypeScript |
-| 构建 | Vite |
-| 状态 | Zustand |
-| 路由 | React Router v7 |
-| UI | Shadcn/ui + Tailwind CSS |
-| API | @connectrpc/connect-web |
+| 类别      | 技术                      |
+| --------- | ------------------------- |
+| 框架      | React 18 + TypeScript     |
+| 构建      | Vite                      |
+| 状态      | Zustand                   |
+| 路由      | React Router v7           |
+| UI        | Shadcn/ui + Tailwind CSS  |
+| API       | @connectrpc/connect-web   |
 | WebSocket | 原生 + @bufbuild/protobuf |
 
 ### 关键目录
 
 ```
 resonance/
-├── im-api/gen/ts/           # 生成的 TypeScript 代码（Protobuf + ConnectRPC）
+├── api/gen/ts/           # 生成的 TypeScript 代码（Protobuf + ConnectRPC）
 └── web/                     # 前端项目
     ├── src/
     │   ├── api/             # API 通信层
@@ -46,7 +47,7 @@ resonance/
     │   ├── hooks/           # 自定义 Hooks
     │   ├── components/      # UI 组件
     │   ├── pages/           # 页面组件
-    │   └── gen/             # 软链接到 im-api/gen/ts/
+    │   └── gen/             # 软链接到 api/gen/ts/
     └── FRONTEND.md          # 完整开发指南
 ```
 
@@ -56,13 +57,13 @@ resonance/
 
 ### 1. 文件命名
 
-| 类型 | 规范 | 示例 |
-|-----|------|------|
-| 组件文件 | PascalCase | `SessionList.tsx` |
-| Hook 文件 | camelCase，use 前缀 | `useWebSocket.ts` |
-| Store 文件 | camelCase | `auth.ts`, `session.ts` |
-| 工具文件 | camelCase | `utils.ts`, `time.ts` |
-| 类型文件 | camelCase | `types.ts`, `index.ts` |
+| 类型       | 规范                | 示例                    |
+| ---------- | ------------------- | ----------------------- |
+| 组件文件   | PascalCase          | `SessionList.tsx`       |
+| Hook 文件  | camelCase，use 前缀 | `useWebSocket.ts`       |
+| Store 文件 | camelCase           | `auth.ts`, `session.ts` |
+| 工具文件   | camelCase           | `utils.ts`, `time.ts`   |
+| 类型文件   | camelCase           | `types.ts`, `index.ts`  |
 
 ### 2. 组件结构
 
@@ -80,15 +81,19 @@ interface ComponentNameProps {
 }
 
 // 组件导出
-export function ComponentName({ prop1, prop2 = 0, onAction }: ComponentNameProps) {
+export function ComponentName({
+  prop1,
+  prop2 = 0,
+  onAction,
+}: ComponentNameProps) {
   // 1. Hooks
   const [state, setState] = useState(false);
-  
+
   // 2. 回调函数
   const handleClick = useCallback(() => {
     onAction(prop1);
   }, [prop1, onAction]);
-  
+
   // 3. 渲染
   return (
     <div className={cn("base-classes", state && "conditional-class")}>
@@ -108,22 +113,22 @@ import { useAuthStore } from "@/stores/auth";
 export function useCustomHook(param: string) {
   // 1. 外部 Store
   const { accessToken } = useAuthStore();
-  
+
   // 2. 本地状态
   const [data, setData] = useState<DataType | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  
+
   // 3. 副作用
   useEffect(() => {
     // 副作用逻辑
   }, [param, accessToken]);
-  
+
   // 4. 回调函数
   const refresh = useCallback(async () => {
     // 刷新逻辑
   }, [accessToken]);
-  
+
   // 5. 返回值
   return { data, loading, error, refresh };
 }
@@ -140,7 +145,7 @@ interface StoreState {
   // 状态
   data: DataType[];
   loading: boolean;
-  
+
   // Actions
   setData: (data: DataType[]) => void;
   addItem: (item: DataType) => void;
@@ -151,14 +156,15 @@ export const useStore = create<StoreState>((set) => ({
   // 初始状态
   data: [],
   loading: false,
-  
+
   // Actions 实现
   setData: (data) => set({ data }),
-  
-  addItem: (item) => set((state) => ({
-    data: [...state.data, item],
-  })),
-  
+
+  addItem: (item) =>
+    set((state) => ({
+      data: [...state.data, item],
+    })),
+
   reset: () => set({ data: [], loading: false }),
 }));
 ```
@@ -174,24 +180,21 @@ export const useStore = create<StoreState>((set) => ({
 import { AuthService, SessionService } from "@/gen/gateway/v1/api_connect";
 
 // 消息类型
-import type { 
-  LoginRequest, 
+import type {
+  LoginRequest,
   LoginResponse,
   SessionInfo,
 } from "@/gen/gateway/v1/api_pb";
 
 // WebSocket 消息类型
-import type { 
-  WsPacket, 
-  ChatRequest, 
-  PushMessage 
+import type {
+  WsPacket,
+  ChatRequest,
+  PushMessage,
 } from "@/gen/gateway/v1/packet_pb";
 
 // Schema（用于创建消息实例）
-import { 
-  WsPacketSchema,
-  ChatRequestSchema,
-} from "@/gen/gateway/v1/packet_pb";
+import { WsPacketSchema, ChatRequestSchema } from "@/gen/gateway/v1/packet_pb";
 
 // 通用类型
 import type { User } from "@/gen/common/v1/types_pb";
@@ -255,11 +258,11 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const { isAuthenticated } = useAuthStore();
   const location = useLocation();
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
+
   return <>{children}</>;
 }
 ```
@@ -273,24 +276,26 @@ import type { PushMessage } from "@/gen/gateway/v1/packet_pb";
 
 function groupMessagesByDate(messages: PushMessage[]) {
   const groups: Record<string, PushMessage[]> = {};
-  
+
   for (const msg of messages) {
     const date = new Date(Number(msg.timestamp)).toLocaleDateString();
     if (!groups[date]) groups[date] = [];
     groups[date].push(msg);
   }
-  
+
   return groups;
 }
 
 export function MessageList({ messages }: { messages: PushMessage[] }) {
   const grouped = useMemo(() => groupMessagesByDate(messages), [messages]);
-  
+
   return (
     <div className="space-y-4">
       {Object.entries(grouped).map(([date, msgs]) => (
         <div key={date}>
-          <div className="text-center text-sm text-muted-foreground">{date}</div>
+          <div className="text-center text-sm text-muted-foreground">
+            {date}
+          </div>
           {msgs.map((msg) => (
             <MessageItem key={msg.msgId.toString()} message={msg} />
           ))}
@@ -308,17 +313,21 @@ import { useState, FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function LoginForm({ onSubmit }: { onSubmit: (data: LoginData) => Promise<void> }) {
+export function LoginForm({
+  onSubmit,
+}: {
+  onSubmit: (data: LoginData) => Promise<void>;
+}) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       await onSubmit({ username, password });
     } catch (err) {
@@ -327,7 +336,7 @@ export function LoginForm({ onSubmit }: { onSubmit: (data: LoginData) => Promise
       setLoading(false);
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
@@ -372,12 +381,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 // 使用示例
-<div className={cn(
-  "base-class",
-  isActive && "active-class",
-  variant === "primary" && "primary-class",
-  className // 允许外部覆盖
-)} />
+<div
+  className={cn(
+    "base-class",
+    isActive && "active-class",
+    variant === "primary" && "primary-class",
+    className, // 允许外部覆盖
+  )}
+/>;
 ```
 
 ### 响应式设计
@@ -420,10 +431,10 @@ export const useAuthStore = create<AuthState>()(
       (set) => ({
         // ... store 定义
       }),
-      { name: "auth-storage" }
+      { name: "auth-storage" },
     ),
-    { name: "AuthStore" }
-  )
+    { name: "AuthStore" },
+  ),
 );
 ```
 
@@ -505,7 +516,7 @@ const secret = import.meta.env.API_SECRET;
 ## 📚 参考文档
 
 - [FRONTEND.md](./FRONTEND.md) - 完整开发指南
-- [im-api/ARCHITECTURE.md](../im-api/ARCHITECTURE.md) - API 架构
+- [api/ARCHITECTURE.md](../api/ARCHITECTURE.md) - API 架构
 - [React 文档](https://react.dev)
 - [Zustand 文档](https://docs.pmnd.rs/zustand)
 - [Tailwind CSS](https://tailwindcss.com/docs)

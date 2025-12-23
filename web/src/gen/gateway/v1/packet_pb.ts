@@ -3,7 +3,14 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 
 /**
@@ -24,39 +31,44 @@ export class WsPacket extends Message<WsPacket> {
    *
    * @generated from oneof resonance.gateway.v1.WsPacket.payload
    */
-  payload: {
-    /**
-     * 心跳
-     *
-     * @generated from field: resonance.gateway.v1.Pulse pulse = 10;
-     */
-    value: Pulse;
-    case: "pulse";
-  } | {
-    /**
-     * 来自客户端的聊天消息
-     *
-     * @generated from field: resonance.gateway.v1.ChatRequest chat = 11;
-     */
-    value: ChatRequest;
-    case: "chat";
-  } | {
-    /**
-     * 推送给客户端的消息
-     *
-     * @generated from field: resonance.gateway.v1.PushMessage push = 12;
-     */
-    value: PushMessage;
-    case: "push";
-  } | {
-    /**
-     * 确认
-     *
-     * @generated from field: resonance.gateway.v1.Ack ack = 13;
-     */
-    value: Ack;
-    case: "ack";
-  } | { case: undefined; value?: undefined } = { case: undefined };
+  payload:
+    | {
+        /**
+         * 心跳
+         *
+         * @generated from field: resonance.gateway.v1.Pulse pulse = 10;
+         */
+        value: Pulse;
+        case: "pulse";
+      }
+    | {
+        /**
+         * 来自客户端的聊天消息
+         *
+         * @generated from field: resonance.gateway.v1.ChatRequest chat = 11;
+         */
+        value: ChatRequest;
+        case: "chat";
+      }
+    | {
+        /**
+         * 推送给客户端的消息
+         *
+         * @generated from field: resonance.gateway.v1.PushMessage push = 12;
+         */
+        value: PushMessage;
+        case: "push";
+      }
+    | {
+        /**
+         * 确认
+         *
+         * @generated from field: resonance.gateway.v1.Ack ack = 13;
+         */
+        value: Ack;
+        case: "ack";
+      }
+    | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<WsPacket>) {
     super();
@@ -73,19 +85,31 @@ export class WsPacket extends Message<WsPacket> {
     { no: 13, name: "ack", kind: "message", T: Ack, oneof: "payload" },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WsPacket {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): WsPacket {
     return new WsPacket().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): WsPacket {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): WsPacket {
     return new WsPacket().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): WsPacket {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): WsPacket {
     return new WsPacket().fromJsonString(jsonString, options);
   }
 
-  static equals(a: WsPacket | PlainMessage<WsPacket> | undefined, b: WsPacket | PlainMessage<WsPacket> | undefined): boolean {
+  static equals(
+    a: WsPacket | PlainMessage<WsPacket> | undefined,
+    b: WsPacket | PlainMessage<WsPacket> | undefined,
+  ): boolean {
     return proto3.util.equals(WsPacket, a, b);
   }
 }
@@ -103,22 +127,33 @@ export class Pulse extends Message<Pulse> {
 
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.Pulse";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-  ]);
+  static readonly fields: FieldList = proto3.util.newFieldList(() => []);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Pulse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Pulse {
     return new Pulse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Pulse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Pulse {
     return new Pulse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Pulse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Pulse {
     return new Pulse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: Pulse | PlainMessage<Pulse> | undefined, b: Pulse | PlainMessage<Pulse> | undefined): boolean {
+  static equals(
+    a: Pulse | PlainMessage<Pulse> | undefined,
+    b: Pulse | PlainMessage<Pulse> | undefined,
+  ): boolean {
     return proto3.util.equals(Pulse, a, b);
   }
 }
@@ -183,26 +218,48 @@ export class ChatRequest extends Message<ChatRequest> {
   static readonly typeName = "resonance.gateway.v1.ChatRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 3, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "to_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 4,
+      name: "from_username",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 5,
+      name: "to_username",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 6, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChatRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ChatRequest {
     return new ChatRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ChatRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ChatRequest {
     return new ChatRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ChatRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ChatRequest {
     return new ChatRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: ChatRequest | PlainMessage<ChatRequest> | undefined, b: ChatRequest | PlainMessage<ChatRequest> | undefined): boolean {
+  static equals(
+    a: ChatRequest | PlainMessage<ChatRequest> | undefined,
+    b: ChatRequest | PlainMessage<ChatRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(ChatRequest, a, b);
   }
 }
@@ -280,26 +337,48 @@ export class PushMessage extends Message<PushMessage> {
     { no: 1, name: "msg_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 2, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 3, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "to_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 4,
+      name: "from_username",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 5,
+      name: "to_username",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 6, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 8, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PushMessage {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): PushMessage {
     return new PushMessage().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PushMessage {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): PushMessage {
     return new PushMessage().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PushMessage {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): PushMessage {
     return new PushMessage().fromJsonString(jsonString, options);
   }
 
-  static equals(a: PushMessage | PlainMessage<PushMessage> | undefined, b: PushMessage | PlainMessage<PushMessage> | undefined): boolean {
+  static equals(
+    a: PushMessage | PlainMessage<PushMessage> | undefined,
+    b: PushMessage | PlainMessage<PushMessage> | undefined,
+  ): boolean {
     return proto3.util.equals(PushMessage, a, b);
   }
 }
@@ -328,20 +407,31 @@ export class Ack extends Message<Ack> {
     { no: 1, name: "ref_seq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ack {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): Ack {
     return new Ack().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Ack {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): Ack {
     return new Ack().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Ack {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): Ack {
     return new Ack().fromJsonString(jsonString, options);
   }
 
-  static equals(a: Ack | PlainMessage<Ack> | undefined, b: Ack | PlainMessage<Ack> | undefined): boolean {
+  static equals(
+    a: Ack | PlainMessage<Ack> | undefined,
+    b: Ack | PlainMessage<Ack> | undefined,
+  ): boolean {
     return proto3.util.equals(Ack, a, b);
   }
 }
-

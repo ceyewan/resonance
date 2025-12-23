@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/im-sdk/model"
 	"github.com/ceyewan/resonance/im-sdk/repo"
-	commonv1 "github.com/ceyewan/resonance/im-api/gen/go/common/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // AuthService 认证服务
@@ -110,7 +110,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 	}
 
 	return &logicv1.ValidateTokenResponse{
-		Valid:    true,
+		Valid: true,
 		User: &commonv1.User{
 			Username:  user.Username,
 			Nickname:  user.Nickname,

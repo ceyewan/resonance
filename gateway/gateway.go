@@ -8,12 +8,12 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/api"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/protocol"
 	"github.com/ceyewan/resonance/gateway/push"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"

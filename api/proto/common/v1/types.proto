@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package resonance.common.v1;
 
-option go_package = "github.com/ceyewan/resonance/im-api/gen/go/common/v1;commonv1";
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
 
 message User {
   string username   = 1; // 唯一标识

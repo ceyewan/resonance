@@ -4,7 +4,7 @@ package resonance.logic.v1;
 
 import "common/v1/types.proto";
 
-option go_package = "github.com/ceyewan/resonance/im-api/gen/go/logic/v1;logicv1";
+option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
 // AuthService 处理用户认证相关的请求
 service AuthService {

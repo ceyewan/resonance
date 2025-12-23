@@ -7,10 +7,12 @@ Gateway 是 Resonance IM 系统的网关服务，负责处理客户端连接、�
 ### 核心职责
 
 **对外接口**:
+
 1. **RESTful API** (Gin + ConnectRPC) - 提供认证和会话管理接口
 2. **WebSocket 接口** - 使用 Protobuf 序列化的实时消息通道
 
 **对内功能**:
+
 1. **转发 RESTful API** - 通过 Logic RPC 客户端转发 HTTP 请求到 Logic 服务
 2. **上报用户状态** - 同步用户上下线状态到 Logic (GatewayOpsService)
 3. **推送消息到 Logic** - 将客户端消息通过双向流转发到 Logic (ChatService)
@@ -42,6 +44,7 @@ gateway/
 **端口**: 配置的 `http_addr` (默认 `:8080`)
 
 **服务**:
+
 - `AuthService` - 用户认证
   - `POST /resonance.gateway.v1.AuthService/Login` - 登录
   - `POST /resonance.gateway.v1.AuthService/Register` - 注册
@@ -65,12 +68,14 @@ gateway/
 **协议**: 使用 `WsPacket` (Protobuf) 封装所有消息
 
 **消息类型**:
+
 - `Pulse` - 心跳消息
 - `ChatRequest` - 客户端发送的聊天消息
 - `PushMessage` - 服务端推送的消息
 - `Ack` - 消息确认
 
 **流程**:
+
 1. 客户端携带 token 建立 WebSocket 连接
 2. Gateway 验证 token 并建立连接
 3. 客户端发送 `ChatRequest`，Gateway 转发到 Logic
@@ -81,6 +86,7 @@ gateway/
 **端口**: 配置的 `http_addr` (与 RESTful API 共用)
 
 **服务**: `PushService`
+
 - `POST /resonance.gateway.v1.PushService/PushMessage` - 双向流推送消息
 
 **调用方**: Task 服务
@@ -185,12 +191,14 @@ func main() {
 ### LogicClient
 
 封装与 Logic 服务的所有 RPC 调用，维护双向流连接：
+
 - `chatStream` - 转发客户端消息到 Logic
 - `gatewayOpsStream` - 同步用户状态到 Logic
 
 ### connection.Manager
 
 管理所有 WebSocket 连接：
+
 - 连接池管理 (username → Conn)
 - 上下线回调触发
 - 消息推送路由
@@ -198,12 +206,14 @@ func main() {
 ### protocol.Handler
 
 处理 WebSocket 消息分发：
+
 - 解析 `WsPacket`
 - 根据消息类型调用对应回调 (onPulse/onChat/onAck)
 
 ### push.Service
 
 实现 `PushService` 接口：
+
 - 接收 Task 的推送请求
 - 查找目标用户连接并转发消息
 - 返回推送结果
@@ -217,4 +227,3 @@ func main() {
 - [ ] 连接限流和防护
 - [ ] 监控指标上报
 - [ ] 单元测试和集成测试
-

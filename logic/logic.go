@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/im-sdk/repo"
 	"github.com/ceyewan/resonance/logic/service"
 )

@@ -7,6 +7,7 @@ Logic 是 Resonance IM 系统的核心业务逻辑服务，处理所有业务相
 ### 核心职责
 
 **业务处理流程**:
+
 1. **接收请求** - 通过 gRPC 接收来自 Gateway 的请求
 2. **业务处理** - 验证权限、查询数据、执行业务逻辑
 3. **消息发布** - 将需要异步处理的任务发布到 MQ
@@ -157,11 +158,13 @@ func main() {
 ### 1. AuthService (认证服务)
 
 **职责**:
+
 - 用户登录验证
 - 用户注册
 - Token 验证
 
 **RPC 方法**:
+
 - `Login(ctx, LoginRequest) → LoginResponse`
 - `Register(ctx, RegisterRequest) → RegisterResponse`
 - `ValidateToken(ctx, ValidateTokenRequest) → ValidateTokenResponse`
@@ -169,6 +172,7 @@ func main() {
 ### 2. SessionService (会话服务)
 
 **职责**:
+
 - 会话列表查询
 - 创建会话（单聊/群聊）
 - 历史消息拉取
@@ -176,6 +180,7 @@ func main() {
 - 用户搜索
 
 **RPC 方法**:
+
 - `GetSessionList(ctx, GetSessionListRequest) → GetSessionListResponse`
 - `CreateSession(ctx, CreateSessionRequest) → CreateSessionResponse`
 - `GetRecentMessages(ctx, GetRecentMessagesRequest) → GetRecentMessagesResponse`
@@ -185,6 +190,7 @@ func main() {
 ### 3. ChatService (聊天服务)
 
 **职责**:
+
 - 接收上行消息（双向流）
 - 验证会话权限
 - 生成消息 ID
@@ -192,9 +198,11 @@ func main() {
 - 发布 PushEvent 到 MQ
 
 **RPC 方法**:
+
 - `SendMessage(stream) → (stream)` - 双向流，持续接收和响应
 
 **消息处理流程**:
+
 ```go
 // 1. 验证会话成员
 members := sessionRepo.GetMembers(sessionID)
@@ -220,14 +228,17 @@ mqClient.Publish(ctx, "resonance.push.event.v1", eventData)
 ### 4. GatewayOpsService (网关操作服务)
 
 **职责**:
+
 - 同步用户上线状态
 - 同步用户下线状态
 - 维护用户路由信息（RouterRepo）
 
 **RPC 方法**:
+
 - `SyncState(stream) → (stream)` - 双向流，持续接收状态更新
 
 **状态同步流程**:
+
 ```go
 // 用户上线
 routerRepo.SetUserGateway(ctx, &model.Router{

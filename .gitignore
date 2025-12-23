@@ -32,7 +32,7 @@ go.work.sum
 # .vscode/
 
 # Buf build output
-im-api/gen
+api/gen
 
 genesis/
 

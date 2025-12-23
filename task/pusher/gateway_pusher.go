@@ -5,7 +5,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/registry"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 )
 
 // GatewayPusher Gateway 推送客户端

@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/ceyewan/genesis/clog"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/im-sdk/model"
 	"github.com/ceyewan/resonance/im-sdk/repo"
 )

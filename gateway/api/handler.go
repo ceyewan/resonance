@@ -5,9 +5,9 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/ceyewan/genesis/clog"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/im-api/gen/go/gateway/v1/gatewayv1connect"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/gin-gonic/gin"
 )
 

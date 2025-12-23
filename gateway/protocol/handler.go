@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ceyewan/genesis/clog"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,10 +29,10 @@ type Connection interface {
 
 // DefaultHandler 默认的消息处理器
 type DefaultHandler struct {
-	logger        clog.Logger
-	onPulse       func(ctx context.Context, conn Connection) error
-	onChat        func(ctx context.Context, conn Connection, chat *gatewayv1.ChatRequest) error
-	onAck         func(ctx context.Context, conn Connection, ack *gatewayv1.Ack) error
+	logger  clog.Logger
+	onPulse func(ctx context.Context, conn Connection) error
+	onChat  func(ctx context.Context, conn Connection, chat *gatewayv1.ChatRequest) error
+	onAck   func(ctx context.Context, conn Connection, ack *gatewayv1.Ack) error
 }
 
 // NewDefaultHandler 创建默认处理器
@@ -124,4 +124,3 @@ func CreateAckPacket(refSeq string) *gatewayv1.WsPacket {
 		},
 	}
 }
-

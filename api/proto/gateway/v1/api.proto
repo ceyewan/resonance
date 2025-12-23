@@ -5,7 +5,7 @@ package resonance.gateway.v1;
 import "common/v1/types.proto";
 import "gateway/v1/packet.proto";
 
-option go_package = "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1;gatewayv1";
+option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
 
 // AuthService 处理用户认证相关的请求
 service AuthService {

@@ -1,30 +1,30 @@
-import { create } from 'zustand'
+import { create } from "zustand";
 
 export interface SessionInfo {
-  sessionId: string
-  userId: string
-  userName: string
-  userAvatar?: string
-  isGroup: boolean
-  groupName?: string
-  groupAvatar?: string
-  unreadCount: number
-  lastMessage?: string
-  lastMessageTime?: number
+  sessionId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  isGroup: boolean;
+  groupName?: string;
+  groupAvatar?: string;
+  unreadCount: number;
+  lastMessage?: string;
+  lastMessageTime?: number;
 }
 
 interface SessionState {
-  sessions: SessionInfo[]
-  currentSession: SessionInfo | null
-  isLoading: boolean
+  sessions: SessionInfo[];
+  currentSession: SessionInfo | null;
+  isLoading: boolean;
 
-  setSessions: (sessions: SessionInfo[]) => void
-  setCurrentSession: (session: SessionInfo | null) => void
-  addSession: (session: SessionInfo) => void
-  updateSession: (sessionId: string, updates: Partial<SessionInfo>) => void
-  removeSession: (sessionId: string) => void
-  setIsLoading: (loading: boolean) => void
-  reset: () => void
+  setSessions: (sessions: SessionInfo[]) => void;
+  setCurrentSession: (session: SessionInfo | null) => void;
+  addSession: (session: SessionInfo) => void;
+  updateSession: (sessionId: string, updates: Partial<SessionInfo>) => void;
+  removeSession: (sessionId: string) => void;
+  setIsLoading: (loading: boolean) => void;
+  reset: () => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
@@ -44,17 +44,19 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   addSession: (session) =>
     set((state) => {
-      const exists = state.sessions.find((s) => s.sessionId === session.sessionId)
-      if (exists) return state
+      const exists = state.sessions.find(
+        (s) => s.sessionId === session.sessionId,
+      );
+      if (exists) return state;
       return {
         sessions: [session, ...state.sessions],
-      }
+      };
     }),
 
   updateSession: (sessionId, updates) =>
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId ? { ...s, ...updates } : s
+        s.sessionId === sessionId ? { ...s, ...updates } : s,
       ),
       currentSession:
         state.currentSession?.sessionId === sessionId
@@ -66,7 +68,9 @@ export const useSessionStore = create<SessionState>((set) => ({
     set((state) => ({
       sessions: state.sessions.filter((s) => s.sessionId !== sessionId),
       currentSession:
-        state.currentSession?.sessionId === sessionId ? null : state.currentSession,
+        state.currentSession?.sessionId === sessionId
+          ? null
+          : state.currentSession,
     })),
 
   setIsLoading: (loading) =>
@@ -80,4 +84,4 @@ export const useSessionStore = create<SessionState>((set) => ({
       currentSession: null,
       isLoading: false,
     }),
-}))
+}));

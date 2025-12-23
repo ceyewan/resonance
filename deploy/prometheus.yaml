@@ -2,7 +2,7 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
   external_labels:
-    monitor: 'resonance-monitor'
+    monitor: "resonance-monitor"
 
 alerting:
   alertmanagers:
@@ -13,30 +13,30 @@ rule_files: []
 
 scrape_configs:
   # Gateway 服务
-  - job_name: 'resonance-gateway'
+  - job_name: "resonance-gateway"
     static_configs:
-      - targets: ['localhost:9091']
-    metrics_path: '/metrics'
+      - targets: ["localhost:9091"]
+    metrics_path: "/metrics"
     scrape_interval: 5s
     scrape_timeout: 5s
 
   # Logic 服务
-  - job_name: 'resonance-logic'
+  - job_name: "resonance-logic"
     static_configs:
-      - targets: ['localhost:9092']
-    metrics_path: '/metrics'
+      - targets: ["localhost:9092"]
+    metrics_path: "/metrics"
     scrape_interval: 5s
     scrape_timeout: 5s
 
   # Task 服务
-  - job_name: 'resonance-task'
+  - job_name: "resonance-task"
     static_configs:
-      - targets: ['localhost:9093']
-    metrics_path: '/metrics'
+      - targets: ["localhost:9093"]
+    metrics_path: "/metrics"
     scrape_interval: 5s
     scrape_timeout: 5s
 
   # Prometheus 自身
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]

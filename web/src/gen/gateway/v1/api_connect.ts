@@ -3,7 +3,24 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateSessionRequest, CreateSessionResponse, GetContactListRequest, GetContactListResponse, GetRecentMessagesRequest, GetRecentMessagesResponse, GetSessionListRequest, GetSessionListResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, RegisterRequest, RegisterResponse, SearchUserRequest, SearchUserResponse } from "./api_pb.js";
+import {
+  CreateSessionRequest,
+  CreateSessionResponse,
+  GetContactListRequest,
+  GetContactListResponse,
+  GetRecentMessagesRequest,
+  GetRecentMessagesResponse,
+  GetSessionListRequest,
+  GetSessionListResponse,
+  LoginRequest,
+  LoginResponse,
+  LogoutRequest,
+  LogoutResponse,
+  RegisterRequest,
+  RegisterResponse,
+  SearchUserRequest,
+  SearchUserResponse,
+} from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -47,7 +64,7 @@ export const AuthService = {
       O: LogoutResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
 
 /**
@@ -113,6 +130,5 @@ export const SessionService = {
       O: SearchUserResponse,
       kind: MethodKind.Unary,
     },
-  }
+  },
 } as const;
-

@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/ceyewan/genesis/clog"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/gorilla/websocket"
 )
 

@@ -3,7 +3,14 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
+import type {
+  BinaryReadOptions,
+  FieldList,
+  JsonReadOptions,
+  JsonValue,
+  PartialMessage,
+  PlainMessage,
+} from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 import { User } from "../../common/v1/types_pb.js";
 import { PushMessage } from "./packet_pb.js";
@@ -34,19 +41,31 @@ export class LoginRequest extends Message<LoginRequest> {
     { no: 2, name: "password", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LoginRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): LoginRequest {
     return new LoginRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): LoginRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): LoginRequest {
     return new LoginRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): LoginRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): LoginRequest {
     return new LoginRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: LoginRequest | PlainMessage<LoginRequest> | undefined, b: LoginRequest | PlainMessage<LoginRequest> | undefined): boolean {
+  static equals(
+    a: LoginRequest | PlainMessage<LoginRequest> | undefined,
+    b: LoginRequest | PlainMessage<LoginRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(LoginRequest, a, b);
   }
 }
@@ -73,23 +92,40 @@ export class LoginResponse extends Message<LoginResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.LoginResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 2, name: "user", kind: "message", T: User },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LoginResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): LoginResponse {
     return new LoginResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): LoginResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): LoginResponse {
     return new LoginResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): LoginResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): LoginResponse {
     return new LoginResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: LoginResponse | PlainMessage<LoginResponse> | undefined, b: LoginResponse | PlainMessage<LoginResponse> | undefined): boolean {
+  static equals(
+    a: LoginResponse | PlainMessage<LoginResponse> | undefined,
+    b: LoginResponse | PlainMessage<LoginResponse> | undefined,
+  ): boolean {
     return proto3.util.equals(LoginResponse, a, b);
   }
 }
@@ -126,19 +162,31 @@ export class RegisterRequest extends Message<RegisterRequest> {
     { no: 3, name: "nickname", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegisterRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RegisterRequest {
     return new RegisterRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegisterRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterRequest {
     return new RegisterRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegisterRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterRequest {
     return new RegisterRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: RegisterRequest | PlainMessage<RegisterRequest> | undefined, b: RegisterRequest | PlainMessage<RegisterRequest> | undefined): boolean {
+  static equals(
+    a: RegisterRequest | PlainMessage<RegisterRequest> | undefined,
+    b: RegisterRequest | PlainMessage<RegisterRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(RegisterRequest, a, b);
   }
 }
@@ -165,23 +213,40 @@ export class RegisterResponse extends Message<RegisterResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.RegisterResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 2, name: "user", kind: "message", T: User },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): RegisterResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): RegisterResponse {
     return new RegisterResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): RegisterResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterResponse {
     return new RegisterResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): RegisterResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): RegisterResponse {
     return new RegisterResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: RegisterResponse | PlainMessage<RegisterResponse> | undefined, b: RegisterResponse | PlainMessage<RegisterResponse> | undefined): boolean {
+  static equals(
+    a: RegisterResponse | PlainMessage<RegisterResponse> | undefined,
+    b: RegisterResponse | PlainMessage<RegisterResponse> | undefined,
+  ): boolean {
     return proto3.util.equals(RegisterResponse, a, b);
   }
 }
@@ -203,22 +268,39 @@ export class LogoutRequest extends Message<LogoutRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.LogoutRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LogoutRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): LogoutRequest {
     return new LogoutRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): LogoutRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): LogoutRequest {
     return new LogoutRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): LogoutRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): LogoutRequest {
     return new LogoutRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: LogoutRequest | PlainMessage<LogoutRequest> | undefined, b: LogoutRequest | PlainMessage<LogoutRequest> | undefined): boolean {
+  static equals(
+    a: LogoutRequest | PlainMessage<LogoutRequest> | undefined,
+    b: LogoutRequest | PlainMessage<LogoutRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(LogoutRequest, a, b);
   }
 }
@@ -243,19 +325,31 @@ export class LogoutResponse extends Message<LogoutResponse> {
     { no: 1, name: "success", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LogoutResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): LogoutResponse {
     return new LogoutResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): LogoutResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): LogoutResponse {
     return new LogoutResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): LogoutResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): LogoutResponse {
     return new LogoutResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: LogoutResponse | PlainMessage<LogoutResponse> | undefined, b: LogoutResponse | PlainMessage<LogoutResponse> | undefined): boolean {
+  static equals(
+    a: LogoutResponse | PlainMessage<LogoutResponse> | undefined,
+    b: LogoutResponse | PlainMessage<LogoutResponse> | undefined,
+  ): boolean {
     return proto3.util.equals(LogoutResponse, a, b);
   }
 }
@@ -277,22 +371,39 @@ export class GetSessionListRequest extends Message<GetSessionListRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetSessionListRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetSessionListRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetSessionListRequest {
     return new GetSessionListRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetSessionListRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetSessionListRequest {
     return new GetSessionListRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetSessionListRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetSessionListRequest {
     return new GetSessionListRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetSessionListRequest | PlainMessage<GetSessionListRequest> | undefined, b: GetSessionListRequest | PlainMessage<GetSessionListRequest> | undefined): boolean {
+  static equals(
+    a: GetSessionListRequest | PlainMessage<GetSessionListRequest> | undefined,
+    b: GetSessionListRequest | PlainMessage<GetSessionListRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(GetSessionListRequest, a, b);
   }
 }
@@ -348,24 +459,46 @@ export class SessionInfo extends Message<SessionInfo> {
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "type", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 4, name: "avatar_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "unread_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 6, name: "last_read_seq", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    {
+      no: 5,
+      name: "unread_count",
+      kind: "scalar",
+      T: 3 /* ScalarType.INT64 */,
+    },
+    {
+      no: 6,
+      name: "last_read_seq",
+      kind: "scalar",
+      T: 3 /* ScalarType.INT64 */,
+    },
     { no: 7, name: "last_message", kind: "message", T: PushMessage },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SessionInfo {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SessionInfo {
     return new SessionInfo().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SessionInfo {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SessionInfo {
     return new SessionInfo().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SessionInfo {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SessionInfo {
     return new SessionInfo().fromJsonString(jsonString, options);
   }
 
-  static equals(a: SessionInfo | PlainMessage<SessionInfo> | undefined, b: SessionInfo | PlainMessage<SessionInfo> | undefined): boolean {
+  static equals(
+    a: SessionInfo | PlainMessage<SessionInfo> | undefined,
+    b: SessionInfo | PlainMessage<SessionInfo> | undefined,
+  ): boolean {
     return proto3.util.equals(SessionInfo, a, b);
   }
 }
@@ -387,22 +520,46 @@ export class GetSessionListResponse extends Message<GetSessionListResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetSessionListResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "sessions", kind: "message", T: SessionInfo, repeated: true },
+    {
+      no: 1,
+      name: "sessions",
+      kind: "message",
+      T: SessionInfo,
+      repeated: true,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetSessionListResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetSessionListResponse {
     return new GetSessionListResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetSessionListResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetSessionListResponse {
     return new GetSessionListResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetSessionListResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetSessionListResponse {
     return new GetSessionListResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetSessionListResponse | PlainMessage<GetSessionListResponse> | undefined, b: GetSessionListResponse | PlainMessage<GetSessionListResponse> | undefined): boolean {
+  static equals(
+    a:
+      | GetSessionListResponse
+      | PlainMessage<GetSessionListResponse>
+      | undefined,
+    b:
+      | GetSessionListResponse
+      | PlainMessage<GetSessionListResponse>
+      | undefined,
+  ): boolean {
     return proto3.util.equals(GetSessionListResponse, a, b);
   }
 }
@@ -439,25 +596,48 @@ export class CreateSessionRequest extends Message<CreateSessionRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.CreateSessionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "members", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
+    {
+      no: 2,
+      name: "members",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+      repeated: true,
+    },
     { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 4, name: "type", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateSessionRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateSessionRequest {
     return new CreateSessionRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateSessionRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateSessionRequest {
     return new CreateSessionRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateSessionRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateSessionRequest {
     return new CreateSessionRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: CreateSessionRequest | PlainMessage<CreateSessionRequest> | undefined, b: CreateSessionRequest | PlainMessage<CreateSessionRequest> | undefined): boolean {
+  static equals(
+    a: CreateSessionRequest | PlainMessage<CreateSessionRequest> | undefined,
+    b: CreateSessionRequest | PlainMessage<CreateSessionRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(CreateSessionRequest, a, b);
   }
 }
@@ -482,19 +662,31 @@ export class CreateSessionResponse extends Message<CreateSessionResponse> {
     { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateSessionResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): CreateSessionResponse {
     return new CreateSessionResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): CreateSessionResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): CreateSessionResponse {
     return new CreateSessionResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): CreateSessionResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): CreateSessionResponse {
     return new CreateSessionResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: CreateSessionResponse | PlainMessage<CreateSessionResponse> | undefined, b: CreateSessionResponse | PlainMessage<CreateSessionResponse> | undefined): boolean {
+  static equals(
+    a: CreateSessionResponse | PlainMessage<CreateSessionResponse> | undefined,
+    b: CreateSessionResponse | PlainMessage<CreateSessionResponse> | undefined,
+  ): boolean {
     return proto3.util.equals(CreateSessionResponse, a, b);
   }
 }
@@ -531,25 +723,48 @@ export class GetRecentMessagesRequest extends Message<GetRecentMessagesRequest> 
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetRecentMessagesRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 3, name: "limit", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 4, name: "before_seq", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetRecentMessagesRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetRecentMessagesRequest {
     return new GetRecentMessagesRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetRecentMessagesRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetRecentMessagesRequest {
     return new GetRecentMessagesRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetRecentMessagesRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetRecentMessagesRequest {
     return new GetRecentMessagesRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetRecentMessagesRequest | PlainMessage<GetRecentMessagesRequest> | undefined, b: GetRecentMessagesRequest | PlainMessage<GetRecentMessagesRequest> | undefined): boolean {
+  static equals(
+    a:
+      | GetRecentMessagesRequest
+      | PlainMessage<GetRecentMessagesRequest>
+      | undefined,
+    b:
+      | GetRecentMessagesRequest
+      | PlainMessage<GetRecentMessagesRequest>
+      | undefined,
+  ): boolean {
     return proto3.util.equals(GetRecentMessagesRequest, a, b);
   }
 }
@@ -571,22 +786,46 @@ export class GetRecentMessagesResponse extends Message<GetRecentMessagesResponse
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetRecentMessagesResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "messages", kind: "message", T: PushMessage, repeated: true },
+    {
+      no: 1,
+      name: "messages",
+      kind: "message",
+      T: PushMessage,
+      repeated: true,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetRecentMessagesResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetRecentMessagesResponse {
     return new GetRecentMessagesResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetRecentMessagesResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetRecentMessagesResponse {
     return new GetRecentMessagesResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetRecentMessagesResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetRecentMessagesResponse {
     return new GetRecentMessagesResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetRecentMessagesResponse | PlainMessage<GetRecentMessagesResponse> | undefined, b: GetRecentMessagesResponse | PlainMessage<GetRecentMessagesResponse> | undefined): boolean {
+  static equals(
+    a:
+      | GetRecentMessagesResponse
+      | PlainMessage<GetRecentMessagesResponse>
+      | undefined,
+    b:
+      | GetRecentMessagesResponse
+      | PlainMessage<GetRecentMessagesResponse>
+      | undefined,
+  ): boolean {
     return proto3.util.equals(GetRecentMessagesResponse, a, b);
   }
 }
@@ -608,22 +847,39 @@ export class GetContactListRequest extends Message<GetContactListRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetContactListRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactListRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetContactListRequest {
     return new GetContactListRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactListRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactListRequest {
     return new GetContactListRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactListRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactListRequest {
     return new GetContactListRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetContactListRequest | PlainMessage<GetContactListRequest> | undefined, b: GetContactListRequest | PlainMessage<GetContactListRequest> | undefined): boolean {
+  static equals(
+    a: GetContactListRequest | PlainMessage<GetContactListRequest> | undefined,
+    b: GetContactListRequest | PlainMessage<GetContactListRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(GetContactListRequest, a, b);
   }
 }
@@ -660,19 +916,31 @@ export class ContactInfo extends Message<ContactInfo> {
     { no: 3, name: "avatar_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ContactInfo {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): ContactInfo {
     return new ContactInfo().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ContactInfo {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): ContactInfo {
     return new ContactInfo().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ContactInfo {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): ContactInfo {
     return new ContactInfo().fromJsonString(jsonString, options);
   }
 
-  static equals(a: ContactInfo | PlainMessage<ContactInfo> | undefined, b: ContactInfo | PlainMessage<ContactInfo> | undefined): boolean {
+  static equals(
+    a: ContactInfo | PlainMessage<ContactInfo> | undefined,
+    b: ContactInfo | PlainMessage<ContactInfo> | undefined,
+  ): boolean {
     return proto3.util.equals(ContactInfo, a, b);
   }
 }
@@ -694,22 +962,46 @@ export class GetContactListResponse extends Message<GetContactListResponse> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetContactListResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "contacts", kind: "message", T: ContactInfo, repeated: true },
+    {
+      no: 1,
+      name: "contacts",
+      kind: "message",
+      T: ContactInfo,
+      repeated: true,
+    },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactListResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): GetContactListResponse {
     return new GetContactListResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetContactListResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactListResponse {
     return new GetContactListResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetContactListResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): GetContactListResponse {
     return new GetContactListResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetContactListResponse | PlainMessage<GetContactListResponse> | undefined, b: GetContactListResponse | PlainMessage<GetContactListResponse> | undefined): boolean {
+  static equals(
+    a:
+      | GetContactListResponse
+      | PlainMessage<GetContactListResponse>
+      | undefined,
+    b:
+      | GetContactListResponse
+      | PlainMessage<GetContactListResponse>
+      | undefined,
+  ): boolean {
     return proto3.util.equals(GetContactListResponse, a, b);
   }
 }
@@ -736,23 +1028,40 @@ export class SearchUserRequest extends Message<SearchUserRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.SearchUserRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    {
+      no: 1,
+      name: "access_token",
+      kind: "scalar",
+      T: 9 /* ScalarType.STRING */,
+    },
     { no: 2, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchUserRequest {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SearchUserRequest {
     return new SearchUserRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchUserRequest {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SearchUserRequest {
     return new SearchUserRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchUserRequest {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SearchUserRequest {
     return new SearchUserRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: SearchUserRequest | PlainMessage<SearchUserRequest> | undefined, b: SearchUserRequest | PlainMessage<SearchUserRequest> | undefined): boolean {
+  static equals(
+    a: SearchUserRequest | PlainMessage<SearchUserRequest> | undefined,
+    b: SearchUserRequest | PlainMessage<SearchUserRequest> | undefined,
+  ): boolean {
     return proto3.util.equals(SearchUserRequest, a, b);
   }
 }
@@ -777,20 +1086,31 @@ export class SearchUserResponse extends Message<SearchUserResponse> {
     { no: 1, name: "users", kind: "message", T: ContactInfo, repeated: true },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchUserResponse {
+  static fromBinary(
+    bytes: Uint8Array,
+    options?: Partial<BinaryReadOptions>,
+  ): SearchUserResponse {
     return new SearchUserResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SearchUserResponse {
+  static fromJson(
+    jsonValue: JsonValue,
+    options?: Partial<JsonReadOptions>,
+  ): SearchUserResponse {
     return new SearchUserResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SearchUserResponse {
+  static fromJsonString(
+    jsonString: string,
+    options?: Partial<JsonReadOptions>,
+  ): SearchUserResponse {
     return new SearchUserResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: SearchUserResponse | PlainMessage<SearchUserResponse> | undefined, b: SearchUserResponse | PlainMessage<SearchUserResponse> | undefined): boolean {
+  static equals(
+    a: SearchUserResponse | PlainMessage<SearchUserResponse> | undefined,
+    b: SearchUserResponse | PlainMessage<SearchUserResponse> | undefined,
+  ): boolean {
     return proto3.util.equals(SearchUserResponse, a, b);
   }
 }
-

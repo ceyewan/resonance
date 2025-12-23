@@ -7,11 +7,11 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	"google.golang.org/protobuf/proto"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
-	mqv1 "github.com/ceyewan/resonance/im-api/gen/go/mq/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/im-sdk/model"
 	"github.com/ceyewan/resonance/im-sdk/repo"
+	"google.golang.org/protobuf/proto"
 )
 
 // ChatService 聊天服务
@@ -20,7 +20,7 @@ type ChatService struct {
 	sessionRepo repo.SessionRepo
 	messageRepo repo.MessageRepo
 	routerRepo  repo.RouterRepo
-	idGen idgen.Int64Generator
+	idGen       idgen.Int64Generator
 	mqClient    mq.Client
 	logger      clog.Logger
 }

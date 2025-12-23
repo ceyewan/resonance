@@ -5,13 +5,13 @@ export
 # 1. 生成代码 (使用 buf)
 gen:
 	@echo "🔧 Generating contract code..."
-	@cd im-api && rm -rf gen
+	@cd api && rm -rf gen
 	@echo "  > Generating Go base + gRPC (All proto files)..."
-	@cd im-api && buf generate --template buf.gen.go.yaml
+	@cd api && buf generate --template buf.gen.go.yaml
 	@echo "  > Generating ConnectRPC (Only gateway/v1/api.proto)..."
-	@cd im-api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
+	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
 	@echo "  > Generating TypeScript (gateway/v1/api.proto, gateway/v1/packet.proto, common)..."
-	@cd im-api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ Code generation complete!"
 	@echo ""
 	@echo "📦 Generated structure:"

@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/im-sdk/model"
 	"github.com/ceyewan/resonance/im-sdk/repo"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // SessionService 会话服务
@@ -79,13 +79,13 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		}
 
 		sessionInfos = append(sessionInfos, &logicv1.SessionInfo{
-			SessionId:    sess.SessionID,
-			Name:         sess.Name,
-			Type:         int32(sess.Type),
-			AvatarUrl:    "",
-			UnreadCount:  unread,
-			LastReadSeq:  userSess.LastReadSeq,
-			LastMessage:  lastMsg,
+			SessionId:   sess.SessionID,
+			Name:        sess.Name,
+			Type:        int32(sess.Type),
+			AvatarUrl:   "",
+			UnreadCount: unread,
+			LastReadSeq: userSess.LastReadSeq,
+			LastMessage: lastMsg,
 		})
 	}
 

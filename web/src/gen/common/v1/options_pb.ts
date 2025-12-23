@@ -11,8 +11,7 @@ import { MessageOptions, proto3 } from "@bufbuild/protobuf";
  * @generated from extension: string default_topic = 50001;
  */
 export const default_topic = proto3.makeExtension<MessageOptions, string>(
-  "resonance.common.v1.default_topic", 
-  MessageOptions, 
+  "resonance.common.v1.default_topic",
+  MessageOptions,
   { no: 50001, kind: "scalar", T: 9 /* ScalarType.STRING */ },
 );
-

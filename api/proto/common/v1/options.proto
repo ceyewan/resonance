@@ -4,7 +4,7 @@ package resonance.common.v1;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/ceyewan/resonance/im-api/gen/go/common/v1;commonv1";
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
 
 extend google.protobuf.MessageOptions {
   // 定义一个名为 default_topic 的自定义选项，用于绑定 MQ Topic

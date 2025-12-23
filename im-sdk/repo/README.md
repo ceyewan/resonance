@@ -21,12 +21,12 @@ im-sdk/repo/
 
 ## 📋 Repository 接口总览
 
-| Repository | 存储介质 | 核心功能 | 主要场景 |
-|-----------|---------|---------|---------|
-| [RouterRepo](#routerrepo-实现) | Redis | 用户网关映射、批量路由 | 消息推送负载均衡 |
-| [UserRepo](#userrepo-实现) | MySQL | 用户 CRUD、搜索 | 用户管理、好友查找 |
-| [SessionRepo](#sessionrepo-实现) | MySQL | 会话管理、成员管理、联系人列表 | 单聊/群聊、会话列表 |
-| [MessageRepo](#messagerepo-实现) | MySQL | 消息存储、信箱写扩散、历史查询 | 消息收发、离线推送 |
+| Repository                       | 存储介质 | 核心功能                       | 主要场景            |
+| -------------------------------- | -------- | ------------------------------ | ------------------- |
+| [RouterRepo](#routerrepo-实现)   | Redis    | 用户网关映射、批量路由         | 消息推送负载均衡    |
+| [UserRepo](#userrepo-实现)       | MySQL    | 用户 CRUD、搜索                | 用户管理、好友查找  |
+| [SessionRepo](#sessionrepo-实现) | MySQL    | 会话管理、成员管理、联系人列表 | 单聊/群聊、会话列表 |
+| [MessageRepo](#messagerepo-实现) | MySQL    | 消息存储、信箱写扩散、历史查询 | 消息收发、离线推送  |
 
 ---
 
@@ -332,6 +332,7 @@ WHERE session_id = ? AND max_seq_id < ?
 ### 联系人列表查询
 
 GetContactList 使用原生 SQL 三表联查：
+
 ```sql
 SELECT DISTINCT u.*
 FROM t_user u
@@ -577,23 +578,25 @@ go test ./im-sdk/repo/... -short
 ### 数据清理机制
 
 **MySQL 数据清理**：
+
 - 测试前和测试后自动调用 `cleanupTestData()`
 - 使用 `DELETE FROM` 按依赖顺序清空表（兼容性优先）
 - 清理顺序：t_inbox → t_message_content → t_session_member → t_session → t_user
 
 **Redis 数据清理**：
+
 - RouterRepo 测试后自动调用 `cleanupRedisData()`
 - 使用 `KEYS resonance:*` + `DEL` 批量删除测试数据
 - 统一使用 DB1，避免干扰生产数据（DB0）
 
 ### 测试覆盖
 
-| Repository | CRUD | 并发 | 错误处理 | 边界条件 |
-|-----------|-----|------|---------|---------|
-| RouterRepo | ✅ | ✅ (10×100) | ✅ | ✅ |
-| UserRepo | ✅ | ✅ (10×10) | ✅ | ✅ |
-| SessionRepo | ✅ | ✅ (10×5) | ✅ | ✅ |
-| MessageRepo | ✅ | ✅ (10×10) | ✅ | ✅ |
+| Repository  | CRUD | 并发        | 错误处理 | 边界条件 |
+| ----------- | ---- | ----------- | -------- | -------- |
+| RouterRepo  | ✅   | ✅ (10×100) | ✅       | ✅       |
+| UserRepo    | ✅   | ✅ (10×10)  | ✅       | ✅       |
+| SessionRepo | ✅   | ✅ (10×5)   | ✅       | ✅       |
+| MessageRepo | ✅   | ✅ (10×10)  | ✅       | ✅       |
 
 ---
 

@@ -1,19 +1,15 @@
 {
-    // 1. 核心路径配置：让插件能找到 import "common/v1/types.proto"
-    "protobuf.includes": [
-        "${workspaceFolder}/im-api/proto"
-    ],
+  // 1. 核心路径配置：让插件能找到 import "common/v1/types.proto"
+  "protobuf.includes": ["${workspaceFolder}/api/proto"],
 
-    // 2. 启用对 Buf 的支持：插件会自动关联你的 buf.yaml
-    "protobuf.externalLinter.linter": "buf",
-    "protobuf.externalLinter.enabled": true,
+  // 2. 启用对 Buf 的支持：插件会自动关联你的 buf.yaml
+  "protobuf.externalLinter.linter": "buf",
+  "protobuf.externalLinter.enabled": true,
 
-    // 3. 格式化配置 (可选)
-    "protobuf.formatOnSave": true,
-    "protobuf.formatter.alignFields": true,
+  // 3. 格式化配置 (可选)
+  "protobuf.formatOnSave": true,
+  "protobuf.formatter.alignFields": true,
 
-    // 4. 这里的配置是为了让插件在执行“编译”命令时也生效
-    "protobuf.protoc.options": [
-        "--proto_path=${workspaceFolder}/im-api/proto"
-    ]
+  // 4. 这里的配置是为了让插件在执行“编译”命令时也生效
+  "protobuf.protoc.options": ["--proto_path=${workspaceFolder}/api/proto"]
 }

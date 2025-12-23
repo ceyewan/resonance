@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
-	logicv1 "github.com/ceyewan/resonance/im-api/gen/go/logic/v1"
 )
 
 // LogicClient 封装与 Logic 服务的 gRPC 调用

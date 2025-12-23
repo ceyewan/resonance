@@ -7,7 +7,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/xerrors"
-	mqv1 "github.com/ceyewan/resonance/im-api/gen/go/mq/v1"
+	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/task/dispatcher"
 	"google.golang.org/protobuf/proto"
 )

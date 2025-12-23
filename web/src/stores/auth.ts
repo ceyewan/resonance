@@ -1,26 +1,26 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 export interface User {
-  id: string
-  username: string
-  avatar?: string
-  email?: string
+  id: string;
+  username: string;
+  avatar?: string;
+  email?: string;
 }
 
 interface AuthState {
-  user: User | null
-  accessToken: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
-  error: string | null
+  user: User | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
 
-  setUser: (user: User | null) => void
-  setAccessToken: (token: string | null) => void
-  setIsLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  logout: () => void
-  reset: () => void
+  setUser: (user: User | null) => void;
+  setAccessToken: (token: string | null) => void;
+  setIsLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  logout: () => void;
+  reset: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -70,7 +70,7 @@ export const useAuthStore = create<AuthState>()(
         }),
     }),
     {
-      name: 'auth-storage',
-    }
-  )
-)
+      name: "auth-storage",
+    },
+  ),
+);

@@ -5,8 +5,8 @@ import (
 	"io"
 
 	"github.com/ceyewan/genesis/clog"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/connection"
-	gatewayv1 "github.com/ceyewan/resonance/im-api/gen/go/gateway/v1"
 	"google.golang.org/grpc"
 )
 
