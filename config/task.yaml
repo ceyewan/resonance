@@ -1,0 +1,55 @@
+# Task 服务配置文件
+
+log:
+  level: debug
+  format: console
+  output: stdout
+
+mysql:
+  name: task-mysql
+  host: 127.0.0.1
+  port: 3306
+  username: root
+  password: ""
+  database: resonance
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 20
+  conn_max_lifetime: 1h
+
+redis:
+  name: task-redis
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+  pool_size: 20
+  min_idle_conns: 10
+
+nats:
+  name: task-nats
+  url: nats://127.0.0.1:4222
+  max_reconnect: 10
+  reconnect_delay: 1s
+
+etcd:
+  name: task-etcd
+  endpoints:
+    - 127.0.0.1:2379
+  dial_timeout: 5s
+  username: ""
+  password: ""
+
+registry:
+  namespace: /resonance/services
+  default_ttl: 30s
+  enable_cache: true
+  cache_expiration: 10s
+
+gateway_service_name: gateway-service
+
+consumer:
+  topic: resonance.push.event.v1
+  queue_group: task-service
+  worker_count: 10
+  max_retry: 3
+  retry_interval: 5

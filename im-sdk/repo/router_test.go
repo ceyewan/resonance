@@ -15,42 +15,19 @@ import (
 
 // TestRouterRepo_BasicOperations 测试基本的 CRUD 操作
 func TestRouterRepo_BasicOperations(t *testing.T) {
-	// 如果没有 Redis 实例，跳过测试
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// 创建测试用的 logger
-	logger, err := clog.New(&clog.Config{
-		Level:  "debug",
-		Format: "console",
-		Output: "stdout",
-	})
-	require.NoError(t, err)
+	redisConn := getTestRedis(t)
+	logger := getTestLogger(t)
 
-	// 创建 Redis 连接器
-	redisConfig := &connector.RedisConfig{
-		BaseConfig: connector.BaseConfig{Name: "test-redis"}, // 必须设置 Name
-		Addr:       "localhost:6379",
-		Password:   "",
-		DB:         1, // 使用测试数据库
-		PoolSize:   5,
-	}
-	redisConfig.SetDefaults() // 设置默认值
-
-	redisConn, err := connector.NewRedis(redisConfig, connector.WithLogger(logger))
-	require.NoError(t, err)
-	defer redisConn.Close()
-
-	// 连接到 Redis
-	ctx := context.Background()
-	err = redisConn.Connect(ctx)
-	require.NoError(t, err)
-
-	// 创建 RouterRepo 实例
 	routerRepo, err := NewRouterRepo(redisConn, WithLogger(logger))
 	require.NoError(t, err)
 	defer routerRepo.Close()
+	defer cleanupRedisData(t, redisConn) // 清理数据
+
+	ctx := context.Background()
 
 	// 测试数据
 	testRouter := &model.Router{
@@ -197,25 +174,13 @@ func TestRouterRepo_ErrorHandling(t *testing.T) {
 
 // TestRouterRepo_Validation 测试输入验证
 func TestRouterRepo_Validation(t *testing.T) {
-	// 创建 logger
-	logger, err := clog.New(&clog.Config{
-		Level:  "debug",
-		Format: "console",
-		Output: "stdout",
-	})
-	require.NoError(t, err)
-
-	// 创建有效的 Redis 连接器
-	redisConn, err := connector.NewRedis(&connector.RedisConfig{
-		BaseConfig: connector.BaseConfig{Name: "validation-redis"},
-		Addr:       "localhost:6379",
-		DB:         3, // 使用不同的数据库
-	}, connector.WithLogger(logger))
-	require.NoError(t, err)
+	redisConn := getTestRedis(t)
+	logger := getTestLogger(t)
 
 	routerRepo, err := NewRouterRepo(redisConn, WithLogger(logger))
 	require.NoError(t, err)
 	defer routerRepo.Close()
+	defer cleanupRedisData(t, redisConn)
 
 	ctx := context.Background()
 
@@ -263,35 +228,15 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 		t.Skip("Skipping concurrency test in short mode")
 	}
 
-	// 创建测试用的 logger
-	logger, err := clog.New(&clog.Config{
-		Level:  "debug",
-		Format: "console",
-		Output: "stdout",
-	})
-	require.NoError(t, err)
+	redisConn := getTestRedis(t)
+	logger := getTestLogger(t)
 
-	// 创建 Redis 连接器
-	redisConfig := &connector.RedisConfig{
-		BaseConfig: connector.BaseConfig{Name: "concurrency-redis"}, // 必须设置 Name
-		Addr:       "localhost:6379",
-		Password:   "",
-		DB:         2, // 使用另一个测试数据库
-		PoolSize:   20,
-	}
-	redisConfig.SetDefaults() // 设置默认值
-
-	redisConn, err := connector.NewRedis(redisConfig, connector.WithLogger(logger))
-	require.NoError(t, err)
-	defer redisConn.Close()
-
-	ctx := context.Background()
-	err = redisConn.Connect(ctx)
-	require.NoError(t, err)
-
-	routerRepo, err := NewRouterRepo(redisConn)
+	routerRepo, err := NewRouterRepo(redisConn, WithLogger(logger))
 	require.NoError(t, err)
 	defer routerRepo.Close()
+	defer cleanupRedisData(t, redisConn)
+
+	ctx := context.Background()
 
 	// 并发测试参数
 	const numGoroutines = 10

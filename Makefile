@@ -1,4 +1,6 @@
-.PHONY: gen tidy build-gateway build-logic build-task up down logs ps network-create
+.PHONY: gen tidy build-gateway build-logic build-task web-install web-dev web-build up down logs ps network-create
+include .env
+export
 
 # 1. 生成代码 (使用 buf)
 gen:
@@ -8,8 +10,8 @@ gen:
 	@cd im-api && buf generate --template buf.gen.go.yaml
 	@echo "  > Generating ConnectRPC (Only gateway/v1/api.proto)..."
 	@cd im-api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
-	@echo "  > Generating TypeScript (Only gateway/v1/api.proto and common)..."
-	@cd im-api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/common
+	@echo "  > Generating TypeScript (gateway/v1/api.proto, gateway/v1/packet.proto, common)..."
+	@cd im-api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ Code generation complete!"
 	@echo ""
 	@echo "📦 Generated structure:"
@@ -17,6 +19,7 @@ gen:
 	@echo "  - gateway/v1/push.proto   → gRPC only (Task → Gateway)"
 	@echo "  - logic/v1/*.proto        → gRPC only (服务间调用)"
 	@echo "  - common/*.proto          → TypeScript (共享类型)"
+	@echo "  - gateway/v1/packet.proto → TypeScript (WebSocket 消息格式)"
 
 # 2. 整理依赖
 tidy:
@@ -46,8 +49,38 @@ run-logic:
 run-task:
 	@go run main.go -module task
 
-# 5. 一键完成所有生成和依赖整理
-all: gen tidy
+# 5. Web 前端相关命令
+
+# 安装前端依赖
+web-install:
+	@echo "📦 Installing web dependencies..."
+	@cd web && npm install
+	@echo "✅ Web dependencies installed!"
+
+# 启动前端开发服务器（自动从 .env 读取 Gateway 地址）
+web-dev: gen
+	@echo "🚀 Starting web development server..."
+	@echo "   Local: http://$(WEB_HOST):$(WEB_PORT)"
+	@echo "   API:   http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT)"
+	@cd web && \
+	VITE_API_BASE_URL=http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT) \
+	VITE_WS_HOST=$(GATEWAY_HTTP_HOST) \
+	VITE_WS_PORT=$(GATEWAY_HTTP_PORT) \
+	npm run dev -- --host $(WEB_HOST) --port $(WEB_PORT)
+
+# 构建前端生产版本（自动从 .env 读取 Gateway 地址）
+web-build: gen
+	@echo "🏗️ Building web for production..."
+	@echo "   API: http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT)"
+	@cd web && \
+	VITE_API_BASE_URL=http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT) \
+	VITE_WS_HOST=$(GATEWAY_HTTP_HOST) \
+	VITE_WS_PORT=$(GATEWAY_HTTP_PORT) \
+	npm run build
+	@echo "✅ Web build complete! Output: web/$(WEB_BUILD_DIR)"
+
+# 6. 一键完成所有生成和依赖整理
+all: gen tidy web-install
 
 # ============================================================================
 # Docker Compose 指令 (基础设施)

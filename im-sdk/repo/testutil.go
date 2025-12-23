@@ -17,12 +17,14 @@ import (
 )
 
 var (
-	globalDB         db.DB
-	globalDBOnce     sync.Once
-	globalLogger     clog.Logger
-	envLoaded        bool
-	envLoadedOnce    sync.Once
-	globalMysqlConn  connector.MySQLConnector // 保存连接引用以便稍后关闭
+	globalDB        db.DB
+	globalDBOnce    sync.Once
+	globalLogger    clog.Logger
+	envLoaded       bool
+	envLoadedOnce   sync.Once
+	globalMysqlConn connector.MySQLConnector // 保存连接引用以便稍后关闭
+	globalRedisConn connector.RedisConnector // Redis 连接管理
+	globalRedisOnce sync.Once                // Redis 连接单例
 )
 
 // loadTestEnv 加载测试环境变量
@@ -58,6 +60,60 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// setupTestRedis 初始化全局测试 Redis 连接
+// 使用 sync.Once 确保只创建一次
+func setupTestRedis(t *testing.T) connector.RedisConnector {
+	globalRedisOnce.Do(func() {
+		redisConfig := &connector.RedisConfig{
+			BaseConfig: connector.BaseConfig{
+				Name:           "test-redis",
+				ConnectTimeout: 5 * time.Second,
+			},
+			Addr:         getEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379"),
+			Password:     getEnvOrDefault("REDIS_PASSWORD", ""),
+			DB:           getEnvIntOrDefault("REDIS_DB", 1),
+			PoolSize:     20, // 用户确认：提升连接池以支持并发测试
+			MinIdleConns: 10,
+			DialTimeout:  5 * time.Second,
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 3 * time.Second,
+		}
+		redisConfig.SetDefaults()
+
+		var err error
+		globalRedisConn, err = connector.NewRedis(redisConfig, connector.WithLogger(globalLogger))
+		if err != nil {
+			t.Logf("创建 Redis 连接器失败: %v", err)
+			return
+		}
+
+		ctx := context.Background()
+		if err := globalRedisConn.Connect(ctx); err != nil {
+			t.Logf("连接 Redis 失败: %v", err)
+			globalRedisConn = nil
+			return
+		}
+
+		t.Log("✓ 全局 Redis 连接初始化成功 (DB=1, PoolSize=20)")
+	})
+
+	if globalRedisConn == nil {
+		t.Skip("Redis 连接不可用，跳过测试")
+		return nil
+	}
+
+	return globalRedisConn
+}
+
+// getTestRedis 获取 Redis 连接的便捷函数
+func getTestRedis(t *testing.T) connector.RedisConnector {
+	conn := setupTestRedis(t)
+	if conn == nil {
+		t.Skip("Redis 连接不可用，跳过测试")
+	}
+	return conn
 }
 
 // autoMigrateTables 自动迁移表结构
@@ -123,8 +179,8 @@ func setupTestDB(t *testing.T) db.DB {
 			Password:        password,
 			Database:        getEnvOrDefault("MYSQL_DATABASE", "resonance"),
 			Charset:         "utf8mb4",
-			MaxIdleConns:    5,
-			MaxOpenConns:    10,
+			MaxIdleConns:    10, // 5 -> 10
+			MaxOpenConns:    20, // 10 -> 20（用户确认：提升连接池以支持并发测试）
 			ConnMaxLifetime: 1 * time.Hour,
 		}, connector.WithLogger(globalLogger))
 		if err != nil {
@@ -186,7 +242,7 @@ func getTestLogger(t *testing.T) clog.Logger {
 }
 
 // cleanupTestData 清理测试数据，为下一次测试做准备
-// 注意：这个函数不删除表结构，只删除数据
+// 注意：这个函数不删除表结构，只删除数据，并重置自增ID
 func cleanupTestData(t *testing.T, database db.DB) {
 	ctx := context.Background()
 	gormDB := database.DB(ctx)
@@ -201,19 +257,37 @@ func cleanupTestData(t *testing.T, database db.DB) {
 	}
 
 	for _, table := range tables {
-		if err := gormDB.Exec(fmt.Sprintf("DELETE FROM %s WHERE 1=1", table)).Error; err != nil {
+		// 删除数据
+		if err := gormDB.Exec(fmt.Sprintf("DELETE FROM %s", table)).Error; err != nil {
 			t.Logf("警告：清理表 %s 失败: %v", table, err)
 		}
+		// 重置自增ID
+		resetAutoIncrement(t, database, table)
 	}
 }
 
-// truncateTable 快速清空表（比 DELETE 更快）
-func truncateTable(t *testing.T, database db.DB, tableName string) {
-	ctx := context.Background()
-	gormDB := database.DB(ctx)
+// cleanupRedisData 清理 Redis 测试数据
+func cleanupRedisData(t *testing.T, redisConn connector.RedisConnector) {
+	if redisConn == nil {
+		return
+	}
 
-	if err := gormDB.Exec(fmt.Sprintf("TRUNCATE TABLE %s", tableName)).Error; err != nil {
-		t.Logf("警告：清空表 %s 失败: %v", tableName, err)
+	ctx := context.Background()
+	client := redisConn.GetClient()
+
+	// 清理 resonance 命名空间下的所有 key
+	keys, err := client.Keys(ctx, "resonance:*").Result()
+	if err != nil {
+		t.Logf("警告：获取 Redis key 列表失败: %v", err)
+		return
+	}
+
+	if len(keys) > 0 {
+		if err := client.Del(ctx, keys...).Err(); err != nil {
+			t.Logf("警告：清理 Redis 数据失败: %v", err)
+		} else {
+			t.Logf("✓ 清理了 %d 个 Redis key", len(keys))
+		}
 	}
 }
 
@@ -248,35 +322,12 @@ func setupTestContext(t *testing.T) (db.DB, func()) {
 	return database, cleanupFunc
 }
 
-// countRows 统计表中的行数（用于断言）
-func countRows(t *testing.T, database db.DB, tableName string) int {
-	ctx := context.Background()
-	var count int64
-	gormDB := database.DB(ctx)
-
-	if err := gormDB.Table(tableName).Count(&count).Error; err != nil {
-		t.Logf("警告：统计表 %s 行数失败: %v", tableName, err)
-		return -1
-	}
-	return int(count)
-}
-
-// execRaw 执行原始SQL语句
-func execRaw(t *testing.T, database db.DB, sql string, args ...interface{}) {
-	ctx := context.Background()
-	gormDB := database.DB(ctx)
-
-	if err := gormDB.Exec(sql, args...).Error; err != nil {
-		t.Logf("警告：执行SQL失败: %v, SQL: %s", err, sql)
-	}
-}
-
 // TestMain 是包级别的测试入口，用于管理全局资源
 func TestMain(m *testing.M) {
 	// 运行测试
 	code := m.Run()
 
-	// 测试结束后清理全局资源
+	// 清理全局资源（按相反顺序）
 	if globalDB != nil {
 		globalDB.Close()
 		globalDB = nil
@@ -284,6 +335,10 @@ func TestMain(m *testing.M) {
 	if globalMysqlConn != nil {
 		globalMysqlConn.Close()
 		globalMysqlConn = nil
+	}
+	if globalRedisConn != nil {
+		globalRedisConn.Close()
+		globalRedisConn = nil
 	}
 
 	// 退出

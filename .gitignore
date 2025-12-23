@@ -35,3 +35,5 @@ go.work.sum
 im-api/gen
 
 genesis/
+
+**/node_modules/
