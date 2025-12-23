@@ -1,0 +1,46 @@
+# ============================================================================
+# Gateway 服务配置
+# ============================================================================
+
+service:
+  name: gateway-service          # 服务名称
+  http_addr: :8080               # HTTP 服务地址
+  ws_addr: :8081                 # WebSocket 服务地址
+
+# Logic 服务地址（开发环境使用 localhost，生产环境通过服务发现）
+logic_addr: localhost:9090
+
+# 基础组件配置
+log:
+  level: info
+  format: json
+  output: stdout
+
+redis:
+  name: gateway-redis
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+  pool_size: 20
+  min_idle_conns: 10
+
+nats:
+  name: gateway-nats
+  url: nats://127.0.0.1:4222
+  max_reconnect: 10
+  reconnect_delay: 1s
+
+# 服务注册发现配置
+registry:
+  namespace: /resonance/services
+  default_ttl: 30s
+  enable_cache: true
+  cache_expiration: 10s
+
+# WebSocket 配置
+ws_config:
+  read_buffer_size: 1024
+  write_buffer_size: 1024
+  max_message_size: 1048576  # 1MB
+  ping_interval: 30           # 秒
+  pong_timeout: 60            # 秒

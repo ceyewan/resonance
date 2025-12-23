@@ -1,16 +1,22 @@
 package gateway
 
 import (
+	"time"
+
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/registry"
 )
 
 // Config Gateway 服务配置
 type Config struct {
 	// 服务基础配置
-	GatewayID string `mapstructure:"gateway_id"` // 网关实例ID
-	HTTPAddr  string `mapstructure:"http_addr"`  // HTTP 服务地址
-	WSAddr    string `mapstructure:"ws_addr"`    // WebSocket 服务地址
+	Service struct {
+		Name     string `mapstructure:"name"`      // 服务名称
+		HTTPAddr string `mapstructure:"http_addr"` // HTTP 服务地址
+		WSAddr   string `mapstructure:"ws_addr"`   // WebSocket 服务地址
+	} `mapstructure:"service"`
 
 	// Logic 服务地址
 	LogicAddr string `mapstructure:"logic_addr"` // Logic gRPC 服务地址
@@ -20,8 +26,45 @@ type Config struct {
 	Redis connector.RedisConfig `mapstructure:"redis"` // Redis 配置
 	NATS  connector.NATSConfig  `mapstructure:"nats"`  // NATS 配置
 
+	// 服务注册发现配置
+	Registry RegistryConfig `mapstructure:"registry"`
+
 	// WebSocket 配置
 	WSConfig WSConfig `mapstructure:"ws_config"`
+}
+
+// RegistryConfig 服务注册配置
+type RegistryConfig struct {
+	Namespace       string        `mapstructure:"namespace"`        // 服务命名空间
+	DefaultTTL      time.Duration `mapstructure:"default_ttl"`      // 默认租约
+	EnableCache     bool          `mapstructure:"enable_cache"`     // 是否启用缓存
+	CacheExpiration time.Duration `mapstructure:"cache_expiration"` // 缓存过期时间
+}
+
+// ToRegistryConfig 转换为 registry.Config
+func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
+	cfg := &registry.Config{
+		Namespace:   c.Namespace,
+		DefaultTTL:  c.DefaultTTL,
+		EnableCache: c.EnableCache,
+	}
+
+	if c.CacheExpiration > 0 {
+		cfg.CacheExpiration = c.CacheExpiration
+	}
+
+	// 设置默认值
+	if cfg.Namespace == "" {
+		cfg.Namespace = "/resonance/services"
+	}
+	if cfg.DefaultTTL == 0 {
+		cfg.DefaultTTL = 30 * time.Second
+	}
+	if cfg.CacheExpiration == 0 {
+		cfg.CacheExpiration = 10 * time.Second
+	}
+
+	return cfg
 }
 
 // WSConfig WebSocket 相关配置
@@ -33,24 +76,28 @@ type WSConfig struct {
 	PongTimeout     int `mapstructure:"pong_timeout"`      // 心跳超时（秒）
 }
 
-// DefaultConfig 返回默认配置
-func DefaultConfig() *Config {
-	return &Config{
-		GatewayID: "gateway-1",
-		HTTPAddr:  ":8080",
-		WSAddr:    ":8081",
-		LogicAddr: "localhost:9090",
-		Log: clog.Config{
-			Level:  "debug",
-			Format: "console",
-			Output: "stdout",
-		},
-		WSConfig: WSConfig{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			MaxMessageSize:  1024 * 1024, // 1MB
-			PingInterval:    30,
-			PongTimeout:     60,
-		},
+// Load 创建并加载 Gateway 配置（无参数）
+// 配置加载顺序：环境变量 > .env > gateway.{env}.yaml > gateway.yaml
+func Load() (*Config, error) {
+	loader := config.MustLoad(
+		config.WithConfigName("gateway"),
+		config.WithConfigPaths("./configs"),
+		config.WithEnvPrefix("RESONANCE"),
+	)
+
+	var cfg Config
+	if err := loader.Unmarshal(&cfg); err != nil {
+		return nil, err
 	}
+
+	return &cfg, nil
+}
+
+// MustLoad 创建并加载配置，出错时 panic
+func MustLoad() *Config {
+	cfg, err := Load()
+	if err != nil {
+		panic(err)
+	}
+	return cfg
 }

@@ -1,0 +1,21 @@
+# ============================================================================
+# Gateway 生产环境配置覆盖
+# ============================================================================
+
+log:
+  level: info
+  format: json
+
+# 生产环境通过服务发现获取 Logic 地址
+logic_addr: ""
+
+# 生产环境使用容器网络
+redis:
+  addr: resonance-redis:6379
+
+nats:
+  url: nats://resonance-nats:4222
+
+registry:
+  namespace: /resonance/services
+  enable_cache: true

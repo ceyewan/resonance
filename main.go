@@ -1,59 +1,81 @@
-/**
- * Created by lock
- * Date: 2019-08-09
- * Time: 10:56
- */
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
-)
 
-// Placeholder for module implementations
-type Module interface {
-	Run()
-}
+	"github.com/ceyewan/resonance/gateway"
+	"github.com/ceyewan/resonance/logic"
+	"github.com/ceyewan/resonance/task"
+)
 
 func main() {
 	var module string
-	flag.StringVar(&module, "module", "", "assign run module")
+	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task")
 	flag.Parse()
-	fmt.Printf("start run %s module\n", module)
 
-	switch module {
-	case "logic":
-		fmt.Println("Logic module starting...")
-		// logic.New().Run()
-	case "gateway":
-		fmt.Println("Gateway module starting...")
-		// gateway.New().Run()
-	case "task":
-		fmt.Println("Task module starting...")
-		// task.New().Run()
-	default:
-		fmt.Println("exiting, module param error! Available: gateway, logic, task")
-		return
+	if module == "" {
+		fmt.Println("error: module param required! Available: gateway, logic, task")
+		os.Exit(1)
 	}
 
-	fmt.Printf("run %s module done!\n", module)
+	fmt.Printf("🚀 Starting Resonance %s service...\n", module)
 
+	// 各个组件负责自己的配置加载
+	switch module {
+	case "gateway":
+		g, err := gateway.New()
+		if err != nil {
+			fmt.Printf("❌ Failed to start gateway: %v\n", err)
+			os.Exit(1)
+		}
+		defer g.Close()
+		if err := g.Run(); err != nil {
+			fmt.Printf("❌ Gateway error: %v\n", err)
+			os.Exit(1)
+		}
+		waitForSignal()
+
+	case "logic":
+		l, err := logic.New()
+		if err != nil {
+			fmt.Printf("❌ Failed to start logic: %v\n", err)
+			os.Exit(1)
+		}
+		defer l.Close()
+		if err := l.Run(); err != nil {
+			fmt.Printf("❌ Logic error: %v\n", err)
+			os.Exit(1)
+		}
+		waitForSignal()
+
+	case "task":
+		t, err := task.New()
+		if err != nil {
+			fmt.Printf("❌ Failed to start task: %v\n", err)
+			os.Exit(1)
+		}
+		defer t.Close()
+		if err := t.Run(); err != nil {
+			fmt.Printf("❌ Task error: %v\n", err)
+			os.Exit(1)
+		}
+		waitForSignal()
+
+	default:
+		fmt.Printf("❌ Unknown module: %s\n", module)
+		fmt.Println("Available modules: gateway, logic, task")
+		os.Exit(1)
+	}
+}
+
+func waitForSignal() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	<-quit
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	select {
-	case s := <-quit:
-		fmt.Printf("Received signal: %v\n", s)
-	case <-ctx.Done():
-		fmt.Println("Context cancelled")
-	}
-
-	fmt.Println("Server exiting")
+	fmt.Println("👋 Service exiting")
 }

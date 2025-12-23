@@ -50,8 +50,18 @@ type Logic struct {
 	cancel     context.CancelFunc
 }
 
-// New 创建 Logic 实例
-func New(cfg *Config) (*Logic, error) {
+// New 创建 Logic 实例（无参数，内部自己加载 config）
+func New() (*Logic, error) {
+	cfg, err := Load()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewWithConfig(cfg)
+}
+
+// NewWithConfig 创建 Logic 实例（带 config 参数）
+func NewWithConfig(cfg *Config) (*Logic, error) {
 	// 初始化日志
 	logger, err := clog.New(&cfg.Log)
 	if err != nil {
@@ -165,7 +175,7 @@ func (l *Logic) SetRepositories(
 
 // Run 启动 Logic 服务
 func (l *Logic) Run() error {
-	l.logger.Info("starting logic service", clog.String("addr", l.config.ServerAddr))
+	l.logger.Info("starting logic service", clog.String("addr", l.config.Service.ServerAddr))
 
 	// 创建 gRPC 服务器
 	l.grpcServer = grpc.NewServer()
@@ -180,13 +190,13 @@ func (l *Logic) Run() error {
 	reflection.Register(l.grpcServer)
 
 	// 创建监听器
-	listener, err := net.Listen("tcp", l.config.ServerAddr)
+	listener, err := net.Listen("tcp", l.config.Service.ServerAddr)
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to listen on %s", l.config.ServerAddr)
+		return xerrors.Wrapf(err, "failed to listen on %s", l.config.Service.ServerAddr)
 	}
 	l.listener = listener
 
-	l.logger.Info("logic service started", clog.String("addr", l.config.ServerAddr))
+	l.logger.Info("logic service started", clog.String("addr", l.config.Service.ServerAddr))
 
 	// 启动 gRPC 服务器
 	if err := l.grpcServer.Serve(listener); err != nil {

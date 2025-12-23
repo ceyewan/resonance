@@ -27,7 +27,7 @@ type Task struct {
 	natsConn  connector.NATSConnector
 	etcdConn  connector.EtcdConnector
 	registry  registry.Registry
-	mqClient   mq.Client
+	mqClient  mq.Client
 
 	// 仓储层 (需要外部注入实现)
 	routerRepo  repo.RouterRepo
@@ -42,8 +42,18 @@ type Task struct {
 	cancel context.CancelFunc
 }
 
-// New 创建 Task 实例
-func New(cfg *Config) (*Task, error) {
+// New 创建 Task 实例（无参数，内部自己加载 config）
+func New() (*Task, error) {
+	cfg, err := Load()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewWithConfig(cfg)
+}
+
+// NewWithConfig 创建 Task 实例（带 config 参数）
+func NewWithConfig(cfg *Config) (*Task, error) {
 	// 初始化日志
 	logger, err := clog.New(&cfg.Log)
 	if err != nil {

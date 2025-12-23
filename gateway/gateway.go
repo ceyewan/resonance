@@ -34,8 +34,18 @@ type Gateway struct {
 	cancel      context.CancelFunc
 }
 
-// New 创建 Gateway 实例
-func New(cfg *Config) (*Gateway, error) {
+// New 创建 Gateway 实例（无参数，内部自己加载 config）
+func New() (*Gateway, error) {
+	cfg, err := Load()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewWithConfig(cfg)
+}
+
+// NewWithConfig 创建 Gateway 实例（带 config 参数）
+func NewWithConfig(cfg *Config) (*Gateway, error) {
 	// 初始化日志
 	logger, err := clog.New(&cfg.Log)
 	if err != nil {
@@ -53,7 +63,7 @@ func New(cfg *Config) (*Gateway, error) {
 
 	// 初始化 Logic 客户端
 	var logicClient *client.LogicClient
-	logicClient, err = client.New(cfg.LogicAddr, cfg.GatewayID, logger)
+	logicClient, err = client.New(cfg.LogicAddr, cfg.Service.Name, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logic client: %w", err)
 	}
@@ -88,9 +98,9 @@ func New(cfg *Config) (*Gateway, error) {
 // Run 启动 Gateway 服务
 func (g *Gateway) Run() error {
 	g.logger.Info("starting gateway service",
-		clog.String("gateway_id", g.config.GatewayID),
-		clog.String("http_addr", g.config.HTTPAddr),
-		clog.String("ws_addr", g.config.WSAddr),
+		clog.String("gateway_name", g.config.Service.Name),
+		clog.String("http_addr", g.config.Service.HTTPAddr),
+		clog.String("ws_addr", g.config.Service.WSAddr),
 		clog.String("grpc_addr", ":9091"))
 
 	// 启动 gRPC 服务（PushService）
@@ -136,17 +146,17 @@ func (g *Gateway) startHTTPServer() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":       "ok",
-			"gateway_id":   g.config.GatewayID,
+			"gateway_name": g.config.Service.Name,
 			"online_count": g.connMgr.OnlineCount(),
 		})
 	})
 
 	g.httpServer = &http.Server{
-		Addr:    g.config.HTTPAddr,
+		Addr:    g.config.Service.HTTPAddr,
 		Handler: router,
 	}
 
-	g.logger.Info("http server started", clog.String("addr", g.config.HTTPAddr))
+	g.logger.Info("http server started", clog.String("addr", g.config.Service.HTTPAddr))
 	if err := g.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		g.logger.Error("http server error", clog.Error(err))
 	}
@@ -160,11 +170,11 @@ func (g *Gateway) startWSServer() {
 	mux.HandleFunc("/ws", g.handleWebSocket)
 
 	g.wsServer = &http.Server{
-		Addr:    g.config.WSAddr,
+		Addr:    g.config.Service.WSAddr,
 		Handler: mux,
 	}
 
-	g.logger.Info("websocket server started", clog.String("addr", g.config.WSAddr))
+	g.logger.Info("websocket server started", clog.String("addr", g.config.Service.WSAddr))
 	if err := g.wsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		g.logger.Error("websocket server error", clog.Error(err))
 	}

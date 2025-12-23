@@ -1,0 +1,59 @@
+# ============================================================================
+# Logic 服务配置
+# ============================================================================
+
+service:
+  name: logic-service
+  server_addr: :9090             # gRPC 服务地址
+
+# 基础组件配置
+log:
+  level: info
+  format: json
+  output: stdout
+
+mysql:
+  name: logic-mysql
+  host: 127.0.0.1
+  port: 3306
+  username: resonance
+  password: resonance123
+  database: resonance
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 20
+  conn_max_lifetime: 1h
+
+redis:
+  name: logic-redis
+  addr: 127.0.0.1:6379
+  password: ""
+  db: 0
+  pool_size: 20
+  min_idle_conns: 10
+
+nats:
+  name: logic-nats
+  url: nats://127.0.0.1:4222
+  max_reconnect: 10
+  reconnect_delay: 1s
+
+etcd:
+  name: logic-etcd
+  endpoints:
+    - 127.0.0.1:2379
+  dial_timeout: 5s
+  username: ""
+  password: ""
+
+# 服务注册发现配置
+registry:
+  namespace: /resonance/services
+  default_ttl: 30s
+  enable_cache: true
+  cache_expiration: 10s
+
+# ID 生成器配置（Snowflake）
+idgen:
+  worker_id: 1
+  datacenter_id: 1
