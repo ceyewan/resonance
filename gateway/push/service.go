@@ -8,7 +8,11 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
+
+// Context 中 trace_id 的键（与 client.traceIDKey 保持一致）
+const traceIDKey = "trace_id"
 
 // Service 实现 PushService，接收 Task 服务的推送请求
 type Service struct {
@@ -106,4 +110,55 @@ func (s *Service) pushToUser(ctx context.Context, req *gatewayv1.PushMessageRequ
 // RegisterGRPC 注册 gRPC 服务
 func (s *Service) RegisterGRPC(server *grpc.Server) {
 	gatewayv1.RegisterPushServiceServer(server, s)
+}
+
+// traceContextServerInterceptor 服务端一元拦截器
+// 从 metadata 提取 trace_id 并注入到 Context
+func traceContextServerInterceptor() grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			if values := md.Get("trace-id"); len(values) > 0 {
+				ctx = context.WithValue(ctx, traceIDKey, values[0])
+			}
+		}
+		return handler(ctx, req)
+	}
+}
+
+// traceContextStreamServerInterceptor 服务端流式拦截器
+// 从 metadata 提取 trace_id 并注入到 Context
+func traceContextStreamServerInterceptor() grpc.StreamServerInterceptor {
+	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+		ctx := ss.Context()
+		md, ok := metadata.FromIncomingContext(ctx)
+		if ok {
+			if values := md.Get("trace-id"); len(values) > 0 {
+				ctx = context.WithValue(ctx, traceIDKey, values[0])
+				// 包装 ServerStream 以替换 Context
+				ss = &tracedServerStream{ServerStream: ss, ctx: ctx}
+			}
+		}
+		return handler(srv, ss)
+	}
+}
+
+// tracedServerStream 包装 ServerStream 以替换 Context
+type tracedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (t *tracedServerStream) Context() context.Context {
+	return t.ctx
+}
+
+// TraceUnaryServerInterceptor 导出一元拦截器
+func TraceUnaryServerInterceptor() grpc.UnaryServerInterceptor {
+	return traceContextServerInterceptor()
+}
+
+// TraceStreamServerInterceptor 导出流式拦截器
+func TraceStreamServerInterceptor() grpc.StreamServerInterceptor {
+	return traceContextStreamServerInterceptor()
 }

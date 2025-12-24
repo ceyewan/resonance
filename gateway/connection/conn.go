@@ -15,6 +15,7 @@ import (
 // Conn 表示一个 WebSocket 连接
 type Conn struct {
 	username   string
+	traceID    string // 会话级 trace_id
 	conn       *websocket.Conn
 	send       chan *gatewayv1.WsPacket
 	logger     clog.Logger
@@ -33,6 +34,7 @@ type Conn struct {
 // NewConn 创建新的连接
 func NewConn(
 	username string,
+	traceID string,
 	conn *websocket.Conn,
 	logger clog.Logger,
 	handler protocol.Handler,
@@ -41,8 +43,13 @@ func NewConn(
 	pongTimeout time.Duration,
 ) *Conn {
 	ctx, cancel := context.WithCancel(context.Background())
+	// 将 trace_id 注入到 Context
+	if traceID != "" {
+		ctx = context.WithValue(ctx, "trace_id", traceID)
+	}
 	return &Conn{
 		username:       username,
+		traceID:        traceID,
 		conn:           conn,
 		send:           make(chan *gatewayv1.WsPacket, 256),
 		logger:         logger,

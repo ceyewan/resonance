@@ -8,91 +8,124 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
-	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/idgen"
+	"github.com/ceyewan/genesis/registry"
 	"github.com/ceyewan/resonance/gateway/api"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/connection"
-	"github.com/ceyewan/resonance/gateway/protocol"
 	"github.com/ceyewan/resonance/gateway/push"
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
 )
 
 // Gateway 网关服务
 type Gateway struct {
-	config      *Config
-	logger      clog.Logger
-	logicClient *client.LogicClient
-	connMgr     *connection.Manager
-	apiHandler  *api.Handler
-	pushService *push.Service
-	httpServer  *http.Server
-	wsServer    *http.Server
-	grpcServer  *grpc.Server
-	ctx         context.Context
-	cancel      context.CancelFunc
+	config       *Config                 // 配置
+	logger       clog.Logger             // 日志
+	logicClient  *client.Client          // Logic RPC 客户端
+	connMgr      *connection.Manager     // 连接管理器
+	apiHandler   *api.Handler            // API Handler
+	middlewares  *api.Middlewares        // HTTP 中间件
+	wsHandler    *api.WebSocket          // WebSocket 处理器
+	pushService  *push.Service           // Push RPC 服务端
+	httpServer   *http.Server            // HTTP 服务器
+	wsServer     *http.Server            // WebSocket 服务器
+	grpcServer   *grpc.Server            // gRPC 服务器
+	etcdConn     connector.EtcdConnector  // Etcd 连接
+	registry     registry.Registry        // 服务注册
+	serviceID    string                  // 服务实例 ID
+	ctx          context.Context         // 上下文
+	cancel       context.CancelFunc       // 取消函数
 }
 
-// New 创建 Gateway 实例（无参数，内部自己加载 config）
+// New 创建 Gateway 实例
 func New() (*Gateway, error) {
+	// 加载配置
 	cfg, err := Load()
 	if err != nil {
 		return nil, err
 	}
 
-	return NewWithConfig(cfg)
-}
-
-// NewWithConfig 创建 Gateway 实例（带 config 参数）
-func NewWithConfig(cfg *Config) (*Gateway, error) {
-	// 初始化日志
-	logger, err := clog.New(&cfg.Log)
+	// 初始化日志（启用标准 Context 提取，自动输出 trace_id）
+	logger, err := clog.New(&cfg.Log, clog.WithStandardContext())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
 	}
 
+	// 初始化 ID 生成器（UUID v7，时间有序适合链路追踪）
+	idgen, err := idgen.NewUUID(&idgen.UUIDConfig{Version: "v7"}, idgen.WithLogger(logger))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create idgen: %w", err)
+	}
+
+	// 创建上下文
 	ctx, cancel := context.WithCancel(context.Background())
 
-	g := &Gateway{
-		config: cfg,
-		logger: logger,
-		ctx:    ctx,
-		cancel: cancel,
+	// 初始化 Etcd 连接
+	etcdConn, err := connector.NewEtcd(&cfg.Etcd, connector.WithLogger(logger))
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create etcd connection: %w", err)
 	}
 
-	// 初始化 Logic 客户端
-	var logicClient *client.LogicClient
-	logicClient, err = client.New(cfg.LogicAddr, cfg.Service.Name, logger)
+	// 连接 Etcd
+	if err := etcdConn.Connect(ctx); err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to connect etcd: %w", err)
+	}
+
+	// 初始化服务注册
+	reg, err := registry.New(etcdConn, cfg.Registry.ToRegistryConfig(), registry.WithLogger(logger))
 	if err != nil {
+		cancel()
+		etcdConn.Close()
+		return nil, fmt.Errorf("failed to create registry: %w", err)
+	}
+
+	// 初始化 Logic 客户端（使用服务发现）
+	logicClient, err := client.NewClient(cfg.LogicAddr, cfg.Service.Name, logger, reg)
+	if err != nil {
+		cancel()
+		reg.Close()
+		etcdConn.Close()
 		return nil, fmt.Errorf("failed to create logic client: %w", err)
 	}
-	g.logicClient = logicClient
 
-	// 初始化 WebSocket 升级器
-	upgrader := &websocket.Upgrader{
-		ReadBufferSize:  cfg.WSConfig.ReadBufferSize,
-		WriteBufferSize: cfg.WSConfig.WriteBufferSize,
-		CheckOrigin: func(r *http.Request) bool {
-			return true // 生产环境需要严格检查
-		},
+	// 初始化 API Handler 和中间件（传入 idgen）
+	apiHandler, middlewares, err := api.NewHandlerWithMiddlewares(logicClient, logger, idgen)
+	if err != nil {
+		cancel()
+		logicClient.Close()
+		reg.Close()
+		etcdConn.Close()
+		return nil, fmt.Errorf("failed to create api handler: %w", err)
 	}
 
-	// 初始化连接管理器
-	g.connMgr = connection.NewManager(
-		logger,
-		upgrader,
-		g.onUserConnect,
-		g.onUserDisconnect,
-	)
-
-	// 初始化 API Handler
-	g.apiHandler = api.NewHandler(logicClient, logger)
+	// 初始化 WebSocket 组件（包含连接管理器和上下线上报）
+	wsHandler, connMgr := api.NewWebSocketComponents(logicClient, logger, idgen)
 
 	// 初始化 Push Service
-	g.pushService = push.NewService(g.connMgr, logger)
+	pushService := push.NewService(connMgr, logger)
 
-	return g, nil
+	// 服务实例 ID（使用固定编号 001）
+	serviceID := cfg.Service.Name + "-001"
+
+	return &Gateway{
+		config:      cfg,
+		logger:      logger,
+		logicClient: logicClient,
+		connMgr:     connMgr,
+		apiHandler:  apiHandler,
+		middlewares: middlewares,
+		wsHandler:   wsHandler,
+		pushService: pushService,
+		etcdConn:    etcdConn,
+		registry:    reg,
+		serviceID:   serviceID,
+		ctx:         ctx,
+		cancel:      cancel,
+	}, nil
 }
 
 // Run 启动 Gateway 服务
@@ -103,26 +136,75 @@ func (g *Gateway) Run() error {
 		clog.String("ws_addr", g.config.Service.WSAddr),
 		clog.String("grpc_addr", ":9091"))
 
-	// 启动 gRPC 服务（PushService）
+	// 启动服务
 	go g.startGRPCServer()
-
-	// 启动 HTTP 服务（RESTful API）
 	go g.startHTTPServer()
-
-	// 启动 WebSocket 服务
 	go g.startWSServer()
+
+	// 注册服务
+	if err := g.registerService(); err != nil {
+		g.logger.Error("failed to register service", clog.Error(err))
+		return err
+	}
 
 	return nil
 }
 
+// registerService 注册服务到 Etcd
+func (g *Gateway) registerService() error {
+	// 获取本机 IP（这里简化处理，使用配置中的地址）
+	// TODO: 生产环境应该自动获取本机 IP
+
+	service := &registry.ServiceInstance{
+		ID:      g.serviceID,
+		Name:    g.config.Service.Name,
+		Version: "1.0.0",
+		Endpoints: []string{
+			"grpc://" + getLocalIP() + ":9091", // Push 服务 gRPC 地址
+		},
+		Metadata: map[string]string{
+			"http_addr": g.config.Service.HTTPAddr,
+			"ws_addr":   g.config.Service.WSAddr,
+		},
+	}
+
+	if err := g.registry.Register(g.ctx, service, g.config.Registry.DefaultTTL); err != nil {
+		return fmt.Errorf("register service failed: %w", err)
+	}
+
+	g.logger.Info("service registered",
+		clog.String("service_id", g.serviceID),
+		clog.String("service_name", g.config.Service.Name),
+		clog.Any("endpoints", service.Endpoints))
+
+	return nil
+}
+
+// getLocalIP 获取本机 IP 地址
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return "127.0.0.1"
+}
+
 // startGRPCServer 启动 gRPC 服务
 func (g *Gateway) startGRPCServer() {
-	g.grpcServer = grpc.NewServer()
-
-	// 注册 PushService
+	// 创建 gRPC 服务器，添加链路追踪拦截器
+	g.grpcServer = grpc.NewServer(
+		grpc.ChainUnaryInterceptor(push.TraceUnaryServerInterceptor()),
+		grpc.ChainStreamInterceptor(push.TraceStreamServerInterceptor()),
+	)
 	g.pushService.RegisterGRPC(g.grpcServer)
 
-	// 创建监听器
 	lis, err := net.Listen("tcp", ":9091")
 	if err != nil {
 		g.logger.Error("failed to listen on grpc port", clog.Error(err))
@@ -137,10 +219,16 @@ func (g *Gateway) startGRPCServer() {
 
 // startHTTPServer 启动 HTTP 服务
 func (g *Gateway) startHTTPServer() {
-	router := gin.Default()
+	router := gin.New()
 
-	// 注册 RESTful API 路由（ConnectRPC）
-	g.apiHandler.RegisterRoutes(router)
+	// 应用中间件
+	router.Use(g.middlewares.Recovery)
+	router.Use(g.middlewares.Logger)
+	router.Use(g.middlewares.SlowQuery)
+	router.Use(g.middlewares.GlobalIP)
+
+	// 注册 API 路由
+	g.apiHandler.RegisterRoutes(router, g.middlewares.RouteOptions()...)
 
 	// 健康检查
 	router.GET("/health", func(c *gin.Context) {
@@ -165,9 +253,7 @@ func (g *Gateway) startHTTPServer() {
 // startWSServer 启动 WebSocket 服务
 func (g *Gateway) startWSServer() {
 	mux := http.NewServeMux()
-
-	// WebSocket 连接端点
-	mux.HandleFunc("/ws", g.handleWebSocket)
+	mux.HandleFunc("/ws", g.wsHandler.HandleWebSocket)
 
 	g.wsServer = &http.Server{
 		Addr:    g.config.Service.WSAddr,
@@ -180,165 +266,47 @@ func (g *Gateway) startWSServer() {
 	}
 }
 
-// handleWebSocket 处理 WebSocket 连接请求
-func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// 从查询参数获取 token
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		g.logger.Warn("websocket connection rejected: missing token")
-		http.Error(w, "missing token", http.StatusUnauthorized)
-		return
-	}
-
-	// 验证 token
-	validateResp, err := g.logicClient.ValidateToken(r.Context(), token)
-	if err != nil || !validateResp.Valid {
-		g.logger.Warn("websocket connection rejected: invalid token", clog.Error(err))
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-
-	username := validateResp.Username
-
-	// 升级为 WebSocket 连接
-	wsConn, err := g.connMgr.Upgrader().Upgrade(w, r, nil)
-	if err != nil {
-		g.logger.Error("failed to upgrade websocket", clog.Error(err))
-		return
-	}
-
-	// 创建消息处理器
-	handler := g.createMessageHandler()
-
-	// 创建连接对象
-	conn := connection.NewConn(
-		username,
-		wsConn,
-		g.logger,
-		handler,
-		int64(g.config.WSConfig.MaxMessageSize),
-		time.Duration(g.config.WSConfig.PingInterval)*time.Second,
-		time.Duration(g.config.WSConfig.PongTimeout)*time.Second,
-	)
-
-	// 添加到连接管理器
-	if err := g.connMgr.AddConnection(username, conn); err != nil {
-		g.logger.Error("failed to add connection", clog.Error(err))
-		conn.Close()
-		return
-	}
-
-	// 启动连接的读写协程
-	conn.Run()
-
-	g.logger.Info("websocket connection established",
-		clog.String("username", username),
-		clog.String("remote_addr", r.RemoteAddr))
-}
-
-// createMessageHandler 创建消息处理器
-func (g *Gateway) createMessageHandler() protocol.Handler {
-	return protocol.NewDefaultHandler(
-		g.logger,
-		g.onPulse,
-		g.onChat,
-		g.onAck,
-	)
-}
-
-// onPulse 处理心跳消息
-func (g *Gateway) onPulse(ctx context.Context, conn protocol.Connection) error {
-	// 回复心跳
-	packet := protocol.CreatePulseResponse("")
-	return conn.Send(packet)
-}
-
-// onChat 处理聊天消息
-func (g *Gateway) onChat(ctx context.Context, conn protocol.Connection, chat *gatewayv1.ChatRequest) error {
-	g.logger.Debug("received chat message",
-		clog.String("username", conn.Username()),
-		clog.String("session_id", chat.SessionId))
-
-	// 填充发送者信息
-	if chat.FromUsername == "" {
-		chat.FromUsername = conn.Username()
-	}
-
-	// 填充时间戳
-	if chat.Timestamp == 0 {
-		chat.Timestamp = time.Now().Unix()
-	}
-
-	// 转发到 Logic 服务
-	_, err := g.logicClient.SendMessage(ctx, chat)
-	if err != nil {
-		g.logger.Error("failed to send message to logic",
-			clog.String("username", conn.Username()),
-			clog.Error(err))
-		return err
-	}
-
-	return nil
-}
-
-// onAck 处理确认消息
-func (g *Gateway) onAck(ctx context.Context, conn protocol.Connection, ack *gatewayv1.Ack) error {
-	g.logger.Debug("received ack",
-		clog.String("username", conn.Username()),
-		clog.String("ref_seq", ack.RefSeq))
-	// 这里可以添加消息确认的业务逻辑
-	return nil
-}
-
-// onUserConnect 用户上线回调
-func (g *Gateway) onUserConnect(username string, remoteIP string) error {
-	g.logger.Info("user online", clog.String("username", username))
-	return g.logicClient.SyncUserOnline(g.ctx, username, remoteIP)
-}
-
-// onUserDisconnect 用户下线回调
-func (g *Gateway) onUserDisconnect(username string) error {
-	g.logger.Info("user offline", clog.String("username", username))
-	return g.logicClient.SyncUserOffline(g.ctx, username)
-}
-
 // Close 关闭 Gateway 服务
 func (g *Gateway) Close() error {
 	g.logger.Info("shutting down gateway service")
-
 	g.cancel()
 
-	// 关闭 gRPC 服务器
+	// 注销服务
+	if g.registry != nil {
+		if err := g.registry.Deregister(context.Background(), g.serviceID); err != nil {
+			g.logger.Error("failed to deregister service", clog.Error(err))
+		} else {
+			g.logger.Info("service deregistered", clog.String("service_id", g.serviceID))
+		}
+		g.registry.Close()
+	}
+
 	if g.grpcServer != nil {
 		g.grpcServer.GracefulStop()
 	}
 
-	// 关闭 HTTP 服务器
 	if g.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := g.httpServer.Shutdown(ctx); err != nil {
-			g.logger.Error("failed to shutdown http server", clog.Error(err))
-		}
+		g.httpServer.Shutdown(ctx)
 	}
 
-	// 关闭 WebSocket 服务器
 	if g.wsServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := g.wsServer.Shutdown(ctx); err != nil {
-			g.logger.Error("failed to shutdown ws server", clog.Error(err))
-		}
+		g.wsServer.Shutdown(ctx)
 	}
 
-	// 关闭所有连接
 	if g.connMgr != nil {
 		g.connMgr.Close()
 	}
 
-	// 关闭 Logic 客户端
 	if g.logicClient != nil {
 		g.logicClient.Close()
+	}
+
+	if g.etcdConn != nil {
+		g.etcdConn.Close()
 	}
 
 	g.logger.Info("gateway service stopped")

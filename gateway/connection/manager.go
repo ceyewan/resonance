@@ -133,3 +133,8 @@ func (m *Manager) Close() error {
 func (m *Manager) Upgrader() *websocket.Upgrader {
 	return m.upgrader
 }
+
+// SetUpgrader 设置 WebSocket 升级器
+func (m *Manager) SetUpgrader(upgrader *websocket.Upgrader) {
+	m.upgrader = upgrader
+}

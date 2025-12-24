@@ -8,53 +8,143 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/gateway/client"
+	"github.com/ceyewan/resonance/gateway/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-// LogicClient Logic 客户端接口（避免循环引用）
-type LogicClient interface {
-	Login(ctx context.Context, req *logicv1.LoginRequest) (*logicv1.LoginResponse, error)
-	Register(ctx context.Context, req *logicv1.RegisterRequest) (*logicv1.RegisterResponse, error)
-	ValidateToken(ctx context.Context, token string) (*logicv1.ValidateTokenResponse, error)
-	GetSessionList(ctx context.Context, username string) (*logicv1.GetSessionListResponse, error)
-	CreateSession(ctx context.Context, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error)
-	GetRecentMessages(ctx context.Context, req *logicv1.GetRecentMessagesRequest) (*logicv1.GetRecentMessagesResponse, error)
-	GetContactList(ctx context.Context, username string) (*logicv1.GetContactListResponse, error)
-	SearchUser(ctx context.Context, query string) (*logicv1.SearchUserResponse, error)
-}
-
 // Handler 实现 Gateway 的 HTTP API
 type Handler struct {
-	logicClient LogicClient
+	logicClient *client.Client
 	logger      clog.Logger
+	authConfig  *middleware.AuthConfig
 }
 
 // NewHandler 创建 API Handler
-func NewHandler(logicClient LogicClient, logger clog.Logger) *Handler {
+func NewHandler(logicClient *client.Client, logger clog.Logger) *Handler {
 	return &Handler{
 		logicClient: logicClient,
 		logger:      logger,
+		authConfig:  middleware.NewAuthConfig(logicClient, logger),
 	}
 }
 
-// RegisterRoutes 注册路由到 Gin
-func (h *Handler) RegisterRoutes(router *gin.Engine) {
-	// ConnectRPC 路径
-	path, handler := gatewayv1connect.NewAuthServiceHandler(h)
-	router.Any(path+"*any", gin.WrapH(handler))
+// RegisterRoutes 注册路由到 Gin，使用路由分组和中间件
+func (h *Handler) RegisterRoutes(router *gin.Engine, opts ...RouteOption) {
+	cfg := &RouteConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 
-	path, handler = gatewayv1connect.NewSessionServiceHandler(h)
-	router.Any(path+"*any", gin.WrapH(handler))
+	// 创建公共路由组（不需要认证）
+	publicGroup := router.Group("")
+	if cfg.RecoveryMiddleware != nil {
+		publicGroup.Use(cfg.RecoveryMiddleware)
+	}
+	if cfg.LoggerMiddleware != nil {
+		publicGroup.Use(cfg.LoggerMiddleware)
+	}
+	if cfg.GlobalRateLimitMiddleware != nil {
+		publicGroup.Use(cfg.GlobalRateLimitMiddleware)
+	}
+	if cfg.IPRateLimitMiddleware != nil {
+		publicGroup.Use(cfg.IPRateLimitMiddleware)
+	}
+
+	// 注册公开路由（不需要认证）
+	h.registerPublicRoutes(publicGroup)
+
+	// 创建认证路由组（需要认证）
+	authGroup := router.Group("")
+	if cfg.RecoveryMiddleware != nil {
+		authGroup.Use(cfg.RecoveryMiddleware)
+	}
+	if cfg.LoggerMiddleware != nil {
+		authGroup.Use(cfg.LoggerMiddleware)
+	}
+	if cfg.GlobalRateLimitMiddleware != nil {
+		authGroup.Use(cfg.GlobalRateLimitMiddleware)
+	}
+	// 认证中间件
+	authGroup.Use(h.authConfig.RequireAuth())
+	if cfg.UserRateLimitMiddleware != nil {
+		authGroup.Use(cfg.UserRateLimitMiddleware)
+	}
+
+	// 注册需要认证的路由
+	h.registerAuthRoutes(authGroup)
 }
 
-// Login 实现 AuthService.Login
+// registerPublicRoutes 注册公开路由（不需要认证）
+func (h *Handler) registerPublicRoutes(group *gin.RouterGroup) {
+	// AuthService: Login, Register
+	path, handler := gatewayv1connect.NewAuthServiceHandler(h)
+	group.Any(path+"*any", gin.WrapH(handler))
+}
+
+// registerAuthRoutes 注册需要认证的路由
+func (h *Handler) registerAuthRoutes(group *gin.RouterGroup) {
+	// SessionService: 所有接口都需要认证
+	path, handler := gatewayv1connect.NewSessionServiceHandler(h)
+	group.Any(path+"*any", gin.WrapH(handler))
+}
+
+// RouteConfig 路由配置
+type RouteConfig struct {
+	RecoveryMiddleware        gin.HandlerFunc
+	LoggerMiddleware          gin.HandlerFunc
+	GlobalRateLimitMiddleware gin.HandlerFunc
+	IPRateLimitMiddleware     gin.HandlerFunc
+	UserRateLimitMiddleware   gin.HandlerFunc
+}
+
+// RouteOption 路由选项函数
+type RouteOption func(*RouteConfig)
+
+// WithRecovery 设置 Recovery 中间件
+func WithRecovery(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.RecoveryMiddleware = middleware
+	}
+}
+
+// WithLogger 设置 Logger 中间件
+func WithLogger(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.LoggerMiddleware = middleware
+	}
+}
+
+// WithGlobalRateLimit 设置全局限流中间件
+func WithGlobalRateLimit(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.GlobalRateLimitMiddleware = middleware
+	}
+}
+
+// WithIPRateLimit 设置 IP 限流中间件
+func WithIPRateLimit(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.IPRateLimitMiddleware = middleware
+	}
+}
+
+// WithUserRateLimit 设置用户限流中间件
+func WithUserRateLimit(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.UserRateLimitMiddleware = middleware
+	}
+}
+
+// ==================== AuthService 实现 ====================
+
+// Login 实现 AuthService.Login（公开接口）
 func (h *Handler) Login(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.LoginRequest],
 ) (*connect.Response[gatewayv1.LoginResponse], error) {
 	h.logger.Info("login request", clog.String("username", req.Msg.Username))
 
-	// 转发到 Logic 服务
 	logicReq := &logicv1.LoginRequest{
 		Username: req.Msg.Username,
 		Password: req.Msg.Password,
@@ -66,7 +156,6 @@ func (h *Handler) Login(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 转换响应
 	resp := &gatewayv1.LoginResponse{
 		AccessToken: logicResp.AccessToken,
 		User:        logicResp.User,
@@ -75,14 +164,13 @@ func (h *Handler) Login(
 	return connect.NewResponse(resp), nil
 }
 
-// Register 实现 AuthService.Register
+// Register 实现 AuthService.Register（公开接口）
 func (h *Handler) Register(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.RegisterRequest],
 ) (*connect.Response[gatewayv1.RegisterResponse], error) {
 	h.logger.Info("register request", clog.String("username", req.Msg.Username))
 
-	// 转发到 Logic 服务
 	logicReq := &logicv1.RegisterRequest{
 		Username: req.Msg.Username,
 		Password: req.Msg.Password,
@@ -95,7 +183,6 @@ func (h *Handler) Register(
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 转换响应
 	resp := &gatewayv1.RegisterResponse{
 		AccessToken: logicResp.AccessToken,
 		User:        logicResp.User,
@@ -104,15 +191,13 @@ func (h *Handler) Register(
 	return connect.NewResponse(resp), nil
 }
 
-// Logout 实现 AuthService.Logout
+// Logout 实现 AuthService.Logout（公开接口，但通常需要 token）
 func (h *Handler) Logout(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.LogoutRequest],
 ) (*connect.Response[gatewayv1.LogoutResponse], error) {
 	h.logger.Info("logout request")
 
-	// 这里可以添加 Token 失效逻辑
-	// 目前简单返回成功
 	resp := &gatewayv1.LogoutResponse{
 		Success: true,
 	}
@@ -120,25 +205,31 @@ func (h *Handler) Logout(
 	return connect.NewResponse(resp), nil
 }
 
+// ==================== SessionService 实现 ====================
+// 以下接口需要认证，由路由中间件统一处理
+
 // GetSessionList 实现 SessionService.GetSessionList
 func (h *Handler) GetSessionList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetSessionListRequest],
 ) (*connect.Response[gatewayv1.GetSessionListResponse], error) {
-	// 验证 Token 并获取用户名
-	validateResp, err := h.logicClient.ValidateToken(ctx, req.Msg.AccessToken)
+	// 从 ConnectRPC 请求头获取 token
+	token := req.Header().Get("Authorization")
+	if token == "" {
+		token = req.Msg.AccessToken
+	}
+
+	validateResp, err := h.logicClient.ValidateToken(ctx, token)
 	if err != nil || !validateResp.Valid {
 		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 
-	// 转发到 Logic 服务
 	logicResp, err := h.logicClient.GetSessionList(ctx, validateResp.Username)
 	if err != nil {
 		h.logger.Error("get session list failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 转换响应
 	sessions := make([]*gatewayv1.SessionInfo, len(logicResp.Sessions))
 	for i, s := range logicResp.Sessions {
 		sessions[i] = &gatewayv1.SessionInfo{
@@ -164,13 +255,16 @@ func (h *Handler) CreateSession(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.CreateSessionRequest],
 ) (*connect.Response[gatewayv1.CreateSessionResponse], error) {
-	// 验证 Token 并获取用户名
-	validateResp, err := h.logicClient.ValidateToken(ctx, req.Msg.AccessToken)
+	token := req.Header().Get("Authorization")
+	if token == "" {
+		token = req.Msg.AccessToken
+	}
+
+	validateResp, err := h.logicClient.ValidateToken(ctx, token)
 	if err != nil || !validateResp.Valid {
 		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 
-	// 转发到 Logic 服务
 	logicReq := &logicv1.CreateSessionRequest{
 		CreatorUsername: validateResp.Username,
 		Members:         req.Msg.Members,
@@ -196,13 +290,16 @@ func (h *Handler) GetRecentMessages(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetRecentMessagesRequest],
 ) (*connect.Response[gatewayv1.GetRecentMessagesResponse], error) {
-	// 验证 Token
-	validateResp, err := h.logicClient.ValidateToken(ctx, req.Msg.AccessToken)
+	token := req.Header().Get("Authorization")
+	if token == "" {
+		token = req.Msg.AccessToken
+	}
+
+	validateResp, err := h.logicClient.ValidateToken(ctx, token)
 	if err != nil || !validateResp.Valid {
 		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 
-	// 转发到 Logic 服务
 	logicReq := &logicv1.GetRecentMessagesRequest{
 		SessionId: req.Msg.SessionId,
 		Limit:     req.Msg.Limit,
@@ -227,20 +324,22 @@ func (h *Handler) GetContactList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetContactListRequest],
 ) (*connect.Response[gatewayv1.GetContactListResponse], error) {
-	// 验证 Token
-	validateResp, err := h.logicClient.ValidateToken(ctx, req.Msg.AccessToken)
+	token := req.Header().Get("Authorization")
+	if token == "" {
+		token = req.Msg.AccessToken
+	}
+
+	validateResp, err := h.logicClient.ValidateToken(ctx, token)
 	if err != nil || !validateResp.Valid {
 		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 
-	// 转发到 Logic 服务
 	logicResp, err := h.logicClient.GetContactList(ctx, validateResp.Username)
 	if err != nil {
 		h.logger.Error("get contact list failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 转换响应
 	contacts := make([]*gatewayv1.ContactInfo, len(logicResp.Contacts))
 	for i, c := range logicResp.Contacts {
 		contacts[i] = &gatewayv1.ContactInfo{
@@ -262,20 +361,22 @@ func (h *Handler) SearchUser(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.SearchUserRequest],
 ) (*connect.Response[gatewayv1.SearchUserResponse], error) {
-	// 验证 Token
-	validateResp, err := h.logicClient.ValidateToken(ctx, req.Msg.AccessToken)
+	token := req.Header().Get("Authorization")
+	if token == "" {
+		token = req.Msg.AccessToken
+	}
+
+	validateResp, err := h.logicClient.ValidateToken(ctx, token)
 	if err != nil || !validateResp.Valid {
 		return nil, connect.NewError(connect.CodeUnauthenticated, err)
 	}
 
-	// 转发到 Logic 服务
 	logicResp, err := h.logicClient.SearchUser(ctx, req.Msg.Query)
 	if err != nil {
 		h.logger.Error("search user failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	// 转换响应
 	users := make([]*gatewayv1.ContactInfo, len(logicResp.Users))
 	for i, u := range logicResp.Users {
 		users[i] = &gatewayv1.ContactInfo{

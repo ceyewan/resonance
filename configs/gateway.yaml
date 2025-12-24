@@ -30,6 +30,13 @@ nats:
   max_reconnect: 10
   reconnect_delay: 1s
 
+etcd:
+  name: gateway-etcd
+  endpoints:
+    - 127.0.0.1:2379
+  dial_timeout: 5s
+  lease_ttl: 30s
+
 # 服务注册发现配置
 registry:
   namespace: /resonance/services

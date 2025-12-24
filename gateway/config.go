@@ -25,6 +25,7 @@ type Config struct {
 	Log   clog.Config           `mapstructure:"log"`   // 日志配置
 	Redis connector.RedisConfig `mapstructure:"redis"` // Redis 配置
 	NATS  connector.NATSConfig  `mapstructure:"nats"`  // NATS 配置
+	Etcd  connector.EtcdConfig  `mapstructure:"etcd"`  // Etcd 配置
 
 	// 服务注册发现配置
 	Registry RegistryConfig `mapstructure:"registry"`
