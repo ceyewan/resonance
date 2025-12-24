@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/genesis/idgen"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/im-sdk/model"
@@ -18,6 +19,7 @@ type SessionService struct {
 	sessionRepo repo.SessionRepo
 	messageRepo repo.MessageRepo
 	userRepo    repo.UserRepo
+	idGen       idgen.Generator
 	logger      clog.Logger
 }
 
@@ -26,12 +28,14 @@ func NewSessionService(
 	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
 	userRepo repo.UserRepo,
+	idGen idgen.Generator,
 	logger clog.Logger,
 ) *SessionService {
 	return &SessionService{
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		userRepo:    userRepo,
+		idGen:       idGen,
 		logger:      logger,
 	}
 }
@@ -110,7 +114,7 @@ func (s *SessionService) CreateSession(ctx context.Context, req *logicv1.CreateS
 		sessionID = generateSingleChatID(req.CreatorUsername, req.Members[0])
 	} else {
 		// 群聊：生成 UUID 或使用 ID 生成器
-		sessionID = generateGroupChatID()
+		sessionID = s.generateGroupChatID()
 	}
 
 	// 创建会话
@@ -255,7 +259,6 @@ func generateSingleChatID(user1, user2 string) string {
 }
 
 // generateGroupChatID 生成群聊会话 ID
-func generateGroupChatID() string {
-	// 简化实现，实际应该使用 ID 生成器
-	return "group:" + "TODO"
+func (s *SessionService) generateGroupChatID() string {
+	return "group:" + s.idGen.Next()
 }

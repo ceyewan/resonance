@@ -19,7 +19,6 @@ type ChatService struct {
 	logicv1.UnimplementedChatServiceServer
 	sessionRepo repo.SessionRepo
 	messageRepo repo.MessageRepo
-	routerRepo  repo.RouterRepo
 	idGen       idgen.Int64Generator
 	mqClient    mq.Client
 	logger      clog.Logger
@@ -29,7 +28,6 @@ type ChatService struct {
 func NewChatService(
 	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
-	routerRepo repo.RouterRepo,
 	idGen idgen.Int64Generator,
 	mqClient mq.Client,
 	logger clog.Logger,
@@ -37,7 +35,6 @@ func NewChatService(
 	return &ChatService{
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
-		routerRepo:  routerRepo,
 		idGen:       idGen,
 		mqClient:    mqClient,
 		logger:      logger,
@@ -111,7 +108,13 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendMessag
 	}
 
 	// 生成消息 ID (Snowflake)
-	msgID, _ := s.idGen.NextInt64()
+	msgID, err := s.idGen.NextInt64()
+	if err != nil {
+		s.logger.Error("failed to generate msg id", clog.Error(err))
+		return &logicv1.SendMessageResponse{
+			Error: "internal error",
+		}, nil
+	}
 
 	// 获取会话的当前最大 SeqID
 	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)

@@ -96,13 +96,13 @@ Resonance 采用经典的三层微服务架构：
 
    ```bash
    # 启动网关服务
-   make run-gateway
+   make dev-gateway
 
    # 启动逻辑服务
-   make run-logic
+   make dev-logic
 
    # 启动任务服务
-   make run-task
+   make dev-task
    ```
 
 ### 构建部署
@@ -134,6 +134,11 @@ resonance/
 ├── im-sdk/                # 公共 SDK
 │   ├── model/             # 数据模型
 │   └── repo/              # 仓储层封装
+├── gateway/               # 网关服务实现
+├── logic/                 # 逻辑服务实现
+├── task/                  # 任务服务实现
+├── deploy/                # 部署配置 (Docker/Compose)
+├── web/                   # 前端演示项目
 └── CLAUDE.md              # AI 助手开发指南
 ```
 
@@ -147,9 +152,10 @@ make gen                   # 基于 api 生成代码
 make tidy                  # 整理 Go 依赖
 
 # 开发运行
-make run-gateway           # 运行网关服务
-make run-logic             # 运行逻辑服务
-make run-task              # 运行任务服务
+make dev-gateway           # 运行网关服务
+make dev-logic             # 运行逻辑服务
+make dev-task              # 运行任务服务
+make up                    # 启动基础设施
 
 # 生产构建
 make build-gateway         # 编译网关服务

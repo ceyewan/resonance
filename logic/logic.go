@@ -3,242 +3,268 @@ package logic
 import (
 	"context"
 	"fmt"
-	"net"
-	"time"
 
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	"github.com/ceyewan/genesis/xerrors"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/genesis/registry"
 	"github.com/ceyewan/resonance/im-sdk/repo"
+	"github.com/ceyewan/resonance/logic/config"
+	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
 )
 
-// Logic Logic 服务
+// Logic Logic 服务生命周期管理器
 type Logic struct {
-	config *Config
-	logger clog.Logger
+	config    *config.Config
+	logger    clog.Logger
+	registry  registry.Registry
+	serviceID string
 
-	// 基础组件
-	mysqlConn connector.MySQLConnector
-	redisConn connector.RedisConnector
-	natsConn  connector.NATSConnector
-	idGen     idgen.Int64Generator
-	mqClient  mq.Client
+	// 服务器
+	grpcServer *server.GRPCServer
 
-	// 仓储层 (需要外部注入实现)
+	// 资源
+	resources *resources
+	ctx       context.Context
+	cancel    context.CancelFunc
+}
+
+// resources 内部资源聚合
+type resources struct {
+	etcdConn      connector.EtcdConnector
+	redisConn     connector.RedisConnector
+	mysqlConn     connector.MySQLConnector
+	natsConn      connector.NATSConnector
+	mqClient      mq.Client
+	authenticator auth.Authenticator
+	snowflakeGen  idgen.Int64Generator // 用于 MsgID
+	uuidGen       idgen.Generator      // 用于 SessionID
+	dbInstance    db.DB
+
+	// Repos
 	userRepo    repo.UserRepo
 	sessionRepo repo.SessionRepo
 	messageRepo repo.MessageRepo
 	routerRepo  repo.RouterRepo
-
-	// 服务层
-	authService       *service.AuthService
-	sessionService    *service.SessionService
-	chatService       *service.ChatService
-	gatewayOpsService *service.GatewayOpsService
-
-	// gRPC 服务器
-	grpcServer *grpc.Server
-	listener   net.Listener
-	ctx        context.Context
-	cancel     context.CancelFunc
 }
 
-// New 创建 Logic 实例（无参数，内部自己加载 config）
+// New 创建 Logic 实例
 func New() (*Logic, error) {
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	return NewWithConfig(cfg)
-}
-
-// NewWithConfig 创建 Logic 实例（带 config 参数）
-func NewWithConfig(cfg *Config) (*Logic, error) {
-	// 初始化日志
-	logger, err := clog.New(&cfg.Log)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-
 	l := &Logic{
 		config: cfg,
-		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 
-	// 初始化基础组件
 	if err := l.initComponents(); err != nil {
+		l.Close()
 		return nil, err
 	}
-
-	// 初始化服务层
-	l.initServices()
 
 	return l, nil
 }
 
-// initComponents 初始化基础组件
+// initComponents 初始化所有组件
 func (l *Logic) initComponents() error {
-	var err error
+	// 1. 日志
+	logger, _ := clog.New(&l.config.Log, clog.WithStandardContext())
+	l.logger = logger
+	l.serviceID = l.config.Service.Name + "-001" // TODO: 动态生成 ID
 
-	// 初始化 MySQL 连接
-	l.mysqlConn, err = connector.NewMySQL(&l.config.MySQL, connector.WithLogger(l.logger))
+	// 2. 核心资源
+	res, err := l.initResources()
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to create mysql connector")
-	}
-
-	// 初始化 Redis 连接
-	l.redisConn, err = connector.NewRedis(&l.config.Redis, connector.WithLogger(l.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create redis connector")
-	}
-
-	// 初始化 NATS 连接
-	l.natsConn, err = connector.NewNATS(&l.config.NATS, connector.WithLogger(l.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create nats connector")
-	}
-
-	// 初始化 ID 生成器（使用 Redis 协调 WorkerID）
-	l.idGen, err = idgen.NewSnowflake(&l.config.IDGen, l.redisConn, nil, idgen.WithLogger(l.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create id generator")
-	}
-
-	// 初始化 MQ Client
-	mqConfig := &mq.Config{
-		Driver: mq.DriverNatsCore,
-	}
-	l.mqClient, err = mq.New(l.natsConn, mqConfig, mq.WithLogger(l.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create mq client")
-	}
-
-	return nil
-}
-
-// initServices 初始化服务层
-func (l *Logic) initServices() {
-	l.authService = service.NewAuthService(
-		l.userRepo,
-		l.logger,
-	)
-
-	l.sessionService = service.NewSessionService(
-		l.sessionRepo,
-		l.messageRepo,
-		l.userRepo,
-		l.logger,
-	)
-
-	l.chatService = service.NewChatService(
-		l.sessionRepo,
-		l.messageRepo,
-		l.routerRepo,
-		l.idGen,
-		l.mqClient,
-		l.logger,
-	)
-
-	l.gatewayOpsService = service.NewGatewayOpsService(
-		l.routerRepo,
-		l.logger,
-	)
-}
-
-// SetRepositories 设置仓储层实现（外部注入）
-func (l *Logic) SetRepositories(
-	userRepo repo.UserRepo,
-	sessionRepo repo.SessionRepo,
-	messageRepo repo.MessageRepo,
-	routerRepo repo.RouterRepo,
-) {
-	l.userRepo = userRepo
-	l.sessionRepo = sessionRepo
-	l.messageRepo = messageRepo
-	l.routerRepo = routerRepo
-
-	// 重新初始化服务层
-	l.initServices()
-}
-
-// Run 启动 Logic 服务
-func (l *Logic) Run() error {
-	l.logger.Info("starting logic service", clog.String("addr", l.config.Service.ServerAddr))
-
-	// 创建 gRPC 服务器
-	l.grpcServer = grpc.NewServer()
-
-	// 注册服务
-	logicv1.RegisterAuthServiceServer(l.grpcServer, l.authService)
-	logicv1.RegisterSessionServiceServer(l.grpcServer, l.sessionService)
-	logicv1.RegisterChatServiceServer(l.grpcServer, l.chatService)
-	logicv1.RegisterGatewayOpsServiceServer(l.grpcServer, l.gatewayOpsService)
-
-	// 注册反射服务（用于 grpcurl 等工具）
-	reflection.Register(l.grpcServer)
-
-	// 创建监听器
-	listener, err := net.Listen("tcp", l.config.Service.ServerAddr)
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to listen on %s", l.config.Service.ServerAddr)
-	}
-	l.listener = listener
-
-	l.logger.Info("logic service started", clog.String("addr", l.config.Service.ServerAddr))
-
-	// 启动 gRPC 服务器
-	if err := l.grpcServer.Serve(listener); err != nil {
-		l.logger.Error("logic service error", clog.Error(err))
 		return err
 	}
+	l.resources = res
+
+	// 3. 服务层
+	authSvc := service.NewAuthService(res.userRepo, res.authenticator, logger)
+	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, logger)
+	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.mqClient, logger)
+	gatewayOpsSvc := service.NewGatewayOpsService(res.routerRepo, logger)
+
+	// 4. gRPC Server
+	l.grpcServer = server.NewGRPCServer(
+		l.config.Service.ServerAddr,
+		logger,
+		authSvc,
+		sessionSvc,
+		chatSvc,
+		gatewayOpsSvc,
+	)
 
 	return nil
 }
 
-// Close 关闭 Logic 服务
-func (l *Logic) Close() error {
-	l.logger.Info("shutting down logic service")
+// initResources 初始化资源
+func (l *Logic) initResources() (*resources, error) {
+	// DB (MySQL)
+	mysqlConn, err := connector.NewMySQL(&l.config.MySQL)
+	if err != nil {
+		return nil, fmt.Errorf("mysql init: %w", err)
+	}
+	dbInstance, err := db.New(mysqlConn, &db.Config{}, db.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("db init: %w", err)
+	}
 
+	// Redis
+	redisConn, err := connector.NewRedis(&l.config.Redis)
+	if err != nil {
+		return nil, fmt.Errorf("redis init: %w", err)
+	}
+
+	// NATS
+	natsConn, err := connector.NewNATS(&l.config.NATS, connector.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("nats init: %w", err)
+	}
+	if err := natsConn.Connect(l.ctx); err != nil {
+		return nil, fmt.Errorf("nats connect: %w", err)
+	}
+	mqClient, err := mq.New(natsConn, &mq.Config{Driver: mq.DriverNatsCore}, mq.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("mq client init: %w", err)
+	}
+
+	// Etcd & Registry
+	etcdConn, err := connector.NewEtcd(&l.config.Etcd, connector.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("etcd init: %w", err)
+	}
+	if err := etcdConn.Connect(l.ctx); err != nil {
+		return nil, fmt.Errorf("etcd connect: %w", err)
+	}
+	reg, err := registry.New(etcdConn, l.config.Registry.ToRegistryConfig(), registry.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("registry init: %w", err)
+	}
+	l.registry = reg
+
+	// Authenticator
+	authenticator, err := auth.New(&l.config.Auth, auth.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("auth init: %w", err)
+	}
+
+	// ID Generators
+	snowflakeGen, err := idgen.NewSnowflake(&l.config.IDGen, redisConn, nil, idgen.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("snowflake init: %w", err)
+	}
+	uuidGen, err := idgen.NewUUID(&idgen.UUIDConfig{Version: "v7"}, idgen.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("uuid init: %w", err)
+	}
+
+	// Repos
+	// 假设 NewUserRepo 和 NewMessageRepo 签名与 SessionRepo 类似
+	userRepo, err := repo.NewUserRepo(dbInstance) // 需要确认签名
+	if err != nil {
+		return nil, fmt.Errorf("user repo init: %w", err)
+	}
+	messageRepo, err := repo.NewMessageRepo(dbInstance) // 需要确认签名
+	if err != nil {
+		return nil, fmt.Errorf("message repo init: %w", err)
+	}
+	sessionRepo, err := repo.NewSessionRepo(dbInstance, repo.WithSessionRepoLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("session repo init: %w", err)
+	}
+	routerRepo, err := repo.NewRouterRepo(redisConn, repo.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("router repo init: %w", err)
+	}
+
+	return &resources{
+		mysqlConn:     mysqlConn,
+		redisConn:     redisConn,
+		natsConn:      natsConn,
+		etcdConn:      etcdConn,
+		mqClient:      mqClient,
+		dbInstance:    dbInstance,
+		authenticator: authenticator,
+		snowflakeGen:  snowflakeGen,
+		uuidGen:       uuidGen,
+		userRepo:      userRepo,
+		sessionRepo:   sessionRepo,
+		messageRepo:   messageRepo,
+		routerRepo:    routerRepo,
+	}, nil
+}
+
+// Run 启动服务
+func (l *Logic) Run() error {
+	l.logger.Info("starting logic service...")
+
+	// 启动 gRPC Server
+	go func() {
+		if err := l.grpcServer.Start(); err != nil {
+			l.logger.Error("grpc server failed", clog.Error(err))
+			l.cancel()
+		}
+	}()
+
+	// 注册服务
+	return l.registerService()
+}
+
+// registerService 注册服务到 Etcd
+func (l *Logic) registerService() error {
+	// TODO: 获取真实 IP
+	ip := "127.0.0.1"
+	service := &registry.ServiceInstance{
+		ID:      l.serviceID,
+		Name:    l.config.Service.Name,
+		Version: "1.0.0",
+		Endpoints: []string{
+			"grpc://" + ip + l.config.Service.ServerAddr, // ServerAddr 通常是 ":9090"
+		},
+	}
+
+	return l.registry.Register(l.ctx, service, l.config.Registry.DefaultTTL)
+}
+
+// Close 优雅关闭
+func (l *Logic) Close() error {
+	l.logger.Info("shutting down logic service...")
 	l.cancel()
 
-	// 关闭 gRPC 服务器
+	// 1. 注销服务
+	if l.registry != nil {
+		l.registry.Deregister(context.Background(), l.serviceID)
+		l.registry.Close()
+	}
+
+	// 2. 停止服务器
 	if l.grpcServer != nil {
-		l.grpcServer.GracefulStop()
+		l.grpcServer.Stop()
 	}
 
-	// 等待服务器完全关闭
-	time.Sleep(100 * time.Millisecond)
+	// 3. 释放资源
+	if l.resources != nil {
+		// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
+		l.resources.routerRepo.Close()
+		l.resources.sessionRepo.Close()
+		l.resources.userRepo.Close()
+		l.resources.messageRepo.Close()
 
-	// 关闭 MQ
-	if l.mqClient != nil {
-		l.mqClient.Close()
+		l.resources.etcdConn.Close()
+		l.resources.natsConn.Close()
+		l.resources.redisConn.Close()
+		l.resources.mysqlConn.Close()
 	}
 
-	// 关闭连接
-	if l.natsConn != nil {
-		l.natsConn.Close()
-	}
-
-	if l.redisConn != nil {
-		l.redisConn.Close()
-	}
-
-	if l.mysqlConn != nil {
-		l.mysqlConn.Close()
-	}
-
-	l.logger.Info("logic service stopped")
 	return nil
 }

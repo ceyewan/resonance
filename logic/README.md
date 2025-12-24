@@ -13,100 +13,46 @@ Logic 是 Resonance IM 系统的核心业务逻辑服务，处理所有业务相
 3. **消息发布** - 将需要异步处理的任务发布到 MQ
 4. **返回响应** - 将处理结果返回给 Gateway
 
-### 目录结构
+### 目录结构 (重构后)
 
 ```
 logic/
-├── config.go              # 配置管理
-├── logic.go                # 主服务入口
-├── README.md               # 服务文档
-└── service/                # 业务服务实现
-    ├── auth.go             # AuthService - 用户认证
-    ├── session.go          # SessionService - 会话管理
-    ├── chat.go             # ChatService - 消息处理
-    └── gateway_ops.go      # GatewayOpsService - 网关状态同步
-```
-
-## 🔄 请求流转
-
-### 完整流程
-
-```
-Gateway (gRPC Client)
-  ↓
-Logic (gRPC Server)
-  ↓
-[业务服务]
-  ├── AuthService    → 验证身份
-  ├── SessionService → 会话/联系人管理
-  ├── ChatService    → 消息处理 → MQ (PushEvent)
-  └── GatewayOpsService → 用户在线状态同步
-  ↓
-[仓储层]
-  ├── UserRepo    → MySQL
-  ├── SessionRepo → MySQL
-  ├── MessageRepo → MySQL
-  └── RouterRepo  → Redis
-```
-
-### 消息发送流程
-
-```
-Gateway → Logic.ChatService.SendMessage
-  ↓
-1. 验证会话成员权限
-2. 生成 MsgID (Snowflake)
-3. 保存消息到 MySQL
-4. 更新会话 MaxSeqID
-5. 发布 PushEvent 到 MQ
-  ↓
-Task 服务消费 MQ → 写扩散推送
+├── logic.go                # 【极简入口】负责组件组装与生命周期管理
+├── config/                 # 配置管理定义与加载逻辑
+├── server/                 # gRPC Server 封装
+│   └── grpc.go             # gRPC Server 启动逻辑与拦截器配置
+├── service/                # 业务服务实现 (Auth, Session, Chat, GatewayOps)
+└── README.md               # 服务文档
 ```
 
 ## ⚙️ 配置说明
 
-### 配置结构
+使用 `logic/config` 包加载配置：
 
 ```go
 type Config struct {
     // 服务基础配置
-    ServerAddr string `mapstructure:"server_addr"` // gRPC 服务地址（默认: :9090）
+    Service struct {
+        Name       string // 服务名称
+        ServerAddr string // gRPC 服务地址
+    }
 
     // 基础组件配置
-    Log   clog.Config           // 日志配置
-    MySQL connector.MySQLConfig // MySQL 配置
-    Redis connector.RedisConfig // Redis 配置
-    NATS  connector.NATSConfig  // NATS 配置
+    Log   clog.Config
+    MySQL connector.MySQLConfig
+    Redis connector.RedisConfig
+    NATS  connector.NATSConfig
+    Etcd  connector.EtcdConfig
 
-    // ID 生成器配置
-    IDGen idgen.SnowflakeConfig // Snowflake ID 生成器配置
+    // 服务注册
+    Registry RegistryConfig
+
+    // ID 生成器
+    IDGen idgen.SnowflakeConfig
+
+    // 认证配置
+    Auth auth.Config
 }
-```
-
-### 配置文件示例
-
-```yaml
-# config/logic.yaml
-server_addr: ":9090"
-
-log:
-  level: debug
-  format: console
-
-mysql:
-  host: 127.0.0.1
-  port: 3306
-  database: resonance
-
-redis:
-  addr: 127.0.0.1:6379
-
-nats:
-  url: nats://127.0.0.1:4222
-
-idgen:
-  worker_id: 1
-  datacenter_id: 1
 ```
 
 ## 🚀 使用示例
@@ -115,41 +61,23 @@ idgen:
 package main
 
 import (
-    "os"
-    "os/signal"
-    "syscall"
-
     "github.com/ceyewan/resonance/logic"
-    "github.com/ceyewan/resonance/im-sdk/repo"
 )
 
 func main() {
-    // 创建配置
-    cfg := logic.DefaultConfig()
-
-    // 创建 Logic 实例
-    l, err := logic.New(cfg)
+    // 创建 Logic 实例 (自动加载配置)
+    l, err := logic.New()
     if err != nil {
         panic(err)
     }
 
-    // 注入 Repo 实现（必须）
-    l.SetRepositories(userRepo, sessionRepo, messageRepo, routerRepo)
-
     // 启动服务
-    go func() {
-        if err := l.Run(); err != nil {
-            panic(err)
-        }
-    }()
-
-    // 等待退出信号
-    sigChan := make(chan os.Signal, 1)
-    signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-    <-sigChan
+    if err := l.Run(); err != nil {
+        panic(err)
+    }
 
     // 优雅关闭
-    l.Close()
+    defer l.Close()
 }
 ```
 
@@ -157,125 +85,30 @@ func main() {
 
 ### 1. AuthService (认证服务)
 
-**职责**:
-
-- 用户登录验证
-- 用户注册
-- Token 验证
-
-**RPC 方法**:
-
-- `Login(ctx, LoginRequest) → LoginResponse`
-- `Register(ctx, RegisterRequest) → RegisterResponse`
-- `ValidateToken(ctx, ValidateTokenRequest) → ValidateTokenResponse`
+- 使用 `genesis/auth` (JWT) 进行 Token 签发与验证。
+- 依赖 `UserRepo` 进行用户数据存取。
 
 ### 2. SessionService (会话服务)
 
-**职责**:
-
-- 会话列表查询
-- 创建会话（单聊/群聊）
-- 历史消息拉取
-- 联系人管理
-- 用户搜索
-
-**RPC 方法**:
-
-- `GetSessionList(ctx, GetSessionListRequest) → GetSessionListResponse`
-- `CreateSession(ctx, CreateSessionRequest) → CreateSessionResponse`
-- `GetRecentMessages(ctx, GetRecentMessagesRequest) → GetRecentMessagesResponse`
-- `GetContactList(ctx, GetContactListRequest) → GetContactListResponse`
-- `SearchUser(ctx, SearchUserRequest) → SearchUserResponse`
+- 依赖 `SessionRepo` 管理会话。
+- 使用 `idgen` (UUID) 生成 GroupID。
 
 ### 3. ChatService (聊天服务)
 
-**职责**:
-
-- 接收上行消息（双向流）
-- 验证会话权限
-- 生成消息 ID
-- 保存消息到数据库
-- 发布 PushEvent 到 MQ
-
-**RPC 方法**:
-
-- `SendMessage(stream) → (stream)` - 双向流，持续接收和响应
-
-**消息处理流程**:
-
-```go
-// 1. 验证会话成员
-members := sessionRepo.GetMembers(sessionID)
-
-// 2. 生成 MsgID (Snowflake)
-msgID, _ := idGen.NextInt64()
-
-// 3. 保存消息
-messageRepo.SaveMessage(&MessageContent{
-    MsgID:          msgID,
-    SessionID:      sessionID,
-    SenderUsername: from,
-    SeqID:          seqID,
-    Content:        content,
-    MsgType:        msgType,
-})
-
-// 4. 发布到 MQ（Task 服务消费）
-eventData := proto.Marshal(&mqv1.PushEvent{...})
-mqClient.Publish(ctx, "resonance.push.event.v1", eventData)
-```
+- 使用 `idgen` (Snowflake) 生成全局唯一 MsgID。
+- 消息持久化到 MySQL (`MessageRepo`)。
+- 消息投递到 NATS (`mqClient`)。
 
 ### 4. GatewayOpsService (网关操作服务)
 
-**职责**:
-
-- 同步用户上线状态
-- 同步用户下线状态
-- 维护用户路由信息（RouterRepo）
-
-**RPC 方法**:
-
-- `SyncState(stream) → (stream)` - 双向流，持续接收状态更新
-
-**状态同步流程**:
-
-```go
-// 用户上线
-routerRepo.SetUserGateway(ctx, &model.Router{
-    Username:  username,
-    GatewayID: gatewayID,
-    RemoteIP:  remoteIP,
-    Timestamp: timestamp,
-})
-
-// 用户下线
-routerRepo.DeleteUserGateway(ctx, username)
-```
-
-## 📊 设计要点
-
-### 消息可靠性
-
-1. **消息存储** - 消息先保存到 MySQL，再发布到 MQ
-2. **幂等性** - 使用 (MsgID, SeqID) 作为唯一标识
-3. **异步处理** - 写扩散由 Task 服务异步处理，Logic 不阻塞
-
-### 会话 ID 生成
-
-- **单聊**: `single:user1:user2`（按字母排序保证唯一性）
-- **群聊**: `group:{UUID}`（待完善）
-
-### SeqID 管理
-
-- 每个会话维护一个 MaxSeqID
-- 每条消息的 SeqID = MaxSeqID + 1
-- 未读数 = MaxSeqID - User.LastReadSeq
+- 接收 Gateway 上报的用户在线状态。
+- 更新 Redis 中的路由表 (`RouterRepo`)。
 
 ## 📝 待完善功能
 
-- [ ] Token 实现和验证（当前简化实现）
+- [x] Token 实现和验证 (已接入 genesis/auth)
 - [ ] 密码加密（bcrypt）
-- [ ] 群聊 ID 生成（使用 UUID 或 ID 生成器）
+- [x] 群聊 ID 生成（使用 UUID）
 - [ ] 离线消息处理
 - [ ] 消息撤回
 - [ ] 消息编辑

@@ -1,8 +1,9 @@
-package logic
+package config
 
 import (
 	"time"
 
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
@@ -30,6 +31,9 @@ type Config struct {
 
 	// ID 生成器配置
 	IDGen idgen.SnowflakeConfig `mapstructure:"idgen"` // Snowflake ID 生成器配置
+
+	// 认证配置
+	Auth auth.Config `mapstructure:"auth"`
 }
 
 // RegistryConfig 服务注册配置
