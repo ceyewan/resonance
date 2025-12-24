@@ -8,6 +8,7 @@ import (
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/xerrors"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	"github.com/ceyewan/resonance/task/config"
 	"github.com/ceyewan/resonance/task/dispatcher"
 	"google.golang.org/protobuf/proto"
 )
@@ -16,7 +17,7 @@ import (
 type Consumer struct {
 	mqClient   mq.Client
 	dispatcher *dispatcher.Dispatcher
-	config     ConsumerConfig
+	config     config.ConsumerConfig
 	logger     clog.Logger
 
 	subscription mq.Subscription
@@ -24,20 +25,11 @@ type Consumer struct {
 	cancel       context.CancelFunc
 }
 
-// ConsumerConfig 消费者配置
-type ConsumerConfig struct {
-	Topic         string
-	QueueGroup    string
-	WorkerCount   int
-	MaxRetry      int
-	RetryInterval time.Duration
-}
-
 // NewConsumer 创建消费者
 func NewConsumer(
 	mqClient mq.Client,
 	dispatcher *dispatcher.Dispatcher,
-	config ConsumerConfig,
+	config config.ConsumerConfig,
 	logger clog.Logger,
 ) *Consumer {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -115,7 +107,7 @@ func (c *Consumer) processWithRetry(event *mqv1.PushEvent) error {
 				clog.Int64("msg_id", event.MsgId),
 				clog.Int("attempt", i+1),
 				clog.Int("max_retry", c.config.MaxRetry))
-			time.Sleep(c.config.RetryInterval)
+			time.Sleep(time.Duration(c.config.RetryInterval) * time.Second)
 		}
 
 		// 调用 Dispatcher 进行写扩散

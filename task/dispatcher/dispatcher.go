@@ -20,7 +20,7 @@ var (
 type Dispatcher struct {
 	sessionRepo repo.SessionRepo
 	routerRepo  repo.RouterRepo
-	pusher      *pusher.GatewayPusher
+	pusherMgr   *pusher.Manager
 	logger      clog.Logger
 }
 
@@ -28,13 +28,13 @@ type Dispatcher struct {
 func NewDispatcher(
 	sessionRepo repo.SessionRepo,
 	routerRepo repo.RouterRepo,
-	pusher *pusher.GatewayPusher,
+	pusherMgr *pusher.Manager,
 	logger clog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{
 		sessionRepo: sessionRepo,
 		routerRepo:  routerRepo,
-		pusher:      pusher,
+		pusherMgr:   pusherMgr,
 		logger:      logger,
 	}
 }
@@ -52,7 +52,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		return err
 	}
 
-	// 提取用户名列表（GetMembers 返回的是 SessionMember 列表）
+	// 提取用户名列表
 	usernames := make([]string, 0, len(members))
 	for _, m := range members {
 		usernames = append(usernames, m.Username)
@@ -64,7 +64,6 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		SeqId:        event.SeqId,
 		SessionId:    event.SessionId,
 		FromUsername: event.FromUsername,
-		ToUsername:   event.ToUsername,
 		Content:      event.Content,
 		Type:         event.Type,
 		Timestamp:    event.Timestamp,
@@ -73,7 +72,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 	// 3. 写扩散：推送给所有在线成员
 	successCount := 0
 	for _, username := range usernames {
-		// 跳过发送者自己（发送者已经在客户端显示了）
+		// 跳过发送者自己
 		if username == event.FromUsername {
 			continue
 		}
@@ -92,8 +91,17 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 			continue
 		}
 
+		// 获取 Pusher Client
+		client, err := d.pusherMgr.GetClient(gatewayID)
+		if err != nil {
+			d.logger.Warn("gateway client not found",
+				clog.String("gateway_id", gatewayID),
+				clog.String("username", username))
+			continue
+		}
+
 		// 推送到对应的 Gateway
-		if err := d.pusher.Push(ctx, gatewayID, username, pushMsg); err != nil {
+		if err := client.Push(ctx, username, pushMsg); err != nil {
 			d.logger.Error("failed to push to user",
 				clog.String("username", username),
 				clog.String("gateway_id", gatewayID),

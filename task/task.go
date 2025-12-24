@@ -7,255 +7,221 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/genesis/xerrors"
 	"github.com/ceyewan/resonance/im-sdk/repo"
+	"github.com/ceyewan/resonance/task/config"
 	"github.com/ceyewan/resonance/task/consumer"
 	"github.com/ceyewan/resonance/task/dispatcher"
 	"github.com/ceyewan/resonance/task/pusher"
 )
 
-// Task Task 服务
+// Task 任务服务生命周期管理器
 type Task struct {
-	config *Config
+	config *config.Config
 	logger clog.Logger
-
-	// 基础组件
-	mysqlConn connector.MySQLConnector
-	redisConn connector.RedisConnector
-	natsConn  connector.NATSConnector
-	etcdConn  connector.EtcdConnector
-	registry  registry.Registry
-	mqClient  mq.Client
-
-	// 仓储层 (需要外部注入实现)
-	routerRepo  repo.RouterRepo
-	sessionRepo repo.SessionRepo
-
-	// 业务组件
-	pusher     *pusher.GatewayPusher
-	dispatcher *dispatcher.Dispatcher
-	consumer   *consumer.Consumer
-
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// 核心资源
+	resources *resources
+
+	// 组件
+	pusherMgr  *pusher.Manager
+	dispatcher *dispatcher.Dispatcher
+	consumer   *consumer.Consumer
 }
 
-// New 创建 Task 实例（无参数，内部自己加载 config）
+// resources 内部资源聚合
+type resources struct {
+	redisConn   connector.RedisConnector
+	mysqlConn   connector.MySQLConnector
+	natsConn    connector.NATSConnector
+	etcdConn    connector.EtcdConnector
+	mqClient    mq.Client
+	registry    registry.Registry
+	routerRepo  repo.RouterRepo
+	sessionRepo repo.SessionRepo
+}
+
+// New 创建 Task 实例
 func New() (*Task, error) {
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 
-	return NewWithConfig(cfg)
-}
-
-// NewWithConfig 创建 Task 实例（带 config 参数）
-func NewWithConfig(cfg *Config) (*Task, error) {
-	// 初始化日志
-	logger, err := clog.New(&cfg.Log)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-
 	t := &Task{
 		config: cfg,
-		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
 	}
 
-	// 初始化基础组件
 	if err := t.initComponents(); err != nil {
-		return nil, err
-	}
-
-	// 初始化业务组件
-	if err := t.initBusinessComponents(); err != nil {
+		t.Close()
 		return nil, err
 	}
 
 	return t, nil
 }
 
-// initComponents 初始化基础组件
+// initComponents 初始化所有组件
 func (t *Task) initComponents() error {
-	var err error
+	// 1. 初始化 Logger
+	logger, _ := clog.New(&t.config.Log, clog.WithStandardContext())
+	t.logger = logger
 
-	// 初始化 MySQL 连接
-	t.mysqlConn, err = connector.NewMySQL(&t.config.MySQL, connector.WithLogger(t.logger))
+	// 2. 初始化核心资源
+	res, err := t.initResources()
 	if err != nil {
-		return xerrors.Wrapf(err, "failed to create mysql connector")
-	}
-
-	// 初始化 Redis 连接
-	t.redisConn, err = connector.NewRedis(&t.config.Redis, connector.WithLogger(t.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create redis connector")
-	}
-
-	// 初始化 NATS 连接
-	t.natsConn, err = connector.NewNATS(&t.config.NATS, connector.WithLogger(t.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create nats connector")
-	}
-
-	// 初始化 Etcd 连接
-	t.etcdConn, err = connector.NewEtcd(&t.config.Etcd, connector.WithLogger(t.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create etcd connector")
-	}
-
-	// 建立 Etcd 连接
-	if err := t.etcdConn.Connect(t.ctx); err != nil {
-		return xerrors.Wrapf(err, "failed to connect to etcd")
-	}
-
-	// 初始化 Registry
-	t.registry, err = registry.New(t.etcdConn, t.config.Registry.ToRegistryConfig(), registry.WithLogger(t.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create registry")
-	}
-
-	// 初始化 MQ Client
-	mqConfig := &mq.Config{
-		Driver: mq.DriverNatsCore,
-	}
-	t.mqClient, err = mq.New(t.natsConn, mqConfig, mq.WithLogger(t.logger))
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create mq client")
-	}
-
-	return nil
-}
-
-// initBusinessComponents 初始化业务组件
-func (t *Task) initBusinessComponents() error {
-	var err error
-
-	// 初始化 Gateway Pusher (使用 registry 进行服务发现)
-	t.pusher, err = pusher.NewGatewayPusher(t.registry, t.config.GatewayServiceName, t.logger)
-	if err != nil {
-		return xerrors.Wrapf(err, "failed to create gateway pusher")
-	}
-
-	// 初始化 Dispatcher (需要 routerRepo，在 SetRepositories 中设置)
-	t.dispatcher = dispatcher.NewDispatcher(
-		t.sessionRepo,
-		t.routerRepo,
-		t.pusher,
-		t.logger,
-	)
-
-	// 初始化 Consumer
-	consumerConfig := consumer.ConsumerConfig{
-		Topic:         t.config.ConsumerConfig.Topic,
-		QueueGroup:    t.config.ConsumerConfig.QueueGroup,
-		WorkerCount:   t.config.ConsumerConfig.WorkerCount,
-		MaxRetry:      t.config.ConsumerConfig.MaxRetry,
-		RetryInterval: time.Duration(t.config.ConsumerConfig.RetryInterval) * time.Second,
-	}
-
-	t.consumer = consumer.NewConsumer(
-		t.mqClient,
-		t.dispatcher,
-		consumerConfig,
-		t.logger,
-	)
-
-	return nil
-}
-
-// SetRepositories 设置仓储层实现（外部注入）
-func (t *Task) SetRepositories(routerRepo repo.RouterRepo, sessionRepo repo.SessionRepo) {
-	t.routerRepo = routerRepo
-	t.sessionRepo = sessionRepo
-
-	// 重新初始化 Dispatcher
-	t.dispatcher = dispatcher.NewDispatcher(
-		t.sessionRepo,
-		t.routerRepo,
-		t.pusher,
-		t.logger,
-	)
-
-	// 重新初始化 Consumer
-	consumerConfig := consumer.ConsumerConfig{
-		Topic:         t.config.ConsumerConfig.Topic,
-		QueueGroup:    t.config.ConsumerConfig.QueueGroup,
-		WorkerCount:   t.config.ConsumerConfig.WorkerCount,
-		MaxRetry:      t.config.ConsumerConfig.MaxRetry,
-		RetryInterval: time.Duration(t.config.ConsumerConfig.RetryInterval) * time.Second,
-	}
-
-	t.consumer = consumer.NewConsumer(
-		t.mqClient,
-		t.dispatcher,
-		consumerConfig,
-		t.logger,
-	)
-}
-
-// Run 启动 Task 服务
-func (t *Task) Run() error {
-	t.logger.Info("starting task service")
-
-	// 启动消费者
-	if err := t.consumer.Start(); err != nil {
-		t.logger.Error("failed to start consumer", clog.Error(err))
 		return err
 	}
+	t.resources = res
 
-	t.logger.Info("task service started")
+	// 3. 初始化 Pusher Manager
+	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName)
 
-	// 阻塞等待退出信号
-	<-t.ctx.Done()
+	// 4. 初始化 Dispatcher
+	t.dispatcher = dispatcher.NewDispatcher(
+		res.sessionRepo,
+		res.routerRepo,
+		t.pusherMgr,
+		logger,
+	)
+
+	// 5. 初始化 Consumer
+	t.consumer = consumer.NewConsumer(
+		res.mqClient,
+		t.dispatcher,
+		t.config.ConsumerConfig,
+		logger,
+	)
 
 	return nil
 }
 
-// Close 关闭 Task 服务
-func (t *Task) Close() error {
-	t.logger.Info("shutting down task service")
+// initResources 初始化外部连接和 Repo
+func (t *Task) initResources() (*resources, error) {
+	// MySQL
+	mysqlConn, err := connector.NewMySQL(&t.config.MySQL)
+	if err != nil {
+		return nil, fmt.Errorf("mysql init: %w", err)
+	}
 
+	// Redis
+	redisConn, err := connector.NewRedis(&t.config.Redis)
+	if err != nil {
+		return nil, fmt.Errorf("redis init: %w", err)
+	}
+
+	// NATS
+	natsConn, err := connector.NewNATS(&t.config.NATS, connector.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("nats init: %w", err)
+	}
+	if err := natsConn.Connect(t.ctx); err != nil {
+		return nil, fmt.Errorf("nats connect: %w", err)
+	}
+	// MQ Client (NATS Core)
+	mqClient, err := mq.New(natsConn, &mq.Config{
+		Driver: mq.DriverNatsCore,
+	}, mq.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("mq client init: %w", err)
+	}
+
+	// Etcd (用于服务发现)
+	etcdConn, err := connector.NewEtcd(&t.config.Etcd, connector.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("etcd init: %w", err)
+	}
+	if err := etcdConn.Connect(t.ctx); err != nil {
+		return nil, fmt.Errorf("etcd connect: %w", err)
+	}
+
+	// Registry
+	reg, err := registry.New(etcdConn, t.config.Registry.ToRegistryConfig(), registry.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("registry init: %w", err)
+	}
+
+	// Repos
+	// NewRouterRepo 需要 RedisConnector 接口
+	routerRepo, err := repo.NewRouterRepo(redisConn, repo.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("router repo init: %w", err)
+	}
+
+	// NewSessionRepo 需要 db.DB 接口
+	// 使用 genesis/db 封装 MySQLConnector
+	dbInstance, err := db.New(mysqlConn, &db.Config{}, db.WithLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("db init: %w", err)
+	}
+
+	sessionRepo, err := repo.NewSessionRepo(dbInstance, repo.WithSessionRepoLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("session repo init: %w", err)
+	}
+
+	return &resources{
+		mysqlConn:   mysqlConn,
+		redisConn:   redisConn,
+		natsConn:    natsConn,
+		etcdConn:    etcdConn,
+		mqClient:    mqClient,
+		registry:    reg,
+		sessionRepo: sessionRepo,
+		routerRepo:  routerRepo,
+	}, nil
+}
+
+// Run 启动服务
+func (t *Task) Run() error {
+	t.logger.Info("starting task service...")
+
+	// 启动 Pusher Manager (开始服务发现)
+	if err := t.pusherMgr.Start(); err != nil {
+		return fmt.Errorf("pusher manager start: %w", err)
+	}
+
+	// 启动 Consumer (开始消费消息)
+	if err := t.consumer.Start(); err != nil {
+		return fmt.Errorf("consumer start: %w", err)
+	}
+
+	return nil
+}
+
+// Close 优雅关闭
+func (t *Task) Close() error {
+	t.logger.Info("shutting down task service...")
 	t.cancel()
 
-	// 停止消费者
+	// 1. 停止消费
 	if t.consumer != nil {
 		t.consumer.Stop()
 	}
 
-	// 关闭 Pusher
-	if t.pusher != nil {
-		t.pusher.Close()
+	// 2. 关闭 Pusher (断开 Gateway 连接)
+	if t.pusherMgr != nil {
+		t.pusherMgr.Close()
 	}
 
-	// 关闭 Registry
-	if t.registry != nil {
-		t.registry.Close()
+	// 3. 释放资源
+	if t.resources != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		t.resources.registry.Close() // Registry 可能不需要显式 Close，视实现而定
+		t.resources.etcdConn.Close()
+		t.resources.natsConn.Close()
+		t.resources.redisConn.Close()
+		t.resources.mysqlConn.Close()
+		_ = ctx // avoid unused
 	}
 
-	// 关闭连接
-	if t.natsConn != nil {
-		t.natsConn.Close()
-	}
-
-	if t.etcdConn != nil {
-		t.etcdConn.Close()
-	}
-
-	if t.redisConn != nil {
-		t.redisConn.Close()
-	}
-
-	if t.mysqlConn != nil {
-		t.mysqlConn.Close()
-	}
-
-	t.logger.Info("task service stopped")
 	return nil
 }
