@@ -11,6 +11,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/resonance/gateway/utils"
 	"github.com/ceyewan/resonance/im-sdk/repo"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/server"
@@ -35,15 +36,16 @@ type Logic struct {
 
 // resources 内部资源聚合
 type resources struct {
-	etcdConn      connector.EtcdConnector
-	redisConn     connector.RedisConnector
-	mysqlConn     connector.MySQLConnector
-	natsConn      connector.NATSConnector
-	mqClient      mq.Client
-	authenticator auth.Authenticator
-	snowflakeGen  *idgen.Snowflake // 用于 MsgID
-	uuidGen       *idgen.UUID      // 用于 SessionID
-	dbInstance    db.DB
+	etcdConn        connector.EtcdConnector
+	redisConn       connector.RedisConnector
+	mysqlConn       connector.MySQLConnector
+	natsConn        connector.NATSConnector
+	mqClient        mq.Client
+	authenticator   auth.Authenticator
+	snowflakeGen    *idgen.Snowflake // 用于 MsgID
+	uuidGen         *idgen.UUID      // 用于 SessionID
+	dbInstance      db.DB
+	instanceIDStop func()           // 实例 ID 保活停止函数
 
 	// Repos
 	userRepo    repo.UserRepo
@@ -79,7 +81,6 @@ func (l *Logic) initComponents() error {
 	// 1. 日志
 	logger, _ := clog.New(&l.config.Log, clog.WithStandardContext())
 	l.logger = logger
-	l.serviceID = l.config.Service.Name + "-001" // TODO: 动态生成 ID
 
 	// 2. 核心资源
 	res, err := l.initResources()
@@ -88,13 +89,34 @@ func (l *Logic) initComponents() error {
 	}
 	l.resources = res
 
-	// 3. 服务层
-	authSvc := service.NewAuthService(res.userRepo, res.authenticator, logger)
+	// 3. 基于 Redis 抢占分配唯一实例 ID
+	instanceID, stop, failCh, err := idgen.AssignInstanceID(
+		l.ctx,
+		res.redisConn,
+		"resonance:"+l.config.Service.Name,
+		1024,
+	)
+	if err != nil {
+		return fmt.Errorf("assign instance id: %w", err)
+	}
+	l.serviceID = fmt.Sprintf("%s-%d", l.config.Service.Name, instanceID)
+	res.instanceIDStop = stop
+
+	// 监听保活失败
+	go func() {
+		if err := <-failCh; err != nil {
+			l.logger.Error("instance id keepalive failed", clog.Error(err))
+			l.cancel() // 保活失败，关闭服务
+		}
+	}()
+
+	// 4. 服务层
+	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
 	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, logger)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.mqClient, logger)
 	gatewayOpsSvc := service.NewGatewayOpsService(res.routerRepo, logger)
 
-	// 4. gRPC Server
+	// 5. gRPC Server
 	l.grpcServer = server.NewGRPCServer(
 		l.config.Service.ServerAddr,
 		logger,
@@ -220,8 +242,7 @@ func (l *Logic) Run() error {
 
 // registerService 注册服务到 Etcd
 func (l *Logic) registerService() error {
-	// TODO: 获取真实 IP
-	ip := "127.0.0.1"
+	ip := utils.GetLocalIP()
 	service := &registry.ServiceInstance{
 		ID:      l.serviceID,
 		Name:    l.config.Service.Name,
@@ -252,6 +273,11 @@ func (l *Logic) Close() error {
 
 	// 3. 释放资源
 	if l.resources != nil {
+		// 停止实例 ID 保活
+		if l.resources.instanceIDStop != nil {
+			l.resources.instanceIDStop()
+		}
+
 		// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
 		l.resources.routerRepo.Close()
 		l.resources.sessionRepo.Close()

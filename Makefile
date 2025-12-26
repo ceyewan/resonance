@@ -1,4 +1,4 @@
-.PHONY: gen tidy build-gateway build-logic build-task web-install web-dev web-build up down logs ps network-create dev-gateway dev-logic dev-task build-docker-gateway build-docker-logic build-docker-task
+.PHONY: gen tidy build-gateway build-logic build-task web-install web-dev web-build up down logs ps network-create dev-gateway dev-logic dev-task build-docker-gateway build-docker-logic build-docker-task dev dev-all
 include .env
 export
 
@@ -154,3 +154,87 @@ clean:
 	@echo "🗑️ Cleaning Resonance infrastructure..."
 	@docker compose -f deploy/compose.yaml down -v
 	@echo "✅ Infrastructure cleaned!"
+
+# ============================================================================
+# 本地一键启动 (基础设施已通过 make up 启动后)
+# ============================================================================
+
+# 启动所有本地服务 (logic + task + gateway + web)
+dev-all: gen
+	@echo "🚀 Starting all Resonance services locally..."
+	@echo ""
+	@echo "📡 Starting Logic service..."
+	@RESONANCE_ENV=dev go run main.go -module logic &
+	LOGIC_PID=$!
+	@echo "   [Logic] PID: $$LOGIC_PID"
+	@echo ""
+	@echo "📡 Starting Task service..."
+	@RESONANCE_ENV=dev go run main.go -module task &
+	TASK_PID=$!
+	@echo "   [Task] PID: $$TASK_PID"
+	@echo ""
+	@echo "⏳ Waiting 2s for Logic/Task to initialize..."
+	@sleep 2
+	@echo ""
+	@echo "🌐 Starting Gateway service..."
+	@RESONANCE_ENV=dev go run main.go -module gateway &
+	GATEWAY_PID=$!
+	@echo "   [Gateway] PID: $$GATEWAY_PID"
+	@echo ""
+	@echo "⏳ Waiting 2s for Gateway to initialize..."
+	@sleep 2
+	@echo ""
+	@echo "🎨 Starting Web frontend..."
+	@cd web && \
+	VITE_API_BASE_URL=http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT) \
+	VITE_WS_HOST=$(RESONANCE_GATEWAY_DEV_HOST) \
+	VITE_WS_PORT=$(RESONANCE_GATEWAY_PORT) \
+	npm run dev &
+	WEB_PID=$!
+	@echo "   [Web] PID: $$WEB_PID"
+	@echo ""
+	@echo "✅ All services started!"
+	@echo ""
+	@echo "📊 Service URLs:"
+	@echo "  - Web:        http://$(RESONANCE_WEB_HOST):$(RESONANCE_WEB_PORT)"
+	@echo "  - Gateway:    http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)"
+	@echo "  - Logic:      $(RESONANCE_LOGIC_SERVICE_NAME)"
+	@echo "  - Task:       $(RESONANCE_TASK_SERVICE_NAME)"
+	@echo ""
+	@echo "🔧 Press Ctrl+C to stop all services"
+	@trap "echo ''; echo '🛑 Stopping all services...'; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID $$WEB_PID 2>/dev/null; exit 0" INT TERM
+	@wait
+
+# 仅启动后端服务 (logic + task + gateway)，不启动 web
+dev: gen
+	@echo "🚀 Starting backend services locally..."
+	@echo ""
+	@echo "📡 Starting Logic service..."
+	@RESONANCE_ENV=dev go run main.go -module logic &
+	LOGIC_PID=$!
+	@echo "   [Logic] PID: $$LOGIC_PID"
+	@echo ""
+	@echo "📡 Starting Task service..."
+	@RESONANCE_ENV=dev go run main.go -module task &
+	TASK_PID=$!
+	@echo "   [Task] PID: $$TASK_PID"
+	@echo ""
+	@echo "⏳ Waiting 2s for Logic/Task to initialize..."
+	@sleep 2
+	@echo ""
+	@echo "🌐 Starting Gateway service..."
+	@RESONANCE_ENV=dev go run main.go -module gateway &
+	GATEWAY_PID=$!
+	@echo "   [Gateway] PID: $$GATEWAY_PID"
+	@echo ""
+	@echo "✅ Backend services started!"
+	@echo ""
+	@echo "📊 Service endpoints:"
+	@echo "  - Gateway HTTP:  http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)"
+	@echo "  - Gateway WS:    ws://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)/ws"
+	@echo "  - Logic:         $(RESONANCE_LOGIC_SERVICE_NAME)"
+	@echo "  - Task:          $(RESONANCE_TASK_SERVICE_NAME)"
+	@echo ""
+	@echo "🔧 Press Ctrl+C to stop all services"
+	@trap "echo ''; echo '🛑 Stopping backend services...'; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID 2>/dev/null; exit 0" INT TERM
+	@wait

@@ -53,7 +53,11 @@ registry:
   enable_cache: true
   cache_expiration: 10s
 
-# ID 生成器配置（Snowflake）
-idgen:
-  worker_id: 1
-  datacenter_id: 1
+# 认证配置
+auth:
+  expiration: 24h
+  issuer: resonance-service
+  # secret 通过环境变量 RESONANCE_JWT_SECRET 读取
+
+# ID 生成器配置（Snowflake WorkerID）
+worker_id: 1

@@ -18,6 +18,7 @@ import (
 type AuthService struct {
 	logicv1.UnimplementedAuthServiceServer
 	userRepo      repo.UserRepo
+	sessionRepo   repo.SessionRepo
 	authenticator auth.Authenticator
 	logger        clog.Logger
 }
@@ -25,11 +26,13 @@ type AuthService struct {
 // NewAuthService 创建认证服务
 func NewAuthService(
 	userRepo repo.UserRepo,
+	sessionRepo repo.SessionRepo,
 	authenticator auth.Authenticator,
 	logger clog.Logger,
 ) *AuthService {
 	return &AuthService{
 		userRepo:      userRepo,
+		sessionRepo:   sessionRepo,
 		authenticator: authenticator,
 		logger:        logger,
 	}
@@ -106,6 +109,12 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 		return nil, status.Errorf(codes.Internal, "failed to generate token")
 	}
 
+	// 自动加入 Resonance Room 默认群聊
+	if err := s.joinDefaultRoom(ctx, user.Username); err != nil {
+		s.logger.Warn("failed to join default room", clog.String("username", user.Username), clog.Error(err))
+		// 非阻塞，注册仍视为成功
+	}
+
 	resp := &logicv1.RegisterResponse{
 		AccessToken: token,
 		User: &commonv1.User{
@@ -153,4 +162,38 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 		},
 		Username: username,
 	}, nil
+}
+
+// joinDefaultRoom 让新用户自动加入 Resonance Room 默认群聊
+// session_id='0' 是在 schema.sql 中预创建的系统级群聊
+func (s *AuthService) joinDefaultRoom(ctx context.Context, username string) error {
+	const defaultSessionID = "0" // Resonance Room 的固定 session_id
+
+	// 检查会话是否存在
+	session, err := s.sessionRepo.GetSession(ctx, defaultSessionID)
+	if err != nil {
+		s.logger.Error("default room not found", clog.String("session_id", defaultSessionID), clog.Error(err))
+		return err
+	}
+
+	// 添加用户到会话
+	member := &model.SessionMember{
+		SessionID: defaultSessionID,
+		Username:  username,
+		Role:      0, // 普通成员
+	}
+	if err := s.sessionRepo.AddMember(ctx, member); err != nil {
+		s.logger.Error("failed to add member to default room",
+			clog.String("username", username),
+			clog.String("session_id", defaultSessionID),
+			clog.Error(err))
+		return err
+	}
+
+	s.logger.Info("user joined default room",
+		clog.String("username", username),
+		clog.String("session_id", defaultSessionID),
+		clog.String("session_name", session.Name))
+
+	return nil
 }
