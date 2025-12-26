@@ -79,11 +79,16 @@ type ConsumerConfig struct {
 // Load 创建并加载 Task 配置（无参数）
 // 配置加载顺序：环境变量 > .env > task.{env}.yaml > task.yaml
 func Load() (*Config, error) {
-	loader := config.MustLoad(
-		config.WithConfigName("task"),
+	loader, err := config.New(&config.Config{
+		Name:     "task",
+		FileType: "yaml",
+	},
 		config.WithConfigPaths("./configs"),
 		config.WithEnvPrefix("RESONANCE"),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {

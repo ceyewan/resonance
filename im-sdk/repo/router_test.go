@@ -136,12 +136,9 @@ func TestRouterRepo_ErrorHandling(t *testing.T) {
 
 	// 创建一个无效的 Redis 连接器配置
 	redisConfig := &connector.RedisConfig{
-		BaseConfig: connector.BaseConfig{Name: "invalid-redis"}, // 必须设置 Name
-		Addr:       "invalid-host:6379",
-		Password:   "",
-		DB:         0,
+		Name: "invalid-redis",
+		Addr: "invalid-host:6379",
 	}
-	redisConfig.SetDefaults() // 设置默认值
 
 	redisConn, err := connector.NewRedis(redisConfig, connector.WithLogger(logger))
 	require.NoError(t, err)

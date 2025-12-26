@@ -67,20 +67,18 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 func setupTestRedis(t *testing.T) connector.RedisConnector {
 	globalRedisOnce.Do(func() {
 		redisConfig := &connector.RedisConfig{
-			BaseConfig: connector.BaseConfig{
-				Name:           "test-redis",
-				ConnectTimeout: 5 * time.Second,
-			},
-			Addr:         getEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379"),
-			Password:     getEnvOrDefault("REDIS_PASSWORD", ""),
-			DB:           getEnvIntOrDefault("REDIS_DB", 1),
-			PoolSize:     20, // 用户确认：提升连接池以支持并发测试
-			MinIdleConns: 10,
-			DialTimeout:  5 * time.Second,
-			ReadTimeout:  3 * time.Second,
-			WriteTimeout: 3 * time.Second,
+			Name:            "test-redis",
+			ConnectTimeout:  5 * time.Second,
+			Addr:            getEnvOrDefault("REDIS_ADDR", "127.0.0.1:6379"),
+			Password:        getEnvOrDefault("REDIS_PASSWORD", ""),
+			DB:              getEnvIntOrDefault("REDIS_DB", 1),
+			PoolSize:        20, // 用户确认：提升连接池以支持并发测试
+			MinIdleConns:    10,
+			DialTimeout:     5 * time.Second,
+			ReadTimeout:     3 * time.Second,
+			WriteTimeout:    3 * time.Second,
+			HealthCheckFreq: 30 * time.Second,
 		}
-		redisConfig.SetDefaults()
 
 		var err error
 		globalRedisConn, err = connector.NewRedis(redisConfig, connector.WithLogger(globalLogger))
@@ -169,10 +167,8 @@ func setupTestDB(t *testing.T) db.DB {
 		}
 
 		mysqlConn, err := connector.NewMySQL(&connector.MySQLConfig{
-			BaseConfig: connector.BaseConfig{
-				Name:           "test-mysql",
-				ConnectTimeout: 5 * time.Second,
-			},
+			Name:            "test-mysql",
+			ConnectTimeout:  5 * time.Second,
 			Host:            getEnvOrDefault("MYSQL_HOST", "127.0.0.1"),
 			Port:            getEnvIntOrDefault("MYSQL_PORT", 3306),
 			Username:        username,

@@ -7,7 +7,6 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
-	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/registry"
 )
 
@@ -29,11 +28,11 @@ type Config struct {
 	// 服务注册发现配置
 	Registry RegistryConfig `mapstructure:"registry"`
 
-	// ID 生成器配置
-	IDGen idgen.SnowflakeConfig `mapstructure:"idgen"` // Snowflake ID 生成器配置
-
 	// 认证配置
 	Auth auth.Config `mapstructure:"auth"`
+
+	// ID 生成器配置 (WorkerID 用于 Snowflake)
+	WorkerID int64 `mapstructure:"worker_id"` // Snowflake WorkerID [0, 1023]
 }
 
 // RegistryConfig 服务注册配置
@@ -73,11 +72,16 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 // Load 创建并加载 Logic 配置（无参数）
 // 配置加载顺序：环境变量 > .env > logic.{env}.yaml > logic.yaml
 func Load() (*Config, error) {
-	loader := config.MustLoad(
-		config.WithConfigName("logic"),
+	loader, err := config.New(&config.Config{
+		Name:     "logic",
+		FileType: "yaml",
+	},
 		config.WithConfigPaths("./configs"),
 		config.WithEnvPrefix("RESONANCE"),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {

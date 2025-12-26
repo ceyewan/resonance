@@ -125,9 +125,8 @@ func (t *Task) initResources() (*resources, error) {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 	// MQ Client (NATS Core)
-	mqClient, err := mq.New(natsConn, &mq.Config{
-		Driver: mq.DriverNatsCore,
-	}, mq.WithLogger(t.logger))
+	natsDriver := mq.NewNatsCoreDriver(natsConn, t.logger)
+	mqClient, err := mq.New(natsDriver, mq.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}

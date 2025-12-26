@@ -52,7 +52,7 @@ func (c *Consumer) Start() error {
 		clog.Int("worker_count", c.config.WorkerCount))
 
 	// 使用队列订阅（负载均衡）
-	sub, err := c.mqClient.QueueSubscribe(c.ctx, c.config.Topic, c.config.QueueGroup, c.handleMessage)
+	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.handleMessage, mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck())
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to subscribe to topic %s", c.config.Topic)
 	}

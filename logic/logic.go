@@ -41,8 +41,8 @@ type resources struct {
 	natsConn      connector.NATSConnector
 	mqClient      mq.Client
 	authenticator auth.Authenticator
-	snowflakeGen  idgen.Int64Generator // 用于 MsgID
-	uuidGen       idgen.Generator      // 用于 SessionID
+	snowflakeGen  *idgen.Snowflake // 用于 MsgID
+	uuidGen       *idgen.UUID      // 用于 SessionID
 	dbInstance    db.DB
 
 	// Repos
@@ -133,7 +133,8 @@ func (l *Logic) initResources() (*resources, error) {
 	if err := natsConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	mqClient, err := mq.New(natsConn, &mq.Config{Driver: mq.DriverNatsCore}, mq.WithLogger(l.logger))
+	natsDriver := mq.NewNatsCoreDriver(natsConn, l.logger)
+	mqClient, err := mq.New(natsDriver, mq.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
@@ -159,14 +160,11 @@ func (l *Logic) initResources() (*resources, error) {
 	}
 
 	// ID Generators
-	snowflakeGen, err := idgen.NewSnowflake(&l.config.IDGen, redisConn, nil, idgen.WithLogger(l.logger))
+	snowflakeGen, err := idgen.NewSnowflake(l.config.WorkerID)
 	if err != nil {
 		return nil, fmt.Errorf("snowflake init: %w", err)
 	}
-	uuidGen, err := idgen.NewUUID(&idgen.UUIDConfig{Version: "v7"}, idgen.WithLogger(l.logger))
-	if err != nil {
-		return nil, fmt.Errorf("uuid init: %w", err)
-	}
+	uuidGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
 
 	// Repos
 	// 假设 NewUserRepo 和 NewMessageRepo 签名与 SessionRepo 类似

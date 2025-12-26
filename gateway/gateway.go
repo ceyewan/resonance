@@ -72,7 +72,7 @@ func (g *Gateway) initComponents() error {
 	// 1. 基础组件
 	logger, _ := clog.New(&g.config.Log, clog.WithStandardContext())
 	g.logger = logger
-	idGen, _ := idgen.NewUUID(&idgen.UUIDConfig{Version: "v7"}, idgen.WithLogger(logger))
+	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
 	g.serviceID = g.config.Service.Name + "-001"
 
 	// 2. 初始化核心资源 (Etcd, Clients, Managers)
