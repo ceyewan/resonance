@@ -3,15 +3,21 @@ include .env
 export
 
 # 1. 生成代码 (使用 buf)
-gen:
-	@echo "🔧 Generating contract code..."
-	@cd api && rm -rf gen
+# 增量生成逻辑：仅当 proto 文件改变时才重新生成，避免 IDE 频繁重索引
+PROTO_FILES := $(shell find api/proto -name "*.proto")
+GEN_TIMESTAMP := api/gen/.timestamp
+
+gen: $(GEN_TIMESTAMP)
+
+$(GEN_TIMESTAMP): $(PROTO_FILES) api/buf.yaml api/buf.gen.go.yaml api/buf.gen.connect.yaml api/buf.gen.ts.yaml
+	@echo "🔧 Generating contract code (incremental)..."
 	@echo "  > Generating Go base + gRPC (All proto files)..."
 	@cd api && buf generate --template buf.gen.go.yaml
 	@echo "  > Generating ConnectRPC (Only gateway/v1/api.proto)..."
 	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
 	@echo "  > Generating TypeScript (gateway/v1/api.proto, gateway/v1/packet.proto, common)..."
 	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@mkdir -p api/gen && touch $(GEN_TIMESTAMP)
 	@echo "✅ Code generation complete!"
 	@echo ""
 	@echo "📦 Generated structure:"
@@ -102,6 +108,16 @@ web-build: gen
 
 # 6. 一键完成所有生成和依赖整理
 all: gen tidy web-install
+
+# 7. 强制清理并重新生成
+gen-clean:
+	@echo "🧹 Cleaning generated code..."
+	@rm -rf api/gen
+	@$(MAKE) gen
+
+gen-force:
+	@rm -f $(GEN_TIMESTAMP)
+	@$(MAKE) gen
 
 # ============================================================================
 # Docker Compose 指令 (基础设施)

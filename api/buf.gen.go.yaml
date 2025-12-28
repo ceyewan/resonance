@@ -1,13 +1,18 @@
 version: v2
-managed:
-  enabled: true
-plugins:
-  # 1. 基础 protobuf 消息类型（所有 proto 文件）
-  - remote: buf.build/protocolbuffers/go
-    out: gen/go
-    opt: paths=source_relative
 
-  # 2. 普通 gRPC（所有 proto 文件）
-  - remote: buf.build/grpc/go
+# 管理 Go 选项的自动生成
+managed:
+  enabled: true # 自动填充 go_package 等选项，保持 proto 文件简洁
+
+plugins:
+  # 1. 基础 protobuf 消息类型生成器
+  # 锁定 v1.36.0 以匹配 go.mod 中的 google.golang.org/protobuf v1.36.x
+  - remote: buf.build/protocolbuffers/go:v1.36.0
+    out: gen/go
+    opt: paths=source_relative # 生成的代码路径与 .proto 文件相对路径保持一致
+
+  # 2. 标准 gRPC 服务代码生成器
+  # 用于所有服务间的内部 RPC 调用（Gateway <-> Logic <-> Task）
+  - remote: buf.build/grpc/go:v1.5.1
     out: gen/go
     opt: paths=source_relative

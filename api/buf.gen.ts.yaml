@@ -1,10 +1,19 @@
 version: v2
+
+# 管理选项（TS 通常不需要像 Go 那样 managed 选项）
 managed:
   enabled: true
+
 plugins:
+  # 1. TypeScript 消息生成器 (Protobuf-ES)
+  # 锁定 v1.10.0 以匹配 web/package.json 中的 @bufbuild/protobuf: ^1.10.1
+  # 注意：如果升级此插件版本，必须同步升级前端 npm 依赖，否则代码将无法编译
   - remote: buf.build/bufbuild/es:v1.10.0
     out: gen/ts
     opt: target=ts
+
+  # 2. TypeScript ConnectRPC 生成器
+  # 锁定 v1.4.0 以匹配 web/package.json 中的 @connectrpc/connect: ^1.4.2
   - remote: buf.build/connectrpc/es:v1.4.0
     out: gen/ts
     opt: target=ts

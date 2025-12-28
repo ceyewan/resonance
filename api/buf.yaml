@@ -1,17 +1,20 @@
 version: v2 # Buf 配置文件的语法版本，v2 是目前最新的推荐版本
+
+# 模块定义
 modules:
-  - path: proto # 告诉 buf：我的 .proto 文件都放在这个目录下
-    name:
-      buf.build/ceyewan/resonance # 模块名。这是你在 Buf Registry (BSR) 上的唯一标识
-      # 格式：buf.build/{用户名}/{仓库名}
+  - path: proto # 指定 .proto 文件所在的根目录
+    name: buf.build/ceyewan/resonance # 模块在 Buf Registry (BSR) 上的唯一标识
 
-breaking: # 破坏性变更检测 (Breaking Change Detection)
+# 破坏性变更检测配置
+breaking:
   use:
-    - FILE # 使用 "FILE" 级别的检查规则。
-      # 这意味着它会检查你是否删除了文件、移动了包等会导致引用方编译失败的变更。
+    - FILE # 检查文件级别的变更（如删除文件、移动包路径等）
+    # 启用此项可以防止在多人协作中意外发布破坏现有客户端的协议变更
 
-lint: # 代码风格检查 (Linting)
+# 代码风格检查配置
+lint:
   use:
-    - STANDARD # 使用 Buf 官方推荐的标准规则集（命名规范、注释要求等）
+    - STANDARD # 使用 Buf 官方推荐的标准规则集（包括命名规范、注释要求等）
   except:
-    - PACKAGE_DIRECTORY_MATCH # 【重点】忽略这一条规则
+    - PACKAGE_DIRECTORY_MATCH # 忽略包名必须与目录名完全匹配的限制
+    # 在本工程中，我们使用了 proto/{service}/v1 这种结构，允许一定的灵活性
