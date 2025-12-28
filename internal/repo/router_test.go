@@ -8,7 +8,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
-	"github.com/ceyewan/resonance/im-sdk/model"
+	"github.com/ceyewan/resonance/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +59,7 @@ func TestRouterRepo_BasicOperations(t *testing.T) {
 		// 更新网关 ID 和时间戳
 		updatedRouter := &model.Router{
 			Username:  testRouter.Username,
-			GatewayID: "gateway-002", // 更换网关
+			GatewayID: "gateway-002",   // 更换网关
 			RemoteIP:  "192.168.1.101", // 更换 IP
 			Timestamp: time.Now().Unix(),
 		}

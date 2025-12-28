@@ -5,7 +5,7 @@
 ## 📁 文件结构
 
 ```
-im-sdk/repo/
+internal/repo/
 ├── repo.go              # Repository 接口定义
 ├── router_repo.go       # RouterRepo 的 Redis 实现
 ├── user_repo.go         # UserRepo 的 MySQL 实现
@@ -85,7 +85,7 @@ BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, 
 import (
     "github.com/ceyewan/genesis/clog"
     "github.com/ceyewan/genesis/connector"
-    "github.com/ceyewan/resonance/im-sdk/repo"
+    "github.com/ceyewan/resonance/internal/repo"
 )
 
 // 创建 Redis 连接器
@@ -560,19 +560,19 @@ REDIS_DB=1  # 测试环境使用 DB1
 
 ```bash
 # 运行所有测试
-go test ./im-sdk/repo/... -v
+go test ./internal/repo/... -v
 
 # 运行 MySQL 测试（user、session、message）
-go test ./im-sdk/repo/... -run="TestUserRepo|TestSessionRepo|TestMessageRepo" -v
+go test ./internal/repo/... -run="TestUserRepo|TestSessionRepo|TestMessageRepo" -v
 
 # 运行 Redis 测试（router）
-go test ./im-sdk/repo/... -run="TestRouterRepo" -v
+go test ./internal/repo/... -run="TestRouterRepo" -v
 
 # 运行并发测试
-go test ./im-sdk/repo/... -run="Concurrency" -v
+go test ./internal/repo/... -run="Concurrency" -v
 
 # 跳过集成测试（快速模式）
-go test ./im-sdk/repo/... -short
+go test ./internal/repo/... -short
 ```
 
 ### 数据清理机制

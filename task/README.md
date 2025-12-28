@@ -166,7 +166,7 @@ import (
     "syscall"
 
     "github.com/ceyewan/resonance/task"
-    "github.com/ceyewan/resonance/im-sdk/repo"
+    "github.com/ceyewan/resonance/internal/repo"
 )
 
 func main() {

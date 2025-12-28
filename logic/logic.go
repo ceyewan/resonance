@@ -11,7 +11,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/resonance/im-sdk/repo"
+	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
@@ -35,16 +35,16 @@ type Logic struct {
 
 // resources 内部资源聚合
 type resources struct {
-	etcdConn        connector.EtcdConnector
-	redisConn       connector.RedisConnector
-	mysqlConn       connector.MySQLConnector
-	natsConn        connector.NATSConnector
-	mqClient        mq.Client
-	authenticator   auth.Authenticator
-	snowflakeGen    *idgen.Snowflake // 用于 MsgID
-	uuidGen         *idgen.UUID      // 用于 SessionID
-	dbInstance      db.DB
-	instanceIDStop func()           // 实例 ID 保活停止函数
+	etcdConn       connector.EtcdConnector
+	redisConn      connector.RedisConnector
+	mysqlConn      connector.MySQLConnector
+	natsConn       connector.NATSConnector
+	mqClient       mq.Client
+	authenticator  auth.Authenticator
+	snowflakeGen   *idgen.Snowflake // 用于 MsgID
+	uuidGen        *idgen.UUID      // 用于 SessionID
+	dbInstance     db.DB
+	instanceIDStop func() // 实例 ID 保活停止函数
 
 	// Repos
 	userRepo    repo.UserRepo

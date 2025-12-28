@@ -58,7 +58,7 @@ services:
       - --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql-data:/var/lib/mysql
-      - ../im-sdk/schema/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../internal/schema/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     networks:
       - resonance-net
     deploy:

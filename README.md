@@ -131,7 +131,7 @@ resonance/
 │   │   └── mq/            # 消息队列协议
 │   ├── gen/               # 生成的代码
 │   └── buf.gen.*.yaml     # 代码生成配置
-├── im-sdk/                # 公共 SDK
+├── internal/                # 公共 SDK
 │   ├── model/             # 数据模型
 │   └── repo/              # 仓储层封装
 ├── gateway/               # 网关服务实现

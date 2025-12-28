@@ -8,7 +8,7 @@ import (
 	"github.com/ceyewan/genesis/cache"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
-	"github.com/ceyewan/resonance/im-sdk/model"
+	"github.com/ceyewan/resonance/internal/model"
 )
 
 // 确保 routerRepo 实现了 RouterRepo 接口

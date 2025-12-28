@@ -6,8 +6,8 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/im-sdk/model"
-	"github.com/ceyewan/resonance/im-sdk/repo"
+	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/internal/repo"
 )
 
 // GatewayOpsService 网关操作服务

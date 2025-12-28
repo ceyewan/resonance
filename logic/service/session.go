@@ -7,8 +7,8 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/im-sdk/model"
-	"github.com/ceyewan/resonance/im-sdk/repo"
+	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/internal/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
