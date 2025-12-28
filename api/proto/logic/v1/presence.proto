@@ -4,19 +4,20 @@ package resonance.logic.v1;
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
-// GatewayOpsService 处理网关状态同步相关的请求
-service GatewayOpsService {
-  // SyncState 网关通过双向流同步用户在线状态到 Logic
-  rpc SyncState(stream SyncStateRequest) returns (stream SyncStateResponse);
+// PresenceService 处理网关状态同步相关的请求
+service PresenceService {
+  // SyncStatus 网关通过双向流同步用户在线状态到 Logic
+  // 支持批量上报，以应对重连风暴
+  rpc SyncStatus(stream SyncStatusRequest) returns (stream SyncStatusResponse);
 }
 
-message SyncStateRequest {
+message SyncStatusRequest {
   int64  seq_id     = 1; // 序列号，用于回执
   string gateway_id = 2; // 网关实例ID
-  oneof event {
-    UserOnline  online  = 3; // 用户上线
-    UserOffline offline = 4; // 用户下线
-  }
+
+  // 批量事件
+  repeated UserOnline  online_batch  = 3;
+  repeated UserOffline offline_batch = 4;
 }
 
 message UserOnline {
@@ -30,7 +31,7 @@ message UserOffline {
   int64  timestamp = 2;
 }
 
-message SyncStateResponse {
+message SyncStatusResponse {
   int64  seq_id = 1; // 确认的序列号
   string error  = 2; // 错误信息
 }

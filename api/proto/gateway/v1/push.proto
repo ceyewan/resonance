@@ -14,12 +14,12 @@ service PushService {
 }
 
 message PushMessageRequest {
-  string      to_username = 1;
-  PushMessage message     = 2;
+  repeated string to_usernames = 1; // 支持批量推送
+  PushMessage     message      = 2;
 }
 
 message PushMessageResponse {
-  int64  msg_id = 1; // 对应消息ID
-  int64  seq_id = 2; // 对应消息序号
-  string error  = 3; // 错误信息
+  int64           msg_id           = 1; // 对应消息ID
+  string          error            = 2; // 错误信息
+  repeated string failed_usernames = 3; // 推送失败的用户列表
 }

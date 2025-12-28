@@ -9,9 +9,9 @@ import (
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
-// gatewayOpsStreamWrapper GatewayOps 流包装器
-type gatewayOpsStreamWrapper struct {
-	stream logicv1.GatewayOpsService_SyncStateClient
+// presenceStreamWrapper Presence 流包装器
+type presenceStreamWrapper struct {
+	stream logicv1.PresenceService_SyncStatusClient
 }
 
 // SyncUserOnline 同步用户上线状态
@@ -20,25 +20,25 @@ func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP s
 	defer c.streamMu.Unlock()
 
 	// 如果流未建立，先建立连接
-	if c.gatewayOpsStream == nil {
-		stream, err := c.gatewayOpsSvc().SyncState(ctx)
+	if c.presenceStream == nil {
+		stream, err := c.presenceSvc().SyncStatus(ctx)
 		if err != nil {
 			return err
 		}
-		c.gatewayOpsStream = &gatewayOpsStreamWrapper{
+		c.presenceStream = &presenceStreamWrapper{
 			stream: stream,
 		}
 
 		// 启动接收协程
-		go c.receiveGatewayOpsResponses()
+		go c.receivePresenceResponses()
 	}
 
 	c.seqID++
-	req := &logicv1.SyncStateRequest{
+	req := &logicv1.SyncStatusRequest{
 		SeqId:     c.seqID,
 		GatewayId: c.gatewayID,
-		Event: &logicv1.SyncStateRequest_Online{
-			Online: &logicv1.UserOnline{
+		OnlineBatch: []*logicv1.UserOnline{
+			{
 				Username:  username,
 				RemoteIp:  remoteIP,
 				Timestamp: time.Now().Unix(),
@@ -46,8 +46,8 @@ func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP s
 		},
 	}
 
-	if err := c.gatewayOpsStream.stream.Send(req); err != nil {
-		c.gatewayOpsStream = nil // 重置流
+	if err := c.presenceStream.stream.Send(req); err != nil {
+		c.presenceStream = nil // 重置流
 		return err
 	}
 
@@ -60,66 +60,66 @@ func (c *Client) SyncUserOffline(ctx context.Context, username string) error {
 	defer c.streamMu.Unlock()
 
 	// 如果流未建立，先建立连接
-	if c.gatewayOpsStream == nil {
-		stream, err := c.gatewayOpsSvc().SyncState(ctx)
+	if c.presenceStream == nil {
+		stream, err := c.presenceSvc().SyncStatus(ctx)
 		if err != nil {
 			return err
 		}
-		c.gatewayOpsStream = &gatewayOpsStreamWrapper{
+		c.presenceStream = &presenceStreamWrapper{
 			stream: stream,
 		}
 
 		// 启动接收协程
-		go c.receiveGatewayOpsResponses()
+		go c.receivePresenceResponses()
 	}
 
 	c.seqID++
-	req := &logicv1.SyncStateRequest{
+	req := &logicv1.SyncStatusRequest{
 		SeqId:     c.seqID,
 		GatewayId: c.gatewayID,
-		Event: &logicv1.SyncStateRequest_Offline{
-			Offline: &logicv1.UserOffline{
+		OfflineBatch: []*logicv1.UserOffline{
+			{
 				Username:  username,
 				Timestamp: time.Now().Unix(),
 			},
 		},
 	}
 
-	if err := c.gatewayOpsStream.stream.Send(req); err != nil {
-		c.gatewayOpsStream = nil // 重置流
+	if err := c.presenceStream.stream.Send(req); err != nil {
+		c.presenceStream = nil // 重置流
 		return err
 	}
 
 	return nil
 }
 
-// receiveGatewayOpsResponses 接收网关操作的响应
-func (c *Client) receiveGatewayOpsResponses() {
-	if c.gatewayOpsStream == nil {
+// receivePresenceResponses 接收网关操作的响应
+func (c *Client) receivePresenceResponses() {
+	if c.presenceStream == nil {
 		return
 	}
 
 	for {
-		resp, err := c.gatewayOpsStream.stream.Recv()
+		resp, err := c.presenceStream.stream.Recv()
 		if err != nil {
 			if err == io.EOF {
-				c.logger.Info("gateway ops stream closed")
+				c.logger.Info("presence stream closed")
 			} else {
-				c.logger.Error("failed to receive gateway ops response", clog.Error(err))
+				c.logger.Error("failed to receive presence response", clog.Error(err))
 			}
 			c.streamMu.Lock()
-			c.gatewayOpsStream = nil
+			c.presenceStream = nil
 			c.streamMu.Unlock()
 			return
 		}
 
 		// 处理响应
 		if resp.Error != "" {
-			c.logger.Error("gateway ops error",
+			c.logger.Error("presence sync error",
 				clog.Int64("seq_id", resp.SeqId),
 				clog.String("error", resp.Error))
 		} else {
-			c.logger.Debug("gateway ops ack",
+			c.logger.Debug("presence sync ack",
 				clog.Int64("seq_id", resp.SeqId))
 		}
 	}

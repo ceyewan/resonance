@@ -16,13 +16,13 @@ import (
 
 // GRPCServer gRPC 服务包装器
 type GRPCServer struct {
-	logger     clog.Logger
-	server     *grpc.Server
-	addr       string
-	authSvc    *service.AuthService
-	sessionSvc *service.SessionService
-	chatSvc    *service.ChatService
-	gatewayOps *service.GatewayOpsService
+	logger      clog.Logger
+	server      *grpc.Server
+	addr        string
+	authSvc     *service.AuthService
+	sessionSvc  *service.SessionService
+	chatSvc     *service.ChatService
+	presenceSvc *service.PresenceService
 }
 
 // NewGRPCServer 创建 gRPC 服务
@@ -32,15 +32,15 @@ func NewGRPCServer(
 	authSvc *service.AuthService,
 	sessionSvc *service.SessionService,
 	chatSvc *service.ChatService,
-	gatewayOps *service.GatewayOpsService,
+	presenceSvc *service.PresenceService,
 ) *GRPCServer {
 	return &GRPCServer{
-		addr:       addr,
-		logger:     logger,
-		authSvc:    authSvc,
-		sessionSvc: sessionSvc,
-		chatSvc:    chatSvc,
-		gatewayOps: gatewayOps,
+		addr:        addr,
+		logger:      logger,
+		authSvc:     authSvc,
+		sessionSvc:  sessionSvc,
+		chatSvc:     chatSvc,
+		presenceSvc: presenceSvc,
 	}
 }
 
@@ -62,7 +62,7 @@ func (s *GRPCServer) Start() error {
 	logicv1.RegisterAuthServiceServer(s.server, s.authSvc)
 	logicv1.RegisterSessionServiceServer(s.server, s.sessionSvc)
 	logicv1.RegisterChatServiceServer(s.server, s.chatSvc)
-	logicv1.RegisterGatewayOpsServiceServer(s.server, s.gatewayOps)
+	logicv1.RegisterPresenceServiceServer(s.server, s.presenceSvc)
 
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {

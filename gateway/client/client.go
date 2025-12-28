@@ -24,23 +24,23 @@ type Client struct {
 	conn *grpc.ClientConn
 
 	// gRPC 原始客户端
-	authClient       logicv1.AuthServiceClient
-	sessionClient    logicv1.SessionServiceClient
-	chatClient       logicv1.ChatServiceClient
-	gatewayOpsClient logicv1.GatewayOpsServiceClient
+	authClient     logicv1.AuthServiceClient
+	sessionClient  logicv1.SessionServiceClient
+	chatClient     logicv1.ChatServiceClient
+	presenceClient logicv1.PresenceServiceClient
 
 	// 治理组件
-	breaker  breaker.Breaker
-	limiter  ratelimit.Limiter
+	breaker breaker.Breaker
+	limiter ratelimit.Limiter
 
 	logger    clog.Logger
 	gatewayID string
 
 	// 双向流连接
-	chatStream       *chatStreamWrapper
-	gatewayOpsStream *gatewayOpsStreamWrapper
-	streamMu         sync.Mutex
-	seqID            int64
+	chatStream     *chatStreamWrapper
+	presenceStream *presenceStreamWrapper
+	streamMu       sync.Mutex
+	seqID          int64
 }
 
 // 服务配置常量
@@ -50,7 +50,7 @@ const (
 )
 
 // 服务限流配置
-// 不同服务有不同的流量特征：Auth 低频、Chat 高频、Session 中等、GatewayOps 低频
+// 不同服务有不同的流量特征：Auth 低频、Chat 高频、Session 中等、Presence 低频
 var serviceRateLimits = map[string]ratelimit.Limit{
 	"logic.v1.AuthService": {
 		Rate:  100, // 登录/注册频率低，防刷
@@ -64,7 +64,7 @@ var serviceRateLimits = map[string]ratelimit.Limit{
 		Rate:  5000, // 聊天消息高频发送
 		Burst: 10000,
 	},
-	"logic.v1.GatewayOpsService": {
+	"logic.v1.PresenceService": {
 		Rate:  200, // 用户上下线低频
 		Burst: 500,
 	},
@@ -106,7 +106,7 @@ const serviceConfigJSON = `{
 			"RetryableStatusCodes": ["UNAVAILABLE"]
 		}
 	}, {
-		"name": [{"service": "logic.v1.GatewayOpsService"}],
+		"name": [{"service": "logic.v1.PresenceService"}],
 		"retryPolicy": {
 			"MaxAttempts": 4,
 			"InitialBackoff": "0.5s",
@@ -126,11 +126,11 @@ func NewClient(logicAddr string, gatewayID string, logger clog.Logger, reg regis
 
 	// 创建熔断器
 	brk, err := breaker.New(&breaker.Config{
-		MaxRequests:     5,                    // 半开状态允许通过的最大请求数
-		Interval:        60 * time.Second,     // 统计周期
-		Timeout:         30 * time.Second,     // 打开状态持续时间
-		FailureRatio:    0.6,                  // 失败率阈值 60%
-		MinimumRequests: 10,                   // 触发熔断的最小请求数
+		MaxRequests:     5,                // 半开状态允许通过的最大请求数
+		Interval:        60 * time.Second, // 统计周期
+		Timeout:         30 * time.Second, // 打开状态持续时间
+		FailureRatio:    0.6,              // 失败率阈值 60%
+		MinimumRequests: 10,               // 触发熔断的最小请求数
 	}, breaker.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create breaker: %w", err)
@@ -206,15 +206,15 @@ func NewClient(logicAddr string, gatewayID string, logger clog.Logger, reg regis
 	}
 
 	return &Client{
-		conn:             conn,
-		authClient:       logicv1.NewAuthServiceClient(conn),
-		sessionClient:    logicv1.NewSessionServiceClient(conn),
-		chatClient:       logicv1.NewChatServiceClient(conn),
-		gatewayOpsClient: logicv1.NewGatewayOpsServiceClient(conn),
-		breaker:          brk,
-		limiter:          limiter,
-		logger:           logger,
-		gatewayID:        gatewayID,
+		conn:           conn,
+		authClient:     logicv1.NewAuthServiceClient(conn),
+		sessionClient:  logicv1.NewSessionServiceClient(conn),
+		chatClient:     logicv1.NewChatServiceClient(conn),
+		presenceClient: logicv1.NewPresenceServiceClient(conn),
+		breaker:        brk,
+		limiter:        limiter,
+		logger:         logger,
+		gatewayID:      gatewayID,
 	}, nil
 }
 
@@ -300,6 +300,6 @@ func (c *Client) chatSvc() logicv1.ChatServiceClient {
 	return c.chatClient
 }
 
-func (c *Client) gatewayOpsSvc() logicv1.GatewayOpsServiceClient {
-	return c.gatewayOpsClient
+func (c *Client) presenceSvc() logicv1.PresenceServiceClient {
+	return c.presenceClient
 }

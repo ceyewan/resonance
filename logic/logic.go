@@ -113,7 +113,7 @@ func (l *Logic) initComponents() error {
 	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
 	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, logger)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.mqClient, logger)
-	gatewayOpsSvc := service.NewGatewayOpsService(res.routerRepo, logger)
+	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 
 	// 5. gRPC Server
 	l.grpcServer = server.NewGRPCServer(
@@ -122,7 +122,7 @@ func (l *Logic) initComponents() error {
 		authSvc,
 		sessionSvc,
 		chatSvc,
-		gatewayOpsSvc,
+		presenceSvc,
 	)
 
 	return nil

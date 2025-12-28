@@ -37,16 +37,16 @@ func NewClient(addr string, id string) (*GatewayClient, error) {
 	}, nil
 }
 
-// Push 推送消息
-func (c *GatewayClient) Push(ctx context.Context, toUsername string, msg *gatewayv1.PushMessage) error {
+// PushBatch 批量推送消息
+func (c *GatewayClient) PushBatch(ctx context.Context, toUsernames []string, msg *gatewayv1.PushMessage) error {
 	stream, err := c.client.PushMessage(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create stream: %w", err)
 	}
 
 	req := &gatewayv1.PushMessageRequest{
-		ToUsername: toUsername,
-		Message:    msg,
+		ToUsernames: toUsernames,
+		Message:     msg,
 	}
 
 	if err := stream.Send(req); err != nil {
@@ -65,6 +65,11 @@ func (c *GatewayClient) Push(ctx context.Context, toUsername string, msg *gatewa
 
 	if resp.Error != "" {
 		return fmt.Errorf("push error from gateway: %s", resp.Error)
+	}
+
+	// 检查是否有失败的用户（目前暂不处理，直接返回成功或记录日志）
+	if len(resp.FailedUsernames) > 0 {
+		return fmt.Errorf("partial failure: %d users failed to receive message", len(resp.FailedUsernames))
 	}
 
 	return nil

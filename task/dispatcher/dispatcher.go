@@ -55,10 +55,36 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 	// 提取用户名列表
 	usernames := make([]string, 0, len(members))
 	for _, m := range members {
+		// 跳过发送者自己
+		if m.Username == event.FromUsername {
+			continue
+		}
 		usernames = append(usernames, m.Username)
 	}
 
-	// 2. 构造推送消息
+	if len(usernames) == 0 {
+		d.logger.Info("no target users to push", clog.Int64("msg_id", event.MsgId))
+		return nil
+	}
+
+	// 2. 批量获取用户网关路由
+	// RouterRepo 增加了 BatchGetUsersGateway 方法
+	routers, err := d.routerRepo.BatchGetUsersGateway(ctx, usernames)
+	if err != nil {
+		d.logger.Error("failed to batch get user gateways", clog.Error(err))
+		return err // 可以选择重试或部分失败
+	}
+
+	// 3. 按 GatewayID 分组
+	gatewayGroups := make(map[string][]string) // gatewayID -> []username
+	for _, router := range routers {
+		if router == nil {
+			continue // 用户离线或无路由
+		}
+		gatewayGroups[router.GatewayID] = append(gatewayGroups[router.GatewayID], router.Username)
+	}
+
+	// 4. 构造推送消息
 	pushMsg := &gatewayv1.PushMessage{
 		MsgId:        event.MsgId,
 		SeqId:        event.SeqId,
@@ -69,70 +95,38 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		Timestamp:    event.Timestamp,
 	}
 
-	// 3. 写扩散：推送给所有在线成员
+	// 5. 并发推送给各个 Gateway
+	// TODO: 可以使用 Worker Pool 限制并发数
 	successCount := 0
-	for _, username := range usernames {
-		// 跳过发送者自己
-		if username == event.FromUsername {
-			continue
-		}
-
-		// 通过 RouterRepo 获取用户的 GatewayID
-		gatewayID, err := d.getUserGateway(ctx, username)
-		if err != nil {
-			if xerrors.Is(err, ErrUserOffline) {
-				d.logger.Debug("user offline, skip push",
-					clog.String("username", username))
-			} else {
-				d.logger.Error("failed to get user gateway",
-					clog.String("username", username),
-					clog.Error(err))
-			}
-			continue
-		}
-
+	for gatewayID, users := range gatewayGroups {
 		// 获取 Pusher Client
 		client, err := d.pusherMgr.GetClient(gatewayID)
 		if err != nil {
 			d.logger.Warn("gateway client not found",
 				clog.String("gateway_id", gatewayID),
-				clog.String("username", username))
+				clog.Int("user_count", len(users)))
 			continue
 		}
 
-		// 推送到对应的 Gateway
-		if err := client.Push(ctx, username, pushMsg); err != nil {
-			d.logger.Error("failed to push to user",
-				clog.String("username", username),
+		// 批量推送到对应的 Gateway
+		if err := client.PushBatch(ctx, users, pushMsg); err != nil {
+			d.logger.Error("failed to push batch to gateway",
 				clog.String("gateway_id", gatewayID),
+				clog.Int("user_count", len(users)),
 				clog.Error(err))
 			continue
 		}
 
-		successCount++
-		d.logger.Debug("pushed to user",
-			clog.String("username", username),
-			clog.String("gateway_id", gatewayID))
+		successCount += len(users)
+		d.logger.Debug("pushed batch to gateway",
+			clog.String("gateway_id", gatewayID),
+			clog.Int("user_count", len(users)))
 	}
 
 	d.logger.Info("dispatch completed",
 		clog.Int64("msg_id", event.MsgId),
-		clog.Int("total_members", len(usernames)),
-		clog.Int("success_count", successCount))
+		clog.Int("total_targets", len(usernames)),
+		clog.Int("online_targets", successCount))
 
 	return nil
-}
-
-// getUserGateway 获取用户的 GatewayID
-func (d *Dispatcher) getUserGateway(ctx context.Context, username string) (string, error) {
-	router, err := d.routerRepo.GetUserGateway(ctx, username)
-	if err != nil {
-		return "", xerrors.Wrapf(err, "failed to get user gateway: %s", username)
-	}
-
-	if router == nil {
-		return "", xerrors.Wrapf(ErrUserOffline, "user %s has no gateway", username)
-	}
-
-	return router.GatewayID, nil
 }

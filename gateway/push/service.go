@@ -44,8 +44,8 @@ func (s *Service) PushMessage(srv gatewayv1.PushService_PushMessageServer) error
 			return err
 		}
 
-		// 推送消息到用户
-		resp := s.pushToUser(srv.Context(), req)
+		// 批量推送消息
+		resp := s.pushBatch(srv.Context(), req)
 
 		// 发送响应
 		if err := srv.Send(resp); err != nil {
@@ -55,55 +55,39 @@ func (s *Service) PushMessage(srv gatewayv1.PushService_PushMessageServer) error
 	}
 }
 
-// pushToUser 推送消息到指定用户
-func (s *Service) pushToUser(ctx context.Context, req *gatewayv1.PushMessageRequest) *gatewayv1.PushMessageResponse {
-	username := req.ToUsername
+// pushBatch 批量推送消息给用户
+func (s *Service) pushBatch(ctx context.Context, req *gatewayv1.PushMessageRequest) *gatewayv1.PushMessageResponse {
 	message := req.Message
+	failedUsernames := make([]string, 0)
 
-	s.logger.Debug("pushing message to user",
-		clog.String("username", username),
-		clog.Int64("msg_id", message.MsgId))
-
-	// 检查用户是否在线
-	conn, ok := s.connMgr.GetConnection(username)
-	if !ok {
-		s.logger.Warn("user not connected",
-			clog.String("username", username))
-		return &gatewayv1.PushMessageResponse{
-			MsgId: message.MsgId,
-			SeqId: message.SeqId,
-			Error: "user not connected",
-		}
-	}
-
-	// 创建推送包
+	// 1. 构造 WebSocket 包 (只做一次)
 	packet := &gatewayv1.WsPacket{
-		Seq: "",
 		Payload: &gatewayv1.WsPacket_Push{
 			Push: message,
 		},
 	}
 
-	// 发送到 WebSocket 连接
-	if err := conn.Send(packet); err != nil {
-		s.logger.Error("failed to send message to user",
-			clog.String("username", username),
-			clog.Error(err))
-		return &gatewayv1.PushMessageResponse{
-			MsgId: message.MsgId,
-			SeqId: message.SeqId,
-			Error: err.Error(),
+	// 2. 循环分发
+	for _, username := range req.ToUsernames {
+		conn, ok := s.connMgr.GetConnection(username)
+		if !ok {
+			// 用户不在线，视为失败（或者忽略，取决于业务需求，这里记录为失败）
+			failedUsernames = append(failedUsernames, username)
+			continue
+		}
+
+		// 发送到 WebSocket 连接
+		if err := conn.Send(packet); err != nil {
+			s.logger.Error("failed to send message to user",
+				clog.String("username", username),
+				clog.Error(err))
+			failedUsernames = append(failedUsernames, username)
 		}
 	}
 
-	s.logger.Debug("message pushed successfully",
-		clog.String("username", username),
-		clog.Int64("msg_id", message.MsgId))
-
 	return &gatewayv1.PushMessageResponse{
-		MsgId: message.MsgId,
-		SeqId: message.SeqId,
-		Error: "",
+		MsgId:           message.MsgId,
+		FailedUsernames: failedUsernames,
 	}
 }
 
