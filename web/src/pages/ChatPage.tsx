@@ -1,41 +1,50 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 import { useMessageStore } from "@/stores/message";
 import { sessionClient } from "@/api/client";
+import { WsPacket, ChatRequest } from "@/gen/gateway/v1/packet_pb";
 import type { SessionInfo as SessionInfoType } from "@/gen/gateway/v1/api_pb";
 
-export default function ChatPage() {
-  const { user, accessToken, logout } = useAuthStore();
+interface ChatPageProps {
+  isConnected: boolean;
+  send: (packet: WsPacket) => void;
+}
+
+export default function ChatPage({ isConnected, send }: ChatPageProps) {
+  const { user, logout } = useAuthStore();
   const { sessions, currentSession, setSessions, setCurrentSession } =
     useSessionStore();
-  const { getSessionMessages } = useMessageStore();
+  const { getSessionMessages, addMessage } = useMessageStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [inputValue, setInputValue] = useState("");
 
   // Load sessions on mount
+  // 后端在注册时会自动加入 0 号房间（session_id='0'），所以这里只需要加载会话列表
   useEffect(() => {
-    if (!accessToken) return;
-
     const loadSessions = async () => {
       setIsLoading(true);
       try {
-        const response = (await sessionClient.getSessionList({
-          accessToken,
-        })) as any;
-        setSessions(
-          response.sessions.map((s: SessionInfoType) => ({
-            sessionId: s.sessionId,
-            userId: s.sessionId, // For now, use sessionId as userId
-            userName: s.name,
-            userAvatar: s.avatarUrl,
-            isGroup: false,
-            unreadCount: Number(s.unreadCount),
-            lastMessage: s.lastMessage?.content,
-            lastMessageTime: s.lastMessage
-              ? Number(s.lastMessage.timestamp)
-              : undefined,
-          })),
-        );
+        // Token 会通过拦截器自动添加到 Authorization 头
+        const response = (await sessionClient.getSessionList({})) as any;
+        const loadedSessions = response.sessions.map((s: SessionInfoType) => ({
+          sessionId: s.sessionId,
+          userId: s.sessionId, // For now, use sessionId as userId
+          userName: s.name,
+          userAvatar: s.avatarUrl,
+          isGroup: s.type === 2,
+          unreadCount: Number(s.unreadCount),
+          lastMessage: s.lastMessage?.content,
+          lastMessageTime: s.lastMessage
+            ? Number(s.lastMessage.timestamp)
+            : undefined,
+        }));
+        setSessions(loadedSessions);
+
+        // 自动选中第一个会话（通常是 0 号房间）
+        if (loadedSessions.length > 0 && !currentSession) {
+          setCurrentSession(loadedSessions[0]);
+        }
       } catch (err) {
         console.error("Failed to load sessions:", err);
       } finally {
@@ -44,18 +53,64 @@ export default function ChatPage() {
     };
 
     loadSessions();
-  }, [accessToken, setSessions]);
+  }, [setSessions, setCurrentSession]);
 
   const messages = currentSession
     ? getSessionMessages(currentSession.sessionId)
     : [];
+
+  // 发送消息
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!inputValue.trim() || !currentSession || !isConnected) {
+      return;
+    }
+
+    // 使用 fromJsonString 创建 WsPacket（JSON 格式中 oneof 直接展开）
+    const packet = WsPacket.fromJsonString(JSON.stringify({
+      seq: `msg-${Date.now()}`,
+      chat: {
+        sessionId: currentSession.sessionId,
+        content: inputValue.trim(),
+        type: "text",
+      },
+    }));
+
+    // 调试：打印序列化后的数据
+    console.log("[ChatPage] Sending packet:", packet);
+    console.log("[ChatPage] Packet payload:", packet.payload);
+    console.log("[ChatPage] Packet binary length:", packet.toBinary().length);
+    console.log("[ChatPage] Packet binary array:", Array.from(packet.toBinary()));
+    console.log("[ChatPage] Packet JSON:", packet.toJsonString());
+
+    send(packet);
+
+    // 立即显示发送的消息（乐观更新）
+    addMessage(currentSession.sessionId, {
+      msgId: Date.now(),
+      seqId: 0,
+      sessionId: currentSession.sessionId,
+      senderUsername: user?.username || "",
+      content: inputValue.trim(),
+      msgType: "text",
+      createdAt: new Date(),
+      isOwn: true,
+    });
+
+    setInputValue("");
+  };
 
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border bg-card px-4 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Resonance IM</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">Resonance IM</h1>
+            <span className={`text-xs px-2 py-1 rounded ${isConnected ? "bg-green-500/20 text-green-600" : "bg-red-500/20 text-red-600"}`}>
+              {isConnected ? "已连接" : "未连接"}
+            </span>
+          </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
               {user?.username}
@@ -168,15 +223,18 @@ export default function ChatPage() {
 
               {/* Input */}
               <div className="border-t border-border bg-card p-4">
-                <form className="flex gap-2">
+                <form onSubmit={handleSubmit} className="flex gap-2">
                   <input
                     type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
                     placeholder="输入消息..."
                     className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
                   />
                   <button
                     type="submit"
-                    className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90"
+                    disabled={!inputValue.trim() || !isConnected}
+                    className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     发送
                   </button>

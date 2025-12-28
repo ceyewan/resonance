@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -87,6 +88,12 @@ func Load() (*Config, error) {
 		config.WithEnvPrefix("RESONANCE"),
 	)
 	if err != nil {
+		return nil, err
+	}
+
+	// 必须先 Load 才能读取配置
+	ctx := context.Background()
+	if err := loader.Load(ctx); err != nil {
 		return nil, err
 	}
 

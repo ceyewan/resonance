@@ -11,7 +11,6 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/resonance/gateway/utils"
 	"github.com/ceyewan/resonance/im-sdk/repo"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/server"
@@ -242,13 +241,12 @@ func (l *Logic) Run() error {
 
 // registerService 注册服务到 Etcd
 func (l *Logic) registerService() error {
-	ip := utils.GetLocalIP()
 	service := &registry.ServiceInstance{
 		ID:      l.serviceID,
 		Name:    l.config.Service.Name,
 		Version: "1.0.0",
 		Endpoints: []string{
-			"grpc://" + ip + l.config.Service.ServerAddr, // ServerAddr 通常是 ":9090"
+			"grpc://127.0.0.1" + l.config.Service.ServerAddr, // ServerAddr 通常是 ":9090"
 		},
 	}
 

@@ -3,6 +3,7 @@ import { WsPacket } from "@/gen/gateway/v1/packet_pb";
 
 interface UseWebSocketOptions {
   url?: string;
+  token?: string;
   onOpen?: () => void;
   onClose?: () => void;
   onError?: (error: Error) => void;
@@ -14,18 +15,15 @@ interface UseWebSocketReturn {
   isConnecting: boolean;
   error: Error | null;
   send: (packet: WsPacket) => void;
-  connect: () => void;
-  disconnect: () => void;
 }
 
-const DEFAULT_WS_URL = `ws://${import.meta.env.VITE_WS_HOST || "localhost"}:${import.meta.env.VITE_WS_PORT || "8080"}/ws`;
+const DEFAULT_WS_URL = `ws://localhost:8081/ws`;
 
 const HEARTBEAT_INTERVAL = 30000; // 30 seconds
-const RECONNECT_DELAY = 3000; // 3 seconds
-const MAX_RECONNECT_ATTEMPTS = 10;
 
 export function useWebSocket({
   url = DEFAULT_WS_URL,
+  token,
   onOpen,
   onClose,
   onError,
@@ -33,8 +31,24 @@ export function useWebSocket({
 }: UseWebSocketOptions = {}): UseWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const onMessageRef = useRef(onMessage);
+  const onOpenRef = useRef(onOpen);
+  const onCloseRef = useRef(onClose);
+  const onErrorRef = useRef(onError);
+
+  // 更新回调引用
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
+  useEffect(() => {
+    onOpenRef.current = onOpen;
+  }, [onOpen]);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -59,99 +73,74 @@ export function useWebSocket({
     }, HEARTBEAT_INTERVAL);
   }, [clearHeartbeat]);
 
-  const handleMessage = useCallback(
-    (event: MessageEvent) => {
-      try {
-        const arrayBuffer = event.data as ArrayBuffer;
-        const packet = WsPacket.fromBinary(new Uint8Array(arrayBuffer));
-        onMessage?.(packet);
-      } catch (err) {
-        console.error("[WS] Failed to parse message:", err);
-        setError(
-          err instanceof Error
-            ? err
-            : new Error("Failed to parse WebSocket message"),
-        );
+  // 连接函数
+  useEffect(() => {
+    // 没有 token，不连接
+    if (!token) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
-    },
-    [onMessage],
-  );
+      setIsConnected(false);
+      setIsConnecting(false);
+      return;
+    }
 
-  const handleOpen = useCallback(() => {
-    setIsConnected(true);
-    setIsConnecting(false);
-    setError(null);
-    reconnectAttemptsRef.current = 0;
-    startHeartbeat();
-    onOpen?.();
-  }, [onOpen, startHeartbeat]);
-
-  const handleClose = useCallback(() => {
-    setIsConnected(false);
-    clearHeartbeat();
-    onClose?.();
-  }, [onClose, clearHeartbeat]);
-
-  const handleError = useCallback(
-    (event: Event) => {
-      const err = new Error("WebSocket connection error");
-      setError(err);
-      onError?.(err);
-    },
-    [onError],
-  );
-
-  const connect = useCallback(() => {
-    if (
-      isConnected ||
-      isConnecting ||
-      wsRef.current?.readyState === WebSocket.OPEN
-    ) {
+    // 已经在连接或已连接，不重复连接
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
     setIsConnecting(true);
     setError(null);
 
-    try {
-      wsRef.current = new WebSocket(url);
-      wsRef.current.binaryType = "arraybuffer";
+    // 将 token 作为 URL 参数传递
+    const wsUrl = `${url}?token=${encodeURIComponent(token)}`;
+    const ws = new WebSocket(wsUrl);
+    ws.binaryType = "arraybuffer";
+    wsRef.current = ws;
 
-      wsRef.current.addEventListener("open", handleOpen);
-      wsRef.current.addEventListener("close", handleClose);
-      wsRef.current.addEventListener("error", handleError);
-      wsRef.current.addEventListener("message", handleMessage);
-    } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error("Failed to create WebSocket");
-      setError(error);
+    ws.onopen = () => {
+      setIsConnected(true);
       setIsConnecting(false);
-      onError?.(error);
-    }
-  }, [
-    url,
-    isConnected,
-    isConnecting,
-    handleOpen,
-    handleClose,
-    handleError,
-    handleMessage,
-    onError,
-  ]);
+      setError(null);
+      startHeartbeat();
+      onOpenRef.current?.();
+    };
 
-  const disconnect = useCallback(() => {
-    clearHeartbeat();
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    setIsConnected(false);
-    setIsConnecting(false);
-  }, [clearHeartbeat]);
+    ws.onclose = () => {
+      setIsConnected(false);
+      setIsConnecting(false);
+      clearHeartbeat();
+      onCloseRef.current?.();
+    };
+
+    ws.onerror = () => {
+      const err = new Error("WebSocket connection error");
+      setError(err);
+      setIsConnecting(false);
+      onErrorRef.current?.(err);
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const arrayBuffer = event.data as ArrayBuffer;
+        const packet = WsPacket.fromBinary(new Uint8Array(arrayBuffer));
+        onMessageRef.current?.(packet);
+      } catch (err) {
+        console.error("[WS] Failed to parse message:", err);
+      }
+    };
+
+    // 清理函数
+    return () => {
+      clearHeartbeat();
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [token, url, clearHeartbeat, startHeartbeat]);
 
   const send = useCallback((packet: WsPacket) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -167,41 +156,10 @@ export function useWebSocket({
     }
   }, []);
 
-  // Auto-reconnect on close
-  useEffect(() => {
-    if (
-      !isConnected &&
-      !isConnecting &&
-      wsRef.current?.readyState !== WebSocket.CONNECTING
-    ) {
-      if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          connect();
-        }, RECONNECT_DELAY);
-      }
-    }
-
-    return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, [isConnected, isConnecting, connect]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      disconnect();
-    };
-  }, [disconnect]);
-
   return {
     isConnected,
     isConnecting,
     error,
     send,
-    connect,
-    disconnect,
   };
 }

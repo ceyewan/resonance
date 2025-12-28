@@ -17,7 +17,6 @@ import (
 	"github.com/ceyewan/resonance/gateway/push"
 	"github.com/ceyewan/resonance/gateway/server"
 	"github.com/ceyewan/resonance/gateway/socket"
-	"github.com/ceyewan/resonance/gateway/utils"
 )
 
 // Gateway 网关服务生命周期管理器
@@ -142,7 +141,7 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	// Servers
 	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares)
 	g.wsServer = server.NewWSServer(g.config, g.logger, wsHandler)
-	g.grpcServer = server.NewGRPCServer(":9091", g.logger, pushService)
+	g.grpcServer = server.NewGRPCServer(":15091", g.logger, pushService)
 }
 
 // Run 启动所有服务并注册
@@ -163,7 +162,7 @@ func (g *Gateway) registerService() error {
 		Name:    g.config.Service.Name,
 		Version: "1.0.0",
 		Endpoints: []string{
-			"grpc://" + utils.GetLocalIP() + ":9091",
+			"grpc://127.0.0.1:15091",
 		},
 		Metadata: map[string]string{
 			"http_addr": g.config.Service.HTTPAddr,

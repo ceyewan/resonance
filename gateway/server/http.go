@@ -33,7 +33,8 @@ func NewHTTPServer(cfg *config.Config, logger clog.Logger, h *handler.Handler, m
 func (s *HTTPServer) Start() error {
 	router := gin.New()
 
-	// 应用中间件
+	// 应用中间件（CORS 必须在最前）
+	router.Use(s.middlewares.CORS)
 	router.Use(s.middlewares.Recovery)
 	router.Use(s.middlewares.Logger)
 	router.Use(s.middlewares.SlowQuery)

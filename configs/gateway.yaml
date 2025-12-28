@@ -8,7 +8,7 @@ service:
   ws_addr: :8081                 # WebSocket 服务地址
 
 # Logic 服务地址（开发环境使用 localhost，生产环境通过服务发现）
-logic_addr: localhost:9090
+logic_addr: localhost:15090
 
 # 基础组件配置
 log:

@@ -41,37 +41,35 @@ build-task:
 
 # 4. 开发环境运行 (使用本地 MySQL/Redis，从 config.dev.yaml 加载配置)
 dev-gateway: gen
-@echo "🚀 Starting Gateway in DEV mode..."
-@RESONANCE_ENV=dev go run main.go -module gateway
+	@echo "🚀 Starting Gateway in DEV mode..."
+	@RESONANCE_ENV=dev go run main.go -module gateway
 
 dev-logic: gen
-@echo "🚀 Starting Logic in DEV mode..."
-@RESONANCE_ENV=dev go run main.go -module logic
-
+	@echo "🚀 Starting Logic in DEV mode..."
+	@RESONANCE_ENV=dev go run main.go -module logic
 dev-task: gen
-@echo "🚀 Starting Task in DEV mode..."
-@RESONANCE_ENV=dev go run main.go -module task
+	@echo "🚀 Starting Task in DEV mode..."
+	@RESONANCE_ENV=dev go run main.go -module task
 
 # 4.2 生产编译 (Docker 镜像构建)
 build-docker-gateway:
-@echo "🐳 Building Gateway Docker image..."
-@docker build -f deploy/Dockerfile.gateway -t resonance/gateway:latest .
-@echo "✅ Gateway image built!"
+	@echo "🐳 Building Gateway Docker image..."
+	@docker build -f deploy/Dockerfile.gateway -t resonance/gateway:latest .
+	@echo "✅ Gateway image built!"
 
 build-docker-logic:
-@echo "🐳 Building Logic Docker image..."
-@docker build -f deploy/Dockerfile.logic -t resonance/logic:latest .
-@echo "✅ Logic image built!"
+	@echo "🐳 Building Logic Docker image..."
+	@docker build -f deploy/Dockerfile.logic -t resonance/logic:latest .
+	@echo "✅ Logic image built!"
 
 build-docker-task:
-@echo "🐳 Building Task Docker image..."
-@docker build -f deploy/Dockerfile.task -t resonance/task:latest .
-@echo "✅ Task image built!"
+	@echo "🐳 Building Task Docker image..."
+	@docker build -f deploy/Dockerfile.task -t resonance/task:latest .
+	@echo "✅ Task image built!"
 
 # 构建所有服务镜像
 build-docker-all: build-docker-gateway build-docker-logic build-docker-task
-@echo "✅ All Docker images built!"
-
+	@echo "✅ All Docker images built!"
 # 5. Web 前端相关命令
 
 # 安装前端依赖

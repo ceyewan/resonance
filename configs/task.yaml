@@ -9,8 +9,8 @@ mysql:
   name: task-mysql
   host: 127.0.0.1
   port: 3306
-  username: root
-  password: ""
+  username: resonance
+  password: resonance123
   database: resonance
   charset: utf8mb4
   max_idle_conns: 10

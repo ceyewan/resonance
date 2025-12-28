@@ -19,10 +19,12 @@ type GatewayClient struct {
 
 // NewClient 创建 Gateway 客户端
 func NewClient(addr string, id string) (*GatewayClient, error) {
-	conn, err := grpc.Dial(addr,
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := grpc.DialContext(ctx, addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithBlock(),
-		grpc.WithTimeout(5*time.Second),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect gateway %s: %w", addr, err)

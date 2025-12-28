@@ -13,6 +13,7 @@ import (
 // Middlewares HTTP 中间件集合
 type Middlewares struct {
 	Recovery     gin.HandlerFunc
+	CORS         gin.HandlerFunc
 	Logger       gin.HandlerFunc
 	SlowQuery    gin.HandlerFunc
 	GlobalIP     gin.HandlerFunc
@@ -28,6 +29,7 @@ func NewMiddlewares(logger clog.Logger, limiter ratelimit.Limiter, idgen idgen.G
 
 	return &Middlewares{
 		Recovery:     middleware.Recovery(logger),
+		CORS:         middleware.CORS(),
 		Logger:       middleware.Logger(logger, idgen),
 		SlowQuery:    middleware.SlowQueryDetector(logger, 2*time.Second),
 		limiter:      limiter,

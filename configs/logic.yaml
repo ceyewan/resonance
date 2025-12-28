@@ -4,7 +4,7 @@
 
 service:
   name: logic-service
-  server_addr: :9090             # gRPC 服务地址
+  server_addr: :15090            # gRPC 服务地址 (5位数)
 
 # 基础组件配置
 log:
@@ -55,9 +55,9 @@ registry:
 
 # 认证配置
 auth:
-  expiration: 24h
+  secret_key: resonance-secret-key-change-in-production-32chars
   issuer: resonance-service
-  # secret 通过环境变量 RESONANCE_JWT_SECRET 读取
+  access_token_ttl: 24h
 
 # ID 生成器配置（Snowflake WorkerID）
 worker_id: 1
