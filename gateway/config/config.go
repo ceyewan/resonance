@@ -2,6 +2,9 @@ package config
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -14,18 +17,21 @@ import (
 type Config struct {
 	// 服务基础配置
 	Service struct {
-		Name     string `mapstructure:"name"`      // 服务名称
-		HTTPAddr string `mapstructure:"http_addr"` // HTTP 服务地址
-		WSAddr   string `mapstructure:"ws_addr"`   // WebSocket 服务地址
+		Name      string `mapstructure:"name"`       // 服务名称
+		Host      string `mapstructure:"host"`       // 服务主机名（环境变量 HOSTNAME）
+		HTTPPort  int    `mapstructure:"http_port"`  // HTTP 服务端口
+		WSPort    int    `mapstructure:"ws_port"`    // WebSocket 服务端口
+		GRPCPort  int    `mapstructure:"grpc_port"`  // gRPC 服务端口
+		HTTPAddr  string `mapstructure:"http_addr"`  // HTTP 服务地址（兼容旧配置，仅用于绑定）
+		WSAddr    string `mapstructure:"ws_addr"`    // WebSocket 服务地址（兼容旧配置，仅用于绑定）
 	} `mapstructure:"service"`
 
-	// Logic 服务地址
-	LogicAddr string `mapstructure:"logic_addr"` // Logic gRPC 服务地址
+	// Logic 服务名称（用于服务发现）
+	LogicServiceName string `mapstructure:"logic_service_name"` // Logic 服务名称，默认 "logic-service"
 
 	// 基础组件配置
 	Log   clog.Config           `mapstructure:"log"`   // 日志配置
 	Redis connector.RedisConfig `mapstructure:"redis"` // Redis 配置
-	NATS  connector.NATSConfig  `mapstructure:"nats"`  // NATS 配置
 	Etcd  connector.EtcdConfig  `mapstructure:"etcd"`  // Etcd 配置
 
 	// 服务注册发现配置
@@ -33,6 +39,9 @@ type Config struct {
 
 	// WebSocket 配置
 	WSConfig WSConfig `mapstructure:"ws_config"`
+
+	// WorkerID 配置
+	WorkerID WorkerIDConfig `mapstructure:"worker_id"`
 }
 
 // RegistryConfig 服务注册配置
@@ -78,6 +87,103 @@ type WSConfig struct {
 	PongTimeout     int `mapstructure:"pong_timeout"`      // 心跳超时（秒）
 }
 
+// WorkerIDConfig WorkerID 分发配置
+type WorkerIDConfig struct {
+	MaxID int    `mapstructure:"max_id"` // 最大 ID 范围 [0, max_id)
+	Key   string `mapstructure:"key"`    // Redis 中用于分配 workerID 的键前缀
+}
+
+// GetMaxID 获取最大 ID，默认 1024
+func (c *WorkerIDConfig) GetMaxID() int {
+	if c.MaxID <= 0 {
+		return 1024
+	}
+	return c.MaxID
+}
+
+// GetKey 获取 Redis 键，默认 "resonance:gateway:worker"
+func (c *WorkerIDConfig) GetKey() string {
+	if c.Key == "" {
+		return "resonance:gateway:worker"
+	}
+	return c.Key
+}
+
+// GetHost 获取服务主机名，优先使用配置，其次环境变量 HOSTNAME，最后 "localhost"
+func (c *Config) GetHost() string {
+	if c.Service.Host != "" {
+		return c.Service.Host
+	}
+	if host := os.Getenv("HOSTNAME"); host != "" {
+		return host
+	}
+	return "localhost"
+}
+
+// GetHTTPPort 获取 HTTP 端口
+func (c *Config) GetHTTPPort() int {
+	if c.Service.HTTPPort > 0 {
+		return c.Service.HTTPPort
+	}
+	// 从 http_addr 解析端口（兼容旧配置）
+	if c.Service.HTTPAddr != "" {
+		var port int
+		fmt.Sscanf(c.Service.HTTPAddr, ":%d", &port)
+		if port > 0 {
+			return port
+		}
+	}
+	return 8080
+}
+
+// GetWSPort 获取 WebSocket 端口
+func (c *Config) GetWSPort() int {
+	if c.Service.WSPort > 0 {
+		return c.Service.WSPort
+	}
+	// 从 ws_addr 解析端口（兼容旧配置）
+	if c.Service.WSAddr != "" {
+		var port int
+		fmt.Sscanf(c.Service.WSAddr, ":%d", &port)
+		if port > 0 {
+			return port
+		}
+	}
+	return 8081
+}
+
+// GetGRPCPort 获取 gRPC 端口
+func (c *Config) GetGRPCPort() int {
+	if c.Service.GRPCPort > 0 {
+		return c.Service.GRPCPort
+	}
+	return 15091
+}
+
+// GetHTTPAddr 获取 HTTP 绑定地址
+func (c *Config) GetHTTPAddr() string {
+	if c.Service.HTTPAddr != "" {
+		return c.Service.HTTPAddr
+	}
+	return fmt.Sprintf(":%d", c.GetHTTPPort())
+}
+
+// GetWSAddr 获取 WebSocket 绑定地址
+func (c *Config) GetWSAddr() string {
+	if c.Service.WSAddr != "" {
+		return c.Service.WSAddr
+	}
+	return fmt.Sprintf(":%d", c.GetWSPort())
+}
+
+// GetLogicServiceName 获取 Logic 服务名称
+func (c *Config) GetLogicServiceName() string {
+	if c.LogicServiceName != "" {
+		return c.LogicServiceName
+	}
+	return "logic-service"
+}
+
 // Load 创建并加载 Gateway 配置（无参数）
 // 配置加载顺序：环境变量 > .env > gateway.{env}.yaml > gateway.yaml
 func Load() (*Config, error) {
@@ -103,14 +209,22 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// 在 debug 模式下，打印最终生效的配置
+	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {
+		dumpConfig(&cfg)
+	}
+
 	return &cfg, nil
 }
 
-// MustLoad 创建并加载配置，出错时 panic
-func MustLoad() *Config {
-	cfg, err := Load()
-	if err != nil {
-		panic(err)
+// dumpConfig 以 JSON 格式打印配置（脱敏敏感字段）
+func dumpConfig(cfg *Config) {
+	// 创建配置副本用于脱敏
+	sanitized := *cfg
+	if sanitized.Redis.Password != "" {
+		sanitized.Redis.Password = "***"
 	}
-	return cfg
+
+	data, _ := json.MarshalIndent(sanitized, "", "  ")
+	fmt.Fprintf(os.Stderr, "\n=== Gateway Configuration ===\n%s\n=== End of Configuration ===\n\n", data)
 }

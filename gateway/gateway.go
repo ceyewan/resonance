@@ -25,6 +25,7 @@ type Gateway struct {
 	logger    clog.Logger
 	registry  registry.Registry
 	serviceID string
+	workerID  int64
 
 	// 服务实例
 	httpServer *server.HTTPServer
@@ -35,10 +36,14 @@ type Gateway struct {
 	resources *resources
 	ctx       context.Context
 	cancel    context.CancelFunc
+
+	// workerID 保活停止函数
+	stopWorkerIDKeepAlive func()
 }
 
 // resources 内部资源聚合，方便统一管理
 type resources struct {
+	redisConn   connector.RedisConnector
 	etcdConn    connector.EtcdConnector
 	logicClient *client.Client
 	connMgr     *connection.Manager
@@ -46,18 +51,19 @@ type resources struct {
 
 // New 创建 Gateway 实例
 func New() (*Gateway, error) {
+	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
-
+	// 创建上下文
 	ctx, cancel := context.WithCancel(context.Background())
 	g := &Gateway{
 		config: cfg,
 		ctx:    ctx,
 		cancel: cancel,
 	}
-
+	// 初始化各个组件
 	if err := g.initComponents(); err != nil {
 		g.Close()
 		return nil, err
@@ -69,20 +75,48 @@ func New() (*Gateway, error) {
 // initComponents 初始化所有组件
 func (g *Gateway) initComponents() error {
 	// 1. 基础组件
-	logger, _ := clog.New(&g.config.Log, clog.WithStandardContext())
+	logger, _ := clog.New(&g.config.Log, clog.WithStandardContext(), clog.WithNamespace("gateway"))
 	g.logger = logger
-	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
-	// 使用 UUID v7 生成唯一服务 ID
-	g.serviceID = g.config.Service.Name + "-" + idGen.Next()
 
-	// 2. 初始化核心资源 (Etcd, Clients, Managers)
+	// 2. 初始化核心资源 (Redis, Etcd, Clients, Managers)
 	res, err := g.initResources()
 	if err != nil {
 		return err
 	}
 	g.resources = res
 
-	// 3. 初始化服务接口 (Servers)
+	// 3. 使用 AssignInstanceID 从 Redis 获取唯一的 workerID
+	workerID, stop, failCh, err := idgen.AssignInstanceID(
+		g.ctx,
+		res.redisConn,
+		g.config.WorkerID.GetKey(),
+		g.config.WorkerID.GetMaxID(),
+	)
+	if err != nil {
+		return fmt.Errorf("assign workerID: %w", err)
+	}
+	g.workerID = workerID
+	g.stopWorkerIDKeepAlive = stop
+
+	// 监听 workerID 保活失败
+	go func() {
+		if err := <-failCh; err != nil {
+			g.logger.Error("workerID keepalive failed, shutting down", clog.String("error", err.Error()))
+			g.cancel()
+		}
+	}()
+
+	// 4. 使用 Snowflake 生成唯一服务 ID (基于 workerID)
+	sf, err := idgen.NewSnowflake(workerID)
+	if err != nil {
+		return fmt.Errorf("create snowflake: %w", err)
+	}
+	g.serviceID = g.config.Service.Name + "-" + fmt.Sprintf("%d", sf.Next())
+
+	// 5. 创建 ID 生成器 (供其他组件使用)
+	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
+
+	// 6. 初始化服务接口 (Servers)
 	g.initServers(idGen)
 
 	return nil
@@ -90,25 +124,40 @@ func (g *Gateway) initComponents() error {
 
 // initResources 初始化外部连接和管理对象
 func (g *Gateway) initResources() (*resources, error) {
+	// Redis
+	redisConn, err := connector.NewRedis(&g.config.Redis, connector.WithLogger(g.logger))
+	if err != nil {
+		return nil, fmt.Errorf("redis init: %w", err)
+	}
+	if err := redisConn.Connect(g.ctx); err != nil {
+		return nil, fmt.Errorf("redis connect: %w", err)
+	}
+
 	// Etcd
 	etcdConn, err := connector.NewEtcd(&g.config.Etcd, connector.WithLogger(g.logger))
 	if err != nil {
+		redisConn.Close()
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
 	if err := etcdConn.Connect(g.ctx); err != nil {
+		redisConn.Close()
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
 
 	// Registry
 	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger))
 	if err != nil {
+		redisConn.Close()
+		etcdConn.Close()
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
 	g.registry = reg
 
-	// Logic Client
-	logicClient, err := client.NewClient(g.config.LogicAddr, g.config.Service.Name, g.logger, reg)
+	// Logic Client（使用服务发现）
+	logicClient, err := client.NewClient(g.config.GetLogicServiceName(), g.config.Service.Name, g.logger, reg)
 	if err != nil {
+		redisConn.Close()
+		etcdConn.Close()
 		return nil, fmt.Errorf("logic client init: %w", err)
 	}
 
@@ -117,6 +166,7 @@ func (g *Gateway) initResources() (*resources, error) {
 	connMgr := connection.NewManager(g.logger, nil, presence.OnUserOnline, presence.OnUserOffline)
 
 	return &resources{
+		redisConn:   redisConn,
 		etcdConn:    etcdConn,
 		logicClient: logicClient,
 		connMgr:     connMgr,
@@ -141,7 +191,7 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	// Servers
 	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares)
 	g.wsServer = server.NewWSServer(g.config, g.logger, wsHandler)
-	g.grpcServer = server.NewGRPCServer(":15091", g.logger, pushService)
+	g.grpcServer = server.NewGRPCServer(fmt.Sprintf(":%d", g.config.GetGRPCPort()), g.logger, pushService)
 }
 
 // Run 启动所有服务并注册
@@ -157,16 +207,19 @@ func (g *Gateway) Run() error {
 
 // registerService 注册服务实例
 func (g *Gateway) registerService() error {
+	host := g.config.GetHost()
+	grpcEndpoint := fmt.Sprintf("grpc://%s:%d", host, g.config.GetGRPCPort())
+
 	service := &registry.ServiceInstance{
 		ID:      g.serviceID,
 		Name:    g.config.Service.Name,
 		Version: "1.0.0",
 		Endpoints: []string{
-			"grpc://127.0.0.1:15091",
+			grpcEndpoint,
 		},
 		Metadata: map[string]string{
-			"http_addr": g.config.Service.HTTPAddr,
-			"ws_addr":   g.config.Service.WSAddr,
+			"http_addr": fmt.Sprintf("%s:%d", host, g.config.GetHTTPPort()),
+			"ws_addr":   fmt.Sprintf("%s:%d", host, g.config.GetWSPort()),
 		},
 	}
 
@@ -178,13 +231,18 @@ func (g *Gateway) Close() error {
 	g.logger.Info("shutting down gateway...")
 	g.cancel()
 
-	// 1. 注销服务
+	// 1. 停止 workerID 保活
+	if g.stopWorkerIDKeepAlive != nil {
+		g.stopWorkerIDKeepAlive()
+	}
+
+	// 2. 注销服务
 	if g.registry != nil {
 		g.registry.Deregister(context.Background(), g.serviceID)
 		g.registry.Close()
 	}
 
-	// 2. 停止服务实例
+	// 3. 停止服务实例
 	if g.grpcServer != nil {
 		g.grpcServer.Stop()
 	}
@@ -199,10 +257,11 @@ func (g *Gateway) Close() error {
 		g.wsServer.Stop(ctx)
 	}
 
-	// 3. 释放核心资源
+	// 4. 释放核心资源
 	if g.resources != nil {
 		g.resources.connMgr.Close()
 		g.resources.logicClient.Close()
+		g.resources.redisConn.Close()
 		g.resources.etcdConn.Close()
 	}
 

@@ -12,7 +12,6 @@ import (
 	"github.com/ceyewan/genesis/registry"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -118,10 +117,13 @@ const serviceConfigJSON = `{
 }`
 
 // NewClient 创建 Logic 客户端（包含 breaker 和 ratelimit）
-// 如果 logicAddr 不为空，直接连接；如果为空，使用 registry 做服务发现
-func NewClient(logicAddr string, gatewayID string, logger clog.Logger, reg registry.Registry) (*Client, error) {
+// logicServiceName: Logic 服务名称（如 "logic-service"），通过 registry 做服务发现
+func NewClient(logicServiceName, gatewayID string, logger clog.Logger, reg registry.Registry) (*Client, error) {
 	if logger == nil {
 		return nil, fmt.Errorf("logger is required")
+	}
+	if reg == nil {
+		return nil, fmt.Errorf("registry is required for service discovery")
 	}
 
 	// 创建熔断器
@@ -145,65 +147,31 @@ func NewClient(logicAddr string, gatewayID string, logger clog.Logger, reg regis
 		return nil, fmt.Errorf("failed to create ratelimiter: %w", err)
 	}
 
-	var conn *grpc.ClientConn
-
-	// 使用服务发现或直接连接
-	if reg != nil {
-		// 使用 registry.GetConnection 进行服务发现
-		// 内部已集成 Resolver 和 Balancer，支持 etcd://schema 解析
-		conn, err = reg.GetConnection(context.Background(), "logic-service",
-			grpc.WithDefaultCallOptions(
-				grpc.MaxCallRecvMsgSize(4*1024*1024), // 4MB
-				grpc.MaxCallSendMsgSize(4*1024*1024),
-			),
-			// 配置内置重试策略
-			grpc.WithDefaultServiceConfig(serviceConfigJSON),
-			grpc.WithMaxCallAttempts(maxAttempts),
-			// 注册拦截器（顺序：trace -> 限流 -> 熔断 -> 实际调用）
-			grpc.WithChainUnaryInterceptor(
-				traceContextUnaryInterceptor(),
-				ratelimitUnaryInterceptor(limiter),
-				brk.UnaryClientInterceptor(),
-			),
-			grpc.WithChainStreamInterceptor(
-				traceContextStreamInterceptor(),
-				brk.StreamClientInterceptor(),
-			),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to logic via service discovery: %w", err)
-		}
-		logger.Info("logic client connected via service discovery")
-	} else {
-		// 直接连接（用于开发环境或无服务发现场景）
-		if logicAddr == "" {
-			return nil, fmt.Errorf("logic_addr is required when registry is not provided")
-		}
-		conn, err = grpc.NewClient(logicAddr,
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithDefaultCallOptions(
-				grpc.MaxCallRecvMsgSize(4*1024*1024), // 4MB
-				grpc.MaxCallSendMsgSize(4*1024*1024),
-			),
-			// 配置内置重试策略
-			grpc.WithDefaultServiceConfig(serviceConfigJSON),
-			grpc.WithMaxCallAttempts(maxAttempts),
-			// 注册拦截器（顺序：trace -> 限流 -> 熔断 -> 实际调用）
-			grpc.WithChainUnaryInterceptor(
-				traceContextUnaryInterceptor(),
-				ratelimitUnaryInterceptor(limiter),
-				brk.UnaryClientInterceptor(),
-			),
-			grpc.WithChainStreamInterceptor(
-				traceContextStreamInterceptor(),
-				brk.StreamClientInterceptor(),
-			),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to logic: %w", err)
-		}
-		logger.Info("logic client connected directly", clog.String("addr", logicAddr))
+	// 使用 registry.GetConnection 进行服务发现
+	// 内部已集成 Resolver 和 Balancer，支持 etcd://schema 解析
+	conn, err := reg.GetConnection(context.Background(), logicServiceName,
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(4*1024*1024), // 4MB
+			grpc.MaxCallSendMsgSize(4*1024*1024),
+		),
+		// 配置内置重试策略
+		grpc.WithDefaultServiceConfig(serviceConfigJSON),
+		grpc.WithMaxCallAttempts(maxAttempts),
+		// 注册拦截器（顺序：trace -> 限流 -> 熔断 -> 实际调用）
+		grpc.WithChainUnaryInterceptor(
+			traceContextUnaryInterceptor(),
+			ratelimitUnaryInterceptor(limiter),
+			brk.UnaryClientInterceptor(),
+		),
+		grpc.WithChainStreamInterceptor(
+			traceContextStreamInterceptor(),
+			brk.StreamClientInterceptor(),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to logic via service discovery: %w", err)
 	}
+	logger.Info("logic client connected via service discovery", clog.String("service", logicServiceName))
 
 	return &Client{
 		conn:           conn,

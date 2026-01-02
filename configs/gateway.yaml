@@ -4,11 +4,13 @@
 
 service:
   name: gateway-service          # 服务名称
-  http_addr: :8080               # HTTP 服务地址
-  ws_addr: :8081                 # WebSocket 服务地址
+  host: ""                       # 服务主机名，留空则使用环境变量 HOSTNAME
+  http_port: 8080                # HTTP 服务端口
+  ws_port: 8081                  # WebSocket 服务端口
+  grpc_port: 15091               # gRPC 服务端口
 
-# Logic 服务地址（开发环境使用 localhost，生产环境通过服务发现）
-logic_addr: localhost:15090
+# Logic 服务名称（用于服务发现）
+logic_service_name: logic-service  # Logic 服务名称
 
 # 基础组件配置
 log:
@@ -23,12 +25,6 @@ redis:
   db: 0
   pool_size: 20
   min_idle_conns: 10
-
-nats:
-  name: gateway-nats
-  url: nats://127.0.0.1:4222
-  max_reconnect: 10
-  reconnect_delay: 1s
 
 etcd:
   name: gateway-etcd
@@ -51,3 +47,8 @@ ws_config:
   max_message_size: 1048576  # 1MB
   ping_interval: 30           # 秒
   pong_timeout: 60            # 秒
+
+# WorkerID 分发配置
+worker_id:
+  max_id: 1024                      # 最大 workerID 数量
+  key: resonance:gateway:worker     # Redis 键前缀
