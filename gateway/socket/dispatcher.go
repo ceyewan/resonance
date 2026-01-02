@@ -2,6 +2,7 @@ package socket
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -31,7 +32,7 @@ func (d *Dispatcher) HandlePulse(ctx context.Context, conn protocol.Connection) 
 }
 
 // HandleChat 处理聊天消息
-func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, chat *gatewayv1.ChatRequest) error {
+func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, seq string, chat *gatewayv1.ChatRequest) error {
 	// 填充发送者
 	if chat.FromUsername == "" {
 		chat.FromUsername = conn.Username()
@@ -42,8 +43,31 @@ func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, c
 	}
 
 	// 调用 Logic 服务处理消息
-	_, err := d.logicClient.SendMessage(ctx, chat)
-	return err
+	resp, err := d.logicClient.SendMessage(ctx, chat)
+	var ackErr string
+	var msgID, seqID int64
+	if err != nil {
+		ackErr = err.Error()
+	} else if resp != nil {
+		msgID = resp.GetMsgId()
+		seqID = resp.GetSeqId()
+		ackErr = resp.GetError()
+	}
+
+	// 发送确认给客户端，包含服务端生成的 ID
+	ackPacket := protocol.CreateAckPacket(seq, msgID, seqID, chat.SessionId, ackErr)
+	if err := conn.Send(ackPacket); err != nil {
+		d.logger.Error("failed to send ack", clog.Error(err))
+		return err
+	}
+
+	if err != nil {
+		return err
+	}
+	if ackErr != "" {
+		return fmt.Errorf(ackErr)
+	}
+	return nil
 }
 
 // HandleAck 处理确认消息

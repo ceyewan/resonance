@@ -13,7 +13,7 @@ import ChatPage from "@/pages/ChatPage";
 function App() {
   const { isAuthenticated, accessToken, user } = useAuthStore();
   const { updateLastMessage, incrementUnread, currentSessionId } = useSessionStore();
-  const { addMessage } = useMessageStore();
+  const { addMessage, markAsSent, markAsFailed } = useMessageStore();
 
   // WebSocket 消息处理
   const handleWsMessage = useCallback(
@@ -45,13 +45,19 @@ function App() {
       // 处理消息确认（用于将待发送消息标记为已发送）
       else if (payload.case === "ack") {
         const ack = payload.value;
-        console.log("[App] Received ack:", ack);
-
-        // 这里可以根据 ref_seq 更新消息状态
-        // 暂时简化处理：当收到新消息推送时，说明之前发送的消息已成功
+        if (!ack.refSeq) {
+          return;
+        }
+        if (ack.error) {
+          markAsFailed(ack.refSeq);
+          return;
+        }
+        const seqId = typeof ack.seqId === "bigint" ? ack.seqId : BigInt(ack.seqId ?? 0);
+        const msgId = typeof ack.msgId === "bigint" ? ack.msgId.toString() : String(ack.msgId ?? ack.refSeq);
+        markAsSent(ack.refSeq, msgId, seqId);
       }
     },
-    [user, addMessage, updateLastMessage, incrementUnread, currentSessionId],
+    [user, addMessage, updateLastMessage, incrementUnread, currentSessionId, markAsFailed, markAsSent],
   );
 
   // WebSocket 连接（只在登录后激活）

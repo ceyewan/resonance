@@ -27,6 +27,7 @@ GATEWAY_HTTP_PORT ?= $(RESONANCE_GATEWAY_HTTP_PORT)
 GATEWAY_WS_PORT ?= $(RESONANCE_GATEWAY_WS_PORT)
 WEB_HTTP_PORT ?= $(RESONANCE_WEB_HTTP_PORT)
 GATEWAY_URL ?= http://$(RESONANCE_GATEWAY_HTTP_HOST):$(RESONANCE_GATEWAY_HTTP_PORT)
+GATEWAY_WS_URL ?= ws://$(RESONANCE_GATEWAY_HTTP_HOST):$(RESONANCE_GATEWAY_WS_PORT)/ws
 
 # ============================================================================
 # Docker Compose
@@ -121,16 +122,20 @@ web-dev: gen
 	@echo "🚀 Starting web development server..."
 	@echo "   Web:  http://$(WEB_HOST):$(WEB_PORT)"
 	@echo "   API:  $(GATEWAY_URL)"
+	@echo "   WS:   $(GATEWAY_WS_URL)"
 	@cd web && \
 	VITE_API_BASE_URL=$(GATEWAY_URL) \
+	VITE_WS_BASE_URL=$(GATEWAY_WS_URL) \
 	npm run dev -- --host $(WEB_HOST) --port $(WEB_PORT)
 
 # 构建前端生产版本
 web-build: gen
 	@echo "🏗️ Building web for production..."
 	@echo "   API: $(GATEWAY_URL)"
+	@echo "   WS:  $(GATEWAY_WS_URL)"
 	@cd web && \
 	VITE_API_BASE_URL=$(GATEWAY_URL) \
+	VITE_WS_BASE_URL=$(GATEWAY_WS_URL) \
 	npm run build
 	@echo "✅ Web build complete! Output: web/dist/"
 

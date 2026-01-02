@@ -47,5 +47,9 @@ message PushMessage {
 
 // Ack 是可靠交付的确认
 message Ack {
-  string ref_seq = 1; // 引用的序列号
+  string ref_seq   = 1; // 引用的序列号（客户端生成的临时 ID）
+  int64  msg_id    = 2; // 服务端生成的消息 ID
+  int64  seq_id    = 3; // 会话内的序列 ID
+  string session_id = 4; // 所属会话
+  string error      = 5; // 失败原因（为空表示成功）
 }

@@ -62,7 +62,7 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
       // 创建 WebSocket 消息包（使用 fromJsonString 来正确设置 oneof 字段）
       const packet = WsPacket.fromJsonString(
         JSON.stringify({
-          seq: `msg-${Date.now()}`,
+          seq: pendingMessage.msgId,
           chat: {
             sessionId: currentSession.sessionId,
             content,

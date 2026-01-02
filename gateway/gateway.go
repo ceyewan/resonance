@@ -78,8 +78,8 @@ func (g *Gateway) initComponents() error {
 	logger, _ := clog.New(&g.config.Log, clog.WithStandardContext(), clog.WithNamespace("gateway"))
 	g.logger = logger
 
-	// 2. 初始化核心资源 (Redis, Etcd, Clients, Managers)
-	res, err := g.initResources()
+	// 2. 初始化核心资源 (Redis, Etcd, Registry)
+	res, err := g.initBaseResources()
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (g *Gateway) initComponents() error {
 	// 3. 使用 AssignInstanceID 从 Redis 获取唯一的 workerID
 	workerID, stop, failCh, err := idgen.AssignInstanceID(
 		g.ctx,
-		res.redisConn,
+		g.resources.redisConn,
 		g.config.WorkerID.GetKey(),
 		g.config.WorkerID.GetMaxID(),
 	)
@@ -107,19 +107,24 @@ func (g *Gateway) initComponents() error {
 	}()
 
 	// 4. 拼接唯一服务 ID (基于 workerID)
-	g.gatewayID = g.config.Service.Name + "-" + fmt.Sprintf("%d", g.workerID)
+	g.gatewayID = fmt.Sprintf("%s-%03d", g.config.Service.Name, g.workerID)
 
-	// 5. 创建 ID 生成器 (供其他组件使用)
+	// 5. 初始化逻辑客户端与连接管理器（依赖 gatewayID）
+	if err := g.initLogicDependencies(); err != nil {
+		return err
+	}
+
+	// 6. 创建 ID 生成器 (供其他组件使用)
 	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
 
-	// 6. 初始化服务接口 (Servers)
+	// 7. 初始化服务接口 (Servers)
 	g.initServers(idGen)
 
 	return nil
 }
 
-// initResources 初始化外部连接和管理对象
-func (g *Gateway) initResources() (*resources, error) {
+// initBaseResources 初始化外部连接 (Redis、Etcd、Registry)
+func (g *Gateway) initBaseResources() (*resources, error) {
 	// Redis
 	redisConn, err := connector.NewRedis(&g.config.Redis, connector.WithLogger(g.logger))
 	if err != nil {
@@ -149,24 +154,30 @@ func (g *Gateway) initResources() (*resources, error) {
 	}
 	g.registry = reg
 
-	// Logic Client（使用服务发现）
-	logicClient, err := client.NewClient(g.config.GetLogicServiceName(), g.config.Service.Name, g.logger, reg)
-	if err != nil {
-		redisConn.Close()
-		etcdConn.Close()
-		return nil, fmt.Errorf("logic client init: %w", err)
+	return &resources{
+		redisConn: redisConn,
+		etcdConn:  etcdConn,
+	}, nil
+}
+
+// initLogicDependencies 基于 gatewayID 初始化 Logic Client 与连接管理
+func (g *Gateway) initLogicDependencies() error {
+	if g.gatewayID == "" {
+		return fmt.Errorf("gatewayID not initialized")
 	}
 
-	// Connection Manager
+	logicClient, err := client.NewClient(g.config.GetLogicServiceName(), g.gatewayID, g.logger, g.registry)
+	if err != nil {
+		return fmt.Errorf("logic client init: %w", err)
+	}
+
 	presence := connection.NewPresenceCallback(logicClient, g.logger)
 	connMgr := connection.NewManager(g.logger, nil, presence.OnUserOnline, presence.OnUserOffline)
 
-	return &resources{
-		redisConn:   redisConn,
-		etcdConn:    etcdConn,
-		logicClient: logicClient,
-		connMgr:     connMgr,
-	}, nil
+	g.resources.logicClient = logicClient
+	g.resources.connMgr = connMgr
+
+	return nil
 }
 
 // initServers 初始化各个协议的服务端

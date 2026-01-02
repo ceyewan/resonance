@@ -31,7 +31,7 @@ type Connection interface {
 type DefaultHandler struct {
 	logger  clog.Logger
 	onPulse func(ctx context.Context, conn Connection) error
-	onChat  func(ctx context.Context, conn Connection, chat *gatewayv1.ChatRequest) error
+	onChat  func(ctx context.Context, conn Connection, seq string, chat *gatewayv1.ChatRequest) error
 	onAck   func(ctx context.Context, conn Connection, ack *gatewayv1.Ack) error
 }
 
@@ -39,7 +39,7 @@ type DefaultHandler struct {
 func NewDefaultHandler(
 	logger clog.Logger,
 	onPulse func(ctx context.Context, conn Connection) error,
-	onChat func(ctx context.Context, conn Connection, chat *gatewayv1.ChatRequest) error,
+	onChat func(ctx context.Context, conn Connection, seq string, chat *gatewayv1.ChatRequest) error,
 	onAck func(ctx context.Context, conn Connection, ack *gatewayv1.Ack) error,
 ) *DefaultHandler {
 	return &DefaultHandler{
@@ -63,7 +63,7 @@ func (h *DefaultHandler) HandlePacket(ctx context.Context, conn Connection, pack
 	case *gatewayv1.WsPacket_Chat:
 		// 聊天消息
 		if h.onChat != nil {
-			return h.onChat(ctx, conn, payload.Chat)
+			return h.onChat(ctx, conn, packet.GetSeq(), payload.Chat)
 		}
 		return nil
 
@@ -114,12 +114,16 @@ func CreatePushPacket(seq string, msg *gatewayv1.PushMessage) *gatewayv1.WsPacke
 }
 
 // CreateAckPacket 创建确认消息包
-func CreateAckPacket(refSeq string) *gatewayv1.WsPacket {
+func CreateAckPacket(refSeq string, msgID int64, seqID int64, sessionID string, errMsg string) *gatewayv1.WsPacket {
 	return &gatewayv1.WsPacket{
 		Seq: refSeq,
 		Payload: &gatewayv1.WsPacket_Ack{
 			Ack: &gatewayv1.Ack{
-				RefSeq: refSeq,
+				RefSeq:    refSeq,
+				MsgId:     msgID,
+				SeqId:     seqID,
+				SessionId: sessionID,
+				Error:     errMsg,
 			},
 		},
 	}
