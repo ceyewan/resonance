@@ -1,175 +1,175 @@
-# Resonance IM - Web Frontend
+# Resonance Web
 
-Resonance IM 前端应用，基于 React 18 + TypeScript + Vite + Zustand。
+Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，参考 Telegram UI 设计。
 
-## 🚀 快速开始
+## 概述
 
-### 环境要求
+Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP)** 和 **WebSocket (Protobuf)** 与 Gateway 服务通信。
 
-- Node.js 18+
-- npm 或 yarn
+**设计目标**：参考 Telegram 的 UI/UX 设计，打造简洁、高效的即时通讯体验。
 
-### 安装依赖
+---
+
+## 技术栈
+
+| 类别 | 技术 | 版本 | 用途 |
+|------|------|------|------|
+| 框架 | React | 18.3+ | UI 框架 |
+| 语言 | TypeScript | 5.6+ | 类型安全 |
+| 构建 | Vite | 5.4+ | 开发服务器与打包 |
+| 状态 | Zustand | 4.5+ | 轻量状态管理 |
+| 样式 | Tailwind CSS | 3.4+ | 原子化 CSS |
+| UI 组件 | Radix UI | 1.x | 无头组件 |
+| API | ConnectRPC | 1.4+ | 类型安全的 RPC 调用 |
+| 实时通信 | WebSocket | - | Protobuf 消息推送 |
+
+---
+
+## 项目结构
+
+```
+web/
+├── src/
+│   ├── api/                 # API 通信层
+│   │   └── client.ts        # ConnectRPC 客户端（带认证拦截器）
+│   ├── gen/                 # Protobuf 生成代码（软链接 → ../api/gen/ts）
+│   ├── hooks/               # 自定义 Hooks
+│   │   ├── useAuth.ts       # 认证 Hook
+│   │   └── useWebSocket.ts  # WebSocket Hook（心跳/重连）
+│   ├── lib/                 # 工具库
+│   │   └── cn.ts            # className 合并工具
+│   ├── pages/               # 页面组件
+│   │   ├── LoginPage.tsx    # 登录/注册页
+│   │   └── ChatPage.tsx     # 聊天主界面
+│   ├── stores/              # Zustand 状态管理
+│   │   ├── auth.ts          # 认证状态（持久化）
+│   │   ├── session.ts       # 会话状态
+│   │   └── message.ts       # 消息状态
+│   ├── styles/              # 全局样式
+│   │   └── globals.css      # Tailwind + 设计 tokens
+│   ├── App.tsx              # 应用入口
+│   └── main.tsx             # React 挂载
+├── .env.local               # 环境变量（本地，不提交）
+├── package.json
+├── vite.config.ts           # Vite 配置（代理 → Gateway）
+├── tailwind.config.ts       # Tailwind 配置
+├── AGENTS.md                # AI 助手开发指引（类似 CLAUDE.md）
+└── README.md                # 本文档
+```
+
+---
+
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
 cd web
 npm install
 ```
 
-### 开发运行
+### 2. 配置环境变量
+
+创建 `.env.local` 文件：
+
+```bash
+# Gateway API 地址（ConnectRPC）
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### 3. 确保协议代码已生成
+
+```bash
+# 确保软链接存在
+cd src
+ln -s ../../api/gen/ts gen
+
+# 或从项目根目录执行
+cd .. && make gen
+```
+
+### 4. 启动开发服务器
 
 ```bash
 npm run dev
 ```
 
-应用将在 http://localhost:5173 自动打开。
+访问 http://localhost:5173
 
-### 构建生产版本
+---
 
-```bash
-npm run build
-```
-
-### 类型检查
+## 常用命令
 
 ```bash
-npm run type-check
+npm run dev          # 开发服务器（5173 端口）
+npm run build        # 生产构建
+npm run preview      # 预览构建产物
+npm run type-check   # TypeScript 类型检查
+npm run lint         # ESLint 检查
 ```
 
-## 📁 项目结构
+---
+
+## 通信架构
 
 ```
-web/
-├── src/
-│   ├── api/              # API 客户端和通信层
-│   │   └── client.ts     # ConnectRPC 客户端初始化
-│   ├── gen/              # 生成的代码（软链接到 api/gen/ts）
-│   ├── hooks/            # 自定义 Hooks
-│   │   ├── useAuth.ts    # 认证 Hook
-│   │   └── useWebSocket.ts # WebSocket Hook
-│   ├── lib/              # 工具函数
-│   │   └── cn.ts         # Tailwind CSS 类名合并工具
-│   ├── pages/            # 页面组件
-│   │   ├── LoginPage.tsx # 登录页面
-│   │   └── ChatPage.tsx  # 聊天页面
-│   ├── stores/           # Zustand 状态管理
-│   │   ├── auth.ts       # 认证状态
-│   │   ├── session.ts    # 会话状态
-│   │   └── message.ts    # 消息状态
-│   ├── styles/           # 全局样式
-│   │   └── globals.css   # Tailwind CSS 和自定义样式
-│   ├── App.tsx           # 根组件
-│   ├── main.tsx          # 应用入口
-│   └── vite-env.d.ts     # Vite 环境变量类型定义
-├── index.html            # HTML 模板
-├── package.json          # 项目依赖
-├── tsconfig.json         # TypeScript 配置
-├── tailwind.config.ts    # Tailwind CSS 配置
-├── postcss.config.js     # PostCSS 配置
-└── vite.config.ts        # Vite 配置
+┌─────────────────┐         ┌─────────────────┐
+│     Browser     │         │    Gateway      │
+│                 │         │   (localhost    │
+│  ┌───────────┐  │         │    :8080)       │
+│  │   React   │  │         │                 │
+│  │ ┌─────┐  │  │         │  ┌───────────┐  │
+│  │ │ API │◄─┼─┼─────────┼─►│ ConnectRPC │  │
+│  │ └─────┘  │  │ HTTP    │  │   HTTP    │  │
+│  │ ┌─────┐  │  │         │  └───────────┘  │
+│  │ │  WS │◄─┼─┼─────────┼─►│ WebSocket  │  │
+│  │ └─────┘  │  │ WS      │  │ (Protobuf)│  │
+│  └───────────┘  │         │  └───────────┘  │
+└─────────────────┘         └─────────────────┘
 ```
 
-## 🔧 技术栈
+- **ConnectRPC**: 用于登录、注册、获取会话列表等 RESTful API
+- **WebSocket**: 用于实时消息推送，Protobuf 二进制格式
 
-- **框架**: React 18
-- **语言**: TypeScript
-- **构建**: Vite
-- **状态管理**: Zustand
-- **样式**: Tailwind CSS + Shadcn/ui
-- **API**: ConnectRPC (@connectrpc/connect-web)
-- **实时通信**: WebSocket + Protobuf (@bufbuild/protobuf)
+---
 
-## 📚 开发指南
+## 页面说明
 
-### API 通信
+### LoginPage (`pages/LoginPage.tsx`)
 
-使用 ConnectRPC 与后端通信：
+- 登录/注册模式切换
+- 表单验证
+- 错误提示
+- 调用 `useAuth` hook 处理认证
 
-```typescript
-import { authClient, sessionClient } from "@/api/client";
+### ChatPage (`pages/ChatPage.tsx`)
 
-// 登录
-const response = await authClient.login({
-  username: "user",
-  password: "pass",
-});
+- 左侧会话列表（可切换）
+- 右侧聊天区域（消息展示 + 输入框）
+- 连接状态显示
+- 乐观更新消息发送
 
-// 获取会话列表
-const sessions = await sessionClient.getSessionList({
-  accessToken: token,
-});
-```
+---
 
-### 状态管理
+## 待实现功能（Telegram 参考）
 
-使用 Zustand 管理应用状态：
+- [ ] 消息长按菜单（回复/转发/删除）
+- [ ] 消息回复链
+- [ ] 消息编辑/撤回
+- [ ] 图片发送与预览
+- [ ] 文件传输
+- [ ] 群组管理
+- [ ] 搜索功能
+- [ ] 消息已读状态（双勾）
+- [ ] 在线状态指示器
+- [ ] 暗色主题切换
+- [ ] 消息表情反应
+- [ ] 消息转发
+- [ ] 跳转到未读消息
 
-```typescript
-import { useAuthStore } from "@/stores/auth";
-import { useSessionStore } from "@/stores/session";
-import { useMessageStore } from "@/stores/message";
+---
 
-// 获取状态
-const { user, isAuthenticated } = useAuthStore();
-const { sessions, currentSession } = useSessionStore();
-const { messages } = useMessageStore();
+## 相关文档
 
-// 更新状态
-const { setUser, logout } = useAuthStore();
-const { setCurrentSession } = useSessionStore();
-```
-
-### WebSocket 连接
-
-使用 useWebSocket Hook 管理 WebSocket 连接：
-
-```typescript
-import { useWebSocket } from "@/hooks/useWebSocket";
-
-const { isConnected, send, connect, disconnect } = useWebSocket({
-  onMessage: (packet) => {
-    console.log("Received:", packet);
-  },
-});
-
-// 连接
-connect();
-
-// 发送消息
-send(packet);
-
-// 断开连接
-disconnect();
-```
-
-## 🎨 样式
-
-使用 Tailwind CSS 进行样式开发。所有颜色和主题配置在 `tailwind.config.ts` 中定义。
-
-使用 `cn` 工具函数合并 Tailwind CSS 类名：
-
-```typescript
-import { cn } from '@/lib/cn'
-
-<div className={cn(
-  'base-class',
-  isActive && 'active-class',
-  className // 允许外部覆盖
-)} />
-```
-
-## 📝 环境变量
-
-在 `.env.local` 中配置环境变量：
-
-```env
-VITE_API_BASE_URL=http://localhost:8080
-VITE_WS_HOST=localhost
-VITE_WS_PORT=8080
-```
-
-## 🔗 相关文档
-
-- [FRONTEND.md](./FRONTEND.md) - 详细的前端开发指南
-- [AGENTS.md](./AGENTS.md) - AI 开发助手指引
-- [后端文档](../README.md)
+- [AGENTS.md](./AGENTS.md) - AI 开发助手指引（详细开发规范、技术实现）
+- [../README.md](../README.md) - 项目整体文档

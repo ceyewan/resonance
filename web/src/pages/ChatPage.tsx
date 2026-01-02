@@ -1,248 +1,320 @@
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useAuthStore } from "@/stores/auth";
-import { useSessionStore } from "@/stores/session";
-import { useMessageStore } from "@/stores/message";
-import { sessionClient } from "@/api/client";
-import { WsPacket, ChatRequest } from "@/gen/gateway/v1/packet_pb";
-import type { SessionInfo as SessionInfoType } from "@/gen/gateway/v1/api_pb";
+import { useSession } from "@/hooks/useSession";
+import { useMessageStore, createPendingMessage } from "@/stores/message";
+import { WsPacket } from "@/gen/gateway/v1/packet_pb";
+import { cn } from "@/lib/cn";
+import { SessionItem } from "@/components/SessionItem";
+import { MessageBubble } from "@/components/MessageBubble";
+import { ChatInput } from "@/components/ChatInput";
+import { MESSAGE_TYPES } from "@/constants";
 
 interface ChatPageProps {
   isConnected: boolean;
   send: (packet: WsPacket) => void;
 }
 
+/**
+ * 聊天主页面
+ * Telegram 风格：左侧会话列表，右侧聊天区域
+ */
 export default function ChatPage({ isConnected, send }: ChatPageProps) {
   const { user, logout } = useAuthStore();
-  const { sessions, currentSession, setSessions, setCurrentSession } =
-    useSessionStore();
-  const { getSessionMessages, addMessage } = useMessageStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [inputValue, setInputValue] = useState("");
+  const { sessions, currentSession, isLoading, loadSessions, selectSession } =
+    useSession();
+  const { getSessionMessages } = useMessageStore();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load sessions on mount
-  // 后端在注册时会自动加入 0 号房间（session_id='0'），所以这里只需要加载会话列表
+  // 加载会话列表
   useEffect(() => {
-    const loadSessions = async () => {
-      setIsLoading(true);
-      try {
-        // Token 会通过拦截器自动添加到 Authorization 头
-        const response = (await sessionClient.getSessionList({})) as any;
-        const loadedSessions = response.sessions.map((s: SessionInfoType) => ({
-          sessionId: s.sessionId,
-          userId: s.sessionId, // For now, use sessionId as userId
-          userName: s.name,
-          userAvatar: s.avatarUrl,
-          isGroup: s.type === 2,
-          unreadCount: Number(s.unreadCount),
-          lastMessage: s.lastMessage?.content,
-          lastMessageTime: s.lastMessage
-            ? Number(s.lastMessage.timestamp)
-            : undefined,
-        }));
-        setSessions(loadedSessions);
-
-        // 自动选中第一个会话（通常是 0 号房间）
-        if (loadedSessions.length > 0 && !currentSession) {
-          setCurrentSession(loadedSessions[0]);
-        }
-      } catch (err) {
-        console.error("Failed to load sessions:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadSessions();
-  }, [setSessions, setCurrentSession]);
+  }, [loadSessions]);
 
   const messages = currentSession
     ? getSessionMessages(currentSession.sessionId)
     : [];
 
+  // 滚动到底部
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [currentSession, messages, scrollToBottom]);
+
   // 发送消息
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || !currentSession || !isConnected) {
-      return;
-    }
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      if (!currentSession || !isConnected) return;
 
-    // 使用 fromJsonString 创建 WsPacket（JSON 格式中 oneof 直接展开）
-    const packet = WsPacket.fromJsonString(JSON.stringify({
-      seq: `msg-${Date.now()}`,
-      chat: {
-        sessionId: currentSession.sessionId,
-        content: inputValue.trim(),
-        type: "text",
-      },
-    }));
+      // 创建待发送的消息对象（用于乐观更新）
+      const pendingMessage = createPendingMessage(
+        currentSession.sessionId,
+        content,
+        user?.username || "",
+        MESSAGE_TYPES.TEXT,
+      );
 
-    // 调试：打印序列化后的数据
-    console.log("[ChatPage] Sending packet:", packet);
-    console.log("[ChatPage] Packet payload:", packet.payload);
-    console.log("[ChatPage] Packet binary length:", packet.toBinary().length);
-    console.log("[ChatPage] Packet binary array:", Array.from(packet.toBinary()));
-    console.log("[ChatPage] Packet JSON:", packet.toJsonString());
+      // 立即添加到消息列表
+      useMessageStore.getState().addMessage(pendingMessage);
 
-    send(packet);
+      // 创建 WebSocket 消息包（使用 fromJsonString 来正确设置 oneof 字段）
+      const packet = WsPacket.fromJsonString(
+        JSON.stringify({
+          seq: `msg-${Date.now()}`,
+          chat: {
+            sessionId: currentSession.sessionId,
+            content,
+            type: MESSAGE_TYPES.TEXT,
+          },
+        }),
+      );
 
-    // 立即显示发送的消息（乐观更新）
-    addMessage(currentSession.sessionId, {
-      msgId: Date.now(),
-      seqId: 0,
-      sessionId: currentSession.sessionId,
-      senderUsername: user?.username || "",
-      content: inputValue.trim(),
-      msgType: "text",
-      createdAt: new Date(),
-      isOwn: true,
-    });
+      send(packet);
+      scrollToBottom();
+    },
+    [currentSession, isConnected, user, send, scrollToBottom],
+  );
 
-    setInputValue("");
-  };
+  // 处理会话选择
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      selectSession(sessionId);
+    },
+    [selectSession],
+  );
+
+  // 连接状态指示器
+  const ConnectionStatus = () => (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={cn(
+          "h-2 w-2 rounded-full",
+          isConnected
+            ? "bg-green-500"
+            : "bg-red-500",
+        )}
+      />
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {isConnected ? "已连接" : "未连接"}
+      </span>
+    </div>
+  );
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-foreground">Resonance IM</h1>
-            <span className={`text-xs px-2 py-1 rounded ${isConnected ? "bg-green-500/20 text-green-600" : "bg-red-500/20 text-red-600"}`}>
-              {isConnected ? "已连接" : "未连接"}
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {user?.username}
-            </span>
-            <button
-              onClick={logout}
-              className="rounded-md bg-destructive px-3 py-1 text-sm text-destructive-foreground hover:bg-destructive/90"
-            >
-              登出
-            </button>
-          </div>
+    <div className="flex h-full flex-col bg-gray-50 dark:bg-gray-900">
+      {/* 顶部导航栏 */}
+      <header className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex items-center gap-3">
+          {/* Logo */}
+          <svg
+            className="h-6 w-6 text-sky-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+            />
+          </svg>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Resonance
+          </h1>
+          <ConnectionStatus />
         </div>
-      </div>
 
+        <div className="flex items-center gap-3">
+          {/* 用户信息 */}
+          <span className="text-sm text-gray-600 dark:text-gray-400">
+            {user?.nickname || user?.username}
+          </span>
+
+          {/* 登出按钮 */}
+          <button
+            onClick={logout}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+              "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+              "dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white",
+            )}
+          >
+            登出
+          </button>
+        </div>
+      </header>
+
+      {/* 主内容区 */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sessions Sidebar */}
-        <div className="w-64 border-r border-border bg-card">
-          <div className="border-b border-border p-4">
-            <button className="w-full rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90">
-              新建对话
-            </button>
+        {/* 左侧会话列表 */}
+        <aside className="w-80 border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+          {/* 搜索框 */}
+          <div className="border-b border-gray-200 p-3 dark:border-gray-700">
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <input
+                type="text"
+                placeholder="搜索"
+                disabled
+                className={cn(
+                  "w-full rounded-full border border-gray-300 bg-gray-100 py-2 pl-10 pr-4 text-sm",
+                  "placeholder-gray-500 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
+                  "disabled:opacity-50",
+                  "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
+                )}
+              />
+            </div>
           </div>
 
-          {isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <p className="text-sm text-muted-foreground">加载中...</p>
-            </div>
-          ) : (
-            <div className="overflow-y-auto">
-              {sessions.length === 0 ? (
-                <p className="p-4 text-center text-sm text-muted-foreground">
+          {/* 会话列表 */}
+          <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                  <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  <span className="text-sm">加载中...</span>
+                </div>
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="flex flex-col items-center p-8 text-center">
+                <svg
+                  className="mb-3 h-12 w-12 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
                   暂无对话
                 </p>
-              ) : (
-                sessions.map((session) => (
-                  <div
-                    key={session.sessionId}
-                    onClick={() => setCurrentSession(session)}
-                    className={`border-b border-border p-4 cursor-pointer transition-colors ${
-                      currentSession?.sessionId === session.sessionId
-                        ? "bg-primary/10"
-                        : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 overflow-hidden">
-                        <h3 className="font-semibold text-foreground">
-                          {session.userName}
-                        </h3>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {session.lastMessage || "暂无消息"}
-                        </p>
-                      </div>
-                      {session.unreadCount > 0 && (
-                        <span className="ml-2 inline-flex items-center rounded-full bg-destructive px-2 py-1 text-xs font-semibold text-destructive-foreground">
-                          {session.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              sessions.map((session) => (
+                <SessionItem
+                  key={session.sessionId}
+                  session={session}
+                  isActive={currentSession?.sessionId === session.sessionId}
+                  onClick={() => handleSelectSession(session.sessionId)}
+                />
+              ))
+            )}
+          </div>
+        </aside>
 
-        {/* Chat Content */}
-        <div className="flex-1 flex flex-col">
+        {/* 右侧聊天区域 */}
+        <main className="flex-1 flex flex-col bg-white dark:bg-gray-900">
           {!currentSession ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground">
-              <p>选择一个对话开始聊天</p>
+            // 空状态
+            <div className="flex flex-1 flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+              <svg
+                className="mb-4 h-16 w-16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                />
+              </svg>
+              <p className="text-lg">选择一个对话开始聊天</p>
             </div>
           ) : (
             <>
-              {/* Chat Header */}
-              <div className="border-b border-border bg-card px-6 py-4">
-                <h2 className="text-lg font-semibold text-foreground">
-                  {currentSession.userName}
-                </h2>
+              {/* 聊天头部 */}
+              <div className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex items-center gap-3">
+                  {/* 头像 */}
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500 text-sm font-semibold text-white">
+                    {currentSession.name?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      {currentSession.name}
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {currentSession.type === 2 ? "群聊" : "单聊"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 更多操作 */}
+                <button className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                </button>
               </div>
 
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-6">
+              {/* 消息列表 */}
+              <div className="flex-1 overflow-y-auto p-4">
                 {messages.length === 0 ? (
-                  <p className="text-center text-muted-foreground">暂无消息</p>
+                  <div className="flex h-full items-center justify-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      暂无消息，开始聊天吧
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
-                    {messages.map((msg) => (
-                      <div
-                        key={msg.msgId}
-                        className={`flex ${msg.isOwn ? "justify-end" : "justify-start"}`}
-                      >
-                        <div
-                          className={`rounded-lg px-4 py-2 max-w-xs ${
-                            msg.isOwn
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-foreground"
-                          }`}
-                        >
-                          <p>{msg.content}</p>
-                          <p className="text-xs opacity-70 mt-1">
-                            {new Date(msg.timestamp).toLocaleTimeString()}
-                          </p>
-                        </div>
-                      </div>
+                    {messages.map((message) => (
+                      <MessageBubble
+                        key={message.msgId}
+                        message={message}
+                        isOwn={message.isOwn}
+                        senderName={message.fromUsername}
+                      />
                     ))}
+                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </div>
 
-              {/* Input */}
-              <div className="border-t border-border bg-card p-4">
-                <form onSubmit={handleSubmit} className="flex gap-2">
-                  <input
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="输入消息..."
-                    className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-foreground placeholder-muted-foreground focus:border-primary focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!inputValue.trim() || !isConnected}
-                    className="rounded-md bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    发送
-                  </button>
-                </form>
-              </div>
+              {/* 输入框 */}
+              <ChatInput
+                disabled={!isConnected}
+                onSend={handleSendMessage}
+                placeholder={!isConnected ? "连接已断开..." : "输入消息..."}
+              />
             </>
           )}
-        </div>
+        </main>
       </div>
     </div>
   );

@@ -1,103 +1,151 @@
 import { useCallback, useState } from "react";
 import { useAuthStore } from "@/stores/auth";
 import { authClient } from "@/api/client";
-import type {
-  LoginRequest,
-  LoginResponse,
-  RegisterResponse,
-} from "@/gen/gateway/v1/api_pb";
+import { ERROR_MESSAGES } from "@/constants";
 
 interface UseAuthReturn {
   login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  register: (username: string, password: string, nickname?: string) => Promise<void>;
+  logout: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
 }
 
+/**
+ * 认证 Hook
+ * 处理登录、注册、登出操作
+ */
 export function useAuth(): UseAuthReturn {
   const {
-    setUser,
-    setAccessToken,
-    setIsLoading: setAuthLoading,
-    setError: setAuthError,
+    setAuth,
+    logout: clearAuth,
+    setError,
+    clearError,
   } = useAuthStore();
+
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
+
+  const clearLocalError = useCallback(() => {
+    setErrorState(null);
+    clearError();
+  }, [clearError]);
 
   const login = useCallback(
     async (username: string, password: string) => {
+      if (!username.trim() || !password.trim()) {
+        const errorMsg = ERROR_MESSAGES.INVALID_INPUT;
+        setErrorState(errorMsg);
+        setError(errorMsg);
+        return;
+      }
+
       setIsLoading(true);
+      setErrorState(null);
       setError(null);
-      setAuthLoading(true);
-      setAuthError(null);
 
       try {
-        const response = (await authClient.login({
-          username,
+        const response = await authClient.login({
+          username: username.trim(),
           password,
-        })) as LoginResponse;
+        });
 
-        if (response.user) {
-          setUser({
-            id: response.user.username,
-            username: response.user.username,
-            avatar: response.user.avatarUrl,
-          });
+        const user = response.user
+          ? {
+              username: response.user.username,
+              nickname: response.user.nickname || undefined,
+              avatarUrl: response.user.avatarUrl || undefined,
+            }
+          : null;
+
+        const token = response.accessToken;
+
+        if (!user || !token) {
+          throw new Error(ERROR_MESSAGES.AUTH_FAILED);
         }
-        setAccessToken(response.accessToken);
+
+        setAuth(user, token);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "登录失败";
-        setError(errorMessage);
-        setAuthError(errorMessage);
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : ERROR_MESSAGES.AUTH_FAILED;
+        setErrorState(errorMsg);
+        setError(errorMsg);
         throw err;
       } finally {
         setIsLoading(false);
-        setAuthLoading(false);
       }
     },
-    [setUser, setAccessToken, setAuthLoading, setAuthError],
+    [setAuth, setError],
   );
 
   const register = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, password: string, nickname?: string) => {
+      if (!username.trim() || !password.trim()) {
+        const errorMsg = ERROR_MESSAGES.INVALID_INPUT;
+        setErrorState(errorMsg);
+        setError(errorMsg);
+        return;
+      }
+
       setIsLoading(true);
+      setErrorState(null);
       setError(null);
-      setAuthLoading(true);
-      setAuthError(null);
 
       try {
-        const response = (await authClient.register({
-          username,
+        const response = await authClient.register({
+          username: username.trim(),
           password,
-        })) as RegisterResponse;
+          nickname: nickname?.trim() || username.trim(),
+        });
 
-        if (response.user) {
-          setUser({
-            id: response.user.username,
-            username: response.user.username,
-            avatar: response.user.avatarUrl,
-          });
+        const user = response.user
+          ? {
+              username: response.user.username,
+              nickname: response.user.nickname || undefined,
+              avatarUrl: response.user.avatarUrl || undefined,
+            }
+          : null;
+
+        const token = response.accessToken;
+
+        if (!user || !token) {
+          throw new Error(ERROR_MESSAGES.REGISTER_FAILED);
         }
-        setAccessToken(response.accessToken);
+
+        setAuth(user, token);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "注册失败";
-        setError(errorMessage);
-        setAuthError(errorMessage);
+        const errorMsg =
+          err instanceof Error
+            ? err.message
+            : ERROR_MESSAGES.REGISTER_FAILED;
+        setErrorState(errorMsg);
+        setError(errorMsg);
         throw err;
       } finally {
         setIsLoading(false);
-        setAuthLoading(false);
       }
     },
-    [setUser, setAccessToken, setAuthLoading, setAuthError],
+    [setAuth, setError],
   );
 
-  const logout = useCallback(() => {
-    setUser(null);
-    setAccessToken(null);
-    setError(null);
-  }, [setUser, setAccessToken]);
+  const logout = useCallback(async () => {
+    setIsLoading(true);
+
+    try {
+      // 调用登出 API（通知服务器使 token 失效）
+      // 即使 API 调用失败，本地状态也会清除
+      await authClient.logout({});
+    } catch (err) {
+      console.error("[useAuth] Logout API call failed:", err);
+    } finally {
+      // 无论 API 调用成功与否，都清除本地状态
+      clearAuth();
+      setIsLoading(false);
+    }
+  }, [clearAuth]);
 
   return {
     login,
@@ -105,5 +153,6 @@ export function useAuth(): UseAuthReturn {
     logout,
     isLoading,
     error,
+    clearError: clearLocalError,
   };
 }

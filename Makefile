@@ -2,7 +2,18 @@
 include .env
 export
 
+# ============================================================================
+# Web 前端配置
+# ============================================================================
+# 前端开发服务器地址
+WEB_HOST ?= localhost
+WEB_PORT ?= 5173
+# Gateway 地址（前端 API 和 WebSocket 连接地址）
+GATEWAY_URL ?= http://localhost:8080
+
+# ============================================================================
 # 1. 生成代码 (使用 buf)
+# ============================================================================
 # 增量生成逻辑：仅当 proto 文件改变时才重新生成，避免 IDE 频繁重索引
 PROTO_FILES := $(shell find api/proto -name "*.proto")
 GEN_TIMESTAMP := api/gen/.timestamp
@@ -27,12 +38,16 @@ $(GEN_TIMESTAMP): $(PROTO_FILES) api/buf.yaml api/buf.gen.go.yaml api/buf.gen.co
 	@echo "  - common/*.proto          → TypeScript (共享类型)"
 	@echo "  - gateway/v1/packet.proto → TypeScript (WebSocket 消息格式)"
 
+# ============================================================================
 # 2. 整理依赖
+# ============================================================================
 tidy:
 	@echo "🧹 Tidying go modules..."
 	@go mod tidy
 
+# ============================================================================
 # 3. 编译服务
+# ============================================================================
 build-gateway:
 	@echo "🏗️ Building Gateway..."
 	@go build -o bin/gateway main.go
@@ -45,7 +60,9 @@ build-task:
 	@echo "🏗️ Building Task..."
 	@go build -o bin/task main.go
 
-# 4. 开发环境运行 (使用本地 MySQL/Redis，从 config.dev.yaml 加载配置)
+# ============================================================================
+# 4. 开发环境运行
+# ============================================================================
 dev-gateway: gen
 	@echo "🚀 Starting Gateway in DEV mode..."
 	@RESONANCE_ENV=dev go run main.go -module gateway
@@ -53,30 +70,14 @@ dev-gateway: gen
 dev-logic: gen
 	@echo "🚀 Starting Logic in DEV mode..."
 	@RESONANCE_ENV=dev go run main.go -module logic
+
 dev-task: gen
 	@echo "🚀 Starting Task in DEV mode..."
 	@RESONANCE_ENV=dev go run main.go -module task
 
-# 4.2 生产编译 (Docker 镜像构建)
-build-docker-gateway:
-	@echo "🐳 Building Gateway Docker image..."
-	@docker build -f deploy/Dockerfile.gateway -t resonance/gateway:latest .
-	@echo "✅ Gateway image built!"
-
-build-docker-logic:
-	@echo "🐳 Building Logic Docker image..."
-	@docker build -f deploy/Dockerfile.logic -t resonance/logic:latest .
-	@echo "✅ Logic image built!"
-
-build-docker-task:
-	@echo "🐳 Building Task Docker image..."
-	@docker build -f deploy/Dockerfile.task -t resonance/task:latest .
-	@echo "✅ Task image built!"
-
-# 构建所有服务镜像
-build-docker-all: build-docker-gateway build-docker-logic build-docker-task
-	@echo "✅ All Docker images built!"
+# ============================================================================
 # 5. Web 前端相关命令
+# ============================================================================
 
 # 安装前端依赖
 web-install:
@@ -84,32 +85,32 @@ web-install:
 	@cd web && npm install
 	@echo "✅ Web dependencies installed!"
 
-# 启动前端开发服务器（自动从 .env 读取 Gateway 地址）
+# 启动前端开发服务器
 web-dev: gen
 	@echo "🚀 Starting web development server..."
-	@echo "   Local: http://$(WEB_HOST):$(WEB_PORT)"
-	@echo "   API:   http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT)"
+	@echo "   Web:  http://$(WEB_HOST):$(WEB_PORT)"
+	@echo "   API:  $(GATEWAY_URL)"
 	@cd web && \
-	VITE_API_BASE_URL=http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT) \
-	VITE_WS_HOST=$(GATEWAY_HTTP_HOST) \
-	VITE_WS_PORT=$(GATEWAY_HTTP_PORT) \
+	VITE_API_BASE_URL=$(GATEWAY_URL) \
 	npm run dev -- --host $(WEB_HOST) --port $(WEB_PORT)
 
-# 构建前端生产版本（自动从 .env 读取 Gateway 地址）
+# 构建前端生产版本
 web-build: gen
 	@echo "🏗️ Building web for production..."
-	@echo "   API: http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT)"
+	@echo "   API: $(GATEWAY_URL)"
 	@cd web && \
-	VITE_API_BASE_URL=http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT) \
-	VITE_WS_HOST=$(GATEWAY_HTTP_HOST) \
-	VITE_WS_PORT=$(GATEWAY_HTTP_PORT) \
+	VITE_API_BASE_URL=$(GATEWAY_URL) \
 	npm run build
-	@echo "✅ Web build complete! Output: web/$(WEB_BUILD_DIR)"
+	@echo "✅ Web build complete! Output: web/dist/"
 
+# ============================================================================
 # 6. 一键完成所有生成和依赖整理
+# ============================================================================
 all: gen tidy web-install
 
+# ============================================================================
 # 7. 强制清理并重新生成
+# ============================================================================
 gen-clean:
 	@echo "🧹 Cleaning generated code..."
 	@rm -rf api/gen
@@ -199,19 +200,15 @@ dev-all: gen
 	@sleep 2
 	@echo ""
 	@echo "🎨 Starting Web frontend..."
-	@cd web && \
-	VITE_API_BASE_URL=http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT) \
-	VITE_WS_HOST=$(RESONANCE_GATEWAY_DEV_HOST) \
-	VITE_WS_PORT=$(RESONANCE_GATEWAY_PORT) \
-	npm run dev &
+	@cd web && VITE_API_BASE_URL=$(GATEWAY_URL) npm run dev &
 	WEB_PID=$!
 	@echo "   [Web] PID: $$WEB_PID"
 	@echo ""
 	@echo "✅ All services started!"
 	@echo ""
 	@echo "📊 Service URLs:"
-	@echo "  - Web:        http://$(RESONANCE_WEB_HOST):$(RESONANCE_WEB_PORT)"
-	@echo "  - Gateway:    http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)"
+	@echo "  - Web:        http://$(WEB_HOST):$(WEB_PORT)"
+	@echo "  - Gateway:    $(GATEWAY_URL)"
 	@echo "  - Logic:      $(RESONANCE_LOGIC_SERVICE_NAME)"
 	@echo "  - Task:       $(RESONANCE_TASK_SERVICE_NAME)"
 	@echo ""
@@ -244,7 +241,7 @@ dev: gen
 	@echo "✅ Backend services started!"
 	@echo ""
 	@echo "📊 Service endpoints:"
-	@echo "  - Gateway HTTP:  http://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)"
+	@echo "  - Gateway HTTP:  $(GATEWAY_URL)"
 	@echo "  - Gateway WS:    ws://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)/ws"
 	@echo "  - Logic:         $(RESONANCE_LOGIC_SERVICE_NAME)"
 	@echo "  - Task:          $(RESONANCE_TASK_SERVICE_NAME)"
