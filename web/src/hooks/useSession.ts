@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 import { useMessageStore, pushMessageToChatMessage } from "@/stores/message";
 import { sessionClient } from "@/api/client";
@@ -26,6 +27,7 @@ interface UseSessionReturn {
  * 处理会话列表加载、消息拉取、会话切换
  */
 export function useSession(): UseSessionReturn {
+  const { user } = useAuthStore();
   const {
     sessions,
     getCurrentSession,
@@ -108,7 +110,7 @@ export function useSession(): UseSessionReturn {
         });
 
         const messages = response.messages.map((msg) =>
-          pushMessageToChatMessage(msg as PushMessage, "", sessionId),
+          pushMessageToChatMessage(msg as PushMessage, user?.username || "", sessionId),
         );
 
         // 如果指定了 beforeSeq，说明是加载更多，需要前置
@@ -123,7 +125,7 @@ export function useSession(): UseSessionReturn {
         throw err;
       }
     },
-    [setMessages, prependMessages],
+    [setMessages, prependMessages, user?.username],
   );
 
   // 选择会话

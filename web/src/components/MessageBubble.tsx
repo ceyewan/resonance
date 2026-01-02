@@ -23,7 +23,8 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   // 格式化时间
   const formatTime = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) / 1000000);
+    // 后端发送的是秒级时间戳，需要转换为毫秒
+    const date = new Date(Number(timestamp) * 1000);
     return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
   };
 

@@ -114,6 +114,13 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendMessag
 	// 生成消息 ID (Snowflake)
 	msgID := s.idGen.Next()
 
+	// TODO: Redis 计数器初始化
+	// 当 Redis 中没有 session 的 seq key 时，sequencer.Next 会从 1 开始
+	// 如果该 session 已有历史消息（MaxSeqID > 0），会导致 seq_id 冲突
+	// 解决方案：在调用 sequencer.Next 之前，检查 session.MaxSeqID
+	// 如果 MaxSeqID > 0 且 Redis key 不存在，使用 sequencer.SetIfNotExists 初始化
+	// 参考：https://github.com/ceyewan/genesis/issues/xxx （待提交 Feature Request）
+
 	// 使用 Redis 原子递增获取会话 SeqID，修复并发竞态问题
 	seqID, err := s.sequencer.Next(ctx, req.SessionId)
 	if err != nil {

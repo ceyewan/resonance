@@ -116,6 +116,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		Timestamp:    event.Timestamp,
 	}
 
+	// 携带会话元数据（用于前端自动创建会话）
+	if event.SessionName != "" || event.SessionType != 0 {
+		pushMsg.SessionMeta = &gatewayv1.SessionMeta{
+			Name: event.SessionName,
+			Type: event.SessionType,
+		}
+	}
+
 	// 5. 并发推送给各个 Gateway
 	// TODO: 可以使用 Worker Pool 限制并发数
 	successCount := 0

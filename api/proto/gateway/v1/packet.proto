@@ -33,6 +33,13 @@ message ChatRequest {
   int64  timestamp     = 8; // timestamp 可选字段，可由网关填充
 }
 
+// SessionMeta 是会话元数据
+// 用于在推送消息时携带会话信息，避免前端额外查询
+message SessionMeta {
+  string name = 1; // 会话名称
+  int32  type = 2; // 会话类型：1=单聊, 2=群聊
+}
+
 // PushMessage 是推送给用户的消息
 message PushMessage {
   int64  msg_id        = 1; // 全局唯一物理ID (Snowflake)
@@ -43,6 +50,7 @@ message PushMessage {
   string content       = 6; // 内容
   string type          = 7; // 类型
   int64  timestamp     = 8; // 时间戳
+  SessionMeta session_meta = 10; // 会话元数据（首次推送时携带）
 }
 
 // Ack 是可靠交付的确认

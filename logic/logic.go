@@ -119,7 +119,7 @@ func (l *Logic) initComponents() error {
 
 	// 4. 服务层
 	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
-	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, logger)
+	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, res.snowflakeGen, res.sequencer, res.mqClient, logger)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 

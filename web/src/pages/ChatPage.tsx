@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/auth";
 import { useSession } from "@/hooks/useSession";
 import { useMessageStore, createPendingMessage } from "@/stores/message";
@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { SessionItem } from "@/components/SessionItem";
 import { MessageBubble } from "@/components/MessageBubble";
 import { ChatInput } from "@/components/ChatInput";
+import { NewChatModal } from "@/components/NewChatModal";
 import { MESSAGE_TYPES } from "@/constants";
 
 interface ChatPageProps {
@@ -24,6 +25,7 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
     useSession();
   const { getSessionMessages } = useMessageStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
 
   // 加载会话列表
   useEffect(() => {
@@ -83,6 +85,17 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
       selectSession(sessionId);
     },
     [selectSession],
+  );
+
+  // 处理会话创建后的回调
+  const handleSessionCreated = useCallback(
+    (sessionId: string) => {
+      // 刷新会话列表并选中新建的会话
+      loadSessions().then(() => {
+        selectSession(sessionId);
+      });
+    },
+    [loadSessions, selectSession],
   );
 
   // 连接状态指示器
@@ -151,33 +164,48 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧会话列表 */}
         <aside className="w-80 border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
-          {/* 搜索框 */}
+          {/* 搜索框和新建按钮 */}
           <div className="border-b border-gray-200 p-3 dark:border-gray-700">
-            <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <svg
+                  className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="搜索"
+                  disabled
+                  className={cn(
+                    "w-full rounded-full border border-gray-300 bg-gray-100 py-2 pl-10 pr-4 text-sm",
+                    "placeholder-gray-500 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
+                    "disabled:opacity-50",
+                    "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
+                  )}
                 />
-              </svg>
-              <input
-                type="text"
-                placeholder="搜索"
-                disabled
+              </div>
+              <button
+                onClick={() => setIsNewChatModalOpen(true)}
                 className={cn(
-                  "w-full rounded-full border border-gray-300 bg-gray-100 py-2 pl-10 pr-4 text-sm",
-                  "placeholder-gray-500 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-                  "disabled:opacity-50",
-                  "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
+                  "bg-sky-500 text-white transition-colors hover:bg-sky-600",
+                  "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2",
                 )}
-              />
+                title="新建聊天"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
             </div>
           </div>
 
@@ -316,6 +344,13 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
           )}
         </main>
       </div>
+
+      {/* 新建聊天弹窗 */}
+      <NewChatModal
+        isOpen={isNewChatModalOpen}
+        onClose={() => setIsNewChatModalOpen(false)}
+        onSessionCreated={handleSessionCreated}
+      />
     </div>
   );
 }

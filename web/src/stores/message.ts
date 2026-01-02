@@ -283,7 +283,7 @@ export function createPendingMessage(
     fromUsername: username,
     content,
     msgType,
-    timestamp: BigInt(Date.now() * 1000000), // 转换为纳秒
+    timestamp: BigInt(Math.floor(Date.now() / 1000)), // 秒级时间戳，与后端一致
     isOwn: true,
     status: MESSAGE_STATUS.SENDING,
   };

@@ -2,25 +2,35 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
+	"github.com/ceyewan/genesis/mq"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/internal/model"
 	"github.com/ceyewan/resonance/internal/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // SessionService 会话服务
 type SessionService struct {
 	logicv1.UnimplementedSessionServiceServer
-	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo
-	userRepo    repo.UserRepo
-	idGen       idgen.Generator
-	logger      clog.Logger
+	sessionRepo  repo.SessionRepo
+	messageRepo  repo.MessageRepo
+	userRepo     repo.UserRepo
+	idGen        idgen.Generator
+	snowflakeGen *idgen.Snowflake // 用于生成消息 ID
+	sequencer    idgen.Sequencer  // 用于生成会话 SeqID
+	mqClient     mq.Client        // 用于发送系统消息
+	logger       clog.Logger
 }
 
 // NewSessionService 创建会话服务
@@ -29,14 +39,20 @@ func NewSessionService(
 	messageRepo repo.MessageRepo,
 	userRepo repo.UserRepo,
 	idGen idgen.Generator,
+	snowflakeGen *idgen.Snowflake,
+	sequencer idgen.Sequencer,
+	mqClient mq.Client,
 	logger clog.Logger,
 ) *SessionService {
 	return &SessionService{
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		userRepo:    userRepo,
-		idGen:       idGen,
-		logger:      logger,
+		sessionRepo:  sessionRepo,
+		messageRepo:  messageRepo,
+		userRepo:     userRepo,
+		idGen:        idGen,
+		snowflakeGen: snowflakeGen,
+		sequencer:    sequencer,
+		mqClient:     mqClient,
+		logger:       logger,
 	}
 }
 
@@ -82,9 +98,26 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 			unread = sess.MaxSeqID - userSess.LastReadSeq
 		}
 
+		// 单聊会话名称处理：如果没有设置名称，使用对方用户的昵称
+		sessionName := sess.Name
+		if sess.Type == 1 && sessionName == "" {
+			// session_id 格式: single:user1:user2
+			parts := strings.Split(sess.SessionID, ":")
+			if len(parts) == 3 {
+				otherUser := parts[1]
+				if otherUser == req.Username {
+					otherUser = parts[2]
+				}
+				// 查询对方用户信息获取昵称
+				if user, err := s.userRepo.GetUserByUsername(ctx, otherUser); err == nil {
+					sessionName = user.Nickname
+				}
+			}
+		}
+
 		sessionInfos = append(sessionInfos, &logicv1.SessionInfo{
 			SessionId:   sess.SessionID,
-			Name:        sess.Name,
+			Name:        sessionName,
 			Type:        int32(sess.Type),
 			AvatarUrl:   "",
 			UnreadCount: unread,
@@ -153,9 +186,122 @@ func (s *SessionService) CreateSession(ctx context.Context, req *logicv1.CreateS
 		}
 	}
 
+	// 发送系统消息通知所有成员
+	if err := s.sendSessionCreatedSystemMessage(ctx, sessionID, req); err != nil {
+		s.logger.Error("failed to send system message", clog.Error(err))
+		// 系统消息发送失败不影响会话创建
+	}
+
 	return &logicv1.CreateSessionResponse{
 		SessionId: sessionID,
 	}, nil
+}
+
+// sendSessionCreatedSystemMessage 发送会话创建的系统消息
+func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, sessionID string, req *logicv1.CreateSessionRequest) error {
+	// 构建系统消息内容
+	content := s.buildSystemMessageContent(req)
+	if content == "" {
+		return nil
+	}
+
+	// 生成消息 ID 和 SeqID
+	msgID := s.snowflakeGen.Next()
+	seqID, err := s.sequencer.Next(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("generate seq id: %w", err)
+	}
+	timestamp := time.Now().Unix()
+
+	// 保存消息到数据库
+	msgContent := &model.MessageContent{
+		MsgID:          msgID,
+		SessionID:      sessionID,
+		SenderUsername: "system",
+		SeqID:          seqID,
+		Content:        content,
+		MsgType:        "system",
+	}
+	if err := s.messageRepo.SaveMessage(ctx, msgContent); err != nil {
+		return fmt.Errorf("save message: %w", err)
+	}
+
+	// 更新会话的 MaxSeqID
+	if err := s.sessionRepo.UpdateMaxSeqID(ctx, sessionID, seqID); err != nil {
+		s.logger.Error("failed to update max seq id", clog.Error(err))
+	}
+
+	// 收集所有接收者（不包括创建者自己，因为单聊中创建者不需要收到自己的系统消息）
+	toUsernames := make([]string, 0, len(req.Members))
+	for _, member := range req.Members {
+		if member != req.CreatorUsername {
+			toUsernames = append(toUsernames, member)
+		}
+	}
+
+	// 单聊中，如果创建者自己想看到系统消息，也可以添加
+	// 这里我们只给其他成员发送通知
+
+	// 发布到 MQ（携带会话元数据）
+	// 对于单聊，SessionName 需要设置为发送方（创建者）的昵称
+	// 接收方看到的会话名称应该是发送方的名字
+	sessionName := req.Name
+	if req.Type == 1 && sessionName == "" {
+		// 单聊：获取创建者（发送方）的昵称作为会话名称
+		if user, err := s.userRepo.GetUserByUsername(ctx, req.CreatorUsername); err == nil {
+			sessionName = user.Nickname
+		} else {
+			sessionName = req.CreatorUsername
+		}
+	}
+
+	event := &mqv1.PushEvent{
+		MsgId:        msgID,
+		SeqId:        seqID,
+		SessionId:    sessionID,
+		FromUsername: "system",
+		Content:      content,
+		Type:         "system",
+		Timestamp:    timestamp,
+		// 会话元数据（用于前端自动创建会话）
+		SessionName:  sessionName,
+		SessionType:  int32(req.Type),
+	}
+
+	eventData, err := proto.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("marshal push event: %w", err)
+	}
+
+	// 发布到 MQ
+	topic := string(proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string))
+	if err := s.mqClient.Publish(ctx, topic, eventData); err != nil {
+		return fmt.Errorf("publish to mq: %w", err)
+	}
+
+	s.logger.Info("system message sent",
+		clog.Int64("msg_id", msgID),
+		clog.Int64("seq_id", seqID),
+		clog.String("session_id", sessionID),
+		clog.Int("recipients", len(toUsernames)))
+
+	return nil
+}
+
+// buildSystemMessageContent 构建系统消息内容
+func (s *SessionService) buildSystemMessageContent(req *logicv1.CreateSessionRequest) string {
+	// 获取创建者昵称
+	creatorNickname := req.CreatorUsername
+	if user, err := s.userRepo.GetUserByUsername(context.Background(), req.CreatorUsername); err == nil {
+		creatorNickname = user.Nickname
+	}
+
+	if req.Type == 1 {
+		// 单聊：对方收到 "xxx 开始了与你的对话"
+		return fmt.Sprintf("%s 开始了与你的对话", creatorNickname)
+	}
+	// 群聊：所有人收到 "xxx 创建了群聊「群名」"
+	return fmt.Sprintf("%s 创建了群聊「%s」", creatorNickname, req.Name)
 }
 
 // GetRecentMessages 实现 SessionService.GetRecentMessages
