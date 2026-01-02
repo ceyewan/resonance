@@ -2,6 +2,9 @@ package config
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -84,6 +87,7 @@ func Load() (*Config, error) {
 		Name:     "task",
 		FileType: "yaml",
 	},
+		config.WithConfigName("task"),
 		config.WithConfigPaths("./configs"),
 		config.WithEnvPrefix("RESONANCE"),
 	)
@@ -102,6 +106,11 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	// 在 debug 模式下，打印最终生效的配置
+	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {
+		dumpConfig(&cfg)
+	}
+
 	return &cfg, nil
 }
 
@@ -112,4 +121,25 @@ func MustLoad() *Config {
 		panic(err)
 	}
 	return cfg
+}
+
+// dumpConfig 以 JSON 格式打印配置（脱敏敏感字段）
+func dumpConfig(cfg *Config) {
+	// 创建配置副本用于脱敏
+	sanitized := *cfg
+	if sanitized.MySQL.Password != "" {
+		sanitized.MySQL.Password = "***"
+	}
+	if sanitized.Redis.Password != "" {
+		sanitized.Redis.Password = "***"
+	}
+	if sanitized.NATS.Password != "" {
+		sanitized.NATS.Password = "***"
+	}
+	if sanitized.Etcd.Password != "" {
+		sanitized.Etcd.Password = "***"
+	}
+
+	data, _ := json.MarshalIndent(sanitized, "", "  ")
+	fmt.Fprintf(os.Stderr, "\n=== Task Configuration ===\n%s\n=== End of Configuration ===\n\n", data)
 }

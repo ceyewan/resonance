@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/resonance/internal/model"
 	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -50,10 +51,9 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
 
-	// 简单验证密码（实际应该使用 bcrypt）
-	// TODO: 生产环境应使用 bcrypt.CompareHashAndPassword
-	if user.Password != req.Password {
-		s.logger.Warn("invalid password", clog.String("username", req.Username))
+	// 验证密码
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		s.logger.Warn("invalid password", clog.String("username", req.Username), clog.Error(err))
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
 
@@ -85,11 +85,16 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest) (*logicv1.RegisterResponse, error) {
 	s.logger.Info("register request", clog.String("username", req.Username))
 
-	// 创建用户
-	// TODO: 生产环境应使用 bcrypt.GenerateFromPassword 加密密码
+	// 创建用户，对密码进行哈希加密
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("failed to hash password", clog.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to process registration")
+	}
+
 	user := &model.User{
 		Username: req.Username,
-		Password: req.Password,
+		Password: string(hashedPassword),
 		Nickname: req.Nickname,
 	}
 	if err := s.userRepo.CreateUser(ctx, user); err != nil {

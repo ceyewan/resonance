@@ -59,5 +59,7 @@ auth:
   issuer: resonance-service
   access_token_ttl: 24h
 
-# ID 生成器配置（Snowflake WorkerID）
-worker_id: 1
+# ID 生成器配置 (对齐 Gateway 分桶分发机制)
+worker_id:
+  max_id: 1024
+  key: resonance:logic:worker

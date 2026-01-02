@@ -43,6 +43,7 @@ type resources struct {
 	authenticator  auth.Authenticator
 	snowflakeGen   *idgen.Snowflake // 用于 MsgID
 	uuidGen        *idgen.UUID      // 用于 SessionID
+	sequencer      idgen.Sequencer  // 用于会话 SeqID (基于 Redis)
 	dbInstance     db.DB
 	instanceIDStop func() // 实例 ID 保活停止函数
 
@@ -88,18 +89,25 @@ func (l *Logic) initComponents() error {
 	}
 	l.resources = res
 
-	// 3. 基于 Redis 抢占分配唯一实例 ID
+	// 3. 基于 Redis 抢占分配唯一实例 ID (WorkerID)
 	instanceID, stop, failCh, err := idgen.AssignInstanceID(
 		l.ctx,
 		res.redisConn,
-		"resonance:"+l.config.Service.Name,
-		1024,
+		l.config.WorkerID.GetKey(),
+		l.config.WorkerID.GetMaxID(),
 	)
 	if err != nil {
 		return fmt.Errorf("assign instance id: %w", err)
 	}
 	l.serviceID = fmt.Sprintf("%s-%d", l.config.Service.Name, instanceID)
 	res.instanceIDStop = stop
+
+	// 3.1 动态更新 Snowflake WorkerID
+	snowflakeGen, err := idgen.NewSnowflake(int64(instanceID))
+	if err != nil {
+		return fmt.Errorf("snowflake init: %w", err)
+	}
+	res.snowflakeGen = snowflakeGen
 
 	// 监听保活失败
 	go func() {
@@ -112,7 +120,7 @@ func (l *Logic) initComponents() error {
 	// 4. 服务层
 	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
 	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, logger)
-	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.mqClient, logger)
+	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 
 	// 5. gRPC Server
@@ -181,11 +189,13 @@ func (l *Logic) initResources() (*resources, error) {
 	}
 
 	// ID Generators
-	snowflakeGen, err := idgen.NewSnowflake(l.config.WorkerID)
-	if err != nil {
-		return nil, fmt.Errorf("snowflake init: %w", err)
-	}
+	// 注意：Snowflake 稍后在 initComponents 中根据分配到的 instanceID 重新初始化
+	snowflakeGen, _ := idgen.NewSnowflake(0)
 	uuidGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
+	sequencer, _ := idgen.NewSequencer(&idgen.SequenceConfig{
+		KeyPrefix: "resonance:logic:seq",
+		Step:      1,
+	}, redisConn, idgen.WithLogger(l.logger))
 
 	// Repos
 	// 假设 NewUserRepo 和 NewMessageRepo 签名与 SessionRepo 类似
@@ -216,6 +226,7 @@ func (l *Logic) initResources() (*resources, error) {
 		authenticator: authenticator,
 		snowflakeGen:  snowflakeGen,
 		uuidGen:       uuidGen,
+		sequencer:     sequencer,
 		userRepo:      userRepo,
 		sessionRepo:   sessionRepo,
 		messageRepo:   messageRepo,

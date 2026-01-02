@@ -7,6 +7,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/internal/model"
@@ -20,6 +21,7 @@ type ChatService struct {
 	sessionRepo repo.SessionRepo
 	messageRepo repo.MessageRepo
 	idGen       *idgen.Snowflake
+	sequencer   idgen.Sequencer
 	mqClient    mq.Client
 	logger      clog.Logger
 }
@@ -29,6 +31,7 @@ func NewChatService(
 	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
 	idGen *idgen.Snowflake,
+	sequencer idgen.Sequencer,
 	mqClient mq.Client,
 	logger clog.Logger,
 ) *ChatService {
@@ -36,6 +39,7 @@ func NewChatService(
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		idGen:       idGen,
+		sequencer:   sequencer,
 		mqClient:    mqClient,
 		logger:      logger,
 	}
@@ -110,17 +114,15 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendMessag
 	// 生成消息 ID (Snowflake)
 	msgID := s.idGen.Next()
 
-	// 获取会话的当前最大 SeqID
-	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
+	// 使用 Redis 原子递增获取会话 SeqID，修复并发竞态问题
+	seqID, err := s.sequencer.Next(ctx, req.SessionId)
 	if err != nil {
-		s.logger.Error("failed to get session", clog.Error(err))
+		s.logger.Error("failed to generate seq id", clog.Error(err), clog.String("session_id", req.SessionId))
 		return &logicv1.SendMessageResponse{
-			Error: "failed to get session",
+			MsgId: msgID,
+			Error: "server busy: failed to generate sequence",
 		}, nil
 	}
-
-	// SeqID 递增
-	seqID := session.MaxSeqID + 1
 
 	// 保存消息到数据库
 	msgContent := &model.MessageContent{
@@ -170,7 +172,7 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendMessag
 	}
 
 	// 发布到 MQ
-	topic := "resonance.push.event.v1"
+	topic := string(proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string))
 	if err := s.mqClient.Publish(ctx, topic, eventData); err != nil {
 		s.logger.Error("failed to publish to mq", clog.Error(err))
 		return &logicv1.SendMessageResponse{

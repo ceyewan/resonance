@@ -7,6 +7,7 @@ import (
 	"github.com/ceyewan/genesis/xerrors"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	"github.com/ceyewan/resonance/internal/model"
 	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/ceyewan/resonance/task/pusher"
 )
@@ -19,6 +20,7 @@ var (
 // Dispatcher 消息分发器（写扩散）
 type Dispatcher struct {
 	sessionRepo repo.SessionRepo
+	messageRepo repo.MessageRepo // 增加 messageRepo 用于写扩散
 	routerRepo  repo.RouterRepo
 	pusherMgr   *pusher.Manager
 	logger      clog.Logger
@@ -27,12 +29,14 @@ type Dispatcher struct {
 // NewDispatcher 创建消息分发器
 func NewDispatcher(
 	sessionRepo repo.SessionRepo,
+	messageRepo repo.MessageRepo,
 	routerRepo repo.RouterRepo,
 	pusherMgr *pusher.Manager,
 	logger clog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{
 		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
 		routerRepo:  routerRepo,
 		pusherMgr:   pusherMgr,
 		logger:      logger,
@@ -52,10 +56,27 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		return err
 	}
 
-	// 提取用户名列表
+	// 2. 执行写扩散 (Inbox)
+	inboxes := make([]*model.Inbox, 0, len(members))
+	for _, m := range members {
+		// 发送者也需要在自己的信箱看到消息
+		inboxes = append(inboxes, &model.Inbox{
+			OwnerUsername: m.Username,
+			SessionID:     event.SessionId,
+			MsgID:         event.MsgId,
+			SeqID:         event.SeqId,
+			IsRead:        0,
+		})
+	}
+
+	if err := d.messageRepo.SaveInbox(ctx, inboxes); err != nil {
+		d.logger.Error("failed to save inboxes", clog.Error(err))
+	}
+
+	// 3. 提取需要在线推送的用户名列表
 	usernames := make([]string, 0, len(members))
 	for _, m := range members {
-		// 跳过发送者自己
+		// 跳过发送者自己，发送者不需要在线推送（因为他是消息源）
 		if m.Username == event.FromUsername {
 			continue
 		}
@@ -67,7 +88,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		return nil
 	}
 
-	// 2. 批量获取用户网关路由
+	// 4. 批量获取用户网关路由
 	// RouterRepo 增加了 BatchGetUsersGateway 方法
 	routers, err := d.routerRepo.BatchGetUsersGateway(ctx, usernames)
 	if err != nil {

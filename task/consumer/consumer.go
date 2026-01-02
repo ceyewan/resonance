@@ -21,6 +21,7 @@ type Consumer struct {
 	logger     clog.Logger
 
 	subscription mq.Subscription
+	jobsCh       chan mq.Message // 任务通道
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
@@ -34,11 +35,16 @@ func NewConsumer(
 ) *Consumer {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if config.WorkerCount <= 0 {
+		config.WorkerCount = 10 // 默认 10 个 worker
+	}
+
 	return &Consumer{
 		mqClient:   mqClient,
 		dispatcher: dispatcher,
 		config:     config,
 		logger:     logger,
+		jobsCh:     make(chan mq.Message, config.WorkerCount*10),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -51,8 +57,13 @@ func (c *Consumer) Start() error {
 		clog.String("queue_group", c.config.QueueGroup),
 		clog.Int("worker_count", c.config.WorkerCount))
 
-	// 使用队列订阅（负载均衡）
-	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.handleMessage, mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck())
+	// 1. 启动 Worker Pool
+	for i := 0; i < c.config.WorkerCount; i++ {
+		go c.worker(i)
+	}
+
+	// 2. 使用队列订阅（负载均衡）
+	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.receiveMessage, mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck())
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to subscribe to topic %s", c.config.Topic)
 	}
@@ -60,6 +71,30 @@ func (c *Consumer) Start() error {
 	c.subscription = sub
 	c.logger.Info("consumer started")
 	return nil
+}
+
+// receiveMessage 接收消息并放入任务通道
+func (c *Consumer) receiveMessage(ctx context.Context, msg mq.Message) error {
+	select {
+	case c.jobsCh <- msg:
+		return nil
+	case <-c.ctx.Done():
+		return c.ctx.Err()
+	}
+}
+
+// worker 工作协程
+func (c *Consumer) worker(id int) {
+	c.logger.Debug("worker started", clog.Int("worker_id", id))
+	for {
+		select {
+		case msg := <-c.jobsCh:
+			c.handleMessage(c.ctx, msg)
+		case <-c.ctx.Done():
+			c.logger.Debug("worker stopped", clog.Int("worker_id", id))
+			return
+		}
+	}
 }
 
 // handleMessage 处理单条消息

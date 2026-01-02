@@ -43,6 +43,7 @@ type resources struct {
 	registry    registry.Registry
 	routerRepo  repo.RouterRepo
 	sessionRepo repo.SessionRepo
+	messageRepo repo.MessageRepo
 }
 
 // New 创建 Task 实例
@@ -86,6 +87,7 @@ func (t *Task) initComponents() error {
 	// 4. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(
 		res.sessionRepo,
+		res.messageRepo,
 		res.routerRepo,
 		t.pusherMgr,
 		logger,
@@ -165,6 +167,11 @@ func (t *Task) initResources() (*resources, error) {
 		return nil, fmt.Errorf("session repo init: %w", err)
 	}
 
+	messageRepo, err := repo.NewMessageRepo(dbInstance, repo.WithMessageRepoLogger(t.logger))
+	if err != nil {
+		return nil, fmt.Errorf("message repo init: %w", err)
+	}
+
 	return &resources{
 		mysqlConn:   mysqlConn,
 		redisConn:   redisConn,
@@ -173,6 +180,7 @@ func (t *Task) initResources() (*resources, error) {
 		mqClient:    mqClient,
 		registry:    reg,
 		sessionRepo: sessionRepo,
+		messageRepo: messageRepo,
 		routerRepo:  routerRepo,
 	}, nil
 }
