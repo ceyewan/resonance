@@ -4,7 +4,7 @@
 
 service:
   name: gateway-service          # 服务名称
-  host: ""                       # 服务主机名，留空则使用环境变量 HOSTNAME
+  host: localhost                # 开发环境绑定 localhost
   http_port: 8080                # HTTP 服务端口
   ws_port: 8081                  # WebSocket 服务端口
   grpc_port: 15091               # gRPC 服务端口

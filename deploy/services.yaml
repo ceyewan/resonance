@@ -1,0 +1,68 @@
+x-resonance-build: &resonance-build
+  context: ..
+  dockerfile: deploy/Dockerfile
+  target: final
+  args:
+    CGO_ENABLED: "${CGO_ENABLED:-0}"
+
+x-resonance-service: &resonance-service
+  image: ${RESONANCE_IMAGE:-resonance:latest}
+  build: *resonance-build
+  environment:
+    RESONANCE_ENV: prod
+  volumes:
+    - ../configs:/app/configs:ro
+  networks:
+    - resonance-net
+  restart: unless-stopped
+
+services:
+  logic:
+    <<: *resonance-service
+    hostname: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
+    container_name: resonance-logic
+    command: ["-module", "logic"]
+    depends_on:
+      - mysql
+      - redis
+      - etcd
+      - nats
+    ports:
+      - "127.0.0.1:${RESONANCE_LOGIC_GRPC_PORT:-15090}:15090"
+
+  gateway:
+    <<: *resonance-service
+    hostname: ${RESONANCE_GATEWAY_HOSTNAME:-gateway-service-001}
+    container_name: resonance-gateway
+    command: ["-module", "gateway"]
+    depends_on:
+      - logic
+      - redis
+      - etcd
+      - nats
+    ports:
+      - "127.0.0.1:${RESONANCE_GATEWAY_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${RESONANCE_GATEWAY_WS_PORT:-8081}:8081"
+      - "127.0.0.1:${RESONANCE_GATEWAY_GRPC_PORT:-15091}:15091"
+
+  task:
+    <<: *resonance-service
+    hostname: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
+    container_name: resonance-task
+    command: ["-module", "task"]
+    depends_on:
+      - mysql
+      - redis
+      - nats
+      - etcd
+      - gateway
+
+  web:
+    <<: *resonance-service
+    hostname: ${RESONANCE_WEB_HOSTNAME:-web-service-001}
+    container_name: resonance-web
+    command: ["-module", "web"]
+    depends_on:
+      - gateway
+    ports:
+      - "127.0.0.1:${RESONANCE_WEB_HTTP_PORT:-4173}:4173"

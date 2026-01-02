@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ceyewan/genesis/auth"
@@ -79,6 +81,45 @@ func (c *Config) GetHost() string {
 		return host
 	}
 	return "localhost"
+}
+
+// GetServerAddr 获取监听地址，默认 :15090
+func (c *Config) GetServerAddr() string {
+	if strings.TrimSpace(c.Service.ServerAddr) == "" {
+		return ":15090"
+	}
+	return c.Service.ServerAddr
+}
+
+// GetAdvertiseEndpoint 返回服务注册使用的 host:port
+func (c *Config) GetAdvertiseEndpoint() string {
+	addr := strings.TrimSpace(c.GetServerAddr())
+
+	// 去掉 scheme
+	if idx := strings.Index(addr, "://"); idx >= 0 {
+		addr = addr[idx+3:]
+	}
+
+	host := c.GetHost()
+	if host == "" {
+		host = "localhost"
+	}
+
+	if strings.HasPrefix(addr, ":") {
+		port := strings.TrimPrefix(addr, ":")
+		return net.JoinHostPort(host, port)
+	}
+
+	hostname, port, err := net.SplitHostPort(addr)
+	if err != nil || port == "" {
+		return net.JoinHostPort(host, strings.TrimPrefix(addr, ":"))
+	}
+
+	if hostname == "" || hostname == "0.0.0.0" || hostname == "::" || hostname == "[::]" {
+		hostname = host
+	}
+
+	return net.JoinHostPort(hostname, port)
 }
 
 // ToRegistryConfig 转换为 registry.Config

@@ -1,0 +1,16 @@
+# ============================================================================
+# Task 服务 - 生产环境覆盖配置
+# ============================================================================
+
+mysql:
+  host: resonance-mysql
+
+redis:
+  addr: resonance-redis:6379
+
+nats:
+  url: nats://resonance-nats:4222
+
+etcd:
+  endpoints:
+    - resonance-etcd:2379

@@ -252,12 +252,13 @@ func (l *Logic) Run() error {
 
 // registerService 注册服务到 Etcd
 func (l *Logic) registerService() error {
+	endpoint := l.config.GetAdvertiseEndpoint()
 	service := &registry.ServiceInstance{
 		ID:      l.serviceID,
 		Name:    l.config.Service.Name,
 		Version: "1.0.0",
 		Endpoints: []string{
-			"grpc://127.0.0.1" + l.config.Service.ServerAddr, // ServerAddr 通常是 ":9090"
+			"grpc://" + endpoint,
 		},
 	}
 

@@ -1,4 +1,4 @@
-.PHONY: gen tidy build-gateway build-logic build-task build-web web-install web-dev web-build up down logs ps network-create dev-gateway dev-logic dev-task dev-web build-docker-gateway build-docker-logic build-docker-task dev dev-all
+.PHONY: gen tidy build-gateway build-logic build-task build-web web-install web-dev web-build up down up-base down-base logs ps network-create dev-gateway dev-logic dev-task dev-web build-docker-gateway build-docker-logic build-docker-task dev dev-all
 include .env
 export
 
@@ -8,8 +8,31 @@ export
 # 前端开发服务器地址
 WEB_HOST ?= localhost
 WEB_PORT ?= 5173
-# Gateway 地址（前端 API 和 WebSocket 连接地址）
-GATEWAY_URL ?= http://localhost:8080
+# 对外端口（来自 .env，默认 dev）
+RESONANCE_GATEWAY_HTTP_HOST ?= localhost
+RESONANCE_GATEWAY_HTTP_PORT ?= 8080
+RESONANCE_GATEWAY_WS_PORT ?= 8081
+RESONANCE_GATEWAY_GRPC_PORT ?= 15091
+RESONANCE_LOGIC_GRPC_PORT ?= 15090
+RESONANCE_WEB_HTTP_PORT ?= 4173
+RESONANCE_ETCD_PORT ?= 2379
+RESONANCE_DB_PORT ?= 3306
+RESONANCE_REDIS_PORT ?= 6379
+RESONANCE_NATS_PORT ?= 4222
+RESONANCE_PROMETHEUS_PORT ?= 9090
+RESONANCE_GRAFANA_PORT ?= 3000
+
+GATEWAY_HTTP_HOST ?= $(RESONANCE_GATEWAY_HTTP_HOST)
+GATEWAY_HTTP_PORT ?= $(RESONANCE_GATEWAY_HTTP_PORT)
+GATEWAY_WS_PORT ?= $(RESONANCE_GATEWAY_WS_PORT)
+WEB_HTTP_PORT ?= $(RESONANCE_WEB_HTTP_PORT)
+GATEWAY_URL ?= http://$(RESONANCE_GATEWAY_HTTP_HOST):$(RESONANCE_GATEWAY_HTTP_PORT)
+
+# ============================================================================
+# Docker Compose
+# ============================================================================
+COMPOSE_BASE := docker compose --env-file .env -f deploy/base.yaml
+COMPOSE_STACK := docker compose --env-file .env -f deploy/base.yaml -f deploy/services.yaml
 
 # ============================================================================
 # 1. 生成代码 (使用 buf)
@@ -132,51 +155,68 @@ gen-force:
 # Docker Compose 指令 (基础设施)
 # ============================================================================
 
-# 创建 Docker 网络
 network-create:
 	@echo "🌐 Creating Docker network..."
 	@docker network create resonance-net 2>/dev/null || true
 
-# 启动所有基础服务 (etcd, mysql, redis, nats, prometheus, grafana)
-up: network-create
+# 启动基础设施 (etcd, mysql, redis, nats, prometheus, grafana)
+up-base: network-create
 	@echo "🚀 Starting Resonance infrastructure..."
-	@docker compose --env-file .env -f deploy/compose.yaml up -d
+	@$(COMPOSE_BASE) up -d
 	@echo "✅ Infrastructure started!"
 	@echo ""
 	@echo "📊 Service URLs:"
-	@echo "  - Prometheus: http://localhost:9090"
-	@echo "  - Grafana:    http://localhost:3000 (admin/admin)"
-	@echo "  - MySQL:      localhost:3306"
-	@echo "  - Redis:      localhost:6379"
-	@echo "  - NATS:       localhost:4222"
-	@echo "  - etcd:       localhost:2379"
+	@echo "  - Prometheus: http://localhost:$(RESONANCE_PROMETHEUS_PORT)"
+	@echo "  - Grafana:    http://localhost:$(RESONANCE_GRAFANA_PORT) (admin/admin)"
+	@echo "  - MySQL:      localhost:$(RESONANCE_DB_PORT)"
+	@echo "  - Redis:      localhost:$(RESONANCE_REDIS_PORT)"
+	@echo "  - NATS:       localhost:$(RESONANCE_NATS_PORT)"
+	@echo "  - etcd:       localhost:$(RESONANCE_ETCD_PORT)"
+
+# 启动基础设施 + 业务服务 (logic, gateway, task, web)
+up: network-create
+	@echo "🚀 Starting Resonance stack (infra + services)..."
+	@$(COMPOSE_STACK) up -d
+	@echo "✅ Stack started!"
+	@echo ""
+	@echo "📡 Service endpoints:"
+	@echo "  - Gateway HTTP: http://$(GATEWAY_HTTP_HOST):$(GATEWAY_HTTP_PORT)"
+	@echo "  - Gateway WS:   ws://$(GATEWAY_HTTP_HOST):$(GATEWAY_WS_PORT)/ws"
+	@echo "  - Logic gRPC:   $(RESONANCE_LOGIC_GRPC_PORT)"
+	@echo "  - Web Static:   http://localhost:$(WEB_HTTP_PORT)"
 
 # 停止所有服务
 down:
+	@echo "🛑 Stopping Resonance stack..."
+	@$(COMPOSE_STACK) down
+	@echo "✅ Stack stopped!"
+
+# 停止基础设施
+down-base:
 	@echo "🛑 Stopping Resonance infrastructure..."
-	@docker compose -f deploy/compose.yaml down
+	@$(COMPOSE_BASE) down
 	@echo "✅ Infrastructure stopped!"
 
 # 查看所有服务的日志
 logs:
-	@docker compose -f deploy/compose.yaml logs -f
+	@$(COMPOSE_STACK) logs -f
 
 # 查看具体服务日志 (用法: make logs-service SERVICE=mysql)
 logs-service:
-	@docker compose -f deploy/compose.yaml logs -f ${SERVICE}
+	@$(COMPOSE_STACK) logs -f ${SERVICE}
 
 # 查看服务状态
 ps:
-	@docker compose -f deploy/compose.yaml ps
+	@$(COMPOSE_STACK) ps
 
 # 重启所有服务
 restart: down up
 
 # 清理所有数据 (包括卷)
 clean:
-	@echo "🗑️ Cleaning Resonance infrastructure..."
-	@docker compose -f deploy/compose.yaml down -v
-	@echo "✅ Infrastructure cleaned!"
+	@echo "🗑️ Cleaning Resonance stack..."
+	@$(COMPOSE_STACK) down -v
+	@echo "✅ Stack cleaned!"
 
 # ============================================================================
 # 本地一键启动 (基础设施已通过 make up 启动后)
@@ -250,7 +290,7 @@ dev: gen
 	@echo ""
 	@echo "📊 Service endpoints:"
 	@echo "  - Gateway HTTP:  $(GATEWAY_URL)"
-	@echo "  - Gateway WS:    ws://$(RESONANCE_GATEWAY_DEV_HOST):$(RESONANCE_GATEWAY_PORT)/ws"
+	@echo "  - Gateway WS:    ws://$(GATEWAY_HTTP_HOST):$(GATEWAY_WS_PORT)/ws"
 	@echo "  - Logic:         $(RESONANCE_LOGIC_SERVICE_NAME)"
 	@echo "  - Task:          $(RESONANCE_TASK_SERVICE_NAME)"
 	@echo ""

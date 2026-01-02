@@ -4,6 +4,7 @@
 
 service:
   name: logic-service
+  host: localhost
   server_addr: :15090            # gRPC 服务地址 (5位数)
 
 # 基础组件配置
