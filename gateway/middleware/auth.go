@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -44,8 +45,13 @@ func (a *AuthConfig) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
-		// 将用户名存入上下文
+		// 将用户名存入 Gin 上下文
 		c.Set(UsernameKey, username)
+
+		// 将用户名注入 http.Request Context，以便 ConnectRPC Handler 获取
+		ctx := context.WithValue(c.Request.Context(), UsernameKey, username)
+		c.Request = c.Request.WithContext(ctx)
+
 		c.Next()
 	}
 }
@@ -57,6 +63,9 @@ func (a *AuthConfig) OptionalAuth() gin.HandlerFunc {
 		username, err := a.extractAndValidate(c)
 		if err == nil && username != "" {
 			c.Set(UsernameKey, username)
+			// 同时注入 http.Context
+			ctx := context.WithValue(c.Request.Context(), UsernameKey, username)
+			c.Request = c.Request.WithContext(ctx)
 		}
 		c.Next()
 	}

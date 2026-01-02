@@ -2,7 +2,7 @@ package client
 
 import (
 	"context"
-	"io"
+	"fmt"
 	"sync"
 
 	"github.com/ceyewan/genesis/clog"
@@ -10,34 +10,40 @@ import (
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
-// chatStreamWrapper 聊天流包装器
-type chatStreamWrapper struct {
-	stream      logicv1.ChatService_SendMessageClient
-	client      *Client
-	receiveOnce sync.Once
+type chatStreamManager struct {
+	manager *bidiStreamManager[logicv1.SendMessageRequest, logicv1.SendMessageResponse]
+	logger  clog.Logger
+
+	pendingMu sync.Mutex
+	pending   []chan *logicv1.SendMessageResponse
 }
 
-// SendMessage 发送消息到 Logic（通过双向流）
+func newChatStreamManager(logger clog.Logger, svc logicv1.ChatServiceClient) *chatStreamManager {
+	mgr := &chatStreamManager{
+		logger: logger,
+	}
+	mgr.manager = newBidiStreamManager(
+		"chat",
+		logger,
+		func(ctx context.Context) (logicv1.ChatService_SendMessageClient, error) {
+			return svc.SendMessage(ctx)
+		},
+		mgr.handleResponse,
+		mgr.handleStreamError,
+	)
+	return mgr
+}
+
+func (m *chatStreamManager) Close() {
+	m.manager.Close()
+	m.failAllPending(fmt.Errorf("chat stream closed"))
+}
+
 func (c *Client) SendMessage(ctx context.Context, msg *gatewayv1.ChatRequest) (*logicv1.SendMessageResponse, error) {
-	c.streamMu.Lock()
-	defer c.streamMu.Unlock()
-
-	// 如果流未建立，先建立连接
-	if c.chatStream == nil {
-		stream, err := c.chatSvc().SendMessage(ctx)
-		if err != nil {
-			return nil, err
-		}
-		c.chatStream = &chatStreamWrapper{
-			stream: stream,
-			client: c,
-		}
-
-		// 启动接收协程
-		go c.receiveChatResponses()
+	if c.chatManager == nil {
+		return nil, fmt.Errorf("chat manager not initialized")
 	}
 
-	// 发送消息
 	req := &logicv1.SendMessageRequest{
 		SessionId:    msg.SessionId,
 		FromUsername: msg.FromUsername,
@@ -47,44 +53,98 @@ func (c *Client) SendMessage(ctx context.Context, msg *gatewayv1.ChatRequest) (*
 		Timestamp:    msg.Timestamp,
 	}
 
-	if err := c.chatStream.stream.Send(req); err != nil {
-		c.chatStream = nil // 重置流
+	return c.chatManager.send(ctx, req)
+}
+
+func (m *chatStreamManager) send(ctx context.Context, req *logicv1.SendMessageRequest) (*logicv1.SendMessageResponse, error) {
+	respCh := make(chan *logicv1.SendMessageResponse, 1)
+	m.enqueue(respCh)
+
+	if err := m.manager.Send(ctx, req); err != nil {
+		m.drop(respCh)
 		return nil, err
 	}
 
-	// 注意：这里简化处理，实际应该等待对应的响应
-	return &logicv1.SendMessageResponse{}, nil
+	select {
+	case resp := <-respCh:
+		return resp, nil
+	case <-ctx.Done():
+		go func() {
+			<-respCh
+		}()
+		return nil, ctx.Err()
+	}
 }
 
-// receiveChatResponses 接收聊天消息的响应
-func (c *Client) receiveChatResponses() {
-	if c.chatStream == nil {
+func (m *chatStreamManager) handleResponse(resp *logicv1.SendMessageResponse) {
+	ch := m.pop()
+	if ch == nil {
+		if m.logger != nil {
+			m.logger.Warn("chat response dropped: no pending request")
+		}
+		return
+	}
+	select {
+	case ch <- resp:
+	default:
+	}
+	close(ch)
+}
+
+func (m *chatStreamManager) handleStreamError(err error) {
+	m.failAllPending(err)
+}
+
+func (m *chatStreamManager) enqueue(ch chan *logicv1.SendMessageResponse) {
+	m.pendingMu.Lock()
+	m.pending = append(m.pending, ch)
+	m.pendingMu.Unlock()
+}
+
+func (m *chatStreamManager) pop() chan *logicv1.SendMessageResponse {
+	m.pendingMu.Lock()
+	defer m.pendingMu.Unlock()
+	if len(m.pending) == 0 {
+		return nil
+	}
+	ch := m.pending[0]
+	m.pending = m.pending[1:]
+	return ch
+}
+
+func (m *chatStreamManager) drop(target chan *logicv1.SendMessageResponse) {
+	m.pendingMu.Lock()
+	defer m.pendingMu.Unlock()
+	for i, ch := range m.pending {
+		if ch == target {
+			m.pending = append(m.pending[:i], m.pending[i+1:]...)
+			break
+		}
+	}
+}
+
+func (m *chatStreamManager) failAllPending(err error) {
+	m.pendingMu.Lock()
+	pending := m.pending
+	m.pending = nil
+	m.pendingMu.Unlock()
+
+	if len(pending) == 0 {
 		return
 	}
 
-	for {
-		resp, err := c.chatStream.stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				c.logger.Info("chat stream closed")
-			} else {
-				c.logger.Error("failed to receive chat response", clog.Error(err))
-			}
-			c.streamMu.Lock()
-			c.chatStream = nil
-			c.streamMu.Unlock()
-			return
-		}
+	resp := &logicv1.SendMessageResponse{}
+	if err != nil {
+		resp.Error = err.Error()
+	} else {
+		resp.Error = "chat stream closed"
+	}
 
-		// 处理响应（这里可以添加回调或通知机制）
-		if resp.Error != "" {
-			c.logger.Error("chat message error",
-				clog.Int64("msg_id", resp.MsgId),
-				clog.String("error", resp.Error))
-		} else {
-			c.logger.Debug("chat message sent",
-				clog.Int64("msg_id", resp.MsgId),
-				clog.Int64("seq_id", resp.SeqId))
+	for _, ch := range pending {
+		select {
+		case ch <- resp:
+		default:
 		}
+		close(ch)
 	}
 }

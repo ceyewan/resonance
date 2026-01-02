@@ -89,6 +89,15 @@ func (h *Handler) registerAuthRoutes(group *gin.RouterGroup) {
 	group.Any(path+"*any", gin.WrapH(handler))
 }
 
+// getUsernameFromContext 从 Context 中获取经过中间件解析的用户名
+func (h *Handler) getUsernameFromContext(ctx context.Context) (string, error) {
+	username, ok := ctx.Value(middleware.UsernameKey).(string)
+	if !ok || username == "" {
+		return "", connect.NewError(connect.CodeUnauthenticated, middleware.ErrMissingToken)
+	}
+	return username, nil
+}
+
 // RouteConfig 路由配置
 type RouteConfig struct {
 	RecoveryMiddleware        gin.HandlerFunc
@@ -213,18 +222,12 @@ func (h *Handler) GetSessionList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetSessionListRequest],
 ) (*connect.Response[gatewayv1.GetSessionListResponse], error) {
-	// 从 ConnectRPC 请求头获取 token
-	token := req.Header().Get("Authorization")
-	if token == "" {
-		token = req.Msg.AccessToken
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	validateResp, err := h.logicClient.ValidateToken(ctx, token)
-	if err != nil || !validateResp.Valid {
-		return nil, connect.NewError(connect.CodeUnauthenticated, err)
-	}
-
-	logicResp, err := h.logicClient.GetSessionList(ctx, validateResp.Username)
+	logicResp, err := h.logicClient.GetSessionList(ctx, username)
 	if err != nil {
 		h.logger.Error("get session list failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -255,18 +258,13 @@ func (h *Handler) CreateSession(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.CreateSessionRequest],
 ) (*connect.Response[gatewayv1.CreateSessionResponse], error) {
-	token := req.Header().Get("Authorization")
-	if token == "" {
-		token = req.Msg.AccessToken
-	}
-
-	validateResp, err := h.logicClient.ValidateToken(ctx, token)
-	if err != nil || !validateResp.Valid {
-		return nil, connect.NewError(connect.CodeUnauthenticated, err)
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	logicReq := &logicv1.CreateSessionRequest{
-		CreatorUsername: validateResp.Username,
+		CreatorUsername: username,
 		Members:         req.Msg.Members,
 		Name:            req.Msg.Name,
 		Type:            req.Msg.Type,
@@ -290,14 +288,8 @@ func (h *Handler) GetRecentMessages(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetRecentMessagesRequest],
 ) (*connect.Response[gatewayv1.GetRecentMessagesResponse], error) {
-	token := req.Header().Get("Authorization")
-	if token == "" {
-		token = req.Msg.AccessToken
-	}
-
-	validateResp, err := h.logicClient.ValidateToken(ctx, token)
-	if err != nil || !validateResp.Valid {
-		return nil, connect.NewError(connect.CodeUnauthenticated, err)
+	if _, err := h.getUsernameFromContext(ctx); err != nil {
+		return nil, err
 	}
 
 	logicReq := &logicv1.GetRecentMessagesRequest{
@@ -324,17 +316,12 @@ func (h *Handler) GetContactList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetContactListRequest],
 ) (*connect.Response[gatewayv1.GetContactListResponse], error) {
-	token := req.Header().Get("Authorization")
-	if token == "" {
-		token = req.Msg.AccessToken
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	validateResp, err := h.logicClient.ValidateToken(ctx, token)
-	if err != nil || !validateResp.Valid {
-		return nil, connect.NewError(connect.CodeUnauthenticated, err)
-	}
-
-	logicResp, err := h.logicClient.GetContactList(ctx, validateResp.Username)
+	logicResp, err := h.logicClient.GetContactList(ctx, username)
 	if err != nil {
 		h.logger.Error("get contact list failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -361,14 +348,8 @@ func (h *Handler) SearchUser(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.SearchUserRequest],
 ) (*connect.Response[gatewayv1.SearchUserResponse], error) {
-	token := req.Header().Get("Authorization")
-	if token == "" {
-		token = req.Msg.AccessToken
-	}
-
-	validateResp, err := h.logicClient.ValidateToken(ctx, token)
-	if err != nil || !validateResp.Valid {
-		return nil, connect.NewError(connect.CodeUnauthenticated, err)
+	if _, err := h.getUsernameFromContext(ctx); err != nil {
+		return nil, err
 	}
 
 	logicResp, err := h.logicClient.SearchUser(ctx, req.Msg.Query)

@@ -24,8 +24,8 @@ type Gateway struct {
 	config    *config.Config
 	logger    clog.Logger
 	registry  registry.Registry
-	serviceID string
-	workerID  int64
+	gatewayID string // 唯一服务实例 ID，例如 gateway-service-001
+	workerID  int64  // 唯一 worker 实例 ID，例如 001, 002 等
 
 	// 服务实例
 	httpServer *server.HTTPServer
@@ -106,12 +106,8 @@ func (g *Gateway) initComponents() error {
 		}
 	}()
 
-	// 4. 使用 Snowflake 生成唯一服务 ID (基于 workerID)
-	sf, err := idgen.NewSnowflake(workerID)
-	if err != nil {
-		return fmt.Errorf("create snowflake: %w", err)
-	}
-	g.serviceID = g.config.Service.Name + "-" + fmt.Sprintf("%d", sf.Next())
+	// 4. 拼接唯一服务 ID (基于 workerID)
+	g.gatewayID = g.config.Service.Name + "-" + fmt.Sprintf("%d", g.workerID)
 
 	// 5. 创建 ID 生成器 (供其他组件使用)
 	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
@@ -211,7 +207,7 @@ func (g *Gateway) registerService() error {
 	grpcEndpoint := fmt.Sprintf("grpc://%s:%d", host, g.config.GetGRPCPort())
 
 	service := &registry.ServiceInstance{
-		ID:      g.serviceID,
+		ID:      g.gatewayID,
 		Name:    g.config.Service.Name,
 		Version: "1.0.0",
 		Endpoints: []string{
@@ -238,7 +234,7 @@ func (g *Gateway) Close() error {
 
 	// 2. 注销服务
 	if g.registry != nil {
-		g.registry.Deregister(context.Background(), g.serviceID)
+		g.registry.Deregister(context.Background(), g.gatewayID)
 		g.registry.Close()
 	}
 

@@ -32,11 +32,11 @@ func (s *WSServer) Start() error {
 	mux.HandleFunc("/ws", s.wsHandler.HandleWebSocket)
 
 	s.server = &http.Server{
-		Addr:    s.config.Service.WSAddr,
+		Addr:    s.config.GetWSAddr(),
 		Handler: mux,
 	}
 
-	s.logger.Info("websocket server started", clog.String("addr", s.config.Service.WSAddr))
+	s.logger.Info("websocket server started", clog.String("addr", s.config.GetWSAddr()))
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}

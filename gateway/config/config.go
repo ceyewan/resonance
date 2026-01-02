@@ -17,13 +17,11 @@ import (
 type Config struct {
 	// 服务基础配置
 	Service struct {
-		Name      string `mapstructure:"name"`       // 服务名称
-		Host      string `mapstructure:"host"`       // 服务主机名（环境变量 HOSTNAME）
-		HTTPPort  int    `mapstructure:"http_port"`  // HTTP 服务端口
-		WSPort    int    `mapstructure:"ws_port"`    // WebSocket 服务端口
-		GRPCPort  int    `mapstructure:"grpc_port"`  // gRPC 服务端口
-		HTTPAddr  string `mapstructure:"http_addr"`  // HTTP 服务地址（兼容旧配置，仅用于绑定）
-		WSAddr    string `mapstructure:"ws_addr"`    // WebSocket 服务地址（兼容旧配置，仅用于绑定）
+		Name     string `mapstructure:"name"`      // 服务名称
+		Host     string `mapstructure:"host"`      // 服务主机名（环境变量 HOSTNAME）
+		HTTPPort int    `mapstructure:"http_port"` // HTTP 服务端口
+		WSPort   int    `mapstructure:"ws_port"`   // WebSocket 服务端口
+		GRPCPort int    `mapstructure:"grpc_port"` // gRPC 服务端口
 	} `mapstructure:"service"`
 
 	// Logic 服务名称（用于服务发现）
@@ -122,32 +120,16 @@ func (c *Config) GetHost() string {
 
 // GetHTTPPort 获取 HTTP 端口
 func (c *Config) GetHTTPPort() int {
-	if c.Service.HTTPPort > 0 {
+	if c.Service.HTTPPort > 0 && c.Service.HTTPPort < 65536 {
 		return c.Service.HTTPPort
-	}
-	// 从 http_addr 解析端口（兼容旧配置）
-	if c.Service.HTTPAddr != "" {
-		var port int
-		fmt.Sscanf(c.Service.HTTPAddr, ":%d", &port)
-		if port > 0 {
-			return port
-		}
 	}
 	return 8080
 }
 
 // GetWSPort 获取 WebSocket 端口
 func (c *Config) GetWSPort() int {
-	if c.Service.WSPort > 0 {
+	if c.Service.WSPort > 0 && c.Service.WSPort < 65536 {
 		return c.Service.WSPort
-	}
-	// 从 ws_addr 解析端口（兼容旧配置）
-	if c.Service.WSAddr != "" {
-		var port int
-		fmt.Sscanf(c.Service.WSAddr, ":%d", &port)
-		if port > 0 {
-			return port
-		}
 	}
 	return 8081
 }
@@ -162,17 +144,11 @@ func (c *Config) GetGRPCPort() int {
 
 // GetHTTPAddr 获取 HTTP 绑定地址
 func (c *Config) GetHTTPAddr() string {
-	if c.Service.HTTPAddr != "" {
-		return c.Service.HTTPAddr
-	}
 	return fmt.Sprintf(":%d", c.GetHTTPPort())
 }
 
 // GetWSAddr 获取 WebSocket 绑定地址
 func (c *Config) GetWSAddr() string {
-	if c.Service.WSAddr != "" {
-		return c.Service.WSAddr
-	}
 	return fmt.Sprintf(":%d", c.GetWSPort())
 }
 
@@ -191,6 +167,7 @@ func Load() (*Config, error) {
 		Name:     "gateway",
 		FileType: "yaml",
 	},
+		config.WithConfigName("gateway"),
 		config.WithConfigPaths("./configs"),
 		config.WithEnvPrefix("RESONANCE"),
 	)

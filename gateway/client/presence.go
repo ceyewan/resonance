@@ -2,40 +2,54 @@ package client
 
 import (
 	"context"
-	"io"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
-// presenceStreamWrapper Presence 流包装器
-type presenceStreamWrapper struct {
-	stream logicv1.PresenceService_SyncStatusClient
+// presenceStreamManager 管理与 Logic 服务的 Presence 状态同步双向流
+type presenceStreamManager struct {
+	manager   *bidiStreamManager[logicv1.SyncStatusRequest, logicv1.SyncStatusResponse]
+	logger    clog.Logger
+	gatewayID string
+
+	pending sync.Map // key: seqID, value: chan *logicv1.SyncStatusResponse
+	seq     atomic.Int64
 }
 
-// SyncUserOnline 同步用户上线状态
+func newPresenceStreamManager(logger clog.Logger, gatewayID string, svc logicv1.PresenceServiceClient) *presenceStreamManager {
+	mgr := &presenceStreamManager{
+		logger:    logger,
+		gatewayID: gatewayID,
+	}
+	mgr.manager = newBidiStreamManager(
+		"presence",
+		logger,
+		func(ctx context.Context) (logicv1.PresenceService_SyncStatusClient, error) {
+			return svc.SyncStatus(ctx)
+		},
+		mgr.handleResponse,
+		mgr.handleStreamError,
+	)
+	return mgr
+}
+
+func (m *presenceStreamManager) Close() {
+	m.manager.Close()
+	m.failAllPending(fmt.Errorf("presence stream closed"))
+}
+
 func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP string) error {
-	c.streamMu.Lock()
-	defer c.streamMu.Unlock()
-
-	// 如果流未建立，先建立连接
-	if c.presenceStream == nil {
-		stream, err := c.presenceSvc().SyncStatus(ctx)
-		if err != nil {
-			return err
-		}
-		c.presenceStream = &presenceStreamWrapper{
-			stream: stream,
-		}
-
-		// 启动接收协程
-		go c.receivePresenceResponses()
+	if c.presenceManager == nil {
+		return fmt.Errorf("presence manager not initialized")
 	}
 
-	c.seqID++
 	req := &logicv1.SyncStatusRequest{
-		SeqId:     c.seqID,
+		SeqId:     c.presenceManager.nextSeq(),
 		GatewayId: c.gatewayID,
 		OnlineBatch: []*logicv1.UserOnline{
 			{
@@ -45,37 +59,16 @@ func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP s
 			},
 		},
 	}
-
-	if err := c.presenceStream.stream.Send(req); err != nil {
-		c.presenceStream = nil // 重置流
-		return err
-	}
-
-	return nil
+	return c.presenceManager.send(ctx, req)
 }
 
-// SyncUserOffline 同步用户下线状态
 func (c *Client) SyncUserOffline(ctx context.Context, username string) error {
-	c.streamMu.Lock()
-	defer c.streamMu.Unlock()
-
-	// 如果流未建立，先建立连接
-	if c.presenceStream == nil {
-		stream, err := c.presenceSvc().SyncStatus(ctx)
-		if err != nil {
-			return err
-		}
-		c.presenceStream = &presenceStreamWrapper{
-			stream: stream,
-		}
-
-		// 启动接收协程
-		go c.receivePresenceResponses()
+	if c.presenceManager == nil {
+		return fmt.Errorf("presence manager not initialized")
 	}
 
-	c.seqID++
 	req := &logicv1.SyncStatusRequest{
-		SeqId:     c.seqID,
+		SeqId:     c.presenceManager.nextSeq(),
 		GatewayId: c.gatewayID,
 		OfflineBatch: []*logicv1.UserOffline{
 			{
@@ -84,43 +77,80 @@ func (c *Client) SyncUserOffline(ctx context.Context, username string) error {
 			},
 		},
 	}
+	return c.presenceManager.send(ctx, req)
+}
 
-	if err := c.presenceStream.stream.Send(req); err != nil {
-		c.presenceStream = nil // 重置流
+func (m *presenceStreamManager) send(ctx context.Context, req *logicv1.SyncStatusRequest) error {
+	respCh := make(chan *logicv1.SyncStatusResponse, 1)
+	m.pending.Store(req.SeqId, respCh)
+
+	if err := m.manager.Send(ctx, req); err != nil {
+		m.pending.Delete(req.SeqId)
 		return err
 	}
 
-	return nil
+	select {
+	case resp := <-respCh:
+		if resp.Error != "" {
+			return fmt.Errorf("presence sync failed: %s", resp.Error)
+		}
+		return nil
+	case <-ctx.Done():
+		m.pending.Delete(req.SeqId)
+		go func() {
+			<-respCh
+		}()
+		return ctx.Err()
+	}
 }
 
-// receivePresenceResponses 接收网关操作的响应
-func (c *Client) receivePresenceResponses() {
-	if c.presenceStream == nil {
+func (m *presenceStreamManager) handleResponse(resp *logicv1.SyncStatusResponse) {
+	value, ok := m.pending.Load(resp.SeqId)
+	if !ok {
+		if m.logger != nil {
+			m.logger.Warn("presence ack dropped: unknown seq",
+				clog.Int64("seq_id", resp.SeqId))
+		}
 		return
 	}
 
-	for {
-		resp, err := c.presenceStream.stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				c.logger.Info("presence stream closed")
-			} else {
-				c.logger.Error("failed to receive presence response", clog.Error(err))
-			}
-			c.streamMu.Lock()
-			c.presenceStream = nil
-			c.streamMu.Unlock()
-			return
-		}
+	ch := value.(chan *logicv1.SyncStatusResponse)
+	m.pending.Delete(resp.SeqId)
 
-		// 处理响应
-		if resp.Error != "" {
-			c.logger.Error("presence sync error",
-				clog.Int64("seq_id", resp.SeqId),
-				clog.String("error", resp.Error))
-		} else {
-			c.logger.Debug("presence sync ack",
-				clog.Int64("seq_id", resp.SeqId))
-		}
+	select {
+	case ch <- resp:
+	default:
 	}
+	close(ch)
+}
+
+func (m *presenceStreamManager) handleStreamError(err error) {
+	m.failAllPending(err)
+}
+
+func (m *presenceStreamManager) failAllPending(err error) {
+	errMsg := "presence stream closed"
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	m.pending.Range(func(key, value any) bool {
+		ch := value.(chan *logicv1.SyncStatusResponse)
+		seq, _ := key.(int64)
+		resp := &logicv1.SyncStatusResponse{
+			SeqId: seq,
+			Error: errMsg,
+		}
+		select {
+		case ch <- resp:
+		default:
+		}
+		close(ch)
+		m.pending.Delete(key)
+		return true
+	})
+}
+
+func (m *presenceStreamManager) nextSeq() int64 {
+	return m.seq.Add(1)
 }

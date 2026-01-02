@@ -51,11 +51,11 @@ func (s *HTTPServer) Start() error {
 	})
 
 	s.server = &http.Server{
-		Addr:    s.config.Service.HTTPAddr,
+		Addr:    s.config.GetHTTPAddr(),
 		Handler: router,
 	}
 
-	s.logger.Info("http server started", clog.String("addr", s.config.Service.HTTPAddr))
+	s.logger.Info("http server started", clog.String("addr", s.config.GetHTTPAddr()))
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
