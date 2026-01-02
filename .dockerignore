@@ -1,0 +1,7 @@
+.git
+.vscode
+.idea
+bin/
+web/node_modules
+*.log
+.DS_Store

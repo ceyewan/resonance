@@ -8,7 +8,7 @@ import {
   GetContactListRequest
 } from "@/gen/gateway/v1/api_pb";
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const baseUrl = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
 
 // 创建带 token 的 transport
 export const transport = createConnectTransport({

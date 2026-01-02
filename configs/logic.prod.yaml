@@ -6,14 +6,14 @@ service:
   host: ""
 
 mysql:
-  host: resonance-mysql
+  host: mysql
 
 redis:
-  addr: resonance-redis:6379
+  addr: redis:6379
 
 nats:
-  url: nats://resonance-nats:4222
+  url: nats://nats:4222
 
 etcd:
   endpoints:
-    - resonance-etcd:2379
+    - etcd:2379

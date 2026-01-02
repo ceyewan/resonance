@@ -39,6 +39,7 @@ FROM static AS final
 ARG CGO_ENABLED
 COPY --from=builder /app/bin/resonance /app/resonance
 COPY --from=builder /app/configs /app/configs
+COPY web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]
@@ -48,6 +49,7 @@ ARG CGO_ENABLED
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libsqlite3.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=builder /app/bin/resonance /app/resonance
 COPY --from=builder /app/configs /app/configs
+COPY web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]
