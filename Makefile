@@ -1,4 +1,4 @@
-.PHONY: gen tidy build-gateway build-logic build-task web-install web-dev web-build up down logs ps network-create dev-gateway dev-logic dev-task build-docker-gateway build-docker-logic build-docker-task dev dev-all
+.PHONY: gen tidy build-gateway build-logic build-task build-web web-install web-dev web-build up down logs ps network-create dev-gateway dev-logic dev-task dev-web build-docker-gateway build-docker-logic build-docker-task dev dev-all
 include .env
 export
 
@@ -60,6 +60,10 @@ build-task:
 	@echo "🏗️ Building Task..."
 	@go build -o bin/task main.go
 
+build-web:
+	@echo "🏗️ Building Web Static Server..."
+	@go build -o bin/web main.go
+
 # ============================================================================
 # 4. 开发环境运行
 # ============================================================================
@@ -74,6 +78,10 @@ dev-logic: gen
 dev-task: gen
 	@echo "🚀 Starting Task in DEV mode..."
 	@RESONANCE_ENV=dev go run main.go -module task
+
+dev-web: web-build
+	@echo "🚀 Starting Web static server..."
+	@RESONANCE_ENV=dev go run main.go -module web
 
 # ============================================================================
 # 5. Web 前端相关命令

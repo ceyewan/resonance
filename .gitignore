@@ -37,3 +37,10 @@ api/gen
 genesis/
 
 **/node_modules/
+
+# TypeScript incremental build info
+**/*.tsbuildinfo
+
+# Vite config transpiled artifacts
+web/vite.config.js
+web/vite.config.d.ts

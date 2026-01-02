@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.vite
 *.local
 
 # Editor directories and files
@@ -22,6 +23,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# TypeScript
+*.tsbuildinfo
+
+# Cache / Coverage
+.eslintcache
+.stylelintcache
+.turbo
+coverage
+.vitest
 
 # Environment
 .env

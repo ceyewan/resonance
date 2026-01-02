@@ -10,15 +10,16 @@ import (
 	"github.com/ceyewan/resonance/gateway"
 	"github.com/ceyewan/resonance/logic"
 	"github.com/ceyewan/resonance/task"
+	"github.com/ceyewan/resonance/webserver"
 )
 
 func main() {
 	var module string
-	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task")
+	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task, web")
 	flag.Parse()
 
 	if module == "" {
-		fmt.Println("error: module param required! Available: gateway, logic, task")
+		fmt.Println("error: module param required! Available: gateway, logic, task, web")
 		os.Exit(1)
 	}
 
@@ -65,9 +66,22 @@ func main() {
 		}
 		waitForSignal()
 
+	case "web":
+		w, err := webserver.New()
+		if err != nil {
+			fmt.Printf("❌ Failed to start web server: %v\n", err)
+			os.Exit(1)
+		}
+		defer w.Close()
+		if err := w.Run(); err != nil {
+			fmt.Printf("❌ Web server error: %v\n", err)
+			os.Exit(1)
+		}
+		waitForSignal()
+
 	default:
 		fmt.Printf("❌ Unknown module: %s\n", module)
-		fmt.Println("Available modules: gateway, logic, task")
+		fmt.Println("Available modules: gateway, logic, task, web")
 		os.Exit(1)
 	}
 }

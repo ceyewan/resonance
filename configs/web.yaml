@@ -1,0 +1,19 @@
+# ============================================================================
+# Web 静态站点服务配置
+# ============================================================================
+
+service:
+  name: web-service
+  host: localhost
+  http_port: 4173
+
+static:
+  dist_dir: ./web/dist
+  index_file: index.html
+  enable_spa_fallback: true
+  cache_control: public, max-age=604800
+
+log:
+  level: info
+  format: console
+  output: stdout
