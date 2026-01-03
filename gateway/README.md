@@ -24,10 +24,9 @@ Gateway 是 Resonance IM 系统的网关服务，负责处理客户端连接、�
 gateway/
 ├── gateway.go             # 【极简入口】负责组件组装与生命周期管理
 ├── config/                # 配置管理定义与加载逻辑
-├── server/                # 服务层封装 (HTTP, gRPC, WebSocket)
-│   ├── http.go            # HTTP Server (Gin 路由与中间件)
-│   ├── grpc.go            # gRPC Server (Push 推送服务)
-│   └── ws.go              # WebSocket Server (握手监听)
+├── server/                # 服务层封装 (HTTP, gRPC)
+│   ├── http.go            # HTTP Server (Gin 路由与中间件 + WS 入口)
+│   └── grpc.go            # gRPC Server (Push 推送服务)
 ├── handler/               # 业务逻辑处理器 (原 api 目录)
 │   ├── handler.go         # RESTful API 实现 (AuthService, SessionService)
 │   └── middleware.go      # HTTP 中间件 (限流、日志、恢复)
@@ -59,12 +58,12 @@ gateway/
 
 ### 2. WebSocket 接口
 
-**端口**: 配置的 `ws_addr` (默认 `:8081`)
+**端口**: 复用 `http_addr` (默认 `:8080`)
 
 **连接**: `ws://host:port/ws?token=<access_token>`
 
 **处理流程**:
-1. `server/ws.go` 监听并接受请求。
+1. `server/http.go` 中注册 `/ws` 路由并接受请求。
 2. `socket/handler.go` 处理握手、Token 鉴权、创建 `connection.Conn`。
 3. `socket/dispatcher.go` 处理业务层 packet 分发。
 
@@ -87,7 +86,7 @@ gateway/
 
 ### 服务化启动 (Server)
 
-`Gateway` 结构体通过持有 `server.HTTPServer`、`server.GRPCServer` 和 `server.WSServer` 实例，实现了高层次的解耦。每个 Server 负责其特有的启动细节、超时设置和优雅关闭。
+`Gateway` 结构体通过持有 `server.HTTPServer` 和 `server.GRPCServer` 实例，实现了高层次的解耦。每个 Server 负责其特有的启动细节、超时设置和优雅关闭。
 
 ## ⚙️ 配置说明
 
@@ -111,7 +110,7 @@ func main() {
         panic(err)
     }
 
-    // 启动所有服务 (HTTP, WS, gRPC)
+    // 启动所有服务 (HTTP, gRPC)
     if err := gw.Run(); err != nil {
         panic(err)
     }

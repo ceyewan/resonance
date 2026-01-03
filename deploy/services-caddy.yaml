@@ -76,7 +76,6 @@ services:
       - nats
     expose:
       - "${RESONANCE_GATEWAY_HTTP_PORT:-8080}"
-      - "${RESONANCE_GATEWAY_WS_PORT:-8081}"
     networks:
       - resonance-net
       - caddy
@@ -84,7 +83,7 @@ services:
       caddy: im-api.ceyewan.xyz
       caddy.reverse_proxy: "{{upstreams ${RESONANCE_GATEWAY_HTTP_PORT:-8080}}}"
       caddy.route.1: "/ws*"
-      caddy.route.1.reverse_proxy: "{{upstreams ${RESONANCE_GATEWAY_WS_PORT:-8081}}}"
+      caddy.route.1.reverse_proxy: "{{upstreams ${RESONANCE_GATEWAY_HTTP_PORT:-8080}}}"
       caddy.encode: gzip
 
   task:

@@ -44,6 +44,9 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, opts ...RouteOption) {
 	if cfg.LoggerMiddleware != nil {
 		publicGroup.Use(cfg.LoggerMiddleware)
 	}
+	if cfg.SlowQueryMiddleware != nil {
+		publicGroup.Use(cfg.SlowQueryMiddleware)
+	}
 	if cfg.GlobalRateLimitMiddleware != nil {
 		publicGroup.Use(cfg.GlobalRateLimitMiddleware)
 	}
@@ -62,6 +65,9 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, opts ...RouteOption) {
 	if cfg.LoggerMiddleware != nil {
 		authGroup.Use(cfg.LoggerMiddleware)
 	}
+	if cfg.SlowQueryMiddleware != nil {
+		authGroup.Use(cfg.SlowQueryMiddleware)
+	}
 	if cfg.GlobalRateLimitMiddleware != nil {
 		authGroup.Use(cfg.GlobalRateLimitMiddleware)
 	}
@@ -73,6 +79,11 @@ func (h *Handler) RegisterRoutes(router *gin.Engine, opts ...RouteOption) {
 
 	// 注册需要认证的路由
 	h.registerAuthRoutes(authGroup)
+}
+
+// RequireAuthMiddleware 提供给外部路由使用的认证中间件
+func (h *Handler) RequireAuthMiddleware() gin.HandlerFunc {
+	return h.authConfig.RequireAuth()
 }
 
 // registerPublicRoutes 注册公开路由（不需要认证）
@@ -102,6 +113,7 @@ func (h *Handler) getUsernameFromContext(ctx context.Context) (string, error) {
 type RouteConfig struct {
 	RecoveryMiddleware        gin.HandlerFunc
 	LoggerMiddleware          gin.HandlerFunc
+	SlowQueryMiddleware       gin.HandlerFunc
 	GlobalRateLimitMiddleware gin.HandlerFunc
 	IPRateLimitMiddleware     gin.HandlerFunc
 	UserRateLimitMiddleware   gin.HandlerFunc
@@ -121,6 +133,13 @@ func WithRecovery(middleware gin.HandlerFunc) RouteOption {
 func WithLogger(middleware gin.HandlerFunc) RouteOption {
 	return func(cfg *RouteConfig) {
 		cfg.LoggerMiddleware = middleware
+	}
+}
+
+// WithSlowQuery 设置慢查询检测中间件
+func WithSlowQuery(middleware gin.HandlerFunc) RouteOption {
+	return func(cfg *RouteConfig) {
+		cfg.SlowQueryMiddleware = middleware
 	}
 }
 

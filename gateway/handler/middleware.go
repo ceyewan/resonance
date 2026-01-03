@@ -51,6 +51,7 @@ func (m *Middlewares) RouteOptions() []RouteOption {
 	return []RouteOption{
 		WithRecovery(m.Recovery),
 		WithLogger(m.Logger),
+		WithSlowQuery(m.SlowQuery),
 		WithGlobalRateLimit(m.GlobalIP),
 		WithIPRateLimit(m.IPBased),
 		WithUserRateLimit(m.UserBased),

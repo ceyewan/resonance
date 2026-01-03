@@ -6,7 +6,6 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
-	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/middleware"
@@ -17,7 +16,6 @@ import (
 // Handler 处理 WebSocket 连接握手和生命周期
 type Handler struct {
 	logger      clog.Logger
-	logicClient *client.Client
 	connMgr     *connection.Manager
 	dispatcher  *Dispatcher
 	upgrader    *websocket.Upgrader
@@ -28,7 +26,6 @@ type Handler struct {
 // NewHandler 创建 WebSocket 处理器
 func NewHandler(
 	logger clog.Logger,
-	logicClient *client.Client,
 	connMgr *connection.Manager,
 	dispatcher *Dispatcher,
 	idgen idgen.Generator,
@@ -44,7 +41,6 @@ func NewHandler(
 
 	return &Handler{
 		logger:      logger,
-		logicClient: logicClient,
 		connMgr:     connMgr,
 		dispatcher:  dispatcher,
 		upgrader:    upgrader,
@@ -55,23 +51,17 @@ func NewHandler(
 
 // HandleWebSocket 处理握手请求
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		h.logger.Warn("websocket connection rejected: missing token", clog.String("remote_addr", r.RemoteAddr))
-		http.Error(w, "missing token", http.StatusUnauthorized)
+	username, _ := r.Context().Value(middleware.UsernameKey).(string)
+	if username == "" {
+		h.logger.Warn("websocket connection rejected: missing username", clog.String("remote_addr", r.RemoteAddr))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// 验证 token
-	validateResp, err := h.logicClient.ValidateToken(r.Context(), token)
-	if err != nil || !validateResp.Valid {
-		h.logger.Warn("websocket connection rejected: invalid token", clog.String("remote_addr", r.RemoteAddr), clog.Error(err))
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
+	traceID, _ := r.Context().Value(middleware.TraceIDKey).(string)
+	if traceID == "" {
+		traceID = r.Header.Get(middleware.TraceIDHeader)
 	}
-
-	username := validateResp.Username
-	traceID := r.Header.Get(middleware.TraceIDHeader)
 	if traceID == "" && h.idgen != nil {
 		traceID = h.idgen.Next()
 	}

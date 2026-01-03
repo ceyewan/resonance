@@ -29,7 +29,6 @@ type Gateway struct {
 
 	// 服务实例
 	httpServer *server.HTTPServer
-	wsServer   *server.WSServer
 	grpcServer *server.GRPCServer
 
 	// 核心资源
@@ -184,7 +183,7 @@ func (g *Gateway) initLogicDependencies() error {
 func (g *Gateway) initServers(idGen idgen.Generator) {
 	// WebSocket Handler
 	dispatcher := socket.NewDispatcher(g.logger, g.resources.logicClient)
-	wsHandler := socket.NewHandler(g.logger, g.resources.logicClient, g.resources.connMgr, dispatcher, idGen, g.config.WSConfig)
+	wsHandler := socket.NewHandler(g.logger, g.resources.connMgr, dispatcher, idGen, g.config.WSConfig)
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares
@@ -196,8 +195,7 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	pushService := push.NewService(g.resources.connMgr, g.logger)
 
 	// Servers
-	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares)
-	g.wsServer = server.NewWSServer(g.config, g.logger, wsHandler)
+	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares, wsHandler)
 	g.grpcServer = server.NewGRPCServer(fmt.Sprintf(":%d", g.config.GetGRPCPort()), g.logger, pushService)
 }
 
@@ -207,7 +205,6 @@ func (g *Gateway) Run() error {
 
 	go g.grpcServer.Start()
 	go g.httpServer.Start()
-	go g.wsServer.Start()
 
 	return g.registerService()
 }
@@ -226,7 +223,7 @@ func (g *Gateway) registerService() error {
 		},
 		Metadata: map[string]string{
 			"http_addr": fmt.Sprintf("%s:%d", host, g.config.GetHTTPPort()),
-			"ws_addr":   fmt.Sprintf("%s:%d", host, g.config.GetWSPort()),
+			"ws_addr":   fmt.Sprintf("%s:%d", host, g.config.GetHTTPPort()),
 		},
 	}
 
@@ -259,9 +256,6 @@ func (g *Gateway) Close() error {
 
 	if g.httpServer != nil {
 		g.httpServer.Stop(ctx)
-	}
-	if g.wsServer != nil {
-		g.wsServer.Stop(ctx)
 	}
 
 	// 4. 释放核心资源

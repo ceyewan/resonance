@@ -75,6 +75,9 @@ npm install
 ```bash
 # Gateway API 地址（ConnectRPC）
 VITE_API_BASE_URL=http://localhost:8080
+
+# Gateway WebSocket 地址
+VITE_WS_BASE_URL=ws://localhost:8080/ws
 ```
 
 ### 3. 确保协议代码已生成

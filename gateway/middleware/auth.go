@@ -77,8 +77,8 @@ func (a *AuthConfig) extractAndValidate(c *gin.Context) (string, error) {
 	token := c.GetHeader("Authorization")
 	if token != "" {
 		// 支持 "Bearer <token>" 格式
-		if strings.HasPrefix(token, "Bearer ") {
-			token = strings.TrimPrefix(token, "Bearer ")
+		if after, ok := strings.CutPrefix(token, "Bearer "); ok {
+			token = after
 		}
 	} else {
 		// 从查询参数获取 token

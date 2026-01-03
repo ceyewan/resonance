@@ -351,6 +351,7 @@ JSON.stringify({ msgId: message.msgId.toString() });
 ```typescript
 // ✅ 正确
 const apiUrl = import.meta.env.VITE_API_BASE_URL;
+const wsUrl = import.meta.env.VITE_WS_BASE_URL;
 
 // ❌ 错误
 const apiUrl = import.meta.env.API_BASE_URL;

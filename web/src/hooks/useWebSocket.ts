@@ -21,7 +21,7 @@ interface UseWebSocketReturn {
 }
 
 const DEFAULT_WS_URL =
-  import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8081/ws";
+  import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8080/ws";
 
 /**
  * WebSocket Hook

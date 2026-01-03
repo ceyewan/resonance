@@ -20,7 +20,6 @@ type Config struct {
 		Name     string `mapstructure:"name"`      // 服务名称
 		Host     string `mapstructure:"host"`      // 服务主机名（环境变量 HOSTNAME）
 		HTTPPort int    `mapstructure:"http_port"` // HTTP 服务端口
-		WSPort   int    `mapstructure:"ws_port"`   // WebSocket 服务端口
 		GRPCPort int    `mapstructure:"grpc_port"` // gRPC 服务端口
 	} `mapstructure:"service"`
 
@@ -126,14 +125,6 @@ func (c *Config) GetHTTPPort() int {
 	return 8080
 }
 
-// GetWSPort 获取 WebSocket 端口
-func (c *Config) GetWSPort() int {
-	if c.Service.WSPort > 0 && c.Service.WSPort < 65536 {
-		return c.Service.WSPort
-	}
-	return 8081
-}
-
 // GetGRPCPort 获取 gRPC 端口
 func (c *Config) GetGRPCPort() int {
 	if c.Service.GRPCPort > 0 {
@@ -145,11 +136,6 @@ func (c *Config) GetGRPCPort() int {
 // GetHTTPAddr 获取 HTTP 绑定地址
 func (c *Config) GetHTTPAddr() string {
 	return fmt.Sprintf(":%d", c.GetHTTPPort())
-}
-
-// GetWSAddr 获取 WebSocket 绑定地址
-func (c *Config) GetWSAddr() string {
-	return fmt.Sprintf(":%d", c.GetWSPort())
 }
 
 // GetLogicServiceName 获取 Logic 服务名称
