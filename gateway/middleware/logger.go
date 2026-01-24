@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -18,7 +19,7 @@ func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 		// 1. 处理 trace_id
 		traceID := c.GetHeader(TraceIDHeader)
 		if traceID == "" {
-			traceID = idgen.Next()
+			traceID = fmt.Sprintf("%d", idgen.Next())
 		}
 		c.Set("trace_id", traceID)
 		c.Header(TraceIDHeader, traceID)

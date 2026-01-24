@@ -73,12 +73,11 @@ func (s *StaticConfig) GetCacheControl() string {
 // Load 加载 web.yaml 配置
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
-		Name:     "web",
-		FileType: "yaml",
-	},
-		config.WithConfigPaths("./configs"),
-		config.WithEnvPrefix("RESONANCE"),
-	)
+		Name:      "web",
+		FileType:  "yaml",
+		Paths:     []string{"./configs"},
+		EnvPrefix: "RESONANCE",
+	})
 	if err != nil {
 		return nil, err
 	}

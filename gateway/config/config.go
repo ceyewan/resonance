@@ -54,11 +54,6 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	cfg := &registry.Config{
 		Namespace:   c.Namespace,
 		DefaultTTL:  c.DefaultTTL,
-		EnableCache: c.EnableCache,
-	}
-
-	if c.CacheExpiration > 0 {
-		cfg.CacheExpiration = c.CacheExpiration
 	}
 
 	// 设置默认值
@@ -67,9 +62,6 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	}
 	if cfg.DefaultTTL == 0 {
 		cfg.DefaultTTL = 30 * time.Second
-	}
-	if cfg.CacheExpiration == 0 {
-		cfg.CacheExpiration = 10 * time.Second
 	}
 
 	return cfg
@@ -150,13 +142,11 @@ func (c *Config) GetLogicServiceName() string {
 // 配置加载顺序：环境变量 > .env > gateway.{env}.yaml > gateway.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
-		Name:     "gateway",
-		FileType: "yaml",
-	},
-		config.WithConfigName("gateway"),
-		config.WithConfigPaths("./configs"),
-		config.WithEnvPrefix("RESONANCE"),
-	)
+		Name:      "gateway",
+		FileType:  "yaml",
+		Paths:     []string{"./configs"},
+		EnvPrefix: "RESONANCE",
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -125,13 +125,8 @@ func (c *Config) GetAdvertiseEndpoint() string {
 // ToRegistryConfig 转换为 registry.Config
 func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	cfg := &registry.Config{
-		Namespace:   c.Namespace,
-		DefaultTTL:  c.DefaultTTL,
-		EnableCache: c.EnableCache,
-	}
-
-	if c.CacheExpiration > 0 {
-		cfg.CacheExpiration = c.CacheExpiration
+		Namespace:  c.Namespace,
+		DefaultTTL: c.DefaultTTL,
 	}
 
 	// 设置默认值
@@ -141,9 +136,6 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	if cfg.DefaultTTL == 0 {
 		cfg.DefaultTTL = 30 * time.Second
 	}
-	if cfg.CacheExpiration == 0 {
-		cfg.CacheExpiration = 10 * time.Second
-	}
 
 	return cfg
 }
@@ -152,12 +144,11 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 // 配置加载顺序：环境变量 > .env > logic.{env}.yaml > logic.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
-		Name:     "logic",
-		FileType: "yaml",
-	},
-		config.WithConfigPaths("./configs"),
-		config.WithEnvPrefix("RESONANCE"),
-	)
+		Name:      "logic",
+		FileType:  "yaml",
+		Paths:     []string{"./configs"},
+		EnvPrefix: "RESONANCE",
+	})
 	if err != nil {
 		return nil, err
 	}

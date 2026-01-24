@@ -192,9 +192,10 @@ func setupTestDB(t *testing.T) db.DB {
 		}
 
 		// 创建 DB 组件
-		globalDB, err = db.New(mysqlConn, &db.Config{
+		globalDB, err = db.New(&db.Config{
+			Driver:         "mysql",
 			EnableSharding: false, // 测试环境不启用分片
-		}, db.WithLogger(globalLogger))
+		}, db.WithMySQLConnector(mysqlConn), db.WithLogger(globalLogger))
 		if err != nil {
 			t.Fatalf("创建 DB 组件失败: %v", err)
 		}

@@ -41,9 +41,9 @@ type resources struct {
 	natsConn       connector.NATSConnector
 	mqClient       mq.Client
 	authenticator  auth.Authenticator
-	snowflakeGen   *idgen.Snowflake // 用于 MsgID
-	uuidGen        *idgen.UUID      // 用于 SessionID
-	sequencer      idgen.Sequencer  // 用于会话 SeqID (基于 Redis)
+	msgIDGen       idgen.Generator // 用于 MsgID (Snowflake)
+	sessionIDGen   idgen.Generator // 用于 SessionID (Snowflake)
+	sequencer      idgen.Sequencer // 用于会话 SeqID (基于 Redis)
 	dbInstance     db.DB
 	instanceIDStop func() // 实例 ID 保活停止函数
 
@@ -90,28 +90,37 @@ func (l *Logic) initComponents() error {
 	l.resources = res
 
 	// 3. 基于 Redis 抢占分配唯一实例 ID (WorkerID)
-	instanceID, stop, failCh, err := idgen.AssignInstanceID(
-		l.ctx,
-		res.redisConn,
-		l.config.WorkerID.GetKey(),
-		l.config.WorkerID.GetMaxID(),
-	)
+	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
+		Driver: "redis",
+		MaxID:  l.config.WorkerID.GetMaxID(),
+	}, idgen.WithRedisConnector(res.redisConn))
 	if err != nil {
-		return fmt.Errorf("assign instance id: %w", err)
+		return fmt.Errorf("create allocator: %w", err)
+	}
+	instanceID, err := allocator.Allocate(l.ctx)
+	if err != nil {
+		return fmt.Errorf("allocate instance id: %w", err)
 	}
 	l.serviceID = fmt.Sprintf("%s-%d", l.config.Service.Name, instanceID)
-	res.instanceIDStop = stop
+	res.instanceIDStop = allocator.Stop
 
 	// 3.1 动态更新 Snowflake WorkerID
-	snowflakeGen, err := idgen.NewSnowflake(int64(instanceID))
+	msgIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
 	if err != nil {
-		return fmt.Errorf("snowflake init: %w", err)
+		return fmt.Errorf("msgID generator init: %w", err)
 	}
-	res.snowflakeGen = snowflakeGen
+	res.msgIDGen = msgIDGen
+
+	// sessionIDGen 也使用相同的 WorkerID
+	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
+	if err != nil {
+		return fmt.Errorf("sessionID generator init: %w", err)
+	}
+	res.sessionIDGen = sessionIDGen
 
 	// 监听保活失败
 	go func() {
-		if err := <-failCh; err != nil {
+		if err := <-allocator.KeepAlive(l.ctx); err != nil {
 			l.logger.Error("instance id keepalive failed", clog.Error(err))
 			l.cancel() // 保活失败，关闭服务
 		}
@@ -119,8 +128,8 @@ func (l *Logic) initComponents() error {
 
 	// 4. 服务层
 	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
-	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.uuidGen, res.snowflakeGen, res.sequencer, res.mqClient, logger)
-	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.snowflakeGen, res.sequencer, res.mqClient, logger)
+	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.sessionIDGen, res.msgIDGen, res.sequencer, res.mqClient, logger)
+	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.msgIDGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 
 	// 5. gRPC Server
@@ -143,7 +152,7 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mysql init: %w", err)
 	}
-	dbInstance, err := db.New(mysqlConn, &db.Config{}, db.WithLogger(l.logger))
+	dbInstance, err := db.New(&db.Config{Driver: "mysql"}, db.WithMySQLConnector(mysqlConn), db.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}
@@ -162,8 +171,7 @@ func (l *Logic) initResources() (*resources, error) {
 	if err := natsConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	natsDriver := mq.NewNatsCoreDriver(natsConn, l.logger)
-	mqClient, err := mq.New(natsDriver, mq.WithLogger(l.logger))
+	mqClient, err := mq.New(&mq.Config{Driver: mq.DriverNatsCore}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
@@ -189,13 +197,14 @@ func (l *Logic) initResources() (*resources, error) {
 	}
 
 	// ID Generators
-	// 注意：Snowflake 稍后在 initComponents 中根据分配到的 instanceID 重新初始化
-	snowflakeGen, _ := idgen.NewSnowflake(0)
-	uuidGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
-	sequencer, _ := idgen.NewSequencer(&idgen.SequenceConfig{
+	// 注意：Generator 稍后在 initComponents 中根据分配到的 instanceID 重新初始化
+	msgIDGen, _ := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: 0})
+	sessionIDGen, _ := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: 0})
+	sequencer, _ := idgen.NewSequencer(&idgen.SequencerConfig{
+		Driver:    "redis",
 		KeyPrefix: "resonance:logic:seq",
 		Step:      1,
-	}, redisConn, idgen.WithLogger(l.logger))
+	}, idgen.WithRedisConnector(redisConn), idgen.WithLogger(l.logger))
 
 	// Repos
 	// 假设 NewUserRepo 和 NewMessageRepo 签名与 SessionRepo 类似
@@ -224,8 +233,8 @@ func (l *Logic) initResources() (*resources, error) {
 		mqClient:      mqClient,
 		dbInstance:    dbInstance,
 		authenticator: authenticator,
-		snowflakeGen:  snowflakeGen,
-		uuidGen:       uuidGen,
+		msgIDGen:      msgIDGen,
+		sessionIDGen:  sessionIDGen,
 		sequencer:     sequencer,
 		userRepo:      userRepo,
 		sessionRepo:   sessionRepo,

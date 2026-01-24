@@ -1,6 +1,7 @@
 package socket
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -63,7 +64,7 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		traceID = r.Header.Get(middleware.TraceIDHeader)
 	}
 	if traceID == "" && h.idgen != nil {
-		traceID = h.idgen.Next()
+		traceID = fmt.Sprintf("%d", h.idgen.Next())
 	}
 
 	// 升级连接

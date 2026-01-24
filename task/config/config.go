@@ -48,13 +48,8 @@ type RegistryConfig struct {
 // ToRegistryConfig 转换为 registry.Config
 func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	cfg := &registry.Config{
-		Namespace:   c.Namespace,
-		DefaultTTL:  c.DefaultTTL,
-		EnableCache: c.EnableCache,
-	}
-
-	if c.CacheExpiration > 0 {
-		cfg.CacheExpiration = c.CacheExpiration
+		Namespace:  c.Namespace,
+		DefaultTTL: c.DefaultTTL,
 	}
 
 	// 设置默认值
@@ -63,9 +58,6 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	}
 	if cfg.DefaultTTL == 0 {
 		cfg.DefaultTTL = 30 * time.Second
-	}
-	if cfg.CacheExpiration == 0 {
-		cfg.CacheExpiration = 10 * time.Second
 	}
 
 	return cfg
@@ -84,13 +76,11 @@ type ConsumerConfig struct {
 // 配置加载顺序：环境变量 > .env > task.{env}.yaml > task.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
-		Name:     "task",
-		FileType: "yaml",
-	},
-		config.WithConfigName("task"),
-		config.WithConfigPaths("./configs"),
-		config.WithEnvPrefix("RESONANCE"),
-	)
+		Name:      "task",
+		FileType:  "yaml",
+		Paths:     []string{"./configs"},
+		EnvPrefix: "RESONANCE",
+	})
 	if err != nil {
 		return nil, err
 	}

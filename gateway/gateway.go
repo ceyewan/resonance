@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/genesis/trace"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/connection"
@@ -38,6 +39,9 @@ type Gateway struct {
 
 	// workerID 保活停止函数
 	stopWorkerIDKeepAlive func()
+
+	// trace 关闭函数
+	traceShutdown func(context.Context) error
 }
 
 // resources 内部资源聚合，方便统一管理
@@ -84,39 +88,50 @@ func (g *Gateway) initComponents() error {
 	}
 	g.resources = res
 
-	// 3. 使用 AssignInstanceID 从 Redis 获取唯一的 workerID
-	workerID, stop, failCh, err := idgen.AssignInstanceID(
-		g.ctx,
-		g.resources.redisConn,
-		g.config.WorkerID.GetKey(),
-		g.config.WorkerID.GetMaxID(),
-	)
+	// 3. 初始化 Trace (使用 Discard，仅生成 TraceID 不上报)
+	traceShutdown, err := trace.Discard(g.config.Service.Name)
 	if err != nil {
-		return fmt.Errorf("assign workerID: %w", err)
+		return fmt.Errorf("init trace: %w", err)
+	}
+	g.traceShutdown = traceShutdown
+
+	// 4. 使用 Allocator 从 Redis 获取唯一的 workerID
+	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
+		Driver: "redis",
+		MaxID:  g.config.WorkerID.GetMaxID(),
+	}, idgen.WithRedisConnector(res.redisConn))
+	if err != nil {
+		return fmt.Errorf("create allocator: %w", err)
+	}
+	workerID, err := allocator.Allocate(g.ctx)
+	if err != nil {
+		return fmt.Errorf("allocate workerID: %w", err)
 	}
 	g.workerID = workerID
-	g.stopWorkerIDKeepAlive = stop
 
 	// 监听 workerID 保活失败
 	go func() {
-		if err := <-failCh; err != nil {
+		if err := <-allocator.KeepAlive(g.ctx); err != nil {
 			g.logger.Error("workerID keepalive failed, shutting down", clog.String("error", err.Error()))
 			g.cancel()
 		}
 	}()
 
-	// 4. 拼接唯一服务 ID (基于 workerID)
+	// 5. 拼接唯一服务 ID (基于 workerID)
 	g.gatewayID = fmt.Sprintf("%s-%03d", g.config.Service.Name, g.workerID)
 
-	// 5. 初始化逻辑客户端与连接管理器（依赖 gatewayID）
+	// 6. 初始化逻辑客户端与连接管理器（依赖 gatewayID）
 	if err := g.initLogicDependencies(); err != nil {
 		return err
 	}
 
-	// 6. 创建 ID 生成器 (供其他组件使用)
-	idGen := idgen.NewUUID(idgen.WithUUIDVersion("v7"))
+	// 7. 创建 ID 生成器 (供其他组件使用)
+	idGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: workerID})
+	if err != nil {
+		return fmt.Errorf("create id generator: %w", err)
+	}
 
-	// 7. 初始化服务接口 (Servers)
+	// 8. 初始化服务接口 (Servers)
 	g.initServers(idGen)
 
 	return nil
@@ -187,7 +202,9 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares
-	limiter, _ := ratelimit.NewStandalone(nil, ratelimit.WithLogger(g.logger))
+	limiter, _ := ratelimit.New(&ratelimit.Config{
+		Driver: ratelimit.DriverStandalone,
+	}, ratelimit.WithLogger(g.logger))
 	middlewares := handler.NewMiddlewares(g.logger, limiter, idGen)
 	apiHandler := handler.NewHandler(g.resources.logicClient, g.logger)
 

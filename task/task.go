@@ -127,8 +127,9 @@ func (t *Task) initResources() (*resources, error) {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 	// MQ Client (NATS Core)
-	natsDriver := mq.NewNatsCoreDriver(natsConn, t.logger)
-	mqClient, err := mq.New(natsDriver, mq.WithLogger(t.logger))
+	mqClient, err := mq.New(&mq.Config{
+		Driver: mq.DriverNatsCore,
+	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
@@ -157,7 +158,9 @@ func (t *Task) initResources() (*resources, error) {
 
 	// NewSessionRepo 需要 db.DB 接口
 	// 使用 genesis/db 封装 MySQLConnector
-	dbInstance, err := db.New(mysqlConn, &db.Config{}, db.WithLogger(t.logger))
+	dbInstance, err := db.New(&db.Config{
+		Driver: "mysql",
+	}, db.WithMySQLConnector(mysqlConn), db.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}

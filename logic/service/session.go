@@ -26,8 +26,8 @@ type SessionService struct {
 	sessionRepo  repo.SessionRepo
 	messageRepo  repo.MessageRepo
 	userRepo     repo.UserRepo
-	idGen        idgen.Generator
-	snowflakeGen *idgen.Snowflake // 用于生成消息 ID
+	sessionIDGen idgen.Generator // 用于生成 SessionID
+	msgIDGen     idgen.Generator // 用于生成消息 ID
 	sequencer    idgen.Sequencer  // 用于生成会话 SeqID
 	mqClient     mq.Client        // 用于发送系统消息
 	logger       clog.Logger
@@ -38,8 +38,8 @@ func NewSessionService(
 	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
 	userRepo repo.UserRepo,
-	idGen idgen.Generator,
-	snowflakeGen *idgen.Snowflake,
+	sessionIDGen idgen.Generator,
+	msgIDGen idgen.Generator,
 	sequencer idgen.Sequencer,
 	mqClient mq.Client,
 	logger clog.Logger,
@@ -48,8 +48,8 @@ func NewSessionService(
 		sessionRepo:  sessionRepo,
 		messageRepo:  messageRepo,
 		userRepo:     userRepo,
-		idGen:        idGen,
-		snowflakeGen: snowflakeGen,
+		sessionIDGen: sessionIDGen,
+		msgIDGen:     msgIDGen,
 		sequencer:    sequencer,
 		mqClient:     mqClient,
 		logger:       logger,
@@ -206,7 +206,7 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 	}
 
 	// 生成消息 ID 和 SeqID
-	msgID := s.snowflakeGen.Next()
+	msgID := s.msgIDGen.Next()
 	seqID, err := s.sequencer.Next(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("generate seq id: %w", err)
@@ -406,5 +406,5 @@ func generateSingleChatID(user1, user2 string) string {
 
 // generateGroupChatID 生成群聊会话 ID
 func (s *SessionService) generateGroupChatID() string {
-	return "group:" + s.idGen.Next()
+	return fmt.Sprintf("group:%d", s.sessionIDGen.Next())
 }
