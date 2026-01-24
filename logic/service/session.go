@@ -222,16 +222,8 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		Content:        content,
 		MsgType:        "system",
 	}
-	if err := s.messageRepo.SaveMessage(ctx, msgContent); err != nil {
-		return fmt.Errorf("save message: %w", err)
-	}
 
-	// 更新会话的 MaxSeqID
-	if err := s.sessionRepo.UpdateMaxSeqID(ctx, sessionID, seqID); err != nil {
-		s.logger.Error("failed to update max seq id", clog.Error(err))
-	}
-
-	// 收集所有接收者（不包括创建者自己，因为单聊中创建者不需要收到自己的系统消息）
+	// 收集所有接收者
 	toUsernames := make([]string, 0, len(req.Members))
 	for _, member := range req.Members {
 		if member != req.CreatorUsername {
@@ -239,15 +231,9 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		}
 	}
 
-	// 单聊中，如果创建者自己想看到系统消息，也可以添加
-	// 这里我们只给其他成员发送通知
-
-	// 发布到 MQ（携带会话元数据）
-	// 对于单聊，SessionName 需要设置为发送方（创建者）的昵称
-	// 接收方看到的会话名称应该是发送方的名字
+	// 准备 MQ 事件
 	sessionName := req.Name
 	if req.Type == 1 && sessionName == "" {
-		// 单聊：获取创建者（发送方）的昵称作为会话名称
 		if user, err := s.userRepo.GetUserByUsername(ctx, req.CreatorUsername); err == nil {
 			sessionName = user.Nickname
 		} else {
@@ -263,21 +249,49 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		Content:      content,
 		Type:         "system",
 		Timestamp:    timestamp,
-		// 会话元数据（用于前端自动创建会话）
-		SessionName: sessionName,
-		SessionType: int32(req.Type),
+		SessionName:  sessionName,
+		SessionType:  int32(req.Type),
 	}
 
 	eventData, err := proto.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("marshal push event: %w", err)
 	}
-
-	// 发布到 MQ
 	topic := string(proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string))
-	if err := s.mqClient.Publish(ctx, topic, eventData); err != nil {
-		return fmt.Errorf("publish to mq: %w", err)
+
+	// 准备本地消息表记录
+	outbox := &model.MessageOutbox{
+		MsgID:         msgID,
+		Topic:         topic,
+		Payload:       eventData,
+		Status:        model.OutboxStatusPending,
+		NextRetryTime: time.Now(),
 	}
+
+	// 使用事务保存消息、更新序列号、记录 Outbox
+	if err := s.messageRepo.SaveMessageWithOutbox(ctx, msgContent, outbox); err != nil {
+		return fmt.Errorf("save message with outbox: %w", err)
+	}
+
+	// 立即尝试发布到 MQ (Look-aside 优化)
+	go func(outboxID int64, topic string, data []byte) {
+		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := s.mqClient.Publish(publishCtx, topic, data); err != nil {
+			s.logger.Warn("immediate publish failed, will be retried by job",
+				clog.Int64("msg_id", msgID),
+				clog.Error(err))
+			return
+		}
+
+		// 发布成功，标记为已发送
+		if err := s.messageRepo.UpdateOutboxStatus(context.Background(), outboxID, model.OutboxStatusSent); err != nil {
+			s.logger.Error("failed to update outbox status after publish",
+				clog.Int64("msg_id", msgID),
+				clog.Error(err))
+		}
+	}(outbox.ID, topic, eventData)
 
 	s.logger.Info("system message sent",
 		clog.Int64("msg_id", msgID),

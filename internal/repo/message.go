@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
@@ -56,6 +57,12 @@ func NewMessageRepo(database db.DB, opts ...MessageRepoOption) (MessageRepo, err
 			return nil, fmt.Errorf("failed to create default logger: %w", err)
 		}
 		logger = logger.WithNamespace("message_repo")
+	}
+
+	// 自动迁移表结构
+	// 注意：生产环境建议使用专门的 migration 工具管理 schema，此处仅为简化开发
+	if err := database.DB(context.Background()).AutoMigrate(&model.MessageOutbox{}); err != nil {
+		return nil, fmt.Errorf("failed to migrate outbox table: %w", err)
 	}
 
 	return &messageRepo{
@@ -207,6 +214,70 @@ func (r *messageRepo) GetUnreadMessages(ctx context.Context, username string, li
 	}
 
 	return inboxes, nil
+}
+
+// SaveMessageWithOutbox 事务内保存消息并记录本地消息表
+func (r *messageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
+	if msg == nil || outbox == nil {
+		return fmt.Errorf("message and outbox cannot be nil")
+	}
+
+	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		// 1. 保存消息内容
+		if err := tx.Create(msg).Error; err != nil {
+			return fmt.Errorf("failed to save message: %w", err)
+		}
+
+		// 2. 更新会话 MaxSeqID (使用 CAS 乐观锁防止回退)
+		result := tx.Model(&model.Session{}).
+			Where("session_id = ? AND max_seq_id < ?", msg.SessionID, msg.SeqID).
+			Update("max_seq_id", msg.SeqID)
+		if result.Error != nil {
+			return fmt.Errorf("failed to update session max_seq_id: %w", result.Error)
+		}
+
+		// 3. 保存到本地消息表
+		if err := tx.Create(outbox).Error; err != nil {
+			return fmt.Errorf("failed to save outbox: %w", err)
+		}
+
+		return nil
+	})
+}
+
+// UpdateOutboxStatus 更新本地消息表状态
+func (r *messageRepo) UpdateOutboxStatus(ctx context.Context, id int64, status int) error {
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+		return fmt.Errorf("failed to update outbox status: %w", err)
+	}
+	return nil
+}
+
+// UpdateOutboxRetry 更新本地消息表重试信息
+func (r *messageRepo) UpdateOutboxRetry(ctx context.Context, id int64, nextRetry time.Time, count int) error {
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"next_retry_time": nextRetry,
+		"retry_count":     count,
+	}).Error; err != nil {
+		return fmt.Errorf("failed to update outbox retry: %w", err)
+	}
+	return nil
+}
+
+// GetPendingOutboxMessages 获取待发送的本地消息
+func (r *messageRepo) GetPendingOutboxMessages(ctx context.Context, limit int) ([]*model.MessageOutbox, error) {
+	var messages []*model.MessageOutbox
+	gormDB := r.db.DB(ctx)
+
+	if err := gormDB.Where("status = ? AND next_retry_time <= ?", model.OutboxStatusPending, time.Now()).
+		Limit(limit).
+		Find(&messages).Error; err != nil {
+		return nil, fmt.Errorf("failed to get pending outbox messages: %w", err)
+	}
+
+	return messages, nil
 }
 
 // Close 释放资源

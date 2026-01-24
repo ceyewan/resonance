@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"time"
 
 	"github.com/ceyewan/resonance/internal/model"
 )
@@ -70,6 +71,16 @@ type MessageRepo interface {
 	GetLastMessage(ctx context.Context, sessionID string) (*model.MessageContent, error)
 	// GetUnreadMessages 获取用户未读消息 (从小群信箱)
 	GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error)
+
+	// SaveMessageWithOutbox 事务内保存消息并记录本地消息表
+	SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
+	// UpdateOutboxStatus 更新本地消息表状态
+	UpdateOutboxStatus(ctx context.Context, id int64, status int) error
+	// UpdateOutboxRetry 更新本地消息表重试信息
+	UpdateOutboxRetry(ctx context.Context, id int64, nextRetry time.Time, count int) error
+	// GetPendingOutboxMessages 获取待发送的本地消息
+	GetPendingOutboxMessages(ctx context.Context, limit int) ([]*model.MessageOutbox, error)
+
 	// Close 释放资源（如数据库连接等）
 	Close() error
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/ceyewan/genesis/registry"
 	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/ceyewan/resonance/logic/config"
+	"github.com/ceyewan/resonance/logic/job"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
 )
@@ -26,6 +27,9 @@ type Logic struct {
 
 	// 服务器
 	grpcServer *server.GRPCServer
+
+	// 后台任务
+	outboxRelay *job.OutboxRelay
 
 	// 资源
 	resources *resources
@@ -132,7 +136,10 @@ func (l *Logic) initComponents() error {
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.msgIDGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 
-	// 5. gRPC Server
+	// 5. 后台任务
+	l.outboxRelay = job.NewOutboxRelay(res.messageRepo, res.mqClient, logger)
+
+	// 6. gRPC Server
 	l.grpcServer = server.NewGRPCServer(
 		l.config.Service.ServerAddr,
 		logger,
@@ -246,6 +253,9 @@ func (l *Logic) initResources() (*resources, error) {
 // Run 启动服务
 func (l *Logic) Run() error {
 	l.logger.Info("starting logic service...")
+
+	// 启动后台任务
+	go l.outboxRelay.Start(l.ctx)
 
 	// 启动 gRPC Server
 	go func() {
