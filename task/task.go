@@ -28,9 +28,10 @@ type Task struct {
 	resources *resources
 
 	// 组件
-	pusherMgr  *pusher.Manager
-	dispatcher *dispatcher.Dispatcher
-	consumer   *consumer.Consumer
+	pusherMgr       *pusher.Manager
+	dispatcher      *dispatcher.Dispatcher
+	storageConsumer *consumer.Consumer
+	pushConsumer    *consumer.Consumer
 }
 
 // resources 内部资源聚合
@@ -93,12 +94,21 @@ func (t *Task) initComponents() error {
 		logger,
 	)
 
-	// 5. 初始化 Consumer
-	t.consumer = consumer.NewConsumer(
+	// 5. 初始化 Consumers
+	// 5.1 Storage Consumer (落库)
+	t.storageConsumer = consumer.NewConsumer(
 		res.mqClient,
-		t.dispatcher,
-		t.config.ConsumerConfig,
-		logger,
+		t.dispatcher.DispatchStorage,
+		t.config.StorageConsumer,
+		logger.WithNamespace("consumer_storage"),
+	)
+
+	// 5.2 Push Consumer (推送)
+	t.pushConsumer = consumer.NewConsumer(
+		res.mqClient,
+		t.dispatcher.DispatchPush,
+		t.config.PushConsumer,
+		logger.WithNamespace("consumer_push"),
 	)
 
 	return nil
@@ -197,9 +207,12 @@ func (t *Task) Run() error {
 		return fmt.Errorf("pusher manager start: %w", err)
 	}
 
-	// 启动 Consumer (开始消费消息)
-	if err := t.consumer.Start(); err != nil {
-		return fmt.Errorf("consumer start: %w", err)
+	// 启动 Consumers (开始消费消息)
+	if err := t.storageConsumer.Start(); err != nil {
+		return fmt.Errorf("storage consumer start: %w", err)
+	}
+	if err := t.pushConsumer.Start(); err != nil {
+		return fmt.Errorf("push consumer start: %w", err)
 	}
 
 	return nil
@@ -211,8 +224,11 @@ func (t *Task) Close() error {
 	t.cancel()
 
 	// 1. 停止消费
-	if t.consumer != nil {
-		t.consumer.Stop()
+	if t.storageConsumer != nil {
+		t.storageConsumer.Stop()
+	}
+	if t.pushConsumer != nil {
+		t.pushConsumer.Stop()
 	}
 
 	// 2. 关闭 Pusher (断开 Gateway 连接)

@@ -34,7 +34,8 @@ type Config struct {
 	GatewayServiceName string `mapstructure:"gateway_service_name"` // Gateway 服务名称
 
 	// 消费者配置
-	ConsumerConfig ConsumerConfig `mapstructure:"consumer"`
+	StorageConsumer ConsumerConfig `mapstructure:"storage_consumer"` // 存储任务消费者
+	PushConsumer    ConsumerConfig `mapstructure:"push_consumer"`    // 推送任务消费者
 }
 
 // RegistryConfig Registry 配置
@@ -94,6 +95,26 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
 		return nil, err
+	}
+
+	// 设置默认值
+	if cfg.StorageConsumer.WorkerCount <= 0 {
+		cfg.StorageConsumer.WorkerCount = 20
+	}
+	if cfg.StorageConsumer.QueueGroup == "" {
+		cfg.StorageConsumer.QueueGroup = "resonance_group_storage"
+	}
+	if cfg.PushConsumer.WorkerCount <= 0 {
+		cfg.PushConsumer.WorkerCount = 50
+	}
+	if cfg.PushConsumer.QueueGroup == "" {
+		cfg.PushConsumer.QueueGroup = "resonance_group_push"
+	}
+	// 继承 Topic 配置如果未设置（通常两个组订阅同一个 Topic）
+	if cfg.StorageConsumer.Topic == "" && cfg.PushConsumer.Topic != "" {
+		cfg.StorageConsumer.Topic = cfg.PushConsumer.Topic
+	} else if cfg.PushConsumer.Topic == "" && cfg.StorageConsumer.Topic != "" {
+		cfg.PushConsumer.Topic = cfg.StorageConsumer.Topic
 	}
 
 	// 在 debug 模式下，打印最终生效的配置

@@ -169,6 +169,7 @@ func (r *routerRepo) DeleteUserGateway(ctx context.Context, username string) err
 }
 
 // BatchGetUsersGateway 批量获取用户的网关映射关系
+// TODO: 目前实现为简单的循环调用 GetUserGateway，后续可优化为 Redis MGET 或管道方式
 func (r *routerRepo) BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, error) {
 	if len(usernames) == 0 {
 		return []*model.Router{}, nil

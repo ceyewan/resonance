@@ -9,16 +9,18 @@ import (
 	"github.com/ceyewan/genesis/xerrors"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/task/config"
-	"github.com/ceyewan/resonance/task/dispatcher"
 	"google.golang.org/protobuf/proto"
 )
 
+// HandlerFunc 消息处理函数
+type HandlerFunc func(context.Context, *mqv1.PushEvent) error
+
 // Consumer MQ 消费者
 type Consumer struct {
-	mqClient   mq.Client
-	dispatcher *dispatcher.Dispatcher
-	config     config.ConsumerConfig
-	logger     clog.Logger
+	mqClient mq.Client
+	handler  HandlerFunc
+	config   config.ConsumerConfig
+	logger   clog.Logger
 
 	subscription mq.Subscription
 	jobsCh       chan mq.Message // 任务通道
@@ -29,7 +31,7 @@ type Consumer struct {
 // NewConsumer 创建消费者
 func NewConsumer(
 	mqClient mq.Client,
-	dispatcher *dispatcher.Dispatcher,
+	handler HandlerFunc,
 	config config.ConsumerConfig,
 	logger clog.Logger,
 ) *Consumer {
@@ -40,13 +42,13 @@ func NewConsumer(
 	}
 
 	return &Consumer{
-		mqClient:   mqClient,
-		dispatcher: dispatcher,
-		config:     config,
-		logger:     logger,
-		jobsCh:     make(chan mq.Message, config.WorkerCount*10),
-		ctx:        ctx,
-		cancel:     cancel,
+		mqClient: mqClient,
+		handler:  handler,
+		config:   config,
+		logger:   logger,
+		jobsCh:   make(chan mq.Message, config.WorkerCount*10),
+		ctx:      ctx,
+		cancel:   cancel,
 	}
 }
 
@@ -145,8 +147,8 @@ func (c *Consumer) processWithRetry(event *mqv1.PushEvent) error {
 			time.Sleep(time.Duration(c.config.RetryInterval) * time.Second)
 		}
 
-		// 调用 Dispatcher 进行写扩散
-		if err := c.dispatcher.Dispatch(c.ctx, event); err != nil {
+		// 调用注入的处理函数
+		if err := c.handler(c.ctx, event); err != nil {
 			lastErr = err
 			continue
 		}

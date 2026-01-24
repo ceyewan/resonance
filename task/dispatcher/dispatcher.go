@@ -17,12 +17,12 @@ var (
 	ErrUserOffline = xerrors.New("user offline")
 )
 
-// Dispatcher 消息分发器（写扩散）
+// Dispatcher 消息分发器
 type Dispatcher struct {
 	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo // 增加 messageRepo 用于写扩散
-	routerRepo  repo.RouterRepo
-	pusherMgr   *pusher.Manager
+	messageRepo repo.MessageRepo // Storage consumer uses this
+	routerRepo  repo.RouterRepo  // Push consumer uses this
+	pusherMgr   *pusher.Manager  // Push consumer uses this
 	logger      clog.Logger
 }
 
@@ -43,9 +43,9 @@ func NewDispatcher(
 	}
 }
 
-// Dispatch 分发消息（写扩散）
-func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error {
-	d.logger.Info("dispatching message",
+// DispatchStorage 处理存储任务（写扩散）
+func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
+	d.logger.Info("dispatching storage task",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
 
@@ -71,9 +71,30 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 
 	if err := d.messageRepo.SaveInbox(ctx, inboxes); err != nil {
 		d.logger.Error("failed to save inboxes", clog.Error(err))
+		return err // 存储失败需要重试
 	}
 
-	// 3. 提取需要在线推送的用户名列表
+	d.logger.Info("storage task completed",
+		clog.Int64("msg_id", event.MsgId),
+		clog.Int("inbox_count", len(inboxes)))
+
+	return nil
+}
+
+// DispatchPush 处理推送任务（在线推送）
+func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
+	d.logger.Info("dispatching push task",
+		clog.Int64("msg_id", event.MsgId),
+		clog.String("session_id", event.SessionId))
+
+	// 1. 获取会话成员列表
+	members, err := d.sessionRepo.GetMembers(ctx, event.SessionId)
+	if err != nil {
+		d.logger.Error("failed to get session members", clog.Error(err))
+		return err
+	}
+
+	// 2. 提取需要在线推送的用户名列表
 	usernames := make([]string, 0, len(members))
 	for _, m := range members {
 		// 跳过发送者自己，发送者不需要在线推送（因为他是消息源）
@@ -88,15 +109,14 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		return nil
 	}
 
-	// 4. 批量获取用户网关路由
-	// RouterRepo 增加了 BatchGetUsersGateway 方法
+	// 3. 批量获取用户网关路由
 	routers, err := d.routerRepo.BatchGetUsersGateway(ctx, usernames)
 	if err != nil {
 		d.logger.Error("failed to batch get user gateways", clog.Error(err))
-		return err // 可以选择重试或部分失败
+		return err // Redis 错误可以选择重试
 	}
 
-	// 3. 按 GatewayID 分组
+	// 4. 按 GatewayID 分组
 	gatewayGroups := make(map[string][]string) // gatewayID -> []username
 	for _, router := range routers {
 		if router == nil {
@@ -105,7 +125,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		gatewayGroups[router.GatewayID] = append(gatewayGroups[router.GatewayID], router.Username)
 	}
 
-	// 4. 构造推送消息
+	// 5. 构造推送消息
 	pushMsg := &gatewayv1.PushMessage{
 		MsgId:        event.MsgId,
 		SeqId:        event.SeqId,
@@ -124,8 +144,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 		}
 	}
 
-	// 5. 并发推送给各个 Gateway
-	// TODO: 可以使用 Worker Pool 限制并发数
+	// 6. 并发推送给各个 Gateway
 	successCount := 0
 	for gatewayID, users := range gatewayGroups {
 		// 获取 Pusher Client
@@ -152,7 +171,7 @@ func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error 
 			clog.Int("user_count", len(users)))
 	}
 
-	d.logger.Info("dispatch completed",
+	d.logger.Info("push task completed",
 		clog.Int64("msg_id", event.MsgId),
 		clog.Int("total_targets", len(usernames)),
 		clog.Int("online_targets", successCount))
