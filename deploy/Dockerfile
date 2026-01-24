@@ -3,7 +3,24 @@
 # =============================================================================
 
 # =========================
-# 构建阶段
+# 前端构建阶段
+# =========================
+FROM node:18-alpine AS frontend-builder
+WORKDIR /src
+# 复制生成的 API 代码以支持软链接解析 (web/src/gen -> ../../api/gen/ts)
+COPY api/gen/ts ./api/gen/ts
+
+WORKDIR /src/web
+# 复制 package.json 和 lock 文件以利用缓存
+COPY web/package*.json ./
+RUN npm ci
+
+# 复制前端源码并构建
+COPY web/ .
+RUN npm run build
+
+# =========================
+# 后端构建阶段
 # =========================
 
 ARG CGO_ENABLED=0
@@ -39,7 +56,8 @@ FROM static AS final
 ARG CGO_ENABLED
 COPY --from=builder /app/bin/resonance /app/resonance
 COPY --from=builder /app/configs /app/configs
-COPY web/dist /app/web/dist
+# 从前端构建阶段复制静态文件
+COPY --from=frontend-builder /src/web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]
@@ -49,7 +67,8 @@ ARG CGO_ENABLED
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libsqlite3.so* /usr/lib/x86_64-linux-gnu/
 COPY --from=builder /app/bin/resonance /app/resonance
 COPY --from=builder /app/configs /app/configs
-COPY web/dist /app/web/dist
+# 从前端构建阶段复制静态文件
+COPY --from=frontend-builder /src/web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]

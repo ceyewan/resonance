@@ -31,9 +31,6 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# Buf build output
-api/gen
-
 genesis/
 
 **/node_modules/

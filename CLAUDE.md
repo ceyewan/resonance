@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-此文件用于指导 Claude Code (claude.ai/code) 在 `Resonance` 仓库中的工作方式。**全程使用中文交流**，专注于 IM 业务逻辑开发。
+此文件用于指导 AI 助手在 `Resonance` 仓库中的工作方式。**全程使用中文交流**，专注于 IM 业务逻辑开发。
 
 ## 项目定位
 

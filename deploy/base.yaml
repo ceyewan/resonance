@@ -17,8 +17,6 @@ services:
       ETCD_INITIAL_CLUSTER: ""
     volumes:
       - etcd-data:/etcd-data
-    ports:
-      - "127.0.0.1:${RESONANCE_ETCD_PORT:-2379}:2379"
     networks:
       - resonance-net
     deploy:
@@ -45,10 +43,10 @@ services:
     hostname: resonance-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-resonance}
-      MYSQL_USER: ${MYSQL_USER:-resonance}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-resonance123}
+      MYSQL_ROOT_PASSWORD: ${RESONANCE_MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${RESONANCE_MYSQL_DATABASE:-resonance}
+      MYSQL_USER: ${RESONANCE_MYSQL_USER:-resonance}
+      MYSQL_PASSWORD: ${RESONANCE_MYSQL_PASSWORD:-resonance123}
     command:
       - mysqld
       - --performance_schema=OFF
@@ -72,8 +70,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-    ports:
-      - "127.0.0.1:${RESONANCE_DB_PORT:-3306}:3306"
     healthcheck:
       test:
         [
@@ -84,7 +80,7 @@ services:
           "localhost",
           "-u",
           "root",
-          "-p${MYSQL_ROOT_PASSWORD:-root123}",
+          "-p${RESONANCE_MYSQL_ROOT_PASSWORD:-root123}",
         ]
       interval: 10s
       timeout: 3s
@@ -125,8 +121,6 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-    ports:
-      - "127.0.0.1:${RESONANCE_REDIS_PORT:-6379}:6379"
 
   nats:
     image: nats:2.10-alpine
@@ -159,80 +153,7 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-    ports:
-      - "127.0.0.1:${RESONANCE_NATS_PORT:-4222}:4222"
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: resonance-prometheus
-    hostname: resonance-prometheus
-    restart: unless-stopped
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=7d"
-      - "--web.enable-lifecycle"
-    volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    networks:
-      - resonance-net
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    ports:
-      - "127.0.0.1:${RESONANCE_PROMETHEUS_PORT:-9090}:9090"
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: resonance-grafana
-    hostname: resonance-grafana
-    restart: unless-stopped
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3000}
-    volumes:
-      - grafana-data:/var/lib/grafana
-    networks:
-      - resonance-net
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-        reservations:
-          memory: 128M
-    healthcheck:
-      test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "2"
-    ports:
-      - "127.0.0.1:${RESONANCE_GRAFANA_PORT:-3000}:3000"
-    depends_on:
-      - prometheus
 
 networks:
   resonance-net:
@@ -244,5 +165,3 @@ volumes:
   mysql-data:
   redis-data:
   nats-data:
-  prometheus-data:
-  grafana-data:

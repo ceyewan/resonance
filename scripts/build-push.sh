@@ -13,24 +13,8 @@ PLATFORM=linux/amd64
 CGO_ENABLED=${2:-0}
 TAG=${3:-v0.1}
 
-# 前端构建函数
-build_web() {
-    echo "正在构建前端..."
-    # 检查 web 目录是否存在
-    if [ ! -d "web" ]; then
-        echo "错误: web 目录不存在"
-        exit 1
-    fi
-    
-    pushd web > /dev/null
-    npm install
-    npm run build
-    popd > /dev/null
-}
-
 case "$1" in
   local)
-    build_web
     docker build \
       --build-arg CGO_ENABLED=$CGO_ENABLED \
       --target $( [ "$CGO_ENABLED" = "1" ] && echo final-cgo || echo final ) \
@@ -38,7 +22,6 @@ case "$1" in
     echo "本地镜像已构建：$IMAGE_NAME:local (CGO_ENABLED=$CGO_ENABLED)"
     ;;
   amd64)
-    build_web
     docker build --platform=$PLATFORM \
       --build-arg CGO_ENABLED=$CGO_ENABLED \
       --target $( [ "$CGO_ENABLED" = "1" ] && echo final-cgo || echo final ) \
@@ -46,7 +29,6 @@ case "$1" in
     echo "amd64镜像已构建：$IMAGE_NAME:amd64 (CGO_ENABLED=$CGO_ENABLED)"
     ;;
   push)
-    build_web
     echo "正在构建并推送镜像..."
     docker build --platform=$PLATFORM \
       --build-arg CGO_ENABLED=$CGO_ENABLED \
