@@ -1,11 +1,14 @@
-# Task 服务配置文件
+# ============================================================================
+# Task 服务配置（本地直接运行）
+# 用途：make dev - 本地直接运行 Go 程序，连接 127.0.0.1
+# ============================================================================
 
 service:
   name: task-service
 
 log:
   level: debug
-  format: console
+  format: console  # 开发环境使用 console 格式，方便调试
   output: stdout
 
 mysql:
@@ -13,7 +16,7 @@ mysql:
   host: 127.0.0.1
   port: 3306
   username: resonance
-  password: resonance123
+  password: ""  # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
   database: resonance
   charset: utf8mb4
   max_idle_conns: 10

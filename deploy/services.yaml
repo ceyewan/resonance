@@ -21,14 +21,18 @@ x-resonance-build: &resonance-build
     CGO_ENABLED: "${CGO_ENABLED:-0}"
 
 x-resonance-service: &resonance-service
-  image: ${RESONANCE_IMAGE:-ceyewan/resonance:v0.1}
+  image: ${RESONANCE_IMAGE:-ceyewan/resonance:local}
   build: *resonance-build
   environment: &resonance-env
-    RESONANCE_ENV: prod
-    RESONANCE_DEBUG_CONFIG: "true"
-  volumes:
-    - ../configs:/app/configs
-    - ../.env:/app/configs/.env:ro
+    # 环境配置
+    RESONANCE_ENV: ${RESONANCE_ENV:-}
+    RESONANCE_DEBUG_CONFIG: ${RESONANCE_DEBUG_CONFIG:-false}
+    # MySQL 配置
+    RESONANCE_MYSQL_PASSWORD: ${RESONANCE_MYSQL_PASSWORD:-}
+    # JWT 认证配置
+    RESONANCE_AUTH_SECRET_KEY: ${RESONANCE_AUTH_SECRET_KEY:-}
+    RESONANCE_AUTH_ISSUER: ${RESONANCE_AUTH_ISSUER:-}
+    RESONANCE_AUTH_ACCESS_TOKEN_TTL: ${RESONANCE_AUTH_ACCESS_TOKEN_TTL:-}
   networks:
     - resonance-net
   restart: unless-stopped

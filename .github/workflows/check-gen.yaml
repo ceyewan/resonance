@@ -1,0 +1,47 @@
+name: Check Generated Code
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  check-gen:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install buf
+        run: |
+          BUF_VERSION=1.28.1
+          curl -sSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-$(uname -s)-$(uname -m)" -o /usr/local/bin/buf
+          chmod +x /usr/local/bin/buf
+
+      - name: Install protoc-gen-go and protoc-gen-connect-go
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+
+      - name: Generate code
+        run: make gen
+
+      - name: Check for uncommitted changes
+        run: |
+          git diff --exit-code api/gen || (
+            echo "❌ Generated code is out of date!"
+            echo "Please run 'make gen' and commit the changes."
+            exit 1
+          )
+

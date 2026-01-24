@@ -1,5 +1,6 @@
 # ============================================================================
-# Web 静态站点服务配置
+# Web 静态站点配置（本地直接运行）
+# 用途：make dev - 本地直接运行 Go 程序
 # ============================================================================
 
 service:
@@ -14,6 +15,6 @@ static:
   cache_control: public, max-age=604800
 
 log:
-  level: info
-  format: console
+  level: debug
+  format: console  # 开发环境使用 console 格式，方便调试
   output: stdout

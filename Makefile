@@ -1,145 +1,87 @@
-.PHONY: gen tidy infra infra-down dev image push deploy undeploy logs ps clean
-include .env
+# Resonance Makefile - 任务编排
+# 所有配置统一在 .env 文件中管理
+
+.PHONY: help gen tidy dev up down logs clean
+
+# 默认目标：显示帮助
+.DEFAULT_GOAL := help
+
+# 加载 .env 文件（如果存在）
+-include .env
 export
 
-# ============================================================================
-# Environment Variables
-# ============================================================================
-WEB_HOST ?= localhost
-WEB_PORT ?= 5173
-RESONANCE_GATEWAY_HTTP_HOST ?= localhost
-RESONANCE_GATEWAY_HTTP_PORT ?= 8080
-RESONANCE_GATEWAY_GRPC_PORT ?= 15091
-RESONANCE_LOGIC_GRPC_PORT ?= 15090
-RESONANCE_WEB_HTTP_PORT ?= 4173
-RESONANCE_ETCD_PORT ?= 2379
-RESONANCE_DB_PORT ?= 3306
-RESONANCE_REDIS_PORT ?= 6379
-RESONANCE_NATS_PORT ?= 4222
-RESONANCE_PROMETHEUS_PORT ?= 9090
-RESONANCE_GRAFANA_PORT ?= 3000
-
-GATEWAY_HTTP_HOST ?= $(RESONANCE_GATEWAY_HTTP_HOST)
-GATEWAY_HTTP_PORT ?= $(RESONANCE_GATEWAY_HTTP_PORT)
-WEB_HTTP_PORT ?= $(RESONANCE_WEB_HTTP_PORT)
-GATEWAY_URL ?= http://$(RESONANCE_GATEWAY_HTTP_HOST):$(RESONANCE_GATEWAY_HTTP_PORT)
-GATEWAY_WS_URL ?= ws://$(RESONANCE_GATEWAY_HTTP_HOST):$(RESONANCE_GATEWAY_HTTP_PORT)/ws
+# Docker Compose 命令
+COMPOSE := docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml
 
 # ============================================================================
-# Docker Compose Configurations
+# 帮助信息
 # ============================================================================
-COMPOSE_BASE := docker compose --env-file .env -f deploy/base.yaml
-COMPOSE_STACK := docker compose --env-file .env -f deploy/base.yaml -f deploy/services.yaml
+help: ## 显示帮助信息
+	@echo "Resonance 开发工具"
+	@echo ""
+	@echo "用法: make <target>"
+	@echo ""
+	@echo "常用命令:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 # ============================================================================
-# 1. Code Generation & Dependencies
+# 代码生成
 # ============================================================================
-PROTO_FILES := $(shell find api/proto -name "*.proto")
-GEN_TIMESTAMP := api/gen/.timestamp
-
-gen: $(GEN_TIMESTAMP)
-
-$(GEN_TIMESTAMP): $(PROTO_FILES) api/buf.yaml api/buf.gen.go.yaml api/buf.gen.connect.yaml api/buf.gen.ts.yaml
-	@echo "🔧 Generating contract code..."
+gen: ## 生成 protobuf 代码
+	@echo "🔧 生成 protobuf 代码..."
 	@cd api && buf generate --template buf.gen.go.yaml
 	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
 	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
-	@mkdir -p api/gen && touch $(GEN_TIMESTAMP)
-	@echo "✅ Code generation complete!"
+	@echo "✅ 代码生成完成"
 
-tidy:
-	@echo "🧹 Tidying go modules..."
+tidy: ## 整理 Go 依赖
+	@echo "🧹 整理 Go 依赖..."
 	@go mod tidy
+	@echo "✅ 完成"
 
 # ============================================================================
-# 2. Local Development (Mode 1)
+# 本地开发（直接运行，不用 Docker）
 # ============================================================================
-# Start Infrastructure (MySQL, Redis, Etcd, NATS...)
-infra:
-	@echo "🚀 Starting Infrastructure..."
-	@$(COMPOSE_BASE) up -d
-	@echo "✅ Infrastructure started!"
-
-# Stop Infrastructure
-infra-down:
-	@echo "🛑 Stopping Infrastructure..."
-	@$(COMPOSE_BASE) down
-	@echo "✅ Infrastructure stopped!"
-
-# Run All Services Locally (Requires infra started)
-dev: gen
-	@echo "🚀 Starting all services locally..."
-	@trap 'echo ""; echo "🛑 Stopping all services..."; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID $$WEB_PID 2>/dev/null; exit 0' INT TERM; \
-	echo "📡 Starting Logic service..."; \
+dev: gen ## 本地开发模式（需要先启动基础设施）
+	@echo "🚀 启动本地开发环境..."
+	@echo "⚠️  请确保已运行: make up"
+	@echo ""
+	@trap 'echo ""; echo "🛑 停止所有服务..."; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID $$WEB_PID 2>/dev/null; exit 0' INT TERM; \
+	echo "📡 启动 Logic..."; \
 	RESONANCE_ENV=dev go run main.go -module logic & LOGIC_PID=$$!; \
-	echo "   [Logic] PID: $$LOGIC_PID"; \
-	echo "📡 Starting Task service..."; \
+	echo "📡 启动 Task..."; \
 	RESONANCE_ENV=dev go run main.go -module task & TASK_PID=$$!; \
-	echo "   [Task] PID: $$TASK_PID"; \
-	echo "⏳ Waiting 2s..."; \
 	sleep 2; \
-	echo "🌐 Starting Gateway service..."; \
+	echo "🌐 启动 Gateway..."; \
 	RESONANCE_ENV=dev go run main.go -module gateway & GATEWAY_PID=$$!; \
-	echo "   [Gateway] PID: $$GATEWAY_PID"; \
-	echo "⏳ Waiting 2s..."; \
 	sleep 2; \
-	echo "🎨 Starting Web frontend..."; \
-	cd web && VITE_API_BASE_URL=$(GATEWAY_URL) npm run dev -- --host $(WEB_HOST) --port $(WEB_PORT) & WEB_PID=$$!; \
-	echo "   [Web] PID: $$WEB_PID"; \
+	echo "🎨 启动 Web..."; \
+	cd web && npm run dev & WEB_PID=$$!; \
 	echo ""; \
-	echo "✅ All services started!"; \
-	echo "📊 Service URLs:"; \
-	echo "  - Web:        http://$(WEB_HOST):$(WEB_PORT)"; \
-	echo "  - Gateway:    $(GATEWAY_URL)"; \
-	echo "  - Logic:      $(RESONANCE_LOGIC_GRPC_PORT)"; \
+	echo "✅ 所有服务已启动"; \
+	echo "📊 访问地址:"; \
+	echo "  - Web:     http://localhost:5173"; \
+	echo "  - Gateway: http://localhost:8080"; \
 	echo ""; \
-	echo "🔧 Press Ctrl+C to stop all services"; \
+	echo "🔧 按 Ctrl+C 停止"; \
 	wait
 
 # ============================================================================
-# 3. Production / Docker (Mode 2)
+# Docker 部署
 # ============================================================================
-# Build Docker Image
-image:
-	@chmod +x scripts/build-push.sh
-	@./scripts/build-push.sh local
+up: ## 启动所有服务（Docker）- 需要在 .env 中设置 RESONANCE_ENV=prod
+	@chmod +x scripts/deploy-local.sh
+	@./scripts/deploy-local.sh
 
-# Push Docker Image
-push:
-	@chmod +x scripts/build-push.sh
-	@./scripts/build-push.sh push
+down: ## 停止所有服务
+	@echo "🛑 停止服务..."
+	@$(COMPOSE) down
+	@echo "✅ 已停止"
 
-# Deploy to Docker (Uses DockerHub image by default)
-deploy:
-	@echo "🚀 Deploying to Docker (Production Image)..."
-	@$(COMPOSE_STACK) up -d
-	@echo "✅ Deployed!"
-	@echo "📊 Service URLs:"
+logs: ## 查看日志
+	@$(COMPOSE) logs -f
 
-# Deploy Local Image (Uses resonance:local)
-deploy-local:
-	@echo "🚀 Deploying to Docker (Local Image)..."
-	@RESONANCE_IMAGE=resonance:local $(COMPOSE_STACK) up -d
-	@echo "✅ Deployed!"
-	@echo "📊 Service URLs:"
-	@echo "  - Web: http://localhost:$(WEB_HTTP_PORT)"
-
-# Undeploy
-undeploy:
-	@echo "🛑 Stopping Docker deployment..."
-	@$(COMPOSE_STACK) down
-	@echo "✅ Stopped!"
-
-# ============================================================================
-# 4. Helpers
-# ============================================================================
-logs:
-	@$(COMPOSE_STACK) logs -f
-
-ps:
-	@$(COMPOSE_STACK) ps
-
-clean:
-	@echo "🗑️ Cleaning..."
-	@$(COMPOSE_STACK) down -v
-	@echo "✅ Cleaned!"
+clean: ## 清理所有数据（包括 volumes）
+	@echo "🗑️  清理数据..."
+	@$(COMPOSE) down -v
+	@echo "✅ 已清理"

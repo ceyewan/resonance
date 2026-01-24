@@ -54,10 +54,10 @@ FROM gcr.io/distroless/base-debian12:nonroot AS base
 
 FROM static AS final
 ARG CGO_ENABLED
-COPY --from=builder /app/bin/resonance /app/resonance
-COPY --from=builder /app/configs /app/configs
+COPY --from=builder --chown=nonroot:nonroot /app/bin/resonance /app/resonance
+COPY --from=builder --chown=nonroot:nonroot /app/configs /app/configs
 # 从前端构建阶段复制静态文件
-COPY --from=frontend-builder /src/web/dist /app/web/dist
+COPY --from=frontend-builder --chown=nonroot:nonroot /src/web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]
@@ -65,10 +65,10 @@ ENTRYPOINT ["/app/resonance"]
 FROM base AS final-cgo
 ARG CGO_ENABLED
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libsqlite3.so* /usr/lib/x86_64-linux-gnu/
-COPY --from=builder /app/bin/resonance /app/resonance
-COPY --from=builder /app/configs /app/configs
+COPY --from=builder --chown=nonroot:nonroot /app/bin/resonance /app/resonance
+COPY --from=builder --chown=nonroot:nonroot /app/configs /app/configs
 # 从前端构建阶段复制静态文件
-COPY --from=frontend-builder /src/web/dist /app/web/dist
+COPY --from=frontend-builder --chown=nonroot:nonroot /src/web/dist /app/web/dist
 WORKDIR /app
 USER nonroot:nonroot
 ENTRYPOINT ["/app/resonance"]

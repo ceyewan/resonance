@@ -1,5 +1,6 @@
 # ============================================================================
-# Gateway 服务配置
+# Gateway 服务配置（本地直接运行）
+# 用途：make dev - 本地直接运行 Go 程序，连接 127.0.0.1
 # ============================================================================
 
 service:
@@ -13,8 +14,8 @@ logic_service_name: logic-service  # Logic 服务名称
 
 # 基础组件配置
 log:
-  level: info
-  format: json
+  level: debug
+  format: console  # 开发环境使用 console 格式，方便调试
   output: stdout
 
 redis:
