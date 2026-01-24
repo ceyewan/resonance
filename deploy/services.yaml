@@ -48,6 +48,8 @@ services:
       - redis
       - etcd
       - nats
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
 
   gateway:
     <<: *resonance-service
@@ -73,6 +75,8 @@ services:
       caddy: ${CADDY_GATEWAY_DOMAIN:-}
       caddy.reverse_proxy: "{{upstreams 8080}}"
       caddy.encode: gzip
+      # Watchtower 自动更新
+      com.centurylinklabs.watchtower.enable: "true"
 
   task:
     <<: *resonance-service
@@ -89,6 +93,8 @@ services:
       - nats
       - etcd
       - gateway
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
 
   web:
     <<: *resonance-service
@@ -111,6 +117,30 @@ services:
       caddy: ${CADDY_WEB_DOMAIN:-}
       caddy.reverse_proxy: "{{upstreams 4173}}"
       caddy.encode: gzip
+      # Watchtower 自动更新
+      com.centurylinklabs.watchtower.enable: "true"
+
+  # Watchtower - 自动更新容器（仅生产环境）
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: resonance-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      # 每 60 秒检查一次镜像更新
+      - WATCHTOWER_POLL_INTERVAL=60
+      # 自动清理旧镜像
+      - WATCHTOWER_CLEANUP=true
+      # 只监控带有特定 label 的容器
+      - WATCHTOWER_LABEL_ENABLE=true
+      # 通知配置（可选）
+      # - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      # - WATCHTOWER_NOTIFICATION_URL=telegram://token@telegram?channels=chat_id
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"  # Watchtower 不监控自己
+    profiles:
+      - production  # 只在生产环境启用
 
 networks:
   caddy:

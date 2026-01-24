@@ -27,7 +27,7 @@ DEPLOY_ENV=local \
 RESONANCE_IMAGE=ceyewan/resonance:local \
 GATEWAY_PORT_BINDING="127.0.0.1:8080:8080" \
 WEB_PORT_BINDING="127.0.0.1:4173:4173" \
-docker compose -f deploy/base.yaml -f deploy/services.yaml up -d
+docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
 
 echo -e "${GREEN}✅ 服务已启动！${NC}"
 echo -e "${YELLOW}访问地址：${NC}"
