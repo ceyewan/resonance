@@ -2,13 +2,11 @@ package push
 
 import (
 	"context"
-	"io"
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 // Context 中 trace_id 的键（与 client.traceIDKey 保持一致）
@@ -29,38 +27,17 @@ func NewService(connMgr *connection.Manager, logger clog.Logger) *Service {
 	}
 }
 
-// PushMessage 实现 PushService.PushMessage（双向流）
-func (s *Service) PushMessage(srv gatewayv1.PushService_PushMessageServer) error {
-	s.logger.Info("push message stream established")
-
-	for {
-		req, err := srv.Recv()
-		if err != nil {
-			if err == io.EOF {
-				s.logger.Info("push message stream closed by client")
-				return nil
-			}
-			s.logger.Error("failed to receive push request", clog.Error(err))
-			return err
-		}
-
-		// 批量推送消息
-		resp := s.pushBatch(srv.Context(), req)
-
-		// 发送响应
-		if err := srv.Send(resp); err != nil {
-			s.logger.Error("failed to send push response", clog.Error(err))
-			return err
-		}
-	}
-}
-
-// pushBatch 批量推送消息给用户
-func (s *Service) pushBatch(ctx context.Context, req *gatewayv1.PushMessageRequest) *gatewayv1.PushMessageResponse {
+// Push 实现 PushService.Push（一元 RPC）
+// 接收 Task 推送的消息，分发给本 Gateway 的在线用户
+func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewayv1.PushResponse, error) {
 	message := req.Message
 	failedUsernames := make([]string, 0)
 
-	// 1. 构造 WebSocket 包 (只做一次)
+	s.logger.Debug("received push request",
+		clog.Int64("msg_id", message.MsgId),
+		clog.Int("user_count", len(req.ToUsernames)))
+
+	// 1. 构造 WebSocket 包
 	packet := &gatewayv1.WsPacket{
 		Payload: &gatewayv1.WsPacket_Push{
 			Push: message,
@@ -71,7 +48,7 @@ func (s *Service) pushBatch(ctx context.Context, req *gatewayv1.PushMessageReque
 	for _, username := range req.ToUsernames {
 		conn, ok := s.connMgr.GetConnection(username)
 		if !ok {
-			// 用户不在线，视为失败（或者忽略，取决于业务需求，这里记录为失败）
+			// 用户不在线
 			failedUsernames = append(failedUsernames, username)
 			continue
 		}
@@ -85,10 +62,16 @@ func (s *Service) pushBatch(ctx context.Context, req *gatewayv1.PushMessageReque
 		}
 	}
 
-	return &gatewayv1.PushMessageResponse{
+	successCount := len(req.ToUsernames) - len(failedUsernames)
+	s.logger.Debug("push completed",
+		clog.Int64("msg_id", message.MsgId),
+		clog.Int("success_count", successCount),
+		clog.Int("failed_count", len(failedUsernames)))
+
+	return &gatewayv1.PushResponse{
 		MsgId:           message.MsgId,
 		FailedUsernames: failedUsernames,
-	}
+	}, nil
 }
 
 // RegisterGRPC 注册 gRPC 服务
@@ -96,53 +79,10 @@ func (s *Service) RegisterGRPC(server *grpc.Server) {
 	gatewayv1.RegisterPushServiceServer(server, s)
 }
 
-// traceContextServerInterceptor 服务端一元拦截器
-// 从 metadata 提取 trace_id 并注入到 Context
-func traceContextServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		md, ok := metadata.FromIncomingContext(ctx)
-		if ok {
-			if values := md.Get("trace-id"); len(values) > 0 {
-				ctx = context.WithValue(ctx, traceIDKey, values[0])
-			}
-		}
-		return handler(ctx, req)
-	}
-}
-
-// traceContextStreamServerInterceptor 服务端流式拦截器
-// 从 metadata 提取 trace_id 并注入到 Context
-func traceContextStreamServerInterceptor() grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx := ss.Context()
-		md, ok := metadata.FromIncomingContext(ctx)
-		if ok {
-			if values := md.Get("trace-id"); len(values) > 0 {
-				ctx = context.WithValue(ctx, traceIDKey, values[0])
-				// 包装 ServerStream 以替换 Context
-				ss = &tracedServerStream{ServerStream: ss, ctx: ctx}
-			}
-		}
-		return handler(srv, ss)
-	}
-}
-
-// tracedServerStream 包装 ServerStream 以替换 Context
-type tracedServerStream struct {
-	grpc.ServerStream
-	ctx context.Context
-}
-
-func (t *tracedServerStream) Context() context.Context {
-	return t.ctx
-}
-
 // TraceUnaryServerInterceptor 导出一元拦截器
 func TraceUnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return traceContextServerInterceptor()
-}
-
-// TraceStreamServerInterceptor 导出流式拦截器
-func TraceStreamServerInterceptor() grpc.StreamServerInterceptor {
-	return traceContextStreamServerInterceptor()
+	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+		// trace_id 注入逻辑可在此处添加
+		return handler(ctx, req)
+	}
 }

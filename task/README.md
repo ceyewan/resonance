@@ -6,27 +6,26 @@ Task 是 Resonance IM 系统的异步任务处理服务，负责消息的写扩�
 
 ### 核心职责
 
-**消息处理流程**:
+**双消费者模式**:
 
-1. **消费 MQ** - 订阅 NATS 的 PushEvent 消息
-2. **写扩散** - 查询会话成员，为每个用户生成推送任务
-3. **服务发现** - 通过 Registry 查找用户连接的 Gateway 实例
-4. **推送到 Gateway** - 通过 gRPC 双向流推送消息
+1. **Storage Consumer** - 消费 MQ，执行消息写扩散（Inbox 落库）
+2. **Push Consumer** - 消费 MQ，查询用户路由并推送到 Gateway
 
 ### 目录结构
 
 ```
 task/
-├── config.go              # 配置管理
-├── task.go                # 主服务入口
-├── README.md              # 服务文档
-├── consumer/              # MQ 消费者
-│   └── consumer.go        # 消费 PushEvent，带重试机制
-├── dispatcher/            # 消息分发器
-│   └── dispatcher.go      # 写扩散逻辑，查询用户路由
-└── pusher/                # Gateway 推送客户端
-    ├── gateway_pusher.go  # GatewayPusher 对外接口
-    └── connection_manager.go  # 连接管理器（gatewayID -> gRPC 连接）
+├── config/              # 配置管理
+│   └── config.go        # 配置加载
+├── task.go              # 主服务入口
+├── README.md            # 服务文档
+├── consumer/            # MQ 消费者
+│   └── consumer.go      # 通用消费者，支持依赖注入处理函数
+├── dispatcher/          # 消息分发器
+│   └── dispatcher.go    # DispatchStorage (写扩散) / DispatchPush (推送)
+└── pusher/              # Gateway 推送客户端
+    ├── manager.go       # 连接管理器（gatewayID -> RPC Client）
+    └── client.go        # 单个 Gateway 的推送客户端（队列 + Loop）
 ```
 
 ## 🔄 消息流转
@@ -38,47 +37,61 @@ Logic (MQ Publish)
   ↓
 NATS (PushEvent)
   ↓
-Task Consumer (订阅消费)
-  ↓
-Dispatcher (写扩散)
-  ↓ 查询会话成员
-SessionRepo.GetMembers()
-  ↓ 查询用户路由（GatewayID）
-RouterRepo.GetUserGateway()
-  ↓ 服务发现，查找 Gateway 实例
-Registry.GetService("gateway-service")
-  ↓ 匹配 instance.Metadata["gateway_id"]
-ConnectionManager.getOrCreateConn()
-  ↓ 推送消息
-Gateway PushService (gRPC 双向流)
-  ↓
-WebSocket Client
+┌─────────────────────────────────────┐
+│         Task 双消费者模式              │
+├─────────────────────────────────────┤
+│                                     │
+│  ┌────────────────┐  ┌────────────┐ │
+│  │ Storage Consumer│  │Push Consumer│ │
+│  └────────┬───────┘  └──────┬─────┘ │
+│           │                  │       │
+│           ▼                  ▼       │
+│    DispatchStorage    DispatchPush   │
+│    (写扩散落库)       (查询路由)      │
+│           │                  │       │
+│           ▼                  ▼       │
+│      Inbox 表         RouterRepo     │
+│                       (GatewayID)    │
+│                           │          │
+│                           ▼          │
+│                    按 Gateway 分组   │
+│                           │          │
+│                           ▼          │
+│                    ┌──────────────┐  │
+│                    │ Pusher Queue │  │
+│                    │  (异步持久化)  │  │
+│                    └──────┬───────┘  │
+│                           │          │
+│                           ▼          │
+│                    ┌──────────────┐  │
+│                    │  pushLoop()  │  │
+│                    │  (goroutine) │  │
+│                    └──────┬───────┘  │
+│                           │          │
+│                           ▼          │
+│                    Unary RPC Push   │
+│                           │          │
+└───────────────────────────┼──────────┘
+                            ▼
+                    Gateway PushService
+                            ▼
+                      WebSocket Client
 ```
 
-### 服务发现机制
+### 设计优势
 
-**GatewayID 是逻辑标识符**（如 `gateway-001`），存储在：
+**职责分离**:
+- Storage Consumer 专注消息落库，失败可重试
+- Push Consumer 专注在线推送，解耦存储和推送
 
-- Registry 的 ServiceInstance.Metadata 中：`metadata["gateway_id"] = "gateway-001"`
-- Router 表中：`router.gateway_id` 记录用户连接的 Gateway
+**异步持久化**:
+- 每个 Gateway 维护独立队列和推送 Loop
+- MQ 消费不阻塞推送，提高吞吐量
+- Gateway 重启不影响队列中待推送消息
 
-**查找流程**:
-
-```go
-// 1. RouterRepo 获取用户的 GatewayID
-router, _ := routerRepo.GetUserGateway(ctx, username)
-// router.GatewayID == "gateway-001"
-
-// 2. Registry 查找所有 Gateway 实例
-instances, _ := registry.GetService(ctx, "gateway-service")
-
-// 3. 匹配 gateway_id
-for _, inst := range instances {
-    if inst.Metadata["gateway_id"] == "gateway-001" {
-        return inst, nil  // 找到目标实例
-    }
-}
-```
+**资源隔离**:
+- 两个消费者独立配置 Worker 数
+- 存储慢不影响推送，推送慢不影响存储
 
 ## ⚙️ 配置说明
 
@@ -96,34 +109,28 @@ type Config struct {
 
     // Gateway 服务配置
     GatewayServiceName string // Gateway 服务名称（默认: gateway-service）
+    GatewayQueueSize   int    // 每个 Gateway 的推送队列大小（默认: 1000）
 
-    // 消费者配置
-    ConsumerConfig ConsumerConfig
-}
-
-type RegistryConfig struct {
-    Namespace       string        // 服务命名空间（默认: /resonance/services）
-    DefaultTTL      time.Duration // 默认租约（默认: 30s）
-    EnableCache     bool          // 是否启用缓存
-    CacheExpiration time.Duration // 缓存过期时间（默认: 10s）
+    // 消费者配置（双消费者）
+    StorageConsumer ConsumerConfig // 存储消费者
+    PushConsumer    ConsumerConfig // 推送消费者
 }
 
 type ConsumerConfig struct {
-    Topic         string // 订阅的主题 (默认: resonance.push.event.v1)
-    QueueGroup    string // 队列组名称 (默认: task-service)
-    WorkerCount   int    // 并发处理协程数 (默认: 10)
-    MaxRetry      int    // 最大重试次数 (默认: 3)
-    RetryInterval int    // 重试间隔（秒）(默认: 5)
+    Topic         string // 订阅的主题
+    QueueGroup    string // 队列组名称
+    WorkerCount   int    // 并发处理协程数
+    MaxRetry      int    // 最大重试次数
+    RetryInterval int    // 重试间隔（秒）
 }
 ```
 
 ### 配置文件示例
 
 ```yaml
-# config/task.yaml
+# configs/task.yaml
 log:
   level: debug
-  format: console
 
 mysql:
   host: 127.0.0.1
@@ -143,205 +150,213 @@ etcd:
 registry:
   namespace: /resonance/services
   default_ttl: 30s
-  enable_cache: true
 
 gateway_service_name: gateway-service
+gateway_queue_size: 1000
 
-consumer:
+storage_consumer:
   topic: resonance.push.event.v1
-  queue_group: task-service
-  worker_count: 10
+  queue_group: resonance_group_storage
+  worker_count: 20
+  max_retry: 3
+  retry_interval: 5
+
+push_consumer:
+  topic: resonance.push.event.v1
+  queue_group: resonance_group_push
+  worker_count: 50
   max_retry: 3
   retry_interval: 5
 ```
 
-## 🚀 使用示例
-
-```go
-package main
-
-import (
-    "os"
-    "os/signal"
-    "syscall"
-
-    "github.com/ceyewan/resonance/task"
-    "github.com/ceyewan/resonance/internal/repo"
-)
-
-func main() {
-    // 创建配置
-    cfg := task.DefaultConfig()
-
-    // 创建 Task 实例
-    t, err := task.New(cfg)
-    if err != nil {
-        panic(err)
-    }
-
-    // 注入 Repo 实现（必须）
-    t.SetRepositories(routerRepo, sessionRepo)
-
-    // 启动服务
-    go func() {
-        if err := t.Run(); err != nil {
-            panic(err)
-        }
-    }()
-
-    // 等待退出信号
-    sigChan := make(chan os.Signal, 1)
-    signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-    <-sigChan
-
-    // 优雅关闭
-    t.Close()
-}
-```
-
 ## 🔑 关键组件
 
-### 1. Consumer (MQ 消费者)
+### 1. Consumer (通用消费者)
 
 **职责**:
 
-- 订阅 NATS 的 `resonance.push.event.v1` 主题
-- 使用 Handler 模式处理消息
-- 解析 PushEvent 并调用 Dispatcher
-- 处理成功后 Ack，失败后 Nak 重新入队
-
-**特性**:
-
-- 队列组订阅（多个 Task 实例负载均衡）
-- 带重试机制（最多重试 3 次，间隔 5 秒）
-- 优雅关闭（等待正在处理的消息完成）
+- 订阅 NATS 主题（支持 Queue Group）
+- Worker Pool 并发处理消息
+- 依赖注入处理函数，支持不同业务逻辑
 
 ```go
-// Handler 签名
-func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
-    // 1. 解析 PushEvent
-    event := &mqv1.PushEvent{}
-    proto.Unmarshal(msg.Data(), event)
+type HandlerFunc func(context.Context, *mqv1.PushEvent) error
 
-    // 2. 调用 Dispatcher（带重试）
-    return c.processWithRetry(event)
-}
+func NewConsumer(
+    mqClient mq.Client,
+    handler  HandlerFunc,
+    config   config.ConsumerConfig,
+    logger   clog.Logger,
+) *Consumer
+```
+
+**双消费者初始化**:
+
+```go
+// Storage Consumer - 处理写扩散
+storageConsumer := consumer.NewConsumer(
+    mqClient,
+    dispatcher.DispatchStorage,
+    cfg.StorageConsumer,
+    logger,
+)
+
+// Push Consumer - 处理推送
+pushConsumer := consumer.NewConsumer(
+    mqClient,
+    dispatcher.DispatchPush,
+    cfg.PushConsumer,
+    logger,
+)
 ```
 
 ### 2. Dispatcher (消息分发器)
 
-**职责**:
+**职责分离**:
 
-- 查询会话成员列表（SessionRepo）
-- 查询每个成员的路由信息（RouterRepo）
-- 调用 Pusher 推送消息
-
-**写扩散逻辑**:
+- `DispatchStorage` - 执行写扩散落库
+- `DispatchPush` - 查询路由，投递推送任务到队列
 
 ```go
-func (d *Dispatcher) Dispatch(ctx context.Context, event *mqv1.PushEvent) error {
+// DispatchStorage - 写扩散
+func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
     // 1. 获取会话成员
     members, _ := d.sessionRepo.GetMembers(ctx, event.SessionId)
 
-    // 2. 遍历成员推送
-    for _, member := range members {
-        // 获取用户的 GatewayID
-        router, _ := d.routerRepo.GetUserGateway(ctx, member.Username)
-        if router == nil {
-            continue // 用户离线或无路由
+    // 2. 构造 Inbox 记录
+    inboxes := make([]*model.Inbox, len(members))
+    for i, m := range members {
+        inboxes[i] = &model.Inbox{
+            OwnerUsername: m.Username,
+            SessionID:     event.SessionId,
+            MsgID:         event.MsgId,
+            SeqID:         event.SeqId,
         }
+    }
 
-        // 构造推送消息
-        pushMsg := &gatewayv1.PushMessage{
-            MsgId:   event.MsgId,
-            SeqId:   event.SeqId,
-            From:    event.From,
-            Type:    event.Type,
-            Content: event.Content,
+    // 3. 批量落库
+    return d.messageRepo.SaveInbox(ctx, inboxes)
+}
+
+// DispatchPush - 推送
+func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
+    // 1. 获取会话成员（排除发送者）
+    // 2. 批量获取用户路由 (GatewayID)
+    // 3. 按 GatewayID 分组
+    // 4. 投递到各 Gateway 的推送队列
+}
+```
+
+### 3. Pusher.Manager (连接管理器)
+
+**职责**:
+
+- 管理所有 Gateway 的 RPC Client
+- 通过 Etcd Registry 发现 Gateway 实例
+- 为每个 Gateway 创建独立队列和推送 Loop
+
+```go
+type Manager struct {
+    registry   registry.Registry
+    queueSize  int              // 每个 Gateway 的队列大小
+    clients    map[string]*GatewayClient  // gatewayID -> Client
+}
+
+// 每个 GatewayClient 有独立的推送队列和 Loop
+type GatewayClient struct {
+    client    gatewayv1.PushServiceClient
+    pushQueue chan *PushTask   // 推送队列
+    logger    clog.Logger
+    ctx       context.Context
+    cancel    context.CancelFunc
+    wg        *sync.WaitGroup
+}
+```
+
+**推送流程**:
+
+```
+DispatchPush
+    ↓
+按 GatewayID 分组
+    ↓
+Manager.GetClient(gatewayID)
+    ↓
+GatewayClient.Enqueue(task)  // 非阻塞投递
+    ↓
+pushLoop() goroutine
+    ↓
+Unary RPC Push → Gateway
+```
+
+### 4. GatewayClient (单 Gateway 推送客户端)
+
+**异步持久化模式**:
+
+```go
+// 每个 Gateway 独立的推送 Loop
+func (c *GatewayClient) pushLoop() {
+    for {
+        select {
+        case <-c.ctx.Done():
+            return
+        case task := <-c.pushQueue:
+            c.doPush(task)  // 一元 RPC
         }
-
-        // 推送到指定 Gateway
-        d.pusher.Push(ctx, router.GatewayID, member.Username, pushMsg)
     }
 }
-```
 
-### 3. ConnectionManager (连接管理器)
+func (c *GatewayClient) doPush(task *PushTask) {
+    ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
+    defer cancel()
 
-**职责**:
-
-- 管理 gatewayID → gRPC 连接的映射
-- 通过 Registry 查找 Gateway 实例
-- 为每个 Gateway 维护一个双向流
-- 连接健康检查和自动重连
-
-**核心方法**:
-
-```go
-type ConnectionManager struct {
-    registry registry.Registry                  // 服务发现
-    service  string                             // Gateway 服务名
-    clients  map[string]*GatewayConn            // gatewayID -> 连接
-    mu       sync.RWMutex
-    logger   clog.Logger
+    resp, err := c.client.Push(ctx, &gatewayv1.PushRequest{
+        ToUsernames: task.ToUsernames,
+        Message:     task.Message,
+    })
+    // 错误处理...
 }
-
-// Push 推送消息到指定 Gateway
-func (cm *ConnectionManager) Push(ctx context.Context, gatewayID, username string, msg *gatewayv1.PushMessage) error
-
-// findGatewayInstance 在注册中心查找指定 gatewayID 的实例
-func (cm *ConnectionManager) findGatewayInstance(ctx context.Context, gatewayID string) (*registry.ServiceInstance, error)
 ```
 
-**连接特性**:
+**特性**:
 
-- **懒加载连接**: 首次使用时创建连接
-- **连接复用**: 后续推送复用已有连接
-- **健康检查**: 5 分钟未使用的连接被视为不健康
-- **自动重连**: 流断开后自动重建
-
-### 4. GatewayPusher (Gateway 推送客户端)
-
-**职责**:
-
-- 封装 ConnectionManager，提供简洁的推送接口
-
-```go
-type GatewayPusher struct {
-    connMgr *ConnectionManager
-    logger  clog.Logger
-}
-
-// Push 推送消息到指定 Gateway 的指定用户
-func (p *GatewayPusher) Push(ctx context.Context, gatewayID, username string, msg *gatewayv1.PushMessage) error
-```
+- **独立队列**: 每个 Gateway 一个 buffered channel
+- **独立 Loop**: 每个 Gateway 一个 goroutine 持续推送
+- **非阻塞投递**: `Enqueue()` 队列满立即返回错误
+- **优雅关闭**: `Close()` 等待队列清空
 
 ## 📊 性能考虑
 
-### 并发处理
+### 双消费者优势
 
-- **Worker 数量**: 默认 10 个，可根据消息量调整
-- **推送并发**: 每个会话的成员推送可优化为并发（当前串行）
+| 场景 | 单消费者 | 双消费者 |
+|------|---------|---------|
+| 存储慢 | 阻塞推送 | 推送继续 |
+| 推送慢 | 阻塞存储 | 存储继续 |
+| Worker 配置 | 共享 | 独立配置 |
+| 重试策略 | 统一 | 分离 |
 
-### 连接管理
+### 并发配置
 
-- **连接池**: 每个 GatewayID 一个 gRPC 连接
-- **健康检查**: 5 分钟未使用的连接关闭
-- **双向流复用**: 单个连接处理所有推送请求
+```yaml
+storage_consumer:
+  worker_count: 20   # 存储需要更多 Worker（数据库 IO）
 
-### 重试策略
+push_consumer:
+  worker_count: 50   # 推送需要更多 Worker（网络 IO）
+```
 
-- **消费者重试**: 最大 3 次，间隔 5 秒
-- **失败处理**: 重试失败后 Nak，消息重新入队
-- **连接重试**: 流断开后自动重连
+### 推送队列
+
+- **队列大小**: 默认 1000，可按 Gateway 数量和消息量调整
+- **监控**: `GatewayClient.QueueSize()` 可获取当前队列长度
+- **非阻塞**: 队列满时 `Enqueue()` 返回错误，由 Consumer 重试
 
 ## 📝 待完善功能
 
-- [ ] 离线消息存储（当前离线用户直接跳过）
-- [ ] 推送优先级（重要消息优先推送）
+- [ ] 推送失败重试（当前仅记录日志）
+- [ ] 推送优先级队列
 - [ ] 推送去重（避免重复推送）
 - [ ] 推送统计（成功率、延迟监控）
 - [ ] 大群聊优化（读扩散策略）
-- [ ] 推送失败告警
-- [ ] 性能监控和指标上报
 - [ ] 单元测试和集成测试

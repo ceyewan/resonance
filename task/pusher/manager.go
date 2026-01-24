@@ -16,6 +16,7 @@ type Manager struct {
 	logger             clog.Logger
 	registry           registry.Registry
 	gatewayServiceName string
+	queueSize          int // 每个 Gateway 的队列大小
 
 	clients map[string]*GatewayClient // gatewayID -> Client
 	mu      sync.RWMutex
@@ -25,12 +26,13 @@ type Manager struct {
 }
 
 // NewManager 创建 Pusher Manager
-func NewManager(logger clog.Logger, reg registry.Registry, serviceName string) *Manager {
+func NewManager(logger clog.Logger, reg registry.Registry, serviceName string, queueSize int) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		logger:             logger,
 		registry:           reg,
 		gatewayServiceName: serviceName,
+		queueSize:          queueSize,
 		clients:            make(map[string]*GatewayClient),
 		ctx:                ctx,
 		cancel:             cancel,
@@ -108,7 +110,6 @@ func (m *Manager) addClient(svc *registry.ServiceInstance) {
 
 	// 检查是否已存在
 	if _, exists := m.clients[svc.ID]; exists {
-		// 暂时不处理更新，因为 ID 相同通常地址不变
 		return
 	}
 
@@ -120,14 +121,20 @@ func (m *Manager) addClient(svc *registry.ServiceInstance) {
 	// endpoints: ["grpc://127.0.0.1:9091"]
 	addr := strings.TrimPrefix(svc.Endpoints[0], "grpc://")
 
-	client, err := NewClient(addr, svc.ID)
+	client, err := NewClient(addr, svc.ID, m.queueSize, m.logger)
 	if err != nil {
-		m.logger.Error("failed to create gateway client", clog.String("id", svc.ID), clog.String("addr", addr), clog.Error(err))
+		m.logger.Error("failed to create gateway client",
+			clog.String("id", svc.ID),
+			clog.String("addr", addr),
+			clog.Error(err))
 		return
 	}
 
 	m.clients[svc.ID] = client
-	m.logger.Info("gateway client connected", clog.String("id", svc.ID), clog.String("addr", addr))
+	m.logger.Info("gateway client connected",
+		clog.String("id", svc.ID),
+		clog.String("addr", addr),
+		clog.Int("queue_size", m.queueSize))
 }
 
 // GetClient 获取指定 Gateway 的客户端

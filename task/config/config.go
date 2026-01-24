@@ -32,6 +32,7 @@ type Config struct {
 
 	// Gateway 服务配置
 	GatewayServiceName string `mapstructure:"gateway_service_name"` // Gateway 服务名称
+	GatewayQueueSize   int    `mapstructure:"gateway_queue_size"`  // 每个 Gateway 的推送队列大小
 
 	// 消费者配置
 	StorageConsumer ConsumerConfig `mapstructure:"storage_consumer"` // 存储任务消费者

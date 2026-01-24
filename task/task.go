@@ -83,7 +83,11 @@ func (t *Task) initComponents() error {
 	t.resources = res
 
 	// 3. 初始化 Pusher Manager
-	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName)
+	queueSize := t.config.GatewayQueueSize
+	if queueSize <= 0 {
+		queueSize = 1000 // 默认每个 Gateway 队列大小 1000
+	}
+	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName, queueSize)
 
 	// 4. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(

@@ -82,6 +82,7 @@ func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent)
 }
 
 // DispatchPush 处理推送任务（在线推送）
+// 将消息投递到对应 Gateway 的推送队列，由 GatewayClient 的 loop 异步执行
 func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
 	d.logger.Info("dispatching push task",
 		clog.Int64("msg_id", event.MsgId),
@@ -144,7 +145,7 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 		}
 	}
 
-	// 6. 并发推送给各个 Gateway
+	// 6. 投递到各 Gateway 的推送队列
 	successCount := 0
 	for gatewayID, users := range gatewayGroups {
 		// 获取 Pusher Client
@@ -156,9 +157,14 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 			continue
 		}
 
-		// 批量推送到对应的 Gateway
-		if err := client.PushBatch(ctx, users, pushMsg); err != nil {
-			d.logger.Error("failed to push batch to gateway",
+		// 投递任务到队列（非阻塞）
+		task := &pusher.PushTask{
+			ToUsernames: users,
+			Message:     pushMsg,
+		}
+
+		if err := client.Enqueue(task); err != nil {
+			d.logger.Error("failed to enqueue push task",
 				clog.String("gateway_id", gatewayID),
 				clog.Int("user_count", len(users)),
 				clog.Error(err))
@@ -166,15 +172,16 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 		}
 
 		successCount += len(users)
-		d.logger.Debug("pushed batch to gateway",
+		d.logger.Debug("enqueued push task",
 			clog.String("gateway_id", gatewayID),
-			clog.Int("user_count", len(users)))
+			clog.Int("user_count", len(users)),
+			clog.Int("queue_size", client.QueueSize()))
 	}
 
-	d.logger.Info("push task completed",
+	d.logger.Info("push task enqueued",
 		clog.Int64("msg_id", event.MsgId),
 		clog.Int("total_targets", len(usernames)),
-		clog.Int("online_targets", successCount))
+		clog.Int("enqueued_targets", successCount))
 
 	return nil
 }

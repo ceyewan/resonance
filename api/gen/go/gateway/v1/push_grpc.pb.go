@@ -19,18 +19,18 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PushService_PushMessage_FullMethodName = "/resonance.gateway.v1.PushService/PushMessage"
+	PushService_Push_FullMethodName = "/resonance.gateway.v1.PushService/Push"
 )
 
 // PushServiceClient is the client API for PushService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// PushService 处理从 Logic 推送消息到网关的请求
+// PushService 处理从 Task 推送消息到网关的请求
 type PushServiceClient interface {
-	// PushMessage 将消息流式传输到网关以传递给用户 (双向流)
-	// Logic 持续推送，Gateway 持续返回 Ack
-	PushMessage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PushMessageRequest, PushMessageResponse], error)
+	// Push 一元 RPC 推送单条消息到网关
+	// Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
+	Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error)
 }
 
 type pushServiceClient struct {
@@ -41,28 +41,25 @@ func NewPushServiceClient(cc grpc.ClientConnInterface) PushServiceClient {
 	return &pushServiceClient{cc}
 }
 
-func (c *pushServiceClient) PushMessage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[PushMessageRequest, PushMessageResponse], error) {
+func (c *pushServiceClient) Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &PushService_ServiceDesc.Streams[0], PushService_PushMessage_FullMethodName, cOpts...)
+	out := new(PushResponse)
+	err := c.cc.Invoke(ctx, PushService_Push_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[PushMessageRequest, PushMessageResponse]{ClientStream: stream}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PushService_PushMessageClient = grpc.BidiStreamingClient[PushMessageRequest, PushMessageResponse]
 
 // PushServiceServer is the server API for PushService service.
 // All implementations must embed UnimplementedPushServiceServer
 // for forward compatibility.
 //
-// PushService 处理从 Logic 推送消息到网关的请求
+// PushService 处理从 Task 推送消息到网关的请求
 type PushServiceServer interface {
-	// PushMessage 将消息流式传输到网关以传递给用户 (双向流)
-	// Logic 持续推送，Gateway 持续返回 Ack
-	PushMessage(grpc.BidiStreamingServer[PushMessageRequest, PushMessageResponse]) error
+	// Push 一元 RPC 推送单条消息到网关
+	// Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
+	Push(context.Context, *PushRequest) (*PushResponse, error)
 	mustEmbedUnimplementedPushServiceServer()
 }
 
@@ -73,8 +70,8 @@ type PushServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPushServiceServer struct{}
 
-func (UnimplementedPushServiceServer) PushMessage(grpc.BidiStreamingServer[PushMessageRequest, PushMessageResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method PushMessage not implemented")
+func (UnimplementedPushServiceServer) Push(context.Context, *PushRequest) (*PushResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Push not implemented")
 }
 func (UnimplementedPushServiceServer) mustEmbedUnimplementedPushServiceServer() {}
 func (UnimplementedPushServiceServer) testEmbeddedByValue()                     {}
@@ -97,12 +94,23 @@ func RegisterPushServiceServer(s grpc.ServiceRegistrar, srv PushServiceServer) {
 	s.RegisterService(&PushService_ServiceDesc, srv)
 }
 
-func _PushService_PushMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(PushServiceServer).PushMessage(&grpc.GenericServerStream[PushMessageRequest, PushMessageResponse]{ServerStream: stream})
+func _PushService_Push_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PushRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PushServiceServer).Push(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PushService_Push_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PushServiceServer).Push(ctx, req.(*PushRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PushService_PushMessageServer = grpc.BidiStreamingServer[PushMessageRequest, PushMessageResponse]
 
 // PushService_ServiceDesc is the grpc.ServiceDesc for PushService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -110,14 +118,12 @@ type PushService_PushMessageServer = grpc.BidiStreamingServer[PushMessageRequest
 var PushService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "resonance.gateway.v1.PushService",
 	HandlerType: (*PushServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "PushMessage",
-			Handler:       _PushService_PushMessage_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
+			MethodName: "Push",
+			Handler:    _PushService_Push_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "gateway/v1/push.proto",
 }

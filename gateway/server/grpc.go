@@ -29,7 +29,6 @@ func NewGRPCServer(addr string, logger clog.Logger, pushService *push.Service) *
 func (s *GRPCServer) Start() error {
 	s.server = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(push.TraceUnaryServerInterceptor()),
-		grpc.ChainStreamInterceptor(push.TraceStreamServerInterceptor()),
 	)
 	s.pushService.RegisterGRPC(s.server)
 

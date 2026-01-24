@@ -6,19 +6,19 @@ import "gateway/v1/packet.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
 
-// PushService 处理从 Logic 推送消息到网关的请求
+// PushService 处理从 Task 推送消息到网关的请求
 service PushService {
-  // PushMessage 将消息流式传输到网关以传递给用户 (双向流)
-  // Logic 持续推送，Gateway 持续返回 Ack
-  rpc PushMessage(stream PushMessageRequest) returns (stream PushMessageResponse);
+  // Push 一元 RPC 推送单条消息到网关
+  // Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
+  rpc Push(PushRequest) returns (PushResponse);
 }
 
-message PushMessageRequest {
-  repeated string to_usernames = 1; // 支持批量推送
-  PushMessage     message      = 2;
+message PushRequest {
+  repeated string to_usernames = 1; // 目标用户列表
+  PushMessage     message      = 2; // 推送消息
 }
 
-message PushMessageResponse {
+message PushResponse {
   int64           msg_id           = 1; // 对应消息ID
   string          error            = 2; // 错误信息
   repeated string failed_usernames = 3; // 推送失败的用户列表
