@@ -56,6 +56,9 @@ const (
 	// SessionServiceSearchUserProcedure is the fully-qualified name of the SessionService's SearchUser
 	// RPC.
 	SessionServiceSearchUserProcedure = "/resonance.gateway.v1.SessionService/SearchUser"
+	// SessionServiceUpdateReadPositionProcedure is the fully-qualified name of the SessionService's
+	// UpdateReadPosition RPC.
+	SessionServiceUpdateReadPositionProcedure = "/resonance.gateway.v1.SessionService/UpdateReadPosition"
 )
 
 // AuthServiceClient is a client for the resonance.gateway.v1.AuthService service.
@@ -198,6 +201,8 @@ type SessionServiceClient interface {
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	// SearchUser 搜索用户
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
+	// UpdateReadPosition 更新会话已读位置
+	UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the resonance.gateway.v1.SessionService service.
@@ -241,16 +246,23 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("SearchUser")),
 			connect.WithClientOptions(opts...),
 		),
+		updateReadPosition: connect.NewClient[v1.UpdateReadPositionRequest, v1.UpdateReadPositionResponse](
+			httpClient,
+			baseURL+SessionServiceUpdateReadPositionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("UpdateReadPosition")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // sessionServiceClient implements SessionServiceClient.
 type sessionServiceClient struct {
-	getSessionList    *connect.Client[v1.GetSessionListRequest, v1.GetSessionListResponse]
-	createSession     *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
-	getRecentMessages *connect.Client[v1.GetRecentMessagesRequest, v1.GetRecentMessagesResponse]
-	getContactList    *connect.Client[v1.GetContactListRequest, v1.GetContactListResponse]
-	searchUser        *connect.Client[v1.SearchUserRequest, v1.SearchUserResponse]
+	getSessionList     *connect.Client[v1.GetSessionListRequest, v1.GetSessionListResponse]
+	createSession      *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
+	getRecentMessages  *connect.Client[v1.GetRecentMessagesRequest, v1.GetRecentMessagesResponse]
+	getContactList     *connect.Client[v1.GetContactListRequest, v1.GetContactListResponse]
+	searchUser         *connect.Client[v1.SearchUserRequest, v1.SearchUserResponse]
+	updateReadPosition *connect.Client[v1.UpdateReadPositionRequest, v1.UpdateReadPositionResponse]
 }
 
 // GetSessionList calls resonance.gateway.v1.SessionService.GetSessionList.
@@ -278,6 +290,11 @@ func (c *sessionServiceClient) SearchUser(ctx context.Context, req *connect.Requ
 	return c.searchUser.CallUnary(ctx, req)
 }
 
+// UpdateReadPosition calls resonance.gateway.v1.SessionService.UpdateReadPosition.
+func (c *sessionServiceClient) UpdateReadPosition(ctx context.Context, req *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error) {
+	return c.updateReadPosition.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the resonance.gateway.v1.SessionService service.
 type SessionServiceHandler interface {
 	// GetSessionList 获取用户的会话列表
@@ -290,6 +307,8 @@ type SessionServiceHandler interface {
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	// SearchUser 搜索用户
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
+	// UpdateReadPosition 更新会话已读位置
+	UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -329,6 +348,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("SearchUser")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServiceUpdateReadPositionHandler := connect.NewUnaryHandler(
+		SessionServiceUpdateReadPositionProcedure,
+		svc.UpdateReadPosition,
+		connect.WithSchema(sessionServiceMethods.ByName("UpdateReadPosition")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/resonance.gateway.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceGetSessionListProcedure:
@@ -341,6 +366,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceGetContactListHandler.ServeHTTP(w, r)
 		case SessionServiceSearchUserProcedure:
 			sessionServiceSearchUserHandler.ServeHTTP(w, r)
+		case SessionServiceUpdateReadPositionProcedure:
+			sessionServiceUpdateReadPositionHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -368,4 +395,8 @@ func (UnimplementedSessionServiceHandler) GetContactList(context.Context, *conne
 
 func (UnimplementedSessionServiceHandler) SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.SearchUser is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.UpdateReadPosition is not implemented"))
 }

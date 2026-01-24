@@ -23,6 +23,19 @@ service SessionService {
 
   // SearchUser 搜索用户（用于发起新聊天）
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
+
+  // UpdateReadPosition 更新会话已读位置
+  rpc UpdateReadPosition(UpdateReadPositionRequest) returns (UpdateReadPositionResponse);
+}
+
+message UpdateReadPositionRequest {
+  string session_id = 1;
+  int64  seq_id     = 2; // 用户当前读到的最新一条消息的 seq_id
+  string username   = 3; // 操作用户
+}
+
+message UpdateReadPositionResponse {
+  int64 unread_count = 1; // 更新后的未读数（理论上应为0，或者是 max_seq - new_read_seq）
 }
 
 message GetSessionListRequest {

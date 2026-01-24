@@ -35,6 +35,9 @@ service SessionService {
 
   // SearchUser 搜索用户
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
+
+  // UpdateReadPosition 更新会话已读位置
+  rpc UpdateReadPosition(UpdateReadPositionRequest) returns (UpdateReadPositionResponse);
 }
 
 message LoginRequest {
@@ -127,4 +130,14 @@ message SearchUserRequest {
 
 message SearchUserResponse {
   repeated ContactInfo users = 1;
+}
+
+message UpdateReadPositionRequest {
+  string access_token = 1;
+  string session_id   = 2;
+  int64  seq_id       = 3;
+}
+
+message UpdateReadPositionResponse {
+  int64 unread_count = 1;
 }

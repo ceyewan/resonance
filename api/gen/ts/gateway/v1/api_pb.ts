@@ -794,3 +794,89 @@ export class SearchUserResponse extends Message<SearchUserResponse> {
   }
 }
 
+/**
+ * @generated from message resonance.gateway.v1.UpdateReadPositionRequest
+ */
+export class UpdateReadPositionRequest extends Message<UpdateReadPositionRequest> {
+  /**
+   * @generated from field: string access_token = 1;
+   */
+  accessToken = "";
+
+  /**
+   * @generated from field: string session_id = 2;
+   */
+  sessionId = "";
+
+  /**
+   * @generated from field: int64 seq_id = 3;
+   */
+  seqId = protoInt64.zero;
+
+  constructor(data?: PartialMessage<UpdateReadPositionRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "resonance.gateway.v1.UpdateReadPositionRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateReadPositionRequest {
+    return new UpdateReadPositionRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateReadPositionRequest {
+    return new UpdateReadPositionRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateReadPositionRequest {
+    return new UpdateReadPositionRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateReadPositionRequest | PlainMessage<UpdateReadPositionRequest> | undefined, b: UpdateReadPositionRequest | PlainMessage<UpdateReadPositionRequest> | undefined): boolean {
+    return proto3.util.equals(UpdateReadPositionRequest, a, b);
+  }
+}
+
+/**
+ * @generated from message resonance.gateway.v1.UpdateReadPositionResponse
+ */
+export class UpdateReadPositionResponse extends Message<UpdateReadPositionResponse> {
+  /**
+   * @generated from field: int64 unread_count = 1;
+   */
+  unreadCount = protoInt64.zero;
+
+  constructor(data?: PartialMessage<UpdateReadPositionResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "resonance.gateway.v1.UpdateReadPositionResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "unread_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateReadPositionResponse {
+    return new UpdateReadPositionResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): UpdateReadPositionResponse {
+    return new UpdateReadPositionResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): UpdateReadPositionResponse {
+    return new UpdateReadPositionResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: UpdateReadPositionResponse | PlainMessage<UpdateReadPositionResponse> | undefined, b: UpdateReadPositionResponse | PlainMessage<UpdateReadPositionResponse> | undefined): boolean {
+    return proto3.util.equals(UpdateReadPositionResponse, a, b);
+  }
+}
+

@@ -207,11 +207,12 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SessionService_GetSessionList_FullMethodName    = "/resonance.gateway.v1.SessionService/GetSessionList"
-	SessionService_CreateSession_FullMethodName     = "/resonance.gateway.v1.SessionService/CreateSession"
-	SessionService_GetRecentMessages_FullMethodName = "/resonance.gateway.v1.SessionService/GetRecentMessages"
-	SessionService_GetContactList_FullMethodName    = "/resonance.gateway.v1.SessionService/GetContactList"
-	SessionService_SearchUser_FullMethodName        = "/resonance.gateway.v1.SessionService/SearchUser"
+	SessionService_GetSessionList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetSessionList"
+	SessionService_CreateSession_FullMethodName      = "/resonance.gateway.v1.SessionService/CreateSession"
+	SessionService_GetRecentMessages_FullMethodName  = "/resonance.gateway.v1.SessionService/GetRecentMessages"
+	SessionService_GetContactList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetContactList"
+	SessionService_SearchUser_FullMethodName         = "/resonance.gateway.v1.SessionService/SearchUser"
+	SessionService_UpdateReadPosition_FullMethodName = "/resonance.gateway.v1.SessionService/UpdateReadPosition"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -230,6 +231,8 @@ type SessionServiceClient interface {
 	GetContactList(ctx context.Context, in *GetContactListRequest, opts ...grpc.CallOption) (*GetContactListResponse, error)
 	// SearchUser 搜索用户
 	SearchUser(ctx context.Context, in *SearchUserRequest, opts ...grpc.CallOption) (*SearchUserResponse, error)
+	// UpdateReadPosition 更新会话已读位置
+	UpdateReadPosition(ctx context.Context, in *UpdateReadPositionRequest, opts ...grpc.CallOption) (*UpdateReadPositionResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -290,6 +293,16 @@ func (c *sessionServiceClient) SearchUser(ctx context.Context, in *SearchUserReq
 	return out, nil
 }
 
+func (c *sessionServiceClient) UpdateReadPosition(ctx context.Context, in *UpdateReadPositionRequest, opts ...grpc.CallOption) (*UpdateReadPositionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateReadPositionResponse)
+	err := c.cc.Invoke(ctx, SessionService_UpdateReadPosition_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -306,6 +319,8 @@ type SessionServiceServer interface {
 	GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error)
 	// SearchUser 搜索用户
 	SearchUser(context.Context, *SearchUserRequest) (*SearchUserResponse, error)
+	// UpdateReadPosition 更新会话已读位置
+	UpdateReadPosition(context.Context, *UpdateReadPositionRequest) (*UpdateReadPositionResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -330,6 +345,9 @@ func (UnimplementedSessionServiceServer) GetContactList(context.Context, *GetCon
 }
 func (UnimplementedSessionServiceServer) SearchUser(context.Context, *SearchUserRequest) (*SearchUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchUser not implemented")
+}
+func (UnimplementedSessionServiceServer) UpdateReadPosition(context.Context, *UpdateReadPositionRequest) (*UpdateReadPositionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateReadPosition not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -442,6 +460,24 @@ func _SessionService_SearchUser_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_UpdateReadPosition_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateReadPositionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).UpdateReadPosition(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_UpdateReadPosition_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).UpdateReadPosition(ctx, req.(*UpdateReadPositionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -468,6 +504,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchUser",
 			Handler:    _SessionService_SearchUser_Handler,
+		},
+		{
+			MethodName: "UpdateReadPosition",
+			Handler:    _SessionService_UpdateReadPosition_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -22,6 +22,110 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type UpdateReadPositionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	SeqId         int64                  `protobuf:"varint,2,opt,name=seq_id,json=seqId,proto3" json:"seq_id,omitempty"` // 用户当前读到的最新一条消息的 seq_id
+	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`         // 操作用户
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateReadPositionRequest) Reset() {
+	*x = UpdateReadPositionRequest{}
+	mi := &file_logic_v1_session_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateReadPositionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateReadPositionRequest) ProtoMessage() {}
+
+func (x *UpdateReadPositionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_logic_v1_session_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateReadPositionRequest.ProtoReflect.Descriptor instead.
+func (*UpdateReadPositionRequest) Descriptor() ([]byte, []int) {
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *UpdateReadPositionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *UpdateReadPositionRequest) GetSeqId() int64 {
+	if x != nil {
+		return x.SeqId
+	}
+	return 0
+}
+
+func (x *UpdateReadPositionRequest) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+type UpdateReadPositionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UnreadCount   int64                  `protobuf:"varint,1,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"` // 更新后的未读数（理论上应为0，或者是 max_seq - new_read_seq）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateReadPositionResponse) Reset() {
+	*x = UpdateReadPositionResponse{}
+	mi := &file_logic_v1_session_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateReadPositionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateReadPositionResponse) ProtoMessage() {}
+
+func (x *UpdateReadPositionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_logic_v1_session_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateReadPositionResponse.ProtoReflect.Descriptor instead.
+func (*UpdateReadPositionResponse) Descriptor() ([]byte, []int) {
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *UpdateReadPositionResponse) GetUnreadCount() int64 {
+	if x != nil {
+		return x.UnreadCount
+	}
+	return 0
+}
+
 type GetSessionListRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -31,7 +135,7 @@ type GetSessionListRequest struct {
 
 func (x *GetSessionListRequest) Reset() {
 	*x = GetSessionListRequest{}
-	mi := &file_logic_v1_session_proto_msgTypes[0]
+	mi := &file_logic_v1_session_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -43,7 +147,7 @@ func (x *GetSessionListRequest) String() string {
 func (*GetSessionListRequest) ProtoMessage() {}
 
 func (x *GetSessionListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[0]
+	mi := &file_logic_v1_session_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56,7 +160,7 @@ func (x *GetSessionListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionListRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionListRequest) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{0}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GetSessionListRequest) GetUsername() string {
@@ -81,7 +185,7 @@ type SessionInfo struct {
 
 func (x *SessionInfo) Reset() {
 	*x = SessionInfo{}
-	mi := &file_logic_v1_session_proto_msgTypes[1]
+	mi := &file_logic_v1_session_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -93,7 +197,7 @@ func (x *SessionInfo) String() string {
 func (*SessionInfo) ProtoMessage() {}
 
 func (x *SessionInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[1]
+	mi := &file_logic_v1_session_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -106,7 +210,7 @@ func (x *SessionInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionInfo.ProtoReflect.Descriptor instead.
 func (*SessionInfo) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{1}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SessionInfo) GetSessionId() string {
@@ -167,7 +271,7 @@ type GetSessionListResponse struct {
 
 func (x *GetSessionListResponse) Reset() {
 	*x = GetSessionListResponse{}
-	mi := &file_logic_v1_session_proto_msgTypes[2]
+	mi := &file_logic_v1_session_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -179,7 +283,7 @@ func (x *GetSessionListResponse) String() string {
 func (*GetSessionListResponse) ProtoMessage() {}
 
 func (x *GetSessionListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[2]
+	mi := &file_logic_v1_session_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -192,7 +296,7 @@ func (x *GetSessionListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionListResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionListResponse) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{2}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetSessionListResponse) GetSessions() []*SessionInfo {
@@ -214,7 +318,7 @@ type CreateSessionRequest struct {
 
 func (x *CreateSessionRequest) Reset() {
 	*x = CreateSessionRequest{}
-	mi := &file_logic_v1_session_proto_msgTypes[3]
+	mi := &file_logic_v1_session_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -226,7 +330,7 @@ func (x *CreateSessionRequest) String() string {
 func (*CreateSessionRequest) ProtoMessage() {}
 
 func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[3]
+	mi := &file_logic_v1_session_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -239,7 +343,7 @@ func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{3}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateSessionRequest) GetCreatorUsername() string {
@@ -279,7 +383,7 @@ type CreateSessionResponse struct {
 
 func (x *CreateSessionResponse) Reset() {
 	*x = CreateSessionResponse{}
-	mi := &file_logic_v1_session_proto_msgTypes[4]
+	mi := &file_logic_v1_session_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +395,7 @@ func (x *CreateSessionResponse) String() string {
 func (*CreateSessionResponse) ProtoMessage() {}
 
 func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[4]
+	mi := &file_logic_v1_session_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +408,7 @@ func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionResponse.ProtoReflect.Descriptor instead.
 func (*CreateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{4}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateSessionResponse) GetSessionId() string {
@@ -325,7 +429,7 @@ type GetRecentMessagesRequest struct {
 
 func (x *GetRecentMessagesRequest) Reset() {
 	*x = GetRecentMessagesRequest{}
-	mi := &file_logic_v1_session_proto_msgTypes[5]
+	mi := &file_logic_v1_session_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +441,7 @@ func (x *GetRecentMessagesRequest) String() string {
 func (*GetRecentMessagesRequest) ProtoMessage() {}
 
 func (x *GetRecentMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[5]
+	mi := &file_logic_v1_session_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +454,7 @@ func (x *GetRecentMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRecentMessagesRequest.ProtoReflect.Descriptor instead.
 func (*GetRecentMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{5}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetRecentMessagesRequest) GetSessionId() string {
@@ -383,7 +487,7 @@ type GetRecentMessagesResponse struct {
 
 func (x *GetRecentMessagesResponse) Reset() {
 	*x = GetRecentMessagesResponse{}
-	mi := &file_logic_v1_session_proto_msgTypes[6]
+	mi := &file_logic_v1_session_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +499,7 @@ func (x *GetRecentMessagesResponse) String() string {
 func (*GetRecentMessagesResponse) ProtoMessage() {}
 
 func (x *GetRecentMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[6]
+	mi := &file_logic_v1_session_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -408,7 +512,7 @@ func (x *GetRecentMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRecentMessagesResponse.ProtoReflect.Descriptor instead.
 func (*GetRecentMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{6}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetRecentMessagesResponse) GetMessages() []*v1.PushMessage {
@@ -427,7 +531,7 @@ type GetContactListRequest struct {
 
 func (x *GetContactListRequest) Reset() {
 	*x = GetContactListRequest{}
-	mi := &file_logic_v1_session_proto_msgTypes[7]
+	mi := &file_logic_v1_session_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -439,7 +543,7 @@ func (x *GetContactListRequest) String() string {
 func (*GetContactListRequest) ProtoMessage() {}
 
 func (x *GetContactListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[7]
+	mi := &file_logic_v1_session_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -452,7 +556,7 @@ func (x *GetContactListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactListRequest.ProtoReflect.Descriptor instead.
 func (*GetContactListRequest) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{7}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetContactListRequest) GetUsername() string {
@@ -473,7 +577,7 @@ type ContactInfo struct {
 
 func (x *ContactInfo) Reset() {
 	*x = ContactInfo{}
-	mi := &file_logic_v1_session_proto_msgTypes[8]
+	mi := &file_logic_v1_session_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +589,7 @@ func (x *ContactInfo) String() string {
 func (*ContactInfo) ProtoMessage() {}
 
 func (x *ContactInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[8]
+	mi := &file_logic_v1_session_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +602,7 @@ func (x *ContactInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactInfo.ProtoReflect.Descriptor instead.
 func (*ContactInfo) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{8}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ContactInfo) GetUsername() string {
@@ -531,7 +635,7 @@ type GetContactListResponse struct {
 
 func (x *GetContactListResponse) Reset() {
 	*x = GetContactListResponse{}
-	mi := &file_logic_v1_session_proto_msgTypes[9]
+	mi := &file_logic_v1_session_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -543,7 +647,7 @@ func (x *GetContactListResponse) String() string {
 func (*GetContactListResponse) ProtoMessage() {}
 
 func (x *GetContactListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[9]
+	mi := &file_logic_v1_session_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -556,7 +660,7 @@ func (x *GetContactListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactListResponse.ProtoReflect.Descriptor instead.
 func (*GetContactListResponse) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{9}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetContactListResponse) GetContacts() []*ContactInfo {
@@ -575,7 +679,7 @@ type SearchUserRequest struct {
 
 func (x *SearchUserRequest) Reset() {
 	*x = SearchUserRequest{}
-	mi := &file_logic_v1_session_proto_msgTypes[10]
+	mi := &file_logic_v1_session_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +691,7 @@ func (x *SearchUserRequest) String() string {
 func (*SearchUserRequest) ProtoMessage() {}
 
 func (x *SearchUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[10]
+	mi := &file_logic_v1_session_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -600,7 +704,7 @@ func (x *SearchUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUserRequest.ProtoReflect.Descriptor instead.
 func (*SearchUserRequest) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{10}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *SearchUserRequest) GetQuery() string {
@@ -619,7 +723,7 @@ type SearchUserResponse struct {
 
 func (x *SearchUserResponse) Reset() {
 	*x = SearchUserResponse{}
-	mi := &file_logic_v1_session_proto_msgTypes[11]
+	mi := &file_logic_v1_session_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -631,7 +735,7 @@ func (x *SearchUserResponse) String() string {
 func (*SearchUserResponse) ProtoMessage() {}
 
 func (x *SearchUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_logic_v1_session_proto_msgTypes[11]
+	mi := &file_logic_v1_session_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -644,7 +748,7 @@ func (x *SearchUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUserResponse.ProtoReflect.Descriptor instead.
 func (*SearchUserResponse) Descriptor() ([]byte, []int) {
-	return file_logic_v1_session_proto_rawDescGZIP(), []int{11}
+	return file_logic_v1_session_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SearchUserResponse) GetUsers() []*ContactInfo {
@@ -662,7 +766,18 @@ var file_logic_v1_session_proto_rawDesc = []byte{
 	0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x76, 0x31, 0x1a, 0x15, 0x63, 0x6f,
 	0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x76, 0x31, 0x2f, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x70, 0x72,
 	0x6f, 0x74, 0x6f, 0x1a, 0x17, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x2f, 0x76, 0x31, 0x2f,
-	0x70, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x33, 0x0a, 0x15,
+	0x70, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x6d, 0x0a, 0x19,
+	0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x61, 0x64, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69,
+	0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x65, 0x73,
+	0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73,
+	0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x49, 0x64, 0x12, 0x15, 0x0a, 0x06, 0x73, 0x65, 0x71, 0x5f,
+	0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x05, 0x73, 0x65, 0x71, 0x49, 0x64, 0x12,
+	0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x3f, 0x0a, 0x1a, 0x55,
+	0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x61, 0x64, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f,
+	0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x21, 0x0a, 0x0c, 0x75, 0x6e, 0x72,
+	0x65, 0x61, 0x64, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52,
+	0x0b, 0x75, 0x6e, 0x72, 0x65, 0x61, 0x64, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x22, 0x33, 0x0a, 0x15,
 	0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65,
 	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d,
 	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x75, 0x73, 0x65, 0x72, 0x6e, 0x61, 0x6d,
@@ -735,7 +850,7 @@ var file_logic_v1_session_proto_rawDesc = []byte{
 	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61,
 	0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6e,
 	0x74, 0x61, 0x63, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x05, 0x75, 0x73, 0x65, 0x72, 0x73, 0x32,
-	0x97, 0x04, 0x0a, 0x0e, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69,
+	0x8c, 0x05, 0x0a, 0x0e, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x53, 0x65, 0x72, 0x76, 0x69,
 	0x63, 0x65, 0x12, 0x67, 0x0a, 0x0e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e,
 	0x4c, 0x69, 0x73, 0x74, 0x12, 0x29, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65,
 	0x2e, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x53, 0x65, 0x73,
@@ -768,20 +883,28 @@ var file_logic_v1_session_proto_rawDesc = []byte{
 	0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x55, 0x73, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
 	0x74, 0x1a, 0x26, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f,
 	0x67, 0x69, 0x63, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x55, 0x73, 0x65,
-	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0xca, 0x01, 0x0a, 0x16, 0x63, 0x6f,
-	0x6d, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f, 0x67, 0x69,
-	0x63, 0x2e, 0x76, 0x31, 0x42, 0x0c, 0x53, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x50, 0x72, 0x6f,
-	0x74, 0x6f, 0x50, 0x01, 0x5a, 0x38, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d,
-	0x2f, 0x63, 0x65, 0x79, 0x65, 0x77, 0x61, 0x6e, 0x2f, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e,
-	0x63, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x67, 0x6f, 0x2f, 0x6c, 0x6f,
-	0x67, 0x69, 0x63, 0x2f, 0x76, 0x31, 0x3b, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x76, 0x31, 0xa2, 0x02,
-	0x03, 0x52, 0x4c, 0x58, 0xaa, 0x02, 0x12, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65,
-	0x2e, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x56, 0x31, 0xca, 0x02, 0x12, 0x52, 0x65, 0x73, 0x6f,
-	0x6e, 0x61, 0x6e, 0x63, 0x65, 0x5c, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x5c, 0x56, 0x31, 0xe2, 0x02,
-	0x1e, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x5c, 0x4c, 0x6f, 0x67, 0x69, 0x63,
-	0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0xea,
-	0x02, 0x14, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x3a, 0x3a, 0x4c, 0x6f, 0x67,
-	0x69, 0x63, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x73, 0x0a, 0x12, 0x55, 0x70, 0x64,
+	0x61, 0x74, 0x65, 0x52, 0x65, 0x61, 0x64, 0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x2d, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f, 0x67, 0x69,
+	0x63, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x61, 0x64, 0x50,
+	0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2e,
+	0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x6c, 0x6f, 0x67, 0x69, 0x63,
+	0x2e, 0x76, 0x31, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x52, 0x65, 0x61, 0x64, 0x50, 0x6f,
+	0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0xca,
+	0x01, 0x0a, 0x16, 0x63, 0x6f, 0x6d, 0x2e, 0x72, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65,
+	0x2e, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x76, 0x31, 0x42, 0x0c, 0x53, 0x65, 0x73, 0x73, 0x69,
+	0x6f, 0x6e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x50, 0x01, 0x5a, 0x38, 0x67, 0x69, 0x74, 0x68, 0x75,
+	0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x65, 0x79, 0x65, 0x77, 0x61, 0x6e, 0x2f, 0x72, 0x65,
+	0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f,
+	0x67, 0x6f, 0x2f, 0x6c, 0x6f, 0x67, 0x69, 0x63, 0x2f, 0x76, 0x31, 0x3b, 0x6c, 0x6f, 0x67, 0x69,
+	0x63, 0x76, 0x31, 0xa2, 0x02, 0x03, 0x52, 0x4c, 0x58, 0xaa, 0x02, 0x12, 0x52, 0x65, 0x73, 0x6f,
+	0x6e, 0x61, 0x6e, 0x63, 0x65, 0x2e, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x2e, 0x56, 0x31, 0xca, 0x02,
+	0x12, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x5c, 0x4c, 0x6f, 0x67, 0x69, 0x63,
+	0x5c, 0x56, 0x31, 0xe2, 0x02, 0x1e, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65, 0x5c,
+	0x4c, 0x6f, 0x67, 0x69, 0x63, 0x5c, 0x56, 0x31, 0x5c, 0x47, 0x50, 0x42, 0x4d, 0x65, 0x74, 0x61,
+	0x64, 0x61, 0x74, 0x61, 0xea, 0x02, 0x14, 0x52, 0x65, 0x73, 0x6f, 0x6e, 0x61, 0x6e, 0x63, 0x65,
+	0x3a, 0x3a, 0x4c, 0x6f, 0x67, 0x69, 0x63, 0x3a, 0x3a, 0x56, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -796,40 +919,44 @@ func file_logic_v1_session_proto_rawDescGZIP() []byte {
 	return file_logic_v1_session_proto_rawDescData
 }
 
-var file_logic_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_logic_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_logic_v1_session_proto_goTypes = []any{
-	(*GetSessionListRequest)(nil),     // 0: resonance.logic.v1.GetSessionListRequest
-	(*SessionInfo)(nil),               // 1: resonance.logic.v1.SessionInfo
-	(*GetSessionListResponse)(nil),    // 2: resonance.logic.v1.GetSessionListResponse
-	(*CreateSessionRequest)(nil),      // 3: resonance.logic.v1.CreateSessionRequest
-	(*CreateSessionResponse)(nil),     // 4: resonance.logic.v1.CreateSessionResponse
-	(*GetRecentMessagesRequest)(nil),  // 5: resonance.logic.v1.GetRecentMessagesRequest
-	(*GetRecentMessagesResponse)(nil), // 6: resonance.logic.v1.GetRecentMessagesResponse
-	(*GetContactListRequest)(nil),     // 7: resonance.logic.v1.GetContactListRequest
-	(*ContactInfo)(nil),               // 8: resonance.logic.v1.ContactInfo
-	(*GetContactListResponse)(nil),    // 9: resonance.logic.v1.GetContactListResponse
-	(*SearchUserRequest)(nil),         // 10: resonance.logic.v1.SearchUserRequest
-	(*SearchUserResponse)(nil),        // 11: resonance.logic.v1.SearchUserResponse
-	(*v1.PushMessage)(nil),            // 12: resonance.gateway.v1.PushMessage
+	(*UpdateReadPositionRequest)(nil),  // 0: resonance.logic.v1.UpdateReadPositionRequest
+	(*UpdateReadPositionResponse)(nil), // 1: resonance.logic.v1.UpdateReadPositionResponse
+	(*GetSessionListRequest)(nil),      // 2: resonance.logic.v1.GetSessionListRequest
+	(*SessionInfo)(nil),                // 3: resonance.logic.v1.SessionInfo
+	(*GetSessionListResponse)(nil),     // 4: resonance.logic.v1.GetSessionListResponse
+	(*CreateSessionRequest)(nil),       // 5: resonance.logic.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),      // 6: resonance.logic.v1.CreateSessionResponse
+	(*GetRecentMessagesRequest)(nil),   // 7: resonance.logic.v1.GetRecentMessagesRequest
+	(*GetRecentMessagesResponse)(nil),  // 8: resonance.logic.v1.GetRecentMessagesResponse
+	(*GetContactListRequest)(nil),      // 9: resonance.logic.v1.GetContactListRequest
+	(*ContactInfo)(nil),                // 10: resonance.logic.v1.ContactInfo
+	(*GetContactListResponse)(nil),     // 11: resonance.logic.v1.GetContactListResponse
+	(*SearchUserRequest)(nil),          // 12: resonance.logic.v1.SearchUserRequest
+	(*SearchUserResponse)(nil),         // 13: resonance.logic.v1.SearchUserResponse
+	(*v1.PushMessage)(nil),             // 14: resonance.gateway.v1.PushMessage
 }
 var file_logic_v1_session_proto_depIdxs = []int32{
-	12, // 0: resonance.logic.v1.SessionInfo.last_message:type_name -> resonance.gateway.v1.PushMessage
-	1,  // 1: resonance.logic.v1.GetSessionListResponse.sessions:type_name -> resonance.logic.v1.SessionInfo
-	12, // 2: resonance.logic.v1.GetRecentMessagesResponse.messages:type_name -> resonance.gateway.v1.PushMessage
-	8,  // 3: resonance.logic.v1.GetContactListResponse.contacts:type_name -> resonance.logic.v1.ContactInfo
-	8,  // 4: resonance.logic.v1.SearchUserResponse.users:type_name -> resonance.logic.v1.ContactInfo
-	0,  // 5: resonance.logic.v1.SessionService.GetSessionList:input_type -> resonance.logic.v1.GetSessionListRequest
-	3,  // 6: resonance.logic.v1.SessionService.CreateSession:input_type -> resonance.logic.v1.CreateSessionRequest
-	5,  // 7: resonance.logic.v1.SessionService.GetRecentMessages:input_type -> resonance.logic.v1.GetRecentMessagesRequest
-	7,  // 8: resonance.logic.v1.SessionService.GetContactList:input_type -> resonance.logic.v1.GetContactListRequest
-	10, // 9: resonance.logic.v1.SessionService.SearchUser:input_type -> resonance.logic.v1.SearchUserRequest
-	2,  // 10: resonance.logic.v1.SessionService.GetSessionList:output_type -> resonance.logic.v1.GetSessionListResponse
-	4,  // 11: resonance.logic.v1.SessionService.CreateSession:output_type -> resonance.logic.v1.CreateSessionResponse
-	6,  // 12: resonance.logic.v1.SessionService.GetRecentMessages:output_type -> resonance.logic.v1.GetRecentMessagesResponse
-	9,  // 13: resonance.logic.v1.SessionService.GetContactList:output_type -> resonance.logic.v1.GetContactListResponse
-	11, // 14: resonance.logic.v1.SessionService.SearchUser:output_type -> resonance.logic.v1.SearchUserResponse
-	10, // [10:15] is the sub-list for method output_type
-	5,  // [5:10] is the sub-list for method input_type
+	14, // 0: resonance.logic.v1.SessionInfo.last_message:type_name -> resonance.gateway.v1.PushMessage
+	3,  // 1: resonance.logic.v1.GetSessionListResponse.sessions:type_name -> resonance.logic.v1.SessionInfo
+	14, // 2: resonance.logic.v1.GetRecentMessagesResponse.messages:type_name -> resonance.gateway.v1.PushMessage
+	10, // 3: resonance.logic.v1.GetContactListResponse.contacts:type_name -> resonance.logic.v1.ContactInfo
+	10, // 4: resonance.logic.v1.SearchUserResponse.users:type_name -> resonance.logic.v1.ContactInfo
+	2,  // 5: resonance.logic.v1.SessionService.GetSessionList:input_type -> resonance.logic.v1.GetSessionListRequest
+	5,  // 6: resonance.logic.v1.SessionService.CreateSession:input_type -> resonance.logic.v1.CreateSessionRequest
+	7,  // 7: resonance.logic.v1.SessionService.GetRecentMessages:input_type -> resonance.logic.v1.GetRecentMessagesRequest
+	9,  // 8: resonance.logic.v1.SessionService.GetContactList:input_type -> resonance.logic.v1.GetContactListRequest
+	12, // 9: resonance.logic.v1.SessionService.SearchUser:input_type -> resonance.logic.v1.SearchUserRequest
+	0,  // 10: resonance.logic.v1.SessionService.UpdateReadPosition:input_type -> resonance.logic.v1.UpdateReadPositionRequest
+	4,  // 11: resonance.logic.v1.SessionService.GetSessionList:output_type -> resonance.logic.v1.GetSessionListResponse
+	6,  // 12: resonance.logic.v1.SessionService.CreateSession:output_type -> resonance.logic.v1.CreateSessionResponse
+	8,  // 13: resonance.logic.v1.SessionService.GetRecentMessages:output_type -> resonance.logic.v1.GetRecentMessagesResponse
+	11, // 14: resonance.logic.v1.SessionService.GetContactList:output_type -> resonance.logic.v1.GetContactListResponse
+	13, // 15: resonance.logic.v1.SessionService.SearchUser:output_type -> resonance.logic.v1.SearchUserResponse
+	1,  // 16: resonance.logic.v1.SessionService.UpdateReadPosition:output_type -> resonance.logic.v1.UpdateReadPositionResponse
+	11, // [11:17] is the sub-list for method output_type
+	5,  // [5:11] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -846,7 +973,7 @@ func file_logic_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_logic_v1_session_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

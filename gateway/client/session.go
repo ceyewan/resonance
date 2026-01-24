@@ -36,3 +36,8 @@ func (c *Client) SearchUser(ctx context.Context, query string) (*logicv1.SearchU
 		Query: query,
 	})
 }
+
+// UpdateReadPosition 更新会话已读位置
+func (c *Client) UpdateReadPosition(ctx context.Context, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
+	return c.sessionSvc().UpdateReadPosition(ctx, req)
+}

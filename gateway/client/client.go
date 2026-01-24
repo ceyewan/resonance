@@ -8,6 +8,7 @@ import (
 	"github.com/ceyewan/genesis/registry"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -98,6 +99,8 @@ func NewClient(logicServiceName, gatewayID string, logger clog.Logger, reg regis
 		// 配置内置重试策略
 		grpc.WithDefaultServiceConfig(serviceConfigJSON),
 		grpc.WithMaxCallAttempts(maxAttempts),
+		// 使用不安全连接 (内部通信)
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		// 注册拦截器（目前仅保留 trace）
 		grpc.WithChainUnaryInterceptor(
 			traceContextUnaryInterceptor(),

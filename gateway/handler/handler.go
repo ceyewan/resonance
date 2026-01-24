@@ -392,3 +392,32 @@ func (h *Handler) SearchUser(
 
 	return connect.NewResponse(resp), nil
 }
+
+// UpdateReadPosition 实现 SessionService.UpdateReadPosition
+func (h *Handler) UpdateReadPosition(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.UpdateReadPositionRequest],
+) (*connect.Response[gatewayv1.UpdateReadPositionResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.UpdateReadPositionRequest{
+		SessionId: req.Msg.SessionId,
+		SeqId:     req.Msg.SeqId,
+		Username:  username,
+	}
+
+	logicResp, err := h.logicClient.UpdateReadPosition(ctx, logicReq)
+	if err != nil {
+		h.logger.Error("update read position failed", clog.Error(err))
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	resp := &gatewayv1.UpdateReadPositionResponse{
+		UnreadCount: logicResp.UnreadCount,
+	}
+
+	return connect.NewResponse(resp), nil
+}

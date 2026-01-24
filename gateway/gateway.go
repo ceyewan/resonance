@@ -277,10 +277,18 @@ func (g *Gateway) Close() error {
 
 	// 4. 释放核心资源
 	if g.resources != nil {
-		g.resources.connMgr.Close()
-		g.resources.logicClient.Close()
-		g.resources.redisConn.Close()
-		g.resources.etcdConn.Close()
+		if g.resources.connMgr != nil {
+			g.resources.connMgr.Close()
+		}
+		if g.resources.logicClient != nil {
+			g.resources.logicClient.Close()
+		}
+		if g.resources.redisConn != nil {
+			g.resources.redisConn.Close()
+		}
+		if g.resources.etcdConn != nil {
+			g.resources.etcdConn.Close()
+		}
 	}
 
 	return nil

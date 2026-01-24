@@ -36,7 +36,7 @@ export function useSession(): UseSessionReturn {
     setIsLoading,
     setError,
     clearError,
-    clearUnread,
+    markAsRead,
   } = useSessionStore();
 
   const {
@@ -57,6 +57,7 @@ export function useSession(): UseSessionReturn {
       avatarUrl: proto.avatarUrl || undefined,
       unreadCount: Number(proto.unreadCount),
       lastReadSeq: Number(proto.lastReadSeq),
+      maxSeqId: Number(proto.lastReadSeq) + Number(proto.unreadCount),
       lastMessage: proto.lastMessage
         ? {
             msgId: proto.lastMessage.msgId,
@@ -132,8 +133,11 @@ export function useSession(): UseSessionReturn {
   const selectSession = useCallback(
     (sessionId: string | null) => {
       if (sessionId) {
-        // 清除未读数
-        clearUnread(sessionId);
+        // 标记已读
+        const session = sessions.find((s) => s.sessionId === sessionId);
+        if (session) {
+          markAsRead(sessionId, session.maxSeqId);
+        }
 
         // 如果该会话还没有消息，加载历史消息
         if (getSessionMessages(sessionId).length === 0) {
@@ -142,7 +146,7 @@ export function useSession(): UseSessionReturn {
       }
       setCurrentSessionId(sessionId);
     },
-    [setCurrentSessionId, clearUnread, getSessionMessages, loadRecentMessages],
+    [setCurrentSessionId, sessions, markAsRead, getSessionMessages, loadRecentMessages],
   );
 
   const clearLocalError = useCallback(() => {

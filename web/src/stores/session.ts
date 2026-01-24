@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { PushMessage } from "@/gen/gateway/v1/packet_pb";
+import { UpdateReadPositionRequest } from "@/gen/gateway/v1/api_pb";
+import { sessionClient } from "@/api/client";
 import { SESSION_TYPES } from "@/constants";
 
 /**
@@ -12,7 +14,8 @@ export interface SessionInfo {
   type: keyof typeof SESSION_TYPES | number;
   avatarUrl?: string;
   unreadCount: number;
-  lastReadSeq: number;
+  lastReadSeq: number; // 用户的已读水位线
+  maxSeqId: number;    // 会话的最新消息序列号 (新增字段，用于更准确计算)
   lastMessage?: {
     msgId: bigint;
     seqId: bigint;
@@ -40,8 +43,8 @@ interface SessionState {
   updateSession: (sessionId: string, updates: Partial<SessionInfo>) => void;
   removeSession: (sessionId: string) => void;
   setCurrentSessionId: (sessionId: string | null) => void;
-  incrementUnread: (sessionId: string, amount?: number) => void;
-  clearUnread: (sessionId: string) => void;
+  // incrementUnread 废弃，改用统一的 updateLastMessage 或 markAsRead
+  markAsRead: (sessionId: string, seqId: number) => Promise<void>;
   updateLastMessage: (sessionId: string, message: PushMessage) => void;
   setIsLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -119,38 +122,59 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       currentSessionId: sessionId,
     }),
 
-  incrementUnread: (sessionId, amount = 1) =>
-    set((state) => ({
-      sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId
-          ? { ...s, unreadCount: s.unreadCount + amount }
-          : s,
-      ),
-    })),
+  markAsRead: async (sessionId, seqId) => {
+    const { sessions } = get();
+    const session = sessions.find((s) => s.sessionId === sessionId);
+    if (!session) return;
 
-  clearUnread: (sessionId) =>
+    // 只有当 seqId 大于当前 lastReadSeq 时才更新
+    if (seqId <= session.lastReadSeq) return;
+
+    // 乐观更新
+    const newUnreadCount = Math.max(0, session.maxSeqId - seqId);
     set((state) => ({
       sessions: state.sessions.map((s) =>
         s.sessionId === sessionId
-          ? { ...s, unreadCount: 0 }
+          ? { ...s, lastReadSeq: seqId, unreadCount: newUnreadCount }
           : s,
       ),
-    })),
+    }));
+
+    // 异步调用 API
+    try {
+      const req = new UpdateReadPositionRequest({
+        sessionId,
+        seqId: BigInt(seqId),
+      });
+      await sessionClient.updateReadPosition(req);
+    } catch (err) {
+      console.error("Failed to update read position:", err);
+      // 如果失败，可能需要回滚？但在已读场景下，通常不需要严格回滚，下次操作会修正。
+    }
+  },
 
   updateLastMessage: (sessionId, message) =>
     set((state) => {
       const timestamp = message.timestamp;
       const msgId = message.msgId;
-      const seqId = message.seqId;
+      const seqId = Number(message.seqId); // 转换为 number 方便计算
 
       // 更新会话的最后消息，并移到顶部
       const updatedSessions = state.sessions.map((s) => {
         if (s.sessionId === sessionId) {
+            // 修正：我们更新 maxSeqId。
+            const newMaxSeqId = Math.max(s.maxSeqId || 0, seqId);
+            
+            // 暂时先只更新消息内容和 maxSeqId。
+            // 未读数的增加逻辑需要知道 "是否是自己发的" 和 "是否当前会话"。
+            // 让我们保持 App.tsx 控制 unread 的增加，但是改为 "Recalculate" 模式。
+            
           return {
             ...s,
+            maxSeqId: newMaxSeqId,
             lastMessage: {
               msgId,
-              seqId,
+              seqId: message.seqId,
               content: message.content,
               type: message.type,
               timestamp,

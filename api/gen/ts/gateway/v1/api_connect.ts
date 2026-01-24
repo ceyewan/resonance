@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateSessionRequest, CreateSessionResponse, GetContactListRequest, GetContactListResponse, GetRecentMessagesRequest, GetRecentMessagesResponse, GetSessionListRequest, GetSessionListResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, RegisterRequest, RegisterResponse, SearchUserRequest, SearchUserResponse } from "./api_pb.js";
+import { CreateSessionRequest, CreateSessionResponse, GetContactListRequest, GetContactListResponse, GetRecentMessagesRequest, GetRecentMessagesResponse, GetSessionListRequest, GetSessionListResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, RegisterRequest, RegisterResponse, SearchUserRequest, SearchUserResponse, UpdateReadPositionRequest, UpdateReadPositionResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -111,6 +111,17 @@ export const SessionService = {
       name: "SearchUser",
       I: SearchUserRequest,
       O: SearchUserResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * UpdateReadPosition 更新会话已读位置
+     *
+     * @generated from rpc resonance.gateway.v1.SessionService.UpdateReadPosition
+     */
+    updateReadPosition: {
+      name: "UpdateReadPosition",
+      I: UpdateReadPositionRequest,
+      O: UpdateReadPositionResponse,
       kind: MethodKind.Unary,
     },
   }

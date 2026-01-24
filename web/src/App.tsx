@@ -14,7 +14,7 @@ import ChatPage from "@/pages/ChatPage";
  */
 function App() {
   const { isAuthenticated, accessToken, user } = useAuthStore();
-  const { updateLastMessage, incrementUnread, currentSessionId, getSessionById, upsertSession } = useSessionStore();
+  const { updateLastMessage, markAsRead, updateSession, currentSessionId, getSessionById, upsertSession } = useSessionStore();
   const { addMessage, markAsSent, markAsFailed } = useMessageStore();
 
   // 使用 ref 保存 send 函数的引用，避免循环依赖
@@ -52,6 +52,7 @@ function App() {
               type: type || 1,
               unreadCount: chatMessage.isOwn ? 0 : 1,
               lastReadSeq: 0,
+              maxSeqId: Number(chatMessage.seqId),
               lastMessage: {
                 msgId: BigInt(chatMessage.msgId),
                 seqId: chatMessage.seqId,
@@ -70,9 +71,17 @@ function App() {
           updateLastMessage(chatMessage.sessionId, push);
         }
 
-        // 如果不是当前会话，增加未读数
-        if (chatMessage.sessionId !== currentSessionId && !chatMessage.isOwn) {
-          incrementUnread(chatMessage.sessionId);
+        // 处理未读数
+        const session = getSessionById(chatMessage.sessionId);
+        if (session) {
+          if (chatMessage.sessionId !== currentSessionId && !chatMessage.isOwn) {
+            // 如果不是当前会话，使用水位线计算未读数
+            const newUnread = Math.max(0, Number(chatMessage.seqId) - session.lastReadSeq);
+            updateSession(chatMessage.sessionId, { unreadCount: newUnread });
+          } else if (chatMessage.sessionId === currentSessionId && !chatMessage.isOwn) {
+            // 如果是当前会话，自动标记已读
+            markAsRead(chatMessage.sessionId, Number(chatMessage.seqId));
+          }
         }
 
         // 立即发送 Ack 确认（推送消息回执）
@@ -106,7 +115,7 @@ function App() {
         markAsSent(ack.refSeq, msgId, seqId);
       }
     },
-    [user, addMessage, updateLastMessage, incrementUnread, currentSessionId, getSessionById, upsertSession, markAsFailed, markAsSent],
+    [user, addMessage, updateLastMessage, markAsRead, updateSession, currentSessionId, getSessionById, upsertSession, markAsFailed, markAsSent],
   );
 
   // WebSocket 连接（只在登录后激活）

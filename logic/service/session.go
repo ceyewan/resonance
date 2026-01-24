@@ -28,8 +28,8 @@ type SessionService struct {
 	userRepo     repo.UserRepo
 	sessionIDGen idgen.Generator // 用于生成 SessionID
 	msgIDGen     idgen.Generator // 用于生成消息 ID
-	sequencer    idgen.Sequencer  // 用于生成会话 SeqID
-	mqClient     mq.Client        // 用于发送系统消息
+	sequencer    idgen.Sequencer // 用于生成会话 SeqID
+	mqClient     mq.Client       // 用于发送系统消息
 	logger       clog.Logger
 }
 
@@ -264,8 +264,8 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		Type:         "system",
 		Timestamp:    timestamp,
 		// 会话元数据（用于前端自动创建会话）
-		SessionName:  sessionName,
-		SessionType:  int32(req.Type),
+		SessionName: sessionName,
+		SessionType: int32(req.Type),
 	}
 
 	eventData, err := proto.Marshal(event)
@@ -407,4 +407,34 @@ func generateSingleChatID(user1, user2 string) string {
 // generateGroupChatID 生成群聊会话 ID
 func (s *SessionService) generateGroupChatID() string {
 	return fmt.Sprintf("group:%d", s.sessionIDGen.Next())
+}
+
+// UpdateReadPosition 实现 SessionService.UpdateReadPosition
+func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
+	s.logger.Info("update read position",
+		clog.String("session_id", req.SessionId),
+		clog.String("username", req.Username),
+		clog.Int64("seq_id", req.SeqId))
+
+	// 更新已读位置
+	if err := s.sessionRepo.UpdateLastReadSeq(ctx, req.SessionId, req.Username, req.SeqId); err != nil {
+		s.logger.Error("failed to update read position", clog.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to update read position")
+	}
+
+	// 获取当前会话最新 seq_id 以计算未读数
+	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
+	if err != nil {
+		s.logger.Error("failed to get session", clog.Error(err))
+		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil // 降级处理
+	}
+
+	unread := session.MaxSeqID - req.SeqId
+	if unread < 0 {
+		unread = 0
+	}
+
+	return &logicv1.UpdateReadPositionResponse{
+		UnreadCount: unread,
+	}, nil
 }

@@ -52,6 +52,8 @@ type SessionRepo interface {
 	UpdateMaxSeqID(ctx context.Context, sessionID string, newSeqID int64) error
 	// GetContactList 获取联系人列表（有过单聊关系的用户）
 	GetContactList(ctx context.Context, username string) ([]*model.User, error)
+	// UpdateLastReadSeq 更新用户在会话中的已读位置
+	UpdateLastReadSeq(ctx context.Context, sessionID, username string, lastReadSeq int64) error
 	// Close 释放资源（如数据库连接等）
 	Close() error
 }
