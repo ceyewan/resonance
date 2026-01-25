@@ -21,4 +21,8 @@ message PushEvent {
   // 会话元数据（首次推送时携带）
   string session_name = 9;  // 会话名称
   int32  session_type = 10; // 会话类型：1=单聊, 2=群聊
+
+  // 可观测性：分布式追踪上下文
+  // 用于 MQ 场景下的 Trace 传播，由 trace.Inject 填充
+  map<string, string> trace_headers = 11;
 }

@@ -4,11 +4,14 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/genesis/metrics"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/internal/model"
 	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Dispatcher 消息分发器
@@ -39,6 +42,13 @@ func NewDispatcher(
 
 // DispatchStorage 处理存储任务（写扩散）
 func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
+	// 创建子 Span 用于存储操作
+	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.storage",
+		attribute.Int64("msg_id", event.MsgId),
+		attribute.String("session_id", event.SessionId),
+	)
+	defer endSpan()
+
 	d.logger.Debug("dispatching storage task",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
@@ -78,6 +88,14 @@ func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent)
 // DispatchPush 处理推送任务（在线推送）
 // 将消息投递到对应 Gateway 的推送队列，由 GatewayClient 的 loop 异步执行
 func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
+	// 创建子 Span 用于推送操作
+	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.push",
+		attribute.Int64("msg_id", event.MsgId),
+		attribute.String("session_id", event.SessionId),
+		attribute.String("from_username", event.FromUsername),
+	)
+	defer endSpan()
+
 	d.logger.Debug("dispatching push task",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
@@ -141,6 +159,7 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 
 	// 6. 投递到各 Gateway 的推送队列
 	successCount := 0
+	failedCount := 0
 	for gatewayID, users := range gatewayGroups {
 		// 获取 Pusher Client
 		client, err := d.pusherMgr.GetClient(gatewayID)
@@ -148,6 +167,7 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 			d.logger.Warn("gateway client not found",
 				clog.String("gateway_id", gatewayID),
 				clog.Int("user_count", len(users)))
+			failedCount += len(users)
 			continue
 		}
 
@@ -162,10 +182,22 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 				clog.String("gateway_id", gatewayID),
 				clog.Int("user_count", len(users)),
 				clog.Error(err))
+			failedCount += len(users)
+			// 记录入队失败指标
+			observability.RecordPushEnqueueFailed(ctx,
+				metrics.L("gateway_id", gatewayID),
+				metrics.L("reason", "queue_full"),
+			)
 			continue
 		}
 
 		successCount += len(users)
+		// 记录入队成功指标
+		observability.RecordPushEnqueue(ctx, metrics.L("gateway_id", gatewayID))
+
+		// 记录队列深度指标
+		observability.SetGatewayQueueDepth(ctx, gatewayID, client.QueueSize())
+
 		d.logger.Debug("enqueued push task",
 			clog.String("gateway_id", gatewayID),
 			clog.Int("user_count", len(users)),
@@ -175,7 +207,8 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 	d.logger.Debug("push task enqueued",
 		clog.Int64("msg_id", event.MsgId),
 		clog.Int("total_targets", len(usernames)),
-		clog.Int("enqueued_targets", successCount))
+		clog.Int("enqueued_targets", successCount),
+		clog.Int("failed_targets", failedCount))
 
 	return nil
 }

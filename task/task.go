@@ -14,6 +14,7 @@ import (
 	"github.com/ceyewan/resonance/task/config"
 	"github.com/ceyewan/resonance/task/consumer"
 	"github.com/ceyewan/resonance/task/dispatcher"
+	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
 )
 
@@ -71,18 +72,30 @@ func New() (*Task, error) {
 
 // initComponents 初始化所有组件
 func (t *Task) initComponents() error {
-	// 1. 初始化 Logger
-	logger, _ := clog.New(&t.config.Log, clog.WithStandardContext())
+	// 1. 初始化可观测性（Trace + Metrics）
+	obsConfig := &observability.Config{
+		Trace:   t.config.Observability.Trace,
+		Metrics: t.config.Observability.Metrics,
+	}
+	if err := observability.Init(obsConfig); err != nil {
+		return fmt.Errorf("observability init: %w", err)
+	}
+
+	// 2. 初始化 Logger（带 Trace Context 支持）
+	logger, err := observability.NewLogger(&t.config.Log)
+	if err != nil {
+		return fmt.Errorf("logger init: %w", err)
+	}
 	t.logger = logger
 
-	// 2. 初始化核心资源
+	// 3. 初始化核心资源
 	res, err := t.initResources()
 	if err != nil {
 		return err
 	}
 	t.resources = res
 
-	// 3. 初始化 Pusher Manager
+	// 4. 初始化 Pusher Manager
 	queueSize := t.config.GatewayQueueSize
 	if queueSize <= 0 {
 		queueSize = 1000 // 默认每个 Gateway 队列大小 1000
@@ -97,7 +110,7 @@ func (t *Task) initComponents() error {
 	}
 	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName, queueSize, pusherCount, pollInterval)
 
-	// 4. 初始化 Dispatcher
+	// 5. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(
 		res.sessionRepo,
 		res.messageRepo,
@@ -106,22 +119,24 @@ func (t *Task) initComponents() error {
 		logger,
 	)
 
-	// 5. 初始化 Consumers
-	// 5.1 Storage Consumer (落库)
+	// 6. 初始化 Consumers
+	// 6.1 Storage Consumer (落库)
 	t.storageConsumer = consumer.NewConsumer(
 		res.mqClient,
 		t.dispatcher.DispatchStorage,
 		t.config.StorageConsumer,
 		logger.WithNamespace("consumer_storage"),
 	)
+	t.storageConsumer.SetName("storage")
 
-	// 5.2 Push Consumer (推送)
+	// 6.2 Push Consumer (推送)
 	t.pushConsumer = consumer.NewConsumer(
 		res.mqClient,
 		t.dispatcher.DispatchPush,
 		t.config.PushConsumer,
 		logger.WithNamespace("consumer_push"),
 	)
+	t.pushConsumer.SetName("push")
 
 	return nil
 }
@@ -248,17 +263,36 @@ func (t *Task) Close() error {
 		t.pusherMgr.Close()
 	}
 
-	// 3. 释放资源
+	// 3. 释放资源（带超时控制）
 	if t.resources != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		// 创建带超时的 context，用于控制资源关闭的最大等待时间
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		t.resources.registry.Close() // Registry 可能不需要显式 Close，视实现而定
-		t.resources.etcdConn.Close()
-		t.resources.natsConn.Close()
-		t.resources.redisConn.Close()
-		t.resources.mysqlConn.Close()
-		_ = ctx // avoid unused
+		// 使用 goroutine 并发关闭，监听超时
+		done := make(chan struct{})
+		go func() {
+			// 按依赖关系逆序关闭
+			t.resources.registry.Close()
+			t.resources.etcdConn.Close()
+			t.resources.natsConn.Close()
+			t.resources.redisConn.Close()
+			t.resources.mysqlConn.Close()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// 正常关闭完成
+		case <-shutdownCtx.Done():
+			// 超时，记录警告但继续
+			t.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
+		}
+	}
+
+	// 4. 关闭可观测性组件
+	if err := observability.Shutdown(context.Background()); err != nil {
+		t.logger.Error("observability shutdown failed", clog.Error(err))
 	}
 
 	return nil

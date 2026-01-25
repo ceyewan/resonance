@@ -11,6 +11,7 @@ import (
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/resonance/task/observability"
 )
 
 // Config Task 服务配置
@@ -38,6 +39,12 @@ type Config struct {
 	// 消费者配置
 	StorageConsumer ConsumerConfig `mapstructure:"storage_consumer"` // 存储任务消费者
 	PushConsumer    ConsumerConfig `mapstructure:"push_consumer"`    // 推送任务消费者
+
+	// 可观测性配置
+	Observability struct {
+		Trace   observability.TraceConfig   `mapstructure:"trace"`   // Trace 配置
+		Metrics observability.MetricsConfig `mapstructure:"metrics"` // Metrics 配置
+	} `mapstructure:"observability"`
 }
 
 // RegistryConfig Registry 配置

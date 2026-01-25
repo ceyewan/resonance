@@ -57,6 +57,25 @@ func (m *Manager) Start() error {
 }
 
 // poll 定期轮询服务变动
+// TODO: P3 - 考虑使用 registry.Watch 替代轮询
+// Genesis registry.Registry 接口提供了 Watch 方法可以实时监听服务变化：
+//   Watch(ctx context.Context, serviceName string) (<-chan ServiceEvent, error)
+//
+// 优势：
+//   - 实时响应服务上下线，无需等待 pollInterval
+//   - 减少不必要的 Etcd 查询
+//
+// 劣势：
+//   - 需要处理断线重连、事件乱序等复杂场景
+//   - 轮询模式更简单、更可靠
+//
+// 当前使用轮询的原因：
+//   - Gateway 下线容忍度较高（用户可能重连）
+//   - 轮询间隔 10s 可接受
+//   - 实现简单，不容易出 bug
+//
+// 未来改进：可以使用混合模式
+//   - 主 Watch + 兜底轮询（如 30s 无事件则主动查询一次）
 func (m *Manager) poll() {
 	ticker := time.NewTicker(m.pollInterval)
 	defer ticker.Stop()
