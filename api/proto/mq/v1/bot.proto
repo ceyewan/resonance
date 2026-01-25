@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package resonance.mq.v1;
+
+import "common/v1/options.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/mq/v1;mqv1";
+
+// BotEvent 是 Logic -> BotService 通过 MQ 传输的消息结构
+message BotEvent {
+  option (resonance.common.v1.default_topic) = "resonance.bot.event.v1";
+
+  int64  msg_id        = 1;
+  string session_id    = 2;
+  string from_username = 3; // 发起提问的用户
+  string content       = 4; // 用户问题
+  int64  timestamp     = 5;
+  string message_type  = 6; // 消息类型：text, command 等
+}

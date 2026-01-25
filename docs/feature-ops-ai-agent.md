@@ -7,6 +7,7 @@
 - **分支**: `feature/ops-ai-agent`
 - **状态**: 规划中
 - **创建时间**: 2025-01-25
+- **更新时间**: 2025-01-25
 
 ---
 
@@ -32,7 +33,11 @@
             │   Task    │   │Bot Service│   │  (扩展)   │
             │  Pusher   │   │  AI Agent  │   │           │
             └───────────┘   └─────┬─────┘   └───────────┘
-                                │
+                                │   │
+                                │   ▼
+                                │ ┌─────────┐
+                                │ │  Redis  │ (State/Action)
+                                │ └─────────┘
                                 ▼
                          ┌──────────────┐
                          │ LLM (Claude) │
@@ -44,72 +49,63 @@
 
 | 原则 | 说明 |
 |------|------|
-| **Bot 即用户** | Bot 被视为一个特殊的系统用户，拥有自己的 username |
-| **消息复用** | Bot 对话消息存储在同一个 `t_message_content` 表 |
+| **内置体验** | Bot 作为基础设施内置，用户注册即自动添加好友，零门槛使用 |
+| **权限隔离** | 通过用户 Role 区分权限，仅 Admin 可挂载敏感运维工具，普通用户仅限闲聊 |
+| **确定性交互** | 敏感操作（HITL）通过**结构化卡片 + ActionID** 确认，**完全绕过 LLM 推理** |
+| **配置覆盖** | 支持用户自带 Key (BYOK) 和模型偏好，覆盖系统默认配置 |
 | **路由分流** | Logic 服务识别 Bot 消息，路由到专门的 MQ Topic |
-| **异步解耦** | LLM 响应慢，通过 MQ 异步处理，不阻塞核心链路 |
-| **推送复用** | Bot 回复走现有的 `Task -> Gateway -> WS` 推送链路 |
 
 ---
 
 ## 二、数据模型设计
 
-### 2.1 Bot 用户
+### 2.1 用户体系与权限
 
+**1. Bot 账号 (Built-in)**
 ```sql
 -- t_user 表中添加 Bot 用户
 INSERT INTO t_user (username, nickname, is_bot, created_at)
 VALUES ('ops-bot', '运维助手', 1, NOW());
 ```
 
-### 2.2 会话类型
-
-| Type | 名称 | 说明 |
-|------|------|------|
-| 1 | 单聊 | 用户与用户 |
-| 2 | 群聊 | 多人群组 |
-| 3 | Bot 会话 | 用户与 Bot（可选扩展） |
-
-**当前方案**：Bot 会话复用单聊类型（Type=1），Bot 作为一个特殊用户。
-
-### 2.3 MQ 消息
-
-**现有 PushEvent**（复用）：
-```protobuf
-message PushEvent {
-  int64  msg_id        = 1;
-  int64  seq_id        = 2;
-  string session_id    = 3;
-  string from_username = 4;  // 用户名
-  string to_username   = 5;  // 接收者（可以是 Bot）
-  string content       = 6;
-  string type          = 7;
-  int64  timestamp     = 8;
-  string session_name  = 9;
-  int32  session_type  = 10;
-}
+**2. 用户表改造 (Schema Change)**
+需在 `t_user` 表中添加角色字段，用于权限隔离。
+```sql
+ALTER TABLE t_user ADD COLUMN role VARCHAR(32) DEFAULT 'user' COMMENT 'user/admin';
 ```
 
-**新增 BotEvent**（Bot 专用）：
-```protobuf
-// api/proto/mq/v1/bot.proto
-
-syntax = "proto3";
-package resonance.mq.v1;
-
-import "common/v1/options.proto";
-
-message BotEvent {
-  option (resonance.common.v1.default_topic) = "resonance.bot.event.v1";
-
-  int64  msg_id        = 1;
-  string session_id    = 2;
-  string from_username = 3;  // 发起提问的用户
-  string content       = 4;  // 用户问题
-  int64  timestamp     = 5;
-  string message_type  = 6;  // 消息类型：text, command 等
-}
+**3. 用户 Bot 配置 (New Table)**
+用于存储用户的个性化设置和 BYOK 密钥。
+```sql
+CREATE TABLE user_bot_settings (
+    user_id VARCHAR(64) PRIMARY KEY,
+    provider VARCHAR(32) DEFAULT 'system', -- 'openai', 'anthropic', 'system'
+    model_name VARCHAR(64) DEFAULT 'gpt-3.5-turbo',
+    api_key VARCHAR(255), -- AES 加密存储
+    api_endpoint VARCHAR(255),
+    system_prompt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
 ```
+
+### 2.2 Redis 数据模型
+
+**1. 上下文缓存**
+*   Key: `bot:context:{session_id}`
+*   Type: List (JSON)
+*   TTL: 24h
+
+**2. 挂起动作 (Pending Action)**
+*   Key: `bot:action:{action_id}`
+*   Type: String (JSON)
+*   TTL: 5m
+*   Value: `{"tool": "restart", "params": {...}, "user_role": "admin"}`
+
+### 2.3 消息协议扩展
+
+*   **`interactive`**: 确认卡片 (JSON Payload)
+*   **`action_response`**: 按钮点击回调 (ActionID)
 
 ---
 
@@ -119,295 +115,218 @@ message BotEvent {
 
 ```
 bot/
-├── main.go                 # 服务入口
-├── config/                 # 配置管理
+├── main.go
+├── config/                 # 系统配置
 ├── consumer/               # MQ 消费者
-│   └── bot.go            # BotEvent 消费者
-├── agent/                  # AI Agent 核心
-│   ├── agent.go          # Agent 协调器
-│   ├── llm/              # LLM 调用（Claude SDK）
-│   ├── mcp/              # MCP 工具调用
-│   │   ├── registry.go  # 工具注册表
-│   │   ├── tools/        # 工具实现
-│   │   │   ├── get_logs.go      # 获取日志
-│   │   │   ├── get_metrics.go   # 获取指标
-│   │   │   ├── restart.go      # 重启服务
-│   │   │   └── ...
-│   │   └── client.go      # MCP 客户端
-│   └── context.go        # 对话上下文管理
+│   └── bot.go            # 消息分流
+├── agent/
+│   ├── agent.go          # Agent 核心
+│   ├── config_manager.go # 用户配置加载 (User Settings)
+│   ├── executor/         # Action 执行器
+│   ├── state/            # Redis 状态管理
+│   ├── llm/              # LLM Client Factory
+│   └── mcp/              # MCP 工具链
+│       └── registry.go   # 工具注册 (支持基于 Role 过滤)
 └── logic/                  # Logic 客户端
-    └── client.go         # gRPC 客户端封装
 ```
 
-### 3.2 关键组件
+### 3.2 关键业务流程
 
-#### Agent 协调器
+#### A. 注册即好友 (Onboarding)
+在 `User Service` 或 `Logic` 的注册流程中注入 Hook：
+1.  用户注册成功。
+2.  自动插入 `t_session_member`，建立用户与 `ops-bot` 的会话。
+3.  Bot 发送欢迎语：“你好，我是你的 AI 助手...”。
 
+#### B. 配置加载与 Client 初始化
 ```go
-// bot/agent/agent.go
-
-type Agent struct {
-    llm      LLMClient
-    mcp      *MCPRegistry
-    context  *ConversationContext
-    logic    LogicClient
-}
-
-func (a *Agent) ProcessUserMessage(ctx context.Context, msg *BotEvent) (string, error) {
-    // 1. 更新对话上下文
-    a.context.AddMessage("user", msg.Content)
-
-    // 2. 检查是否需要调用工具
-    if tools := a.mcp.MatchTools(msg.Content); len(tools) > 0 {
-        // 工具调用模式
-        return a.executeTools(ctx, tools)
+func (a *Agent) GetLLMClient(ctx context.Context, userID string) (LLMClient, error) {
+    // 1. 获取用户配置 (Cache-Aside)
+    settings := a.configMgr.GetSettings(userID)
+    
+    // 2. 决定 Client 策略
+    if settings != nil && settings.ApiKey != "" {
+        // BYOK 模式：解密 Key，使用用户配置
+        return llm.NewClient(settings.Provider, decrypt(settings.ApiKey), settings.Endpoint)
     }
-
-    // 3. 普通对话模式
-    return a.llm.Chat(a.context.GetMessages())
+    
+    // 3. 默认模式：使用系统配置
+    return a.systemClient
 }
 ```
 
-#### MCP 工具注册表
-
+#### C. 工具鉴权 (Permission Check)
 ```go
-// bot/agent/mcp/registry.go
-
-type MCPRegistry struct {
-    tools map[string]*MCPTool
+func (r *Registry) GetToolsForUser(role string) []Tool {
+    tools := []Tool{ToolChat, ToolSearch} // 基础工具
+    
+    if role == "admin" {
+        // 仅 Admin 可见运维工具
+        tools = append(tools, ToolRestartGateway, ToolViewLogs, ToolManagePods)
+    }
+    
+    return tools
 }
-
-type MCPTool struct {
-    Name        string
-    Description string
-    Handler     func(ctx context.Context, params map[string]interface{}) (string, error)
-    Parameters  []Parameter
-}
-
-// 预定义工具
-var defaultTools = []*MCPTool{
-    {
-        Name: "get_logs",
-        Description: "获取服务日志",
-        Handler:     getLogsHandler,
-    },
-    {
-        Name: "get_metrics",
-        Description: "获取 Prometheus 指标",
-        Handler:     getMetricsHandler,
-    },
-    {
-        Name: "list_pods",
-        Description: "列出 K8s Pods 状态",
-        Handler:     listPodsHandler,
-    },
-    // ...
-}
-```
-
-#### 对话上下文管理
-
-```go
-// bot/agent/context.go
-
-type ConversationContext struct {
-    mu       sync.Mutex
-    sessionID string
-    messages  []*Message
-    createdAt time.Time
-}
-
-type Message struct {
-    Role    string // "user" 或 "assistant"
-    Content string
-    Timestamp time.Time
-}
-
-// 保留最近 N 条消息作为上下文
-const ContextWindow = 10
 ```
 
 ---
 
 ## 四、交互流程
 
-### 4.1 用户提问流程
+### 4.1 敏感操作流程 (HITL - Interactive)
 
 ```
-1. 用户发送消息: "帮我查看 Gateway 的日志"
-   Web ──WS──> Gateway ──gRPC──> Logic
-
-2. Logic 处理消息
-   - 落库（t_message_content）
-   - 检查 to_username == "ops-bot"
-   - 发送 BotEvent 到 MQ (resonance.bot.event.v1)
-
-3. Bot Service 消费
-   - 订阅 resonance.bot.event.v1
-   - 调用 LLM 分析意图
-   - 识别需要调用 get_logs 工具
-
-4. MCP 工具调用
-   - Bot Service 调用 Logic/Admin API（或直接调用 K8s API）
-   - 获取 Gateway 日志
-
-5. LLM 生成回复
-   - 将工具结果作为上下文
-   - 生成自然语言回复
-
-6. 发送回复
-   - Bot Service 调用 Logic.SendMessage()
-   - sender: "ops-bot", receiver: 用户
-   - 走正常推送链路
-```
-
-### 4.2 时序图
-
-```
-User    Gateway    Logic    MQ    BotService    LLM/MCP
-  |        |          |        |          |          |
-  |--msg-->|          |        |          |          |
-  |        |--RPC---->|        |          |          |
-  |        |          |---+   BotEvent  |          |
-  |        |          |   |              |          |
-  |        |          |   +------------>|          |          |
-  |        |          |        |          |--分析意图->|
-  |        |          |        |          |<--需要工具--|
-  |        |          |        |          |--MCP调用-->|
-  |        |          |        |          |<--返回结果--|
-  |        |          |        |          |--生成回复--|
-  |        |          |        |          |          |  (异步)
-  |        |          |<--RPC 回复---------|          |
-  |        |<--WS----------------------------------|
-  |        |          |        |          |          |
+User (Admin)    BotService          Redis            LLM
+ |                 |                 |               |
+ |--"重启 Gateway"->|                 |               |
+ |                 |--1. Check Role->|               |
+ |                 |  (if user!=admin return 403)|
+ |                 |                 |               |
+ |                 |--2. 分析意图------------------->|
+ |                 |<--3. 建议重启-------------------|
+ |                 |                 |               |
+ |                 |--4. Gen ActionID & Store ------>|
+ |<--[确认卡片]-----|                 |               |
+ |                 |                 |               |
+ |--[点击确认]----->|                 |               |
+ | (action_resp)   |                 |               |
+ |                 |--5. Get & Del Action----------->|
+ |                 |--6. Exec Tool (Bypass LLM)----->|
+ |<--"已重启"-------|                 |               |
 ```
 
 ---
 
 ## 五、实施步骤
 
-### Phase 1: 基础设施
+### Phase 1: 基础设施与 Schema
 
-- [ ] **步骤 1.1**: 创建 Bot 消息 Proto 定义
-  - 文件：`api/proto/mq/v1/bot.proto`
-  - 定义 `BotEvent` 消息结构
-  - 运行 `make gen`
+- [ ] **步骤 1.1**: 更新 `api/proto/mq/v1/bot.proto`
+- [ ] **步骤 1.2**: 执行 SQL Schema 变更 (`t_user.role`, `user_bot_settings`)
+- [ ] **步骤 1.3**: 初始化 Bot Service
 
-- [ ] **步骤 1.2**: 创建 Bot 用户
-  - 数据库插入 `ops-bot` 用户
-  - 或者在代码中自动初始化
+### Phase 2: 核心逻辑改造
 
-- [ ] **步骤 1.3**: 创建 Bot Service 项目结构
-  - 目录：`bot/`
-  - 复用 `logic` 的项目结构
-
-### Phase 2: Logic 改造
-
-- [ ] **步骤 2.1**: 添加 Bot 路由逻辑
-  - 文件：`logic/service/chat.go`
-  - 在 MQ 发布前检查 `to_username`
-  - 如果是 Bot，发送 `BotEvent` 到 `resonance.bot.event.v1`
-
-```go
-// 伪代码：Logic 路由判断
-if isBotUser(req.ToUsername) {
-    // 发送 BotEvent
-    botEvent := &mqv1.BotEvent{
-        MsgId:        msgID,
-        SessionId:    req.SessionId,
-        FromUsername: req.FromUsername,
-        Content:      req.Content,
-        Timestamp:    time.Now().Unix(),
-    }
-    publishBotEvent(botEvent)
-    // 不走普通推送流程
-    return &logicv1.SendMessageResponse{...}
-}
-// 否则走原有流程
-```
+- [ ] **步骤 2.1**: 实现“注册即好友”逻辑
+- [ ] **步骤 2.2**: 实现 Logic 消息路由与落库适配
 
 ### Phase 3: Bot Service 实现
 
-- [ ] **步骤 3.1**: 实现 MQ 消费者
-  - 文件：`bot/consumer/bot.go`
-  - 订阅 `resonance.bot.event.v1`
-  - 调用 Agent 处理消息
+- [ ] **步骤 3.1**: 实现 `ConfigManager` (用户配置加载)
+- [ ] **步骤 3.2**: 实现 `LLMClientFactory` (支持 BYOK)
+- [ ] **步骤 3.3**: 实现 MCP 工具鉴权 (Role-based)
+- [ ] **步骤 3.4**: 实现 HITL 交互逻辑
 
-- [ ] **步骤 3.2**: 实现 Agent 核心逻辑
-  - 文件：`bot/agent/agent.go`
-  - LLM 调用
-  - 工具路由
-  - 上下文管理
+### Phase 4: 前端与设置
 
-- [ ] **步骤 3.3**: 实现 MCP 工具框架
-  - 文件：`bot/agent/mcp/registry.go`
-  - 工具注册表
-  - 工具调用执行
+- [ ] **步骤 4.1**: 实现 Slash Command 支持
+- [ ] **步骤 4.2**: Web 端支持交互卡片渲染
 
-- [ ] **步骤 3.4**: 实现基础工具
-  - `get_logs`: 获取服务日志
-  - `get_metrics`: 获取 Prometheus 指标
-  - `list_pods`: K8s Pod 状态
+### 4.1 Slash Command 设计
 
-### Phase 4: LLM 集成
+| 命令 | 功能 | 权限 | 说明 |
+|------|------|------|------|
+| `/help` | 显示帮助 | 所有用户 | 列出所有可用命令 |
+| `/model` | 查看当前模型 | 所有用户 | 显示正在使用的 LLM 模型 |
+| `/models` | 列出可用模型 | 所有用户 | 列出系统支持的模型列表 |
+| `/key <provider>` | 设置 API Key | 所有用户 | 绑定用户的 LLM Provider |
+| `/key remove` | 移除 API Key | 所有用户 | 切换回系统默认配置 |
+| `/clear` | 清空对话上下文 | 所有用户 | 重置 Bot 记忆，开始新对话 |
+| `/admin` | 进入 Admin 模式 | 仅 Admin | 解锁运维工具权限 |
 
-- [ ] **步骤 4.1**: 选择 LLM SDK
-  - 选项：Anthropic Claude SDK / OpenAI SDK
-  - 配置 API Key
+**实现示例**：
 
-- [ ] **步骤 4.2**: 实现 LLM 客户端
-  - 文件：`bot/agent/llm/client.go`
-  - 封装 Chat / Messages API
+```typescript
+// web/src/hooks/useSlashCommand.ts
 
-### Phase 5: 测试与部署
+const slashCommands = [
+  {
+    command: '/help',
+    description: '显示帮助信息',
+    handler: handleHelp,
+  },
+  {
+    command: '/model',
+    description: '查看当前 AI 模型',
+    handler: handleModel,
+  },
+  {
+    command: '/key',
+    description: '设置 API Key (BYOK)',
+    handler: handleSetKey,
+    params: [{ name: 'provider', description: 'Provider (openai/anthropic)' }],
+  },
+  {
+    command: '/clear',
+    description: '清空对话上下文',
+    handler: handleClear,
+  },
+  {
+    command: '/admin',
+    description: '进入 Admin 模式（需验证）',
+    handler: handleAdmin,
+  },
+];
 
-- [ ] **步骤 5.1**: 单元测试
-- [ ] **步骤 5.2**: 集成测试
-- [ ] **步骤 5.3**: Docker 部署
+// 命令检测
+function parseSlashCommand(content: string): { command: string; args: string[] } | null {
+  if (!content.startsWith('/')) return null;
+  const parts = content.trim().split(/\s+/);
+  return { command: parts[0], args: parts.slice(1) };
+}
+```
+
+### 4.2 交互卡片 (Interactive Card)
+
+```typescript
+// web/src/components/BotMessage.tsx
+
+interface BotCard {
+  type: 'action' | 'form' | 'list';
+  title: string;
+  description?: string;
+  actions: Action[];
+}
+
+interface Action {
+  id: string;           // ActionID
+  label: string;         // 按钮文案
+  style: 'primary' | 'danger' | 'default';
+  confirm?: string;     // 二次确认文案（可选）
+}
+
+function BotCard({ card }: { card: BotCard }) {
+  return (
+    <div className="bot-card">
+      <h3>{card.title}</h3>
+      {card.description && <p>{card.description}</p>}
+      {card.actions.map(action => (
+        <button
+          key={action.id}
+          className={action.style}
+          onClick={() => handleActionClick(action)}
+        >
+          {action.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
 
 ---
 
 ## 六、关键文件清单
 
-### 需要修改的文件
-
-| 文件 | 修改内容 |
-|------|----------|
-| `api/proto/mq/v1/bot.proto` | 新增 BotEvent 定义 |
-| `logic/service/chat.go` | 添加 Bot 消息路由逻辑 |
-| `main.go` | 添加 Bot 启动支持 |
-
-### 需要新建的文件
-
 | 文件 | 说明 |
 |------|------|
-| `bot/main.go` | Bot Service 入口 |
-| `bot/config/config.go` | Bot Service 配置 |
-| `bot/consumer/bot.go` | BotEvent 消费者 |
-| `bot/agent/agent.go` | Agent 协调器 |
-| `bot/agent/llm/client.go` | LLM 客户端 |
-| `bot/agent/mcp/registry.go` | MCP 工具注册表 |
-| `bot/agent/mcp/tools/*.go` | 工具实现 |
-| `bot/logic/client.go` | Logic gRPC 客户端 |
-| `docker-compose.bot.yml` | Bot Service 部署配置 |
+| `bot/agent/config_manager.go` | 用户配置管理 |
+| `bot/agent/mcp/registry.go` | 工具注册与鉴权 |
+| `internal/schema/schema.sql` | 数据库变更脚本 |
 
 ---
 
 ## 七、技术选型
 
-| 组件 | 选型 | 说明 |
-|------|------|------|
-| LLM Provider | Anthropic Claude | 支持 MCP，工具调用能力强 |
-| MCP SDK | anthropic-experimental-go | 官方 MCP SDK |
-| 框架 | 复用 Genesis + Logic/Task 结构 | 保持一致性 |
-
----
-
-## 八、风险与缓解
-
-| 风险 | 缓解措施 |
-|------|----------|
-| LLM 响应慢 | MQ 异步处理，用户发送成功后立即返回 |
-| LLM 调用失败 | 返回友好错误提示，记录日志 |
-| 工具执行权限 | 限制 MCP 工具只读操作，或需严格鉴权 |
-| 对话上下文泄露 | 不记录敏感信息到 LLM，或使用本地部署的 LLM |
+- **Store**: Redis (Cache), MySQL (Settings)
+- **Encryption**: AES-GCM (API Key Storage)
