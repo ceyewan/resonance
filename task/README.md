@@ -19,13 +19,17 @@ task/
 │   └── config.go        # 配置加载
 ├── task.go              # 主服务入口
 ├── README.md            # 服务文档
+├── observability/       # 可观测性
+│   ├── observability.go # Trace & Metrics
+│   └── config.go        # 可观测性配置
 ├── consumer/            # MQ 消费者
 │   └── consumer.go      # 通用消费者，支持依赖注入处理函数
 ├── dispatcher/          # 消息分发器
 │   └── dispatcher.go    # DispatchStorage (写扩散) / DispatchPush (推送)
 └── pusher/              # Gateway 推送客户端
     ├── manager.go       # 连接管理器（gatewayID -> RPC Client）
-    └── client.go        # 单个 Gateway 的推送客户端（队列 + Loop）
+    ├── client.go        # 单个 Gateway 的推送客户端（队列 + Loop）
+    └── interface.go     # PusherManager 接口
 ```
 
 ## 🔄 消息流转
@@ -35,7 +39,7 @@ task/
 ```
 Logic (MQ Publish)
   ↓
-NATS (PushEvent)
+NATS (PushEvent with trace_headers)
   ↓
 ┌─────────────────────────────────────┐
 │         Task 双消费者模式              │
@@ -93,6 +97,45 @@ NATS (PushEvent)
 - 两个消费者独立配置 Worker 数
 - 存储慢不影响推送，推送慢不影响存储
 
+## 🔍 可观测性
+
+### Trace 支持
+
+Task 服务支持 OpenTelemetry 分布式追踪，Trace Context 通过以下方式传播：
+
+1. **PushEvent.trace_headers** - protobuf 字段（主要）
+2. **NATS Message Headers** - MQ 原生 Headers（兜底）
+
+**Trace 链路**:
+```
+Logic → MQ → Task.Consumer → Task.Dispatcher → Gateway
+   (inject)   (extract)     (child span)      (propagate)
+```
+
+### Metrics 指标
+
+| 指标名称 | 类型 | 说明 |
+|---------|------|------|
+| `task_storage_process_duration_seconds` | Histogram | Storage 处理耗时 |
+| `task_push_enqueue_total` | Counter | Push 入队成功数 |
+| `task_push_enqueue_failed_total` | Counter | Push 入队失败数 |
+| `task_push_process_duration_seconds` | Histogram | Push 处理耗时 |
+| `task_gateway_queue_depth` | Gauge | Gateway 队列深度 |
+| `task_gateway_connected_total` | Gauge | Gateway 连接数 |
+
+**配置示例**:
+```yaml
+observability:
+  trace:
+    endpoint: localhost:4317  # OTLP Collector
+    sampler: 1.0               # 采样率
+    insecure: true             # 非加密连接
+  metrics:
+    port: 9090                 # Prometheus 端口
+    path: /metrics
+    enable_runtime: true       # Go Runtime 指标
+```
+
 ## ⚙️ 配置说明
 
 ### 配置结构
@@ -107,9 +150,16 @@ type Config struct {
     Etcd    connector.EtcdConfig  // Etcd 配置
     Registry RegistryConfig       // Registry 配置
 
+    // 可观测性配置
+    Observability struct {
+        Trace   TraceConfig   // Trace 配置
+        Metrics MetricsConfig  // Metrics 配置
+    }
+
     // Gateway 服务配置
     GatewayServiceName string // Gateway 服务名称（默认: gateway-service）
     GatewayQueueSize   int    // 每个 Gateway 的推送队列大小（默认: 1000）
+    GatewayPusherCount int    // 每个 Gateway 的并发推送协程数（默认: 3）
 
     // 消费者配置（双消费者）
     StorageConsumer ConsumerConfig // 存储消费者
@@ -131,6 +181,7 @@ type ConsumerConfig struct {
 # configs/task.yaml
 log:
   level: debug
+  format: json
 
 mysql:
   host: 127.0.0.1
@@ -150,9 +201,22 @@ etcd:
 registry:
   namespace: /resonance/services
   default_ttl: 30s
+  poll_interval: 10s  # 服务发现轮询间隔
 
 gateway_service_name: gateway-service
 gateway_queue_size: 1000
+gateway_pusher_count: 3
+
+# 可观测性配置
+observability:
+  trace:
+    endpoint: localhost:4317  # Tempo/Jaeger OTLP 端口
+    sampler: 1.0
+    insecure: true
+  metrics:
+    port: 9090
+    path: /metrics
+    enable_runtime: true
 
 storage_consumer:
   topic: resonance.push.event.v1
@@ -178,6 +242,8 @@ push_consumer:
 - 订阅 NATS 主题（支持 Queue Group）
 - Worker Pool 并发处理消息
 - 依赖注入处理函数，支持不同业务逻辑
+- 自动提取 Trace Context 并创建子 Span
+- 记录处理耗时指标
 
 ```go
 type HandlerFunc func(context.Context, *mqv1.PushEvent) error
@@ -190,26 +256,6 @@ func NewConsumer(
 ) *Consumer
 ```
 
-**双消费者初始化**:
-
-```go
-// Storage Consumer - 处理写扩散
-storageConsumer := consumer.NewConsumer(
-    mqClient,
-    dispatcher.DispatchStorage,
-    cfg.StorageConsumer,
-    logger,
-)
-
-// Push Consumer - 处理推送
-pushConsumer := consumer.NewConsumer(
-    mqClient,
-    dispatcher.DispatchPush,
-    cfg.PushConsumer,
-    logger,
-)
-```
-
 ### 2. Dispatcher (消息分发器)
 
 **职责分离**:
@@ -217,113 +263,41 @@ pushConsumer := consumer.NewConsumer(
 - `DispatchStorage` - 执行写扩散落库
 - `DispatchPush` - 查询路由，投递推送任务到队列
 
-```go
-// DispatchStorage - 写扩散
-func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
-    // 1. 获取会话成员
-    members, _ := d.sessionRepo.GetMembers(ctx, event.SessionId)
-
-    // 2. 构造 Inbox 记录
-    inboxes := make([]*model.Inbox, len(members))
-    for i, m := range members {
-        inboxes[i] = &model.Inbox{
-            OwnerUsername: m.Username,
-            SessionID:     event.SessionId,
-            MsgID:         event.MsgId,
-            SeqID:         event.SeqId,
-        }
-    }
-
-    // 3. 批量落库
-    return d.messageRepo.SaveInbox(ctx, inboxes)
-}
-
-// DispatchPush - 推送
-func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
-    // 1. 获取会话成员（排除发送者）
-    // 2. 批量获取用户路由 (GatewayID)
-    // 3. 按 GatewayID 分组
-    // 4. 投递到各 Gateway 的推送队列
-}
-```
+**特性**:
+- 自动创建子 Span 用于追踪
+- 记录推送入队/失败指标
+- 更新 Gateway 队列深度指标
 
 ### 3. Pusher.Manager (连接管理器)
 
 **职责**:
 
 - 管理所有 Gateway 的 RPC Client
-- 通过 Etcd Registry 发现 Gateway 实例
+- 通过 Etcd Registry 轮询发现 Gateway 实例
 - 为每个 Gateway 创建独立队列和推送 Loop
 
-```go
-type Manager struct {
-    registry   registry.Registry
-    queueSize  int              // 每个 Gateway 的队列大小
-    clients    map[string]*GatewayClient  // gatewayID -> Client
-}
-
-// 每个 GatewayClient 有独立的推送队列和 Loop
-type GatewayClient struct {
-    client    gatewayv1.PushServiceClient
-    pushQueue chan *PushTask   // 推送队列
-    logger    clog.Logger
-    ctx       context.Context
-    cancel    context.CancelFunc
-    wg        *sync.WaitGroup
-}
-```
-
-**推送流程**:
-
-```
-DispatchPush
-    ↓
-按 GatewayID 分组
-    ↓
-Manager.GetClient(gatewayID)
-    ↓
-GatewayClient.Enqueue(task)  // 非阻塞投递
-    ↓
-pushLoop() goroutine
-    ↓
-Unary RPC Push → Gateway
-```
+**服务发现**:
+- 当前使用轮询模式（默认 10s）
+- TODO: 考虑使用 registry.Watch 实现实时监听
 
 ### 4. GatewayClient (单 Gateway 推送客户端)
 
 **异步持久化模式**:
 
 ```go
-// 每个 Gateway 独立的推送 Loop
-func (c *GatewayClient) pushLoop() {
-    for {
-        select {
-        case <-c.ctx.Done():
-            return
-        case task := <-c.pushQueue:
-            c.doPush(task)  // 一元 RPC
-        }
-    }
-}
-
-func (c *GatewayClient) doPush(task *PushTask) {
-    ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
-    defer cancel()
-
-    resp, err := c.client.Push(ctx, &gatewayv1.PushRequest{
-        ToUsernames: task.ToUsernames,
-        Message:     task.Message,
-    })
-    // 错误处理...
+type GatewayClient struct {
+    client      gatewayv1.PushServiceClient
+    pushQueue   chan *PushTask    // 推送队列
+    pusherCount int               // 并发推送协程数
 }
 ```
 
 **特性**:
-
 - **独立队列**: 每个 Gateway 一个 buffered channel
-- **独立 Loop**: 每个 Gateway 一个 goroutine 持续推送
-- **非阻塞投递**: `Enqueue()` 队列满立即返回错误
-- **优雅关闭**: `Close()` 等待队列清空
+- **并发推送**: 支持配置多个 pusher 并发处理
+- **重试机制**: 推送失败自动重试 3 次
+- **优雅关闭**: `Close()` 等待队列清空并 drain 剩余消息
+- **指标上报**: 入队/消费时更新队列深度指标
 
 ## 📊 性能考虑
 
@@ -344,19 +318,33 @@ storage_consumer:
 
 push_consumer:
   worker_count: 50   # 推送需要更多 Worker（网络 IO）
+
+gateway_pusher_count: 3  # 每个 Gateway 3 个并发推送协程
 ```
 
-### 推送队列
+## 🔧 可靠性保障
 
-- **队列大小**: 默认 1000，可按 Gateway 数量和消息量调整
-- **监控**: `GatewayClient.QueueSize()` 可获取当前队列长度
-- **非阻塞**: 队列满时 `Enqueue()` 返回错误，由 Consumer 重试
+### 消息处理可靠性
+
+| 场景 | 处理方式 |
+|------|---------|
+| 处理失败 | Nak 重试（可配置重试次数） |
+| 解析失败 | Ack + 日志记录（TODO: 死信队列） |
+| 队列满 | 返回错误，由 Consumer 重试 |
+| 网络超时 | 自动重试 3 次 |
+
+### 优雅关闭
+
+1. **Consumer**: 停止订阅 → 关闭通道 → drain 队列 → 等待 worker
+2. **GatewayClient**: 关闭队列 → cancel context → drain 队列 → 等待 pusher → 关闭连接
+3. **Task 资源**: 并发关闭 → 10s 超时控制
 
 ## 📝 待完善功能
 
-- [ ] 推送失败重试（当前仅记录日志）
+- [ ] P0: 消息解析失败记录到死信队列（等 JetStream 支持）
+- [ ] P2: 背压机制实现（当前队列满阻塞）
+- [ ] P3: Watch 服务发现替代轮询
 - [ ] 推送优先级队列
 - [ ] 推送去重（避免重复推送）
-- [ ] 推送统计（成功率、延迟监控）
 - [ ] 大群聊优化（读扩散策略）
 - [ ] 单元测试和集成测试

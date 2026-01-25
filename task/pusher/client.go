@@ -8,6 +8,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/task/observability"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -73,6 +74,8 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 func (c *GatewayClient) Enqueue(task *PushTask) error {
 	select {
 	case c.pushQueue <- task:
+		// 更新队列深度指标
+		observability.SetGatewayQueueDepth(context.Background(), c.id, len(c.pushQueue))
 		return nil
 	default:
 		return fmt.Errorf("gateway %s queue full", c.id)
@@ -99,6 +102,8 @@ func (c *GatewayClient) pushLoop(workerID int) {
 		case task := <-c.pushQueue:
 			if task != nil {
 				c.doPush(task)
+				// 消费后更新队列深度指标
+				observability.SetGatewayQueueDepth(context.Background(), c.id, len(c.pushQueue))
 			}
 		}
 	}

@@ -165,10 +165,15 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		return nil
 	}
 
-	// 2. 从 MQ Headers 中提取 Trace Context（如果 Logic 端已经注入）
-	// 同时从 PushEvent.trace_headers 中提取（如果 Logic 端使用了 protobuf 传递）
-	// 优先使用 PushEvent.trace_headers，因为它是更可靠的传递方式
+	// 2. 提取 Trace Context（双重来源，优先级递减）
+	// 优先级 1: 从 PushEvent.trace_headers 提取（protobuf 字段，最可靠）
+	// 优先级 2: 从 MQ Message Headers 提取（NATS 原生 Headers，兜底方案）
 	ctx = observability.ExtractTraceContext(ctx, event.TraceHeaders)
+
+	// 如果 protobuf 中没有 Trace Context，尝试从 MQ Headers 提取
+	if !observability.HasTraceContext(ctx) && msg.Headers() != nil {
+		ctx = observability.ExtractTraceContext(ctx, msg.Headers())
+	}
 
 	// 3. 创建处理 Span（如果 Trace 已启用）
 	spanName := "consumer.process"

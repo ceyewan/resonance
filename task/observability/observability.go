@@ -35,11 +35,11 @@ var (
 
 	// 业务指标
 	storageProcessDuration metrics.Histogram
-	pushEnqueueTotal      metrics.Counter
-	pushEnqueueFailed     metrics.Counter
-	pushProcessDuration   metrics.Histogram
-	gatewayQueueDepth     metrics.Gauge
-	gatewayConnected      metrics.Gauge
+	pushEnqueueTotal       metrics.Counter
+	pushEnqueueFailed      metrics.Counter
+	pushProcessDuration    metrics.Histogram
+	gatewayQueueDepth      metrics.Gauge
+	gatewayConnected       metrics.Gauge
 )
 
 // Init 初始化可观测性组件
@@ -152,9 +152,9 @@ func initTrace(cfg *Config) (func(context.Context) error, error) {
 // initMetrics 初始化 Metrics
 func initMetrics(cfg *Config) (metrics.Meter, error) {
 	metricsCfg := &metrics.Config{
-		ServiceName:  ServiceName,
-		Port:         cfg.Metrics.Port,
-		Path:         cfg.Metrics.Path,
+		ServiceName:   ServiceName,
+		Port:          cfg.Metrics.Port,
+		Path:          cfg.Metrics.Path,
 		EnableRuntime: cfg.Metrics.EnableRuntime,
 	}
 	if metricsCfg.Port == 0 {
@@ -227,7 +227,7 @@ func StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (c
 	}
 }
 
-// ExtractTraceContext 从 PushEvent 中提取 Trace Context
+// ExtractTraceContext 从 map 中提取 Trace Context
 // 用于 MQ 消费者场景，还原上游的链路追踪信息
 // TODO: 等待 Genesis trace 包更新后，切换为 trace.Extract
 func ExtractTraceContext(ctx context.Context, traceHeaders map[string]string) context.Context {
@@ -235,6 +235,14 @@ func ExtractTraceContext(ctx context.Context, traceHeaders map[string]string) co
 		return ctx
 	}
 	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(traceHeaders))
+}
+
+// HasTraceContext 检查 Context 中是否包含有效的 Trace Context
+// 用于判断是否需要从备用来源提取 Trace 信息
+func HasTraceContext(ctx context.Context) bool {
+	_, span := otel.GetTracerProvider().Tracer(TracerName).Start(ctx, "dummy")
+	defer span.End()
+	return span.SpanContext().IsValid() && span.SpanContext().HasTraceID()
 }
 
 // InjectTraceContext 将当前 Context 的 Trace 信息注入到 map
