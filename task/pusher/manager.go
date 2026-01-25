@@ -16,7 +16,9 @@ type Manager struct {
 	logger             clog.Logger
 	registry           registry.Registry
 	gatewayServiceName string
-	queueSize          int // 每个 Gateway 的队列大小
+	queueSize          int           // 每个 Gateway 的队列大小
+	pusherCount        int           // 每个 Gateway 的并发推送协程数
+	pollInterval       time.Duration // 服务发现轮询间隔
 
 	clients map[string]*GatewayClient // gatewayID -> Client
 	mu      sync.RWMutex
@@ -26,13 +28,15 @@ type Manager struct {
 }
 
 // NewManager 创建 Pusher Manager
-func NewManager(logger clog.Logger, reg registry.Registry, serviceName string, queueSize int) *Manager {
+func NewManager(logger clog.Logger, reg registry.Registry, serviceName string, queueSize int, pusherCount int, pollInterval time.Duration) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Manager{
 		logger:             logger,
 		registry:           reg,
 		gatewayServiceName: serviceName,
 		queueSize:          queueSize,
+		pusherCount:        pusherCount,
+		pollInterval:       pollInterval,
 		clients:            make(map[string]*GatewayClient),
 		ctx:                ctx,
 		cancel:             cancel,
@@ -54,7 +58,7 @@ func (m *Manager) Start() error {
 
 // poll 定期轮询服务变动
 func (m *Manager) poll() {
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(m.pollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -121,7 +125,7 @@ func (m *Manager) addClient(svc *registry.ServiceInstance) {
 	// endpoints: ["grpc://127.0.0.1:9091"]
 	addr := strings.TrimPrefix(svc.Endpoints[0], "grpc://")
 
-	client, err := NewClient(addr, svc.ID, m.queueSize, m.logger)
+	client, err := NewClient(addr, svc.ID, m.queueSize, m.pusherCount, m.logger)
 	if err != nil {
 		m.logger.Error("failed to create gateway client",
 			clog.String("id", svc.ID),
@@ -134,7 +138,8 @@ func (m *Manager) addClient(svc *registry.ServiceInstance) {
 	m.logger.Info("gateway client connected",
 		clog.String("id", svc.ID),
 		clog.String("addr", addr),
-		clog.Int("queue_size", m.queueSize))
+		clog.Int("queue_size", m.queueSize),
+		clog.Int("pusher_count", m.pusherCount))
 }
 
 // GetClient 获取指定 Gateway 的客户端

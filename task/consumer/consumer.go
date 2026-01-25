@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -26,6 +27,7 @@ type Consumer struct {
 	jobsCh       chan mq.Message // 任务通道
 	ctx          context.Context
 	cancel       context.CancelFunc
+	wg           sync.WaitGroup // 等待所有 worker 退出
 }
 
 // NewConsumer 创建消费者
@@ -61,6 +63,7 @@ func (c *Consumer) Start() error {
 
 	// 1. 启动 Worker Pool
 	for i := 0; i < c.config.WorkerCount; i++ {
+		c.wg.Add(1)
 		go c.worker(i)
 	}
 
@@ -87,13 +90,30 @@ func (c *Consumer) receiveMessage(ctx context.Context, msg mq.Message) error {
 
 // worker 工作协程
 func (c *Consumer) worker(id int) {
+	defer c.wg.Done()
 	c.logger.Debug("worker started", clog.Int("worker_id", id))
+
 	for {
 		select {
 		case msg := <-c.jobsCh:
 			c.handleMessage(c.ctx, msg)
 		case <-c.ctx.Done():
+			// 优雅关闭：处理完 jobsCh 中剩余的消息
+			c.drainJobs(id)
 			c.logger.Debug("worker stopped", clog.Int("worker_id", id))
+			return
+		}
+	}
+}
+
+// drainJobs 处理剩余的任务
+func (c *Consumer) drainJobs(workerID int) {
+	for {
+		select {
+		case msg := <-c.jobsCh:
+			c.handleMessage(c.ctx, msg)
+		default:
+			// 队列已空
 			return
 		}
 	}
@@ -113,7 +133,7 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		return nil
 	}
 
-	c.logger.Info("processing push event",
+	c.logger.Debug("processing push event",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
 
@@ -128,7 +148,7 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 
 	// 处理成功，Ack 确认
 	msg.Ack()
-	c.logger.Info("push event processed successfully",
+	c.logger.Debug("push event processed successfully",
 		clog.Int64("msg_id", event.MsgId))
 
 	return nil
@@ -162,14 +182,22 @@ func (c *Consumer) processWithRetry(event *mqv1.PushEvent) error {
 // Stop 停止消费者
 func (c *Consumer) Stop() error {
 	c.logger.Info("stopping consumer")
-	c.cancel()
 
-	// 取消订阅
+	// 1. 取消订阅，停止接收新消息
 	if c.subscription != nil {
 		if err := c.subscription.Unsubscribe(); err != nil {
 			c.logger.Error("failed to unsubscribe", clog.Error(err))
 		}
 	}
+
+	// 2. 关闭任务通道，不再接收新任务
+	close(c.jobsCh)
+
+	// 3. 取消 context，触发 worker 优雅退出
+	c.cancel()
+
+	// 4. 等待所有 worker 处理完剩余任务
+	c.wg.Wait()
 
 	c.logger.Info("consumer stopped")
 	return nil

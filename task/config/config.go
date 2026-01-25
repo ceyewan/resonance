@@ -32,7 +32,8 @@ type Config struct {
 
 	// Gateway 服务配置
 	GatewayServiceName string `mapstructure:"gateway_service_name"` // Gateway 服务名称
-	GatewayQueueSize   int    `mapstructure:"gateway_queue_size"`  // 每个 Gateway 的推送队列大小
+	GatewayQueueSize   int    `mapstructure:"gateway_queue_size"`   // 每个 Gateway 的推送队列大小
+	GatewayPusherCount int    `mapstructure:"gateway_pusher_count"` // 每个 Gateway 的并发推送协程数
 
 	// 消费者配置
 	StorageConsumer ConsumerConfig `mapstructure:"storage_consumer"` // 存储任务消费者
@@ -45,6 +46,7 @@ type RegistryConfig struct {
 	DefaultTTL      time.Duration `mapstructure:"default_ttl"`      // 默认租约
 	EnableCache     bool          `mapstructure:"enable_cache"`     // 是否启用缓存
 	CacheExpiration time.Duration `mapstructure:"cache_expiration"` // 缓存过期时间
+	PollInterval    time.Duration `mapstructure:"poll_interval"`    // 服务发现轮询间隔
 }
 
 // ToRegistryConfig 转换为 registry.Config

@@ -87,7 +87,15 @@ func (t *Task) initComponents() error {
 	if queueSize <= 0 {
 		queueSize = 1000 // 默认每个 Gateway 队列大小 1000
 	}
-	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName, queueSize)
+	pusherCount := t.config.GatewayPusherCount
+	if pusherCount <= 0 {
+		pusherCount = 3 // 默认每个 Gateway 3 个并发推送协程
+	}
+	pollInterval := t.config.Registry.PollInterval
+	if pollInterval <= 0 {
+		pollInterval = 10 * time.Second // 默认 10s 轮询一次
+	}
+	t.pusherMgr = pusher.NewManager(logger, res.registry, t.config.GatewayServiceName, queueSize, pusherCount, pollInterval)
 
 	// 4. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(

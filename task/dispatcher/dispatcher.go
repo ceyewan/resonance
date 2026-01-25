@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/genesis/xerrors"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/internal/model"
@@ -12,17 +11,12 @@ import (
 	"github.com/ceyewan/resonance/task/pusher"
 )
 
-var (
-	// ErrUserOffline 用户离线
-	ErrUserOffline = xerrors.New("user offline")
-)
-
 // Dispatcher 消息分发器
 type Dispatcher struct {
 	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo // Storage consumer uses this
-	routerRepo  repo.RouterRepo  // Push consumer uses this
-	pusherMgr   *pusher.Manager  // Push consumer uses this
+	messageRepo repo.MessageRepo     // Storage consumer uses this
+	routerRepo  repo.RouterRepo      // Push consumer uses this
+	pusherMgr   pusher.PusherManager // Push consumer uses this (接口类型)
 	logger      clog.Logger
 }
 
@@ -31,7 +25,7 @@ func NewDispatcher(
 	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
 	routerRepo repo.RouterRepo,
-	pusherMgr *pusher.Manager,
+	pusherMgr pusher.PusherManager,
 	logger clog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{
@@ -45,7 +39,7 @@ func NewDispatcher(
 
 // DispatchStorage 处理存储任务（写扩散）
 func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
-	d.logger.Info("dispatching storage task",
+	d.logger.Debug("dispatching storage task",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
 
@@ -74,7 +68,7 @@ func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent)
 		return err // 存储失败需要重试
 	}
 
-	d.logger.Info("storage task completed",
+	d.logger.Debug("storage task completed",
 		clog.Int64("msg_id", event.MsgId),
 		clog.Int("inbox_count", len(inboxes)))
 
@@ -84,7 +78,7 @@ func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent)
 // DispatchPush 处理推送任务（在线推送）
 // 将消息投递到对应 Gateway 的推送队列，由 GatewayClient 的 loop 异步执行
 func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
-	d.logger.Info("dispatching push task",
+	d.logger.Debug("dispatching push task",
 		clog.Int64("msg_id", event.MsgId),
 		clog.String("session_id", event.SessionId))
 
@@ -106,7 +100,7 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 	}
 
 	if len(usernames) == 0 {
-		d.logger.Info("no target users to push", clog.Int64("msg_id", event.MsgId))
+		d.logger.Debug("no target users to push", clog.Int64("msg_id", event.MsgId))
 		return nil
 	}
 
@@ -178,7 +172,7 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 			clog.Int("queue_size", client.QueueSize()))
 	}
 
-	d.logger.Info("push task enqueued",
+	d.logger.Debug("push task enqueued",
 		clog.Int64("msg_id", event.MsgId),
 		clog.Int("total_targets", len(usernames)),
 		clog.Int("enqueued_targets", successCount))

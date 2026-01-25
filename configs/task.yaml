@@ -50,12 +50,24 @@ registry:
   default_ttl: 30s
   enable_cache: true
   cache_expiration: 10s
+  poll_interval: 10s  # 服务发现轮询间隔
 
 gateway_service_name: gateway-service
+gateway_queue_size: 1000     # 每个 Gateway 的推送队列大小
+gateway_pusher_count: 3      # 每个 Gateway 的并发推送协程数
 
-consumer:
+# 存储消费者配置（写扩散）
+storage_consumer:
+  topic: resonance.storage.event.v1
+  queue_group: resonance_group_storage
+  worker_count: 20
+  max_retry: 3
+  retry_interval: 5
+
+# 推送消费者配置（在线推送）
+push_consumer:
   topic: resonance.push.event.v1
-  queue_group: task-service
-  worker_count: 10
+  queue_group: resonance_group_push
+  worker_count: 50
   max_retry: 3
   retry_interval: 5

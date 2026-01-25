@@ -19,24 +19,25 @@ type PushTask struct {
 }
 
 // GatewayClient 单个 Gateway 的推送客户端
-// 每个 Gateway 对应一个 Client，维护独立的推送队列和 loop
+// 每个 Gateway 对应一个 Client，维护独立的推送队列和多个并发 pushLoop
 type GatewayClient struct {
-	conn      *grpc.ClientConn
-	client    gatewayv1.PushServiceClient
-	id        string
-	pushQueue chan *PushTask
-	logger    clog.Logger
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        *sync.WaitGroup
+	conn        *grpc.ClientConn
+	client      gatewayv1.PushServiceClient
+	id          string
+	pushQueue   chan *PushTask
+	pusherCount int // 并发推送协程数
+	logger      clog.Logger
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          *sync.WaitGroup
 }
 
 // NewClient 创建 Gateway 客户端
-func NewClient(addr string, id string, queueSize int, logger clog.Logger) (*GatewayClient, error) {
+func NewClient(addr string, id string, queueSize int, pusherCount int, logger clog.Logger) (*GatewayClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// 建立连接（不阻塞，延迟到第一次调用）
-	conn, err := grpc.Dial(addr,
+	// 建立连接（使用 grpc.NewClient 替代废弃的 grpc.Dial）
+	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(4*1024*1024), // 4MB
@@ -48,19 +49,22 @@ func NewClient(addr string, id string, queueSize int, logger clog.Logger) (*Gate
 	}
 
 	client := &GatewayClient{
-		conn:      conn,
-		client:    gatewayv1.NewPushServiceClient(conn),
-		id:        id,
-		pushQueue: make(chan *PushTask, queueSize),
-		logger:    logger,
-		ctx:       ctx,
-		cancel:    cancel,
-		wg:        &sync.WaitGroup{},
+		conn:        conn,
+		client:      gatewayv1.NewPushServiceClient(conn),
+		id:          id,
+		pushQueue:   make(chan *PushTask, queueSize),
+		pusherCount: pusherCount,
+		logger:      logger,
+		ctx:         ctx,
+		cancel:      cancel,
+		wg:          &sync.WaitGroup{},
 	}
 
-	// 启动推送 loop
-	client.wg.Add(1)
-	go client.pushLoop()
+	// 启动多个并发推送 loop
+	for i := 0; i < pusherCount; i++ {
+		client.wg.Add(1)
+		go client.pushLoop(i)
+	}
 
 	return client, nil
 }
@@ -81,72 +85,126 @@ func (c *GatewayClient) EnqueueBlocking(task *PushTask) {
 }
 
 // pushLoop 持续从队列取消息并推送
-func (c *GatewayClient) pushLoop() {
+func (c *GatewayClient) pushLoop(workerID int) {
 	defer c.wg.Done()
+	c.logger.Debug("pusher started", clog.String("gateway_id", c.id), clog.Int("worker_id", workerID))
 
 	for {
 		select {
 		case <-c.ctx.Done():
+			// 优雅关闭：先处理完队列中剩余的消息
+			c.drainQueue(workerID)
+			c.logger.Debug("pusher stopped", clog.String("gateway_id", c.id), clog.Int("worker_id", workerID))
 			return
 		case task := <-c.pushQueue:
-			c.doPush(task)
+			if task != nil {
+				c.doPush(task)
+			}
 		}
 	}
 }
 
-// doPush 执行单次推送
-func (c *GatewayClient) doPush(task *PushTask) {
-	ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
-	defer cancel()
-
-	req := &gatewayv1.PushRequest{
-		ToUsernames: task.ToUsernames,
-		Message:     task.Message,
+// drainQueue 处理队列中剩余的消息
+func (c *GatewayClient) drainQueue(workerID int) {
+	drained := 0
+	for {
+		select {
+		case task := <-c.pushQueue:
+			if task != nil {
+				c.doPush(task)
+				drained++
+			}
+		default:
+			// 队列已空
+			if drained > 0 {
+				c.logger.Info("pusher drained queue",
+					clog.String("gateway_id", c.id),
+					clog.Int("worker_id", workerID),
+					clog.Int("drained_count", drained))
+			}
+			return
+		}
 	}
+}
 
-	resp, err := c.client.Push(ctx, req)
-	if err != nil {
-		c.logger.Error("push failed",
+// doPush 执行单次推送（带重试）
+func (c *GatewayClient) doPush(task *PushTask) {
+	const maxRetry = 3
+	const retryDelay = 1 * time.Second
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetry; attempt++ {
+		if attempt > 0 {
+			c.logger.Warn("retrying push",
+				clog.String("gateway_id", c.id),
+				clog.Int64("msg_id", task.Message.MsgId),
+				clog.Int("attempt", attempt+1))
+			time.Sleep(retryDelay)
+		}
+
+		ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
+		req := &gatewayv1.PushRequest{
+			ToUsernames: task.ToUsernames,
+			Message:     task.Message,
+		}
+
+		resp, err := c.client.Push(ctx, req)
+		cancel()
+
+		if err != nil {
+			lastErr = err
+			c.logger.Warn("push attempt failed",
+				clog.String("gateway_id", c.id),
+				clog.Int64("msg_id", task.Message.MsgId),
+				clog.Int("attempt", attempt+1),
+				clog.Error(err))
+			continue
+		}
+
+		if resp.Error != "" {
+			c.logger.Error("push error from gateway",
+				clog.String("gateway_id", c.id),
+				clog.Int64("msg_id", resp.MsgId),
+				clog.String("error", resp.Error))
+			return // Gateway 返回业务错误，不重试
+		}
+
+		if len(resp.FailedUsernames) > 0 {
+			c.logger.Warn("partial push failure",
+				clog.String("gateway_id", c.id),
+				clog.Int64("msg_id", resp.MsgId),
+				clog.Int("failed_count", len(resp.FailedUsernames)))
+		}
+
+		c.logger.Debug("push success",
 			clog.String("gateway_id", c.id),
 			clog.Int64("msg_id", task.Message.MsgId),
-			clog.Int("user_count", len(task.ToUsernames)),
-			clog.Error(err))
-		return
+			clog.Int("user_count", len(task.ToUsernames)))
+		return // 成功
 	}
 
-	if resp.Error != "" {
-		c.logger.Error("push error from gateway",
-			clog.String("gateway_id", c.id),
-			clog.Int64("msg_id", resp.MsgId),
-			clog.String("error", resp.Error))
-		return
-	}
-
-	if len(resp.FailedUsernames) > 0 {
-		c.logger.Warn("partial push failure",
-			clog.String("gateway_id", c.id),
-			clog.Int64("msg_id", resp.MsgId),
-			clog.Int("failed_count", len(resp.FailedUsernames)))
-		return
-	}
-
-	c.logger.Debug("push success",
+	// 重试耗尽，记录错误
+	c.logger.Error("push failed after retries",
 		clog.String("gateway_id", c.id),
 		clog.Int64("msg_id", task.Message.MsgId),
-		clog.Int("user_count", len(task.ToUsernames)))
+		clog.Int("user_count", len(task.ToUsernames)),
+		clog.Error(lastErr))
 }
 
 // Close 关闭连接
 func (c *GatewayClient) Close() error {
-	// 停止接收新任务
+	c.logger.Info("closing gateway client", clog.String("gateway_id", c.id))
+
+	// 1. 停止接收新任务
 	close(c.pushQueue)
 
-	// 取消 context
+	// 2. 取消 context，触发 pushLoop 优雅退出（会先 drain 队列）
 	c.cancel()
 
-	// 等待 loop 结束
+	// 3. 等待 loop 处理完剩余消息并退出
 	c.wg.Wait()
 
+	// 4. 关闭 gRPC 连接
 	return c.conn.Close()
 }
 
