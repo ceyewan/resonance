@@ -28,9 +28,9 @@ const (
 //
 // ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
 type ChatServiceClient interface {
-	// SendMessage 处理来自网关的上行消息 (双向流)
-	// Gateway 持续发送消息，Logic 持续返回处理结果
-	SendMessage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SendMessageRequest, SendMessageResponse], error)
+	// SendMessage 处理来自网关的上行消息 (Unary 调用)
+	// Gateway 发送消息，Logic 返回处理结果（Response 即为 ACK）
+	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
 }
 
 type chatServiceClient struct {
@@ -41,18 +41,15 @@ func NewChatServiceClient(cc grpc.ClientConnInterface) ChatServiceClient {
 	return &chatServiceClient{cc}
 }
 
-func (c *chatServiceClient) SendMessage(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SendMessageRequest, SendMessageResponse], error) {
+func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &ChatService_ServiceDesc.Streams[0], ChatService_SendMessage_FullMethodName, cOpts...)
+	out := new(SendMessageResponse)
+	err := c.cc.Invoke(ctx, ChatService_SendMessage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[SendMessageRequest, SendMessageResponse]{ClientStream: stream}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ChatService_SendMessageClient = grpc.BidiStreamingClient[SendMessageRequest, SendMessageResponse]
 
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
@@ -60,9 +57,9 @@ type ChatService_SendMessageClient = grpc.BidiStreamingClient[SendMessageRequest
 //
 // ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
 type ChatServiceServer interface {
-	// SendMessage 处理来自网关的上行消息 (双向流)
-	// Gateway 持续发送消息，Logic 持续返回处理结果
-	SendMessage(grpc.BidiStreamingServer[SendMessageRequest, SendMessageResponse]) error
+	// SendMessage 处理来自网关的上行消息 (Unary 调用)
+	// Gateway 发送消息，Logic 返回处理结果（Response 即为 ACK）
+	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -73,8 +70,8 @@ type ChatServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedChatServiceServer struct{}
 
-func (UnimplementedChatServiceServer) SendMessage(grpc.BidiStreamingServer[SendMessageRequest, SendMessageResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
+func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -97,12 +94,23 @@ func RegisterChatServiceServer(s grpc.ServiceRegistrar, srv ChatServiceServer) {
 	s.RegisterService(&ChatService_ServiceDesc, srv)
 }
 
-func _ChatService_SendMessage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ChatServiceServer).SendMessage(&grpc.GenericServerStream[SendMessageRequest, SendMessageResponse]{ServerStream: stream})
+func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendMessageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ChatServiceServer).SendMessage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ChatService_SendMessage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ChatServiceServer).SendMessage(ctx, req.(*SendMessageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type ChatService_SendMessageServer = grpc.BidiStreamingServer[SendMessageRequest, SendMessageResponse]
 
 // ChatService_ServiceDesc is the grpc.ServiceDesc for ChatService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -110,14 +118,12 @@ type ChatService_SendMessageServer = grpc.BidiStreamingServer[SendMessageRequest
 var ChatService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "resonance.logic.v1.ChatService",
 	HandlerType: (*ChatServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "SendMessage",
-			Handler:       _ChatService_SendMessage_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
+			MethodName: "SendMessage",
+			Handler:    _ChatService_SendMessage_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "logic/v1/chat.proto",
 }

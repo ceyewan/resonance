@@ -6,9 +6,9 @@ option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
 // PresenceService 处理网关状态同步相关的请求
 service PresenceService {
-  // SyncStatus 网关通过双向流同步用户在线状态到 Logic
-  // 支持批量上报，以应对重连风暴
-  rpc SyncStatus(stream SyncStatusRequest) returns (stream SyncStatusResponse);
+  // SyncStatus 网关通过 Unary 调用同步用户在线状态到 Logic
+  // 支持批量上报（通过 repeated 字段），以应对重连风暴
+  rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
 }
 
 message SyncStatusRequest {

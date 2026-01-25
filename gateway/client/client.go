@@ -15,7 +15,7 @@ import (
 // Context 中 trace_id 的键（与 middleware.TraceIDKey 保持一致）
 const traceIDKey = "trace_id"
 
-// Client 封装与 Logic 服务的 gRPC 连接和共用组件
+// Client 封装与 Logic 服务的 gRPC 连接
 type Client struct {
 	conn *grpc.ClientConn
 
@@ -25,16 +25,13 @@ type Client struct {
 	chatClient     logicv1.ChatServiceClient
 	presenceClient logicv1.PresenceServiceClient
 
-	logger    clog.Logger
-	gatewayID string
-
-	chatManager     *chatStreamManager
-	presenceManager *presenceStreamManager
+	logger         clog.Logger
+	gatewayID      string
+	statusBatcher  *StatusBatcher
 }
 
 // 服务配置常量
 const (
-	// gRPC 重试策略配置
 	maxAttempts = 4
 )
 
@@ -124,9 +121,6 @@ func NewClient(logicServiceName, gatewayID string, logger clog.Logger, reg regis
 		gatewayID:      gatewayID,
 	}
 
-	client.chatManager = newChatStreamManager(logger, client.chatClient)
-	client.presenceManager = newPresenceStreamManager(logger, gatewayID, client.presenceClient)
-
 	return client, nil
 }
 
@@ -154,12 +148,7 @@ func traceContextStreamInterceptor() grpc.StreamClientInterceptor {
 
 // Close 关闭客户端
 func (c *Client) Close() error {
-	if c.chatManager != nil {
-		c.chatManager.Close()
-	}
-	if c.presenceManager != nil {
-		c.presenceManager.Close()
-	}
+	c.stopStatusBatcher()
 	if c.conn != nil {
 		return c.conn.Close()
 	}
@@ -174,4 +163,27 @@ func (c *Client) authSvc() logicv1.AuthServiceClient {
 
 func (c *Client) sessionSvc() logicv1.SessionServiceClient {
 	return c.sessionClient
+}
+
+func (c *Client) PresenceSvc() logicv1.PresenceServiceClient {
+	return c.presenceClient
+}
+
+// SetStatusBatcher 设置状态批量同步器（由 Gateway 初始化时调用）
+func (c *Client) SetStatusBatcher(batcher *StatusBatcher) {
+	c.statusBatcher = batcher
+}
+
+// StartStatusBatcher 启动状态批量同步器
+func (c *Client) StartStatusBatcher() {
+	if c.statusBatcher != nil {
+		c.statusBatcher.Start()
+	}
+}
+
+// stopStatusBatcher 停止状态批量同步器
+func (c *Client) stopStatusBatcher() {
+	if c.statusBatcher != nil {
+		c.statusBatcher.Stop()
+	}
 }

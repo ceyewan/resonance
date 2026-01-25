@@ -28,9 +28,9 @@ const (
 //
 // PresenceService 处理网关状态同步相关的请求
 type PresenceServiceClient interface {
-	// SyncStatus 网关通过双向流同步用户在线状态到 Logic
-	// 支持批量上报，以应对重连风暴
-	SyncStatus(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SyncStatusRequest, SyncStatusResponse], error)
+	// SyncStatus 网关通过 Unary 调用同步用户在线状态到 Logic
+	// 支持批量上报（通过 repeated 字段），以应对重连风暴
+	SyncStatus(ctx context.Context, in *SyncStatusRequest, opts ...grpc.CallOption) (*SyncStatusResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -41,18 +41,15 @@ func NewPresenceServiceClient(cc grpc.ClientConnInterface) PresenceServiceClient
 	return &presenceServiceClient{cc}
 }
 
-func (c *presenceServiceClient) SyncStatus(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SyncStatusRequest, SyncStatusResponse], error) {
+func (c *presenceServiceClient) SyncStatus(ctx context.Context, in *SyncStatusRequest, opts ...grpc.CallOption) (*SyncStatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	stream, err := c.cc.NewStream(ctx, &PresenceService_ServiceDesc.Streams[0], PresenceService_SyncStatus_FullMethodName, cOpts...)
+	out := new(SyncStatusResponse)
+	err := c.cc.Invoke(ctx, PresenceService_SyncStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[SyncStatusRequest, SyncStatusResponse]{ClientStream: stream}
-	return x, nil
+	return out, nil
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PresenceService_SyncStatusClient = grpc.BidiStreamingClient[SyncStatusRequest, SyncStatusResponse]
 
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
@@ -60,9 +57,9 @@ type PresenceService_SyncStatusClient = grpc.BidiStreamingClient[SyncStatusReque
 //
 // PresenceService 处理网关状态同步相关的请求
 type PresenceServiceServer interface {
-	// SyncStatus 网关通过双向流同步用户在线状态到 Logic
-	// 支持批量上报，以应对重连风暴
-	SyncStatus(grpc.BidiStreamingServer[SyncStatusRequest, SyncStatusResponse]) error
+	// SyncStatus 网关通过 Unary 调用同步用户在线状态到 Logic
+	// 支持批量上报（通过 repeated 字段），以应对重连风暴
+	SyncStatus(context.Context, *SyncStatusRequest) (*SyncStatusResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -73,8 +70,8 @@ type PresenceServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPresenceServiceServer struct{}
 
-func (UnimplementedPresenceServiceServer) SyncStatus(grpc.BidiStreamingServer[SyncStatusRequest, SyncStatusResponse]) error {
-	return status.Errorf(codes.Unimplemented, "method SyncStatus not implemented")
+func (UnimplementedPresenceServiceServer) SyncStatus(context.Context, *SyncStatusRequest) (*SyncStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SyncStatus not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -97,12 +94,23 @@ func RegisterPresenceServiceServer(s grpc.ServiceRegistrar, srv PresenceServiceS
 	s.RegisterService(&PresenceService_ServiceDesc, srv)
 }
 
-func _PresenceService_SyncStatus_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(PresenceServiceServer).SyncStatus(&grpc.GenericServerStream[SyncStatusRequest, SyncStatusResponse]{ServerStream: stream})
+func _PresenceService_SyncStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SyncStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).SyncStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_SyncStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).SyncStatus(ctx, req.(*SyncStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
-
-// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type PresenceService_SyncStatusServer = grpc.BidiStreamingServer[SyncStatusRequest, SyncStatusResponse]
 
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
@@ -110,14 +118,12 @@ type PresenceService_SyncStatusServer = grpc.BidiStreamingServer[SyncStatusReque
 var PresenceService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "resonance.logic.v1.PresenceService",
 	HandlerType: (*PresenceServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "SyncStatus",
-			Handler:       _PresenceService_SyncStatus_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
+			MethodName: "SyncStatus",
+			Handler:    _PresenceService_SyncStatus_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "logic/v1/presence.proto",
 }

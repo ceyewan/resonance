@@ -185,6 +185,16 @@ func (g *Gateway) initLogicDependencies() error {
 		return fmt.Errorf("logic client init: %w", err)
 	}
 
+	// 创建并设置 StatusBatcher（状态批量同步器）
+	statusBatcher := client.NewStatusBatcher(
+		logicClient.PresenceSvc(),
+		g.gatewayID,
+		g.logger,
+		client.WithBatchSize(50),                   // 50 条触发
+		client.WithFlushInterval(100*time.Millisecond), // 100ms 触发
+	)
+	logicClient.SetStatusBatcher(statusBatcher)
+
 	presence := connection.NewPresenceCallback(logicClient, g.logger)
 	connMgr := connection.NewManager(g.logger, nil, presence.OnUserOnline, presence.OnUserOffline)
 
@@ -219,6 +229,9 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 // Run 启动所有服务并注册
 func (g *Gateway) Run() error {
 	g.logger.Info("starting gateway servers...")
+
+	// 启动 StatusBatcher
+	g.resources.logicClient.StartStatusBatcher()
 
 	go g.grpcServer.Start()
 	go g.httpServer.Start()

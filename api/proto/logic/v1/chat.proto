@@ -6,9 +6,9 @@ option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
 // ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
 service ChatService {
-  // SendMessage 处理来自网关的上行消息 (双向流)
-  // Gateway 持续发送消息，Logic 持续返回处理结果
-  rpc SendMessage(stream SendMessageRequest) returns (stream SendMessageResponse);
+  // SendMessage 处理来自网关的上行消息 (Unary 调用)
+  // Gateway 发送消息，Logic 返回处理结果（Response 即为 ACK）
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
 }
 
 message SendMessageRequest {

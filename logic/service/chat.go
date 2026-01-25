@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -46,42 +45,8 @@ func NewChatService(
 	}
 }
 
-// SendMessage 实现 ChatService.SendMessage（双向流）
-func (s *ChatService) SendMessage(srv logicv1.ChatService_SendMessageServer) error {
-	s.logger.Info("chat stream established")
-
-	for {
-		req, err := srv.Recv()
-		if err != nil {
-			if err == io.EOF {
-				s.logger.Info("chat stream closed by client")
-				return nil
-			}
-			s.logger.Error("failed to receive message", clog.Error(err))
-			return err
-		}
-
-		// 处理消息
-		resp, err := s.handleMessage(srv.Context(), req)
-		if err != nil {
-			s.logger.Error("failed to handle message", clog.Error(err))
-			// 尝试发送错误响应
-			_ = srv.Send(&logicv1.SendMessageResponse{
-				Error: err.Error(),
-			})
-			continue
-		}
-
-		// 发送响应
-		if err := srv.Send(resp); err != nil {
-			s.logger.Error("failed to send response", clog.Error(err))
-			return err
-		}
-	}
-}
-
-// handleMessage 处理单条消息
-func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendMessageRequest) (*logicv1.SendMessageResponse, error) {
+// SendMessage 实现 ChatService.SendMessage（Unary 调用）
+func (s *ChatService) SendMessage(ctx context.Context, req *logicv1.SendMessageRequest) (*logicv1.SendMessageResponse, error) {
 	s.logger.Debug("handling message",
 		clog.String("from", req.FromUsername),
 		clog.String("session_id", req.SessionId))

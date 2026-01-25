@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"io"
 
 	"github.com/ceyewan/genesis/clog"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
@@ -28,34 +27,13 @@ func NewPresenceService(
 	}
 }
 
-// SyncStatus 实现 PresenceService.SyncStatus（双向流，支持批量）
-func (s *PresenceService) SyncStatus(srv logicv1.PresenceService_SyncStatusServer) error {
-	s.logger.Info("presence sync stream established")
+// SyncStatus 实现 PresenceService.SyncStatus（Unary 调用，支持批量）
+func (s *PresenceService) SyncStatus(ctx context.Context, req *logicv1.SyncStatusRequest) (*logicv1.SyncStatusResponse, error) {
+	s.logger.Debug("syncing status",
+		clog.String("gateway_id", req.GatewayId),
+		clog.Int("online_count", len(req.OnlineBatch)),
+		clog.Int("offline_count", len(req.OfflineBatch)))
 
-	for {
-		req, err := srv.Recv()
-		if err != nil {
-			if err == io.EOF {
-				s.logger.Info("presence sync stream closed by client")
-				return nil
-			}
-			s.logger.Error("failed to receive sync status", clog.Error(err))
-			return err
-		}
-
-		// 处理批量状态同步
-		resp := s.handleBatchSync(srv.Context(), req)
-
-		// 发送响应
-		if err := srv.Send(resp); err != nil {
-			s.logger.Error("failed to send response", clog.Error(err))
-			return err
-		}
-	}
-}
-
-// handleBatchSync 处理批量状态同步
-func (s *PresenceService) handleBatchSync(ctx context.Context, req *logicv1.SyncStatusRequest) *logicv1.SyncStatusResponse {
 	// 1. 处理上线列表
 	for _, online := range req.OnlineBatch {
 		if err := s.handleUserOnline(ctx, req.GatewayId, online); err != nil {
@@ -78,7 +56,7 @@ func (s *PresenceService) handleBatchSync(ctx context.Context, req *logicv1.Sync
 	return &logicv1.SyncStatusResponse{
 		SeqId: req.SeqId,
 		Error: "", // 这里简单返回空，实际可以聚合错误信息
-	}
+	}, nil
 }
 
 // handleUserOnline 处理单个用户上线

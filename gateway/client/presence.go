@@ -3,154 +3,33 @@ package client
 import (
 	"context"
 	"fmt"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/ceyewan/genesis/clog"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
-// presenceStreamManager 管理与 Logic 服务的 Presence 状态同步双向流
-type presenceStreamManager struct {
-	manager   *bidiStreamManager[logicv1.SyncStatusRequest, logicv1.SyncStatusResponse]
-	logger    clog.Logger
-	gatewayID string
-
-	pending sync.Map // key: seqID, value: chan *logicv1.SyncStatusResponse
-	seq     atomic.Int64
-}
-
-func newPresenceStreamManager(logger clog.Logger, gatewayID string, svc logicv1.PresenceServiceClient) *presenceStreamManager {
-	mgr := &presenceStreamManager{
-		logger:    logger,
-		gatewayID: gatewayID,
-	}
-	mgr.manager = newBidiStreamManager(
-		"presence",
-		logger,
-		func(ctx context.Context) (logicv1.PresenceService_SyncStatusClient, error) {
-			return svc.SyncStatus(ctx)
-		},
-		mgr.handleResponse,
-		mgr.handleStreamError,
-	)
-	return mgr
-}
-
-func (m *presenceStreamManager) Close() {
-	m.manager.Close()
-	m.failAllPending(fmt.Errorf("presence stream closed"))
-}
-
+// SyncUserOnline 同步用户上线到 Logic（通过 StatusBatcher 批量处理）
 func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP string) error {
-	if c.presenceManager == nil {
-		return fmt.Errorf("presence manager not initialized")
+	if c.statusBatcher == nil {
+		return fmt.Errorf("status batcher not initialized")
 	}
-
-	req := &logicv1.SyncStatusRequest{
-		SeqId:     c.presenceManager.nextSeq(),
-		GatewayId: c.gatewayID,
-		OnlineBatch: []*logicv1.UserOnline{
-			{
-				Username:  username,
-				RemoteIp:  remoteIP,
-				Timestamp: time.Now().Unix(),
-			},
-		},
-	}
-	return c.presenceManager.send(ctx, req)
+	c.statusBatcher.SyncUserOnline(username, remoteIP)
+	return nil
 }
 
+// SyncUserOffline 同步用户下线到 Logic（通过 StatusBatcher 批量处理）
 func (c *Client) SyncUserOffline(ctx context.Context, username string) error {
-	if c.presenceManager == nil {
-		return fmt.Errorf("presence manager not initialized")
+	if c.statusBatcher == nil {
+		return fmt.Errorf("status batcher not initialized")
 	}
-
-	req := &logicv1.SyncStatusRequest{
-		SeqId:     c.presenceManager.nextSeq(),
-		GatewayId: c.gatewayID,
-		OfflineBatch: []*logicv1.UserOffline{
-			{
-				Username:  username,
-				Timestamp: time.Now().Unix(),
-			},
-		},
-	}
-	return c.presenceManager.send(ctx, req)
+	c.statusBatcher.SyncUserOffline(username)
+	return nil
 }
 
-func (m *presenceStreamManager) send(ctx context.Context, req *logicv1.SyncStatusRequest) error {
-	respCh := make(chan *logicv1.SyncStatusResponse, 1)
-	m.pending.Store(req.SeqId, respCh)
-
-	if err := m.manager.Send(ctx, req); err != nil {
-		m.pending.Delete(req.SeqId)
-		return err
+// IsUserOnline 检查用户是否在线（通过 SessionService 查询）
+func (c *Client) IsUserOnline(ctx context.Context, username string) (bool, string, error) {
+	if c.sessionClient == nil {
+		return false, "", fmt.Errorf("session client not initialized")
 	}
 
-	select {
-	case resp := <-respCh:
-		if resp.Error != "" {
-			return fmt.Errorf("presence sync failed: %s", resp.Error)
-		}
-		return nil
-	case <-ctx.Done():
-		m.pending.Delete(req.SeqId)
-		go func() {
-			<-respCh
-		}()
-		return ctx.Err()
-	}
-}
-
-func (m *presenceStreamManager) handleResponse(resp *logicv1.SyncStatusResponse) {
-	value, ok := m.pending.Load(resp.SeqId)
-	if !ok {
-		if m.logger != nil {
-			m.logger.Warn("presence ack dropped: unknown seq",
-				clog.Int64("seq_id", resp.SeqId))
-		}
-		return
-	}
-
-	ch := value.(chan *logicv1.SyncStatusResponse)
-	m.pending.Delete(resp.SeqId)
-
-	select {
-	case ch <- resp:
-	default:
-	}
-	close(ch)
-}
-
-func (m *presenceStreamManager) handleStreamError(err error) {
-	m.failAllPending(err)
-}
-
-func (m *presenceStreamManager) failAllPending(err error) {
-	errMsg := "presence stream closed"
-	if err != nil {
-		errMsg = err.Error()
-	}
-
-	m.pending.Range(func(key, value any) bool {
-		ch := value.(chan *logicv1.SyncStatusResponse)
-		seq, _ := key.(int64)
-		resp := &logicv1.SyncStatusResponse{
-			SeqId: seq,
-			Error: errMsg,
-		}
-		select {
-		case ch <- resp:
-		default:
-		}
-		close(ch)
-		m.pending.Delete(key)
-		return true
-	})
-}
-
-func (m *presenceStreamManager) nextSeq() int64 {
-	return m.seq.Add(1)
+	// 使用 SessionService.GetUserSession 查询用户在线状态
+	// 这里需要根据实际 API 调整
+	return false, "", nil
 }
