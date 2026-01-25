@@ -7,7 +7,6 @@
 - `base.yaml` - 基础设施服务（MySQL、Redis、NATS、Etcd）
 - `services.yaml` - 业务服务（Logic、Gateway、Task、Web）
 - `Dockerfile` - 统一的多阶段构建文件
-- `services-caddy.yaml` - ⚠️ 已废弃，使用 `services.yaml` 替代
 
 ## 🚀 部署方式
 
@@ -20,7 +19,7 @@
 
 **快速启动**：
 ```bash
-./scripts/test-deploy-local.sh
+./scripts/deploy-local.sh
 ```
 
 **手动启动**：
