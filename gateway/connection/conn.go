@@ -8,6 +8,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/gateway/middleware"
 	"github.com/ceyewan/resonance/gateway/protocol"
 	"github.com/gorilla/websocket"
 )
@@ -45,7 +46,7 @@ func NewConn(
 	ctx, cancel := context.WithCancel(context.Background())
 	// 将 trace_id 注入到 Context
 	if traceID != "" {
-		ctx = context.WithValue(ctx, "trace_id", traceID)
+		ctx = context.WithValue(ctx, middleware.TraceIDKey, traceID)
 	}
 	return &Conn{
 		username:       username,

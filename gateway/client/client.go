@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// Context 中 trace_id 的键（与 middleware.TraceIDKey 保持一致）
+// Context 中 trace_id 的键（与 middleware.TraceIDKey 保持一致，值为 "trace_id"）
 const traceIDKey = "trace_id"
 
 // Client 封装与 Logic 服务的 gRPC 连接
@@ -25,9 +25,9 @@ type Client struct {
 	chatClient     logicv1.ChatServiceClient
 	presenceClient logicv1.PresenceServiceClient
 
-	logger         clog.Logger
-	gatewayID      string
-	statusBatcher  *StatusBatcher
+	logger        clog.Logger
+	gatewayID     string
+	statusBatcher *StatusBatcher
 }
 
 // 服务配置常量

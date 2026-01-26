@@ -1,11 +1,13 @@
 package connection
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/gorilla/websocket"
 )
 
@@ -49,6 +51,10 @@ func (m *Manager) AddConnection(username string, conn *Conn) error {
 		clog.String("username", username),
 		clog.String("remote_addr", conn.RemoteAddr()))
 
+	// 记录新连接并更新在线数
+	observability.RecordWebSocketConnectionEstablished(context.Background())
+	m.OnlineCount()
+
 	// 触发上线回调
 	if m.onConnect != nil {
 		if err := m.onConnect(username, conn.RemoteAddr()); err != nil {
@@ -67,6 +73,9 @@ func (m *Manager) RemoveConnection(username string) {
 	if conn, ok := m.connections.LoadAndDelete(username); ok {
 		conn.(*Conn).Close()
 		m.logger.Info("user disconnected", clog.String("username", username))
+
+		// 更新在线连接数
+		m.OnlineCount()
 
 		// 触发下线回调
 		if m.onDisconnect != nil {
@@ -116,6 +125,8 @@ func (m *Manager) OnlineCount() int {
 		count++
 		return true
 	})
+	// 更新可观测性指标
+	observability.SetWebSocketConnectionsActive(context.Background(), count)
 	return count
 }
 

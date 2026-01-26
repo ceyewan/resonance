@@ -52,3 +52,20 @@ ws_config:
 worker_id:
   max_id: 1024                      # 最大 workerID 数量
   key: resonance:gateway:worker     # Redis 键前缀
+
+# 可观测性配置
+observability:
+  trace:
+    disable: true                   # 开发环境禁用 Trace 上报
+    endpoint: localhost:4317        # OTLP Collector 端点
+    insecure: true                  # 使用不安全连接
+    sampler: 1.0                    # 采样率
+  metrics:
+    port: 9092                      # Prometheus 暴露端口
+    path: /metrics                  # Prometheus 暴露路径
+    enable_runtime: true            # 启用运行时指标
+
+# StatusBatcher 配置
+status_batcher:
+  batch_size: 50                    # 批量大小阈值
+  flush_interval: 100ms             # 刷新间隔

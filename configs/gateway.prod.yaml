@@ -19,3 +19,15 @@ redis:
 etcd:
   endpoints:
     - etcd:2379
+
+# 可观测性配置：生产环境启用 Trace 上报
+observability:
+  trace:
+    disable: false                  # 生产环境启用 Trace 上报
+    endpoint: otel-collector:4317   # OTLP Collector 端点
+    insecure: true                  # Docker 内网通信
+    sampler: 0.1                    # 采样率 10%（减少开销）
+  metrics:
+    port: 9092
+    path: /metrics
+    enable_runtime: true

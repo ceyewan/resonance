@@ -3,7 +3,6 @@ package socket
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
@@ -16,12 +15,12 @@ import (
 
 // Handler 处理 WebSocket 连接握手和生命周期
 type Handler struct {
-	logger      clog.Logger
-	connMgr     *connection.Manager
-	dispatcher  *Dispatcher
-	upgrader    *websocket.Upgrader
-	idgen       idgen.Generator
-	config      config.WSConfig
+	logger     clog.Logger
+	connMgr    *connection.Manager
+	dispatcher *Dispatcher
+	upgrader   *websocket.Upgrader
+	idgen      idgen.Generator
+	config     config.WSConfig
 }
 
 // NewHandler 创建 WebSocket 处理器
@@ -41,12 +40,12 @@ func NewHandler(
 	}
 
 	return &Handler{
-		logger:      logger,
-		connMgr:     connMgr,
-		dispatcher:  dispatcher,
-		upgrader:    upgrader,
-		idgen:       idgen,
-		config:      cfg,
+		logger:     logger,
+		connMgr:    connMgr,
+		dispatcher: dispatcher,
+		upgrader:   upgrader,
+		idgen:      idgen,
+		config:     cfg,
 	}
 }
 
@@ -90,8 +89,8 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		h.logger,
 		protoHandler,
 		int64(h.config.MaxMessageSize*1024),
-		time.Duration(h.config.PingInterval)*time.Second,
-		time.Duration(h.config.PongTimeout)*time.Second,
+		h.config.GetPingInterval(),
+		h.config.GetPongTimeout(),
 	)
 
 	// 管理连接

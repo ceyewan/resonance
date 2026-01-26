@@ -2,15 +2,14 @@ package push
 
 import (
 	"context"
+	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/connection"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"google.golang.org/grpc"
 )
-
-// Context 中 trace_id 的键（与 client.traceIDKey 保持一致）
-const traceIDKey = "trace_id"
 
 // Service 实现 PushService，接收 Task 服务的推送请求
 type Service struct {
@@ -30,6 +29,7 @@ func NewService(connMgr *connection.Manager, logger clog.Logger) *Service {
 // Push 实现 PushService.Push（一元 RPC）
 // 接收 Task 推送的消息，分发给本 Gateway 的在线用户
 func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewayv1.PushResponse, error) {
+	startTime := time.Now()
 	message := req.Message
 	failedUsernames := make([]string, 0)
 
@@ -68,6 +68,15 @@ func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewa
 		clog.Int("success_count", successCount),
 		clog.Int("failed_count", len(failedUsernames)))
 
+	// 记录指标
+	duration := time.Since(startTime)
+	observability.RecordGRPCRequest(ctx)
+	observability.RecordGRPCRequestDuration(ctx, duration)
+	observability.RecordMessageSent(ctx, successCount)
+	if len(failedUsernames) > 0 {
+		observability.RecordPushFailed(ctx, len(failedUsernames))
+	}
+
 	return &gatewayv1.PushResponse{
 		MsgId:           message.MsgId,
 		FailedUsernames: failedUsernames,
@@ -77,12 +86,4 @@ func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewa
 // RegisterGRPC 注册 gRPC 服务
 func (s *Service) RegisterGRPC(server *grpc.Server) {
 	gatewayv1.RegisterPushServiceServer(server, s)
-}
-
-// TraceUnaryServerInterceptor 导出一元拦截器
-func TraceUnaryServerInterceptor() grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-		// trace_id 注入逻辑可在此处添加
-		return handler(ctx, req)
-	}
 }

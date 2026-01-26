@@ -10,11 +10,11 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/genesis/trace"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/handler"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/ceyewan/resonance/gateway/push"
 	"github.com/ceyewan/resonance/gateway/server"
 	"github.com/ceyewan/resonance/gateway/socket"
@@ -77,23 +77,38 @@ func New() (*Gateway, error) {
 
 // initComponents 初始化所有组件
 func (g *Gateway) initComponents() error {
-	// 1. 基础组件
-	logger, _ := clog.New(&g.config.Log, clog.WithStandardContext(), clog.WithNamespace("gateway"))
+	// 1. 初始化可观测性（Trace + Metrics）
+	obsCfg := &observability.Config{
+		Trace: observability.TraceConfig{
+			Disable:  g.config.Observability.Trace.Disable,
+			Endpoint: g.config.Observability.Trace.Endpoint,
+			Insecure: g.config.Observability.Trace.Insecure,
+			Sampler:  g.config.Observability.Trace.Sampler,
+		},
+		Metrics: observability.MetricsConfig{
+			Port:          g.config.Observability.Metrics.Port,
+			Path:          g.config.Observability.Metrics.Path,
+			EnableRuntime: g.config.Observability.Metrics.EnableRuntime,
+		},
+	}
+	if err := observability.Init(obsCfg); err != nil {
+		g.logger = nil
+		return fmt.Errorf("init observability: %w", err)
+	}
+
+	// 2. 初始化 Logger（带 Trace Context 支持）
+	logger, err := observability.NewLogger(&g.config.Log)
+	if err != nil {
+		return fmt.Errorf("logger init: %w", err)
+	}
 	g.logger = logger
 
-	// 2. 初始化核心资源 (Redis, Etcd, Registry)
+	// 3. 初始化核心资源 (Redis, Etcd, Registry)
 	res, err := g.initBaseResources()
 	if err != nil {
 		return err
 	}
 	g.resources = res
-
-	// 3. 初始化 Trace (使用 Discard，仅生成 TraceID 不上报)
-	traceShutdown, err := trace.Discard(g.config.Service.Name)
-	if err != nil {
-		return fmt.Errorf("init trace: %w", err)
-	}
-	g.traceShutdown = traceShutdown
 
 	// 4. 使用 Allocator 从 Redis 获取唯一的 workerID
 	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
@@ -190,8 +205,8 @@ func (g *Gateway) initLogicDependencies() error {
 		logicClient.PresenceSvc(),
 		g.gatewayID,
 		g.logger,
-		client.WithBatchSize(50),                   // 50 条触发
-		client.WithFlushInterval(100*time.Millisecond), // 100ms 触发
+		client.WithBatchSize(g.config.StatusBatcher.GetBatchSize()),
+		client.WithFlushInterval(g.config.StatusBatcher.GetFlushInterval()),
 	)
 	logicClient.SetStatusBatcher(statusBatcher)
 
@@ -262,7 +277,9 @@ func (g *Gateway) registerService() error {
 
 // Close 优雅关闭资源
 func (g *Gateway) Close() error {
-	g.logger.Info("shutting down gateway...")
+	if g.logger != nil {
+		g.logger.Info("shutting down gateway...")
+	}
 	g.cancel()
 
 	// 1. 停止 workerID 保活
@@ -281,27 +298,49 @@ func (g *Gateway) Close() error {
 		g.grpcServer.Stop()
 	}
 
-	ctx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer stopCancel()
+	httpShutdownCtx, httpCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer httpCancel()
 
 	if g.httpServer != nil {
-		g.httpServer.Stop(ctx)
+		g.httpServer.Stop(httpShutdownCtx)
 	}
 
-	// 4. 释放核心资源
+	// 4. 释放核心资源（带超时控制）
 	if g.resources != nil {
-		if g.resources.connMgr != nil {
-			g.resources.connMgr.Close()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			if g.resources.connMgr != nil {
+				g.resources.connMgr.Close()
+			}
+			if g.resources.logicClient != nil {
+				g.resources.logicClient.Close()
+			}
+			if g.resources.redisConn != nil {
+				g.resources.redisConn.Close()
+			}
+			if g.resources.etcdConn != nil {
+				g.resources.etcdConn.Close()
+			}
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// 正常关闭完成
+		case <-shutdownCtx.Done():
+			// 超时，记录警告但继续
+			if g.logger != nil {
+				g.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
+			}
 		}
-		if g.resources.logicClient != nil {
-			g.resources.logicClient.Close()
-		}
-		if g.resources.redisConn != nil {
-			g.resources.redisConn.Close()
-		}
-		if g.resources.etcdConn != nil {
-			g.resources.etcdConn.Close()
-		}
+	}
+
+	// 5. 关闭可观测性组件
+	if err := observability.Shutdown(context.Background()); err != nil && g.logger != nil {
+		g.logger.Error("observability shutdown failed", clog.Error(err))
 	}
 
 	return nil

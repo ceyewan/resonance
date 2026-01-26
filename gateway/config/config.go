@@ -11,6 +11,7 @@ import (
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/resonance/gateway/observability"
 )
 
 // Config Gateway 服务配置
@@ -39,6 +40,18 @@ type Config struct {
 
 	// WorkerID 配置
 	WorkerID WorkerIDConfig `mapstructure:"worker_id"`
+
+	// 可观测性配置
+	Observability observability.Config `mapstructure:"observability"`
+
+	// StatusBatcher 配置
+	StatusBatcher StatusBatcherConfig `mapstructure:"status_batcher"`
+}
+
+// StatusBatcherConfig 状态批量同步器配置
+type StatusBatcherConfig struct {
+	BatchSize     int           `mapstructure:"batch_size"`     // 批量大小阈值
+	FlushInterval time.Duration `mapstructure:"flush_interval"` // 刷新间隔
 }
 
 // RegistryConfig 服务注册配置
@@ -52,8 +65,8 @@ type RegistryConfig struct {
 // ToRegistryConfig 转换为 registry.Config
 func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 	cfg := &registry.Config{
-		Namespace:   c.Namespace,
-		DefaultTTL:  c.DefaultTTL,
+		Namespace:  c.Namespace,
+		DefaultTTL: c.DefaultTTL,
 	}
 
 	// 设置默认值
@@ -69,11 +82,27 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 
 // WSConfig WebSocket 相关配置
 type WSConfig struct {
-	ReadBufferSize  int `mapstructure:"read_buffer_size"`  // 读缓冲区大小
-	WriteBufferSize int `mapstructure:"write_buffer_size"` // 写缓冲区大小
-	MaxMessageSize  int `mapstructure:"max_message_size"`  // 最大消息大小
+	ReadBufferSize  int `mapstructure:"read_buffer_size"`  // 读缓冲区大小（字节）
+	WriteBufferSize int `mapstructure:"write_buffer_size"` // 写缓冲区大小（字节）
+	MaxMessageSize  int `mapstructure:"max_message_size"`  // 最大消息大小（字节）
 	PingInterval    int `mapstructure:"ping_interval"`     // 心跳间隔（秒）
 	PongTimeout     int `mapstructure:"pong_timeout"`      // 心跳超时（秒）
+}
+
+// GetPingInterval 获取心跳间隔，单位为 Duration，默认 30s
+func (c *WSConfig) GetPingInterval() time.Duration {
+	if c.PingInterval <= 0 {
+		return 30 * time.Second
+	}
+	return time.Duration(c.PingInterval) * time.Second
+}
+
+// GetPongTimeout 获取心跳超时，单位为 Duration，默认 60s
+func (c *WSConfig) GetPongTimeout() time.Duration {
+	if c.PongTimeout <= 0 {
+		return 60 * time.Second
+	}
+	return time.Duration(c.PongTimeout) * time.Second
 }
 
 // WorkerIDConfig WorkerID 分发配置
@@ -96,6 +125,22 @@ func (c *WorkerIDConfig) GetKey() string {
 		return "resonance:gateway:worker"
 	}
 	return c.Key
+}
+
+// GetBatchSize 获取批量大小，默认 50
+func (c *StatusBatcherConfig) GetBatchSize() int {
+	if c.BatchSize <= 0 {
+		return 50
+	}
+	return c.BatchSize
+}
+
+// GetFlushInterval 获取刷新间隔，默认 100ms
+func (c *StatusBatcherConfig) GetFlushInterval() time.Duration {
+	if c.FlushInterval <= 0 {
+		return 100 * time.Millisecond
+	}
+	return c.FlushInterval
 }
 
 // GetHost 获取服务主机名，优先使用配置，其次环境变量 HOSTNAME，最后 "localhost"
