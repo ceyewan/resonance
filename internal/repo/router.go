@@ -168,6 +168,66 @@ func (r *routerRepo) DeleteUserGateway(ctx context.Context, username string) err
 	return nil
 }
 
+// BatchSetUserGateway 批量设置用户的网关映射关系
+// TODO: 目前实现为简单的循环调用 SetUserGateway，后续可优化为 Redis Pipeline 或 MSET
+func (r *routerRepo) BatchSetUserGateway(ctx context.Context, routers []*model.Router) error {
+	if len(routers) == 0 {
+		return nil
+	}
+
+	errors := make([]error, 0, len(routers))
+	for _, router := range routers {
+		if err := r.SetUserGateway(ctx, router); err != nil {
+			errors = append(errors, fmt.Errorf("username %s: %w", router.Username, err))
+		}
+	}
+
+	// 如果有部分失败，记录警告日志
+	if len(errors) > 0 {
+		r.logger.WarnContext(ctx, "Some user gateway mappings failed to set",
+			clog.Int("success_count", len(routers)-len(errors)),
+			clog.Int("error_count", len(errors)),
+		)
+		return fmt.Errorf("batch set failed: %d errors", len(errors))
+	}
+
+	r.logger.DebugContext(ctx, "Batch set user gateway mappings completed",
+		clog.Int("count", len(routers)),
+	)
+
+	return nil
+}
+
+// BatchDeleteUserGateway 批量删除用户的网关映射关系
+// TODO: 目前实现为简单的循环调用 DeleteUserGateway，后续可优化为 Redis Pipeline
+func (r *routerRepo) BatchDeleteUserGateway(ctx context.Context, usernames []string) error {
+	if len(usernames) == 0 {
+		return nil
+	}
+
+	errors := make([]error, 0, len(usernames))
+	for _, username := range usernames {
+		if err := r.DeleteUserGateway(ctx, username); err != nil {
+			errors = append(errors, fmt.Errorf("username %s: %w", username, err))
+		}
+	}
+
+	// 如果有部分失败，记录警告日志
+	if len(errors) > 0 {
+		r.logger.WarnContext(ctx, "Some user gateway mappings failed to delete",
+			clog.Int("success_count", len(usernames)-len(errors)),
+			clog.Int("error_count", len(errors)),
+		)
+		return fmt.Errorf("batch delete failed: %d errors", len(errors))
+	}
+
+	r.logger.DebugContext(ctx, "Batch delete user gateway mappings completed",
+		clog.Int("count", len(usernames)),
+	)
+
+	return nil
+}
+
 // BatchGetUsersGateway 批量获取用户的网关映射关系
 // TODO: 目前实现为简单的循环调用 GetUserGateway，后续可优化为 Redis MGET 或管道方式
 func (r *routerRepo) BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, error) {

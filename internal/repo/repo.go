@@ -15,7 +15,14 @@ type RouterRepo interface {
 	GetUserGateway(ctx context.Context, username string) (*model.Router, error)
 	// DeleteUserGateway 删除用户的网关映射关系
 	DeleteUserGateway(ctx context.Context, username string) error
+	// BatchSetUserGateway 批量设置用户的网关映射关系
+	// TODO: 目前实现为简单的循环调用，后续可优化为 Redis Pipeline 或 MSET
+	BatchSetUserGateway(ctx context.Context, routers []*model.Router) error
+	// BatchDeleteUserGateway 批量删除用户的网关映射关系
+	// TODO: 目前实现为简单的循环调用，后续可优化为 Redis Pipeline
+	BatchDeleteUserGateway(ctx context.Context, usernames []string) error
 	// BatchGetUsersGateway 批量获取用户的网关映射关系
+	// TODO: 目前实现为简单的循环调用，后续可优化为 Redis MGET 或管道方式
 	BatchGetUsersGateway(ctx context.Context, usernames []string) ([]*model.Router, error)
 	// Close 释放资源（如数据库连接等）
 	Close() error

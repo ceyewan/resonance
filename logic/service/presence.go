@@ -34,21 +34,22 @@ func (s *PresenceService) SyncStatus(ctx context.Context, req *logicv1.SyncStatu
 		clog.Int("online_count", len(req.OnlineBatch)),
 		clog.Int("offline_count", len(req.OfflineBatch)))
 
-	// 1. 处理上线列表
-	for _, online := range req.OnlineBatch {
-		if err := s.handleUserOnline(ctx, req.GatewayId, online); err != nil {
-			s.logger.Error("failed to handle user online",
-				clog.String("username", online.Username),
+	// 1. 批量处理上线列表
+	if len(req.OnlineBatch) > 0 {
+		routers := s.buildRouters(req.GatewayId, req.OnlineBatch)
+		if err := s.routerRepo.BatchSetUserGateway(ctx, routers); err != nil {
+			s.logger.Error("failed to batch set user gateways",
+				clog.Int("count", len(routers)),
 				clog.Error(err))
-			// 继续处理其他用户，记录错误但不中断
 		}
 	}
 
-	// 2. 处理下线列表
-	for _, offline := range req.OfflineBatch {
-		if err := s.handleUserOffline(ctx, req.GatewayId, offline); err != nil {
-			s.logger.Error("failed to handle user offline",
-				clog.String("username", offline.Username),
+	// 2. 批量处理下线列表
+	if len(req.OfflineBatch) > 0 {
+		usernames := s.buildUsernames(req.OfflineBatch)
+		if err := s.routerRepo.BatchDeleteUserGateway(ctx, usernames); err != nil {
+			s.logger.Error("failed to batch delete user gateways",
+				clog.Int("count", len(usernames)),
 				clog.Error(err))
 		}
 	}
@@ -59,40 +60,27 @@ func (s *PresenceService) SyncStatus(ctx context.Context, req *logicv1.SyncStatu
 	}, nil
 }
 
-// handleUserOnline 处理单个用户上线
-func (s *PresenceService) handleUserOnline(
-	ctx context.Context,
-	gatewayID string,
-	event *logicv1.UserOnline,
-) error {
-	s.logger.Debug("user online",
-		clog.String("username", event.Username),
-		clog.String("gateway_id", gatewayID),
-		clog.String("remote_ip", event.RemoteIp))
-
-	// 保存用户路由信息到 RouterRepo
-	router := &model.Router{
-		Username:  event.Username,
-		GatewayID: gatewayID,
-		RemoteIP:  event.RemoteIp,
-		Timestamp: event.Timestamp,
+// buildRouters 从上线事件构建 Router 列表
+func (s *PresenceService) buildRouters(gatewayID string, onlineBatch []*logicv1.UserOnline) []*model.Router {
+	routers := make([]*model.Router, 0, len(onlineBatch))
+	for _, online := range onlineBatch {
+		routers = append(routers, &model.Router{
+			Username:  online.Username,
+			GatewayID: gatewayID,
+			RemoteIP:  online.RemoteIp,
+			Timestamp: online.Timestamp,
+		})
 	}
-
-	return s.routerRepo.SetUserGateway(ctx, router)
+	return routers
 }
 
-// handleUserOffline 处理单个用户下线
-func (s *PresenceService) handleUserOffline(
-	ctx context.Context,
-	gatewayID string,
-	event *logicv1.UserOffline,
-) error {
-	s.logger.Debug("user offline",
-		clog.String("username", event.Username),
-		clog.String("gateway_id", gatewayID))
-
-	// 删除用户路由信息
-	return s.routerRepo.DeleteUserGateway(ctx, event.Username)
+// buildUsernames 从下线事件构建用户名列表
+func (s *PresenceService) buildUsernames(offlineBatch []*logicv1.UserOffline) []string {
+	usernames := make([]string, 0, len(offlineBatch))
+	for _, offline := range offlineBatch {
+		usernames = append(usernames, offline.Username)
+	}
+	return usernames
 }
 
 // IsUserOnline 检查用户是否在线
