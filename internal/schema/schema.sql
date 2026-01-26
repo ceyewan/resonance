@@ -46,7 +46,22 @@ CREATE TABLE IF NOT EXISTS t_message_content (
     INDEX idx_sess_seq (session_id, seq_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='消息全量表';
 
--- 5. 用户信箱表
+-- 5. 本地消息表 (Outbox Pattern)
+CREATE TABLE IF NOT EXISTS t_message_outbox (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    msg_id          BIGINT UNSIGNED NOT NULL,
+    topic           VARCHAR(64) NOT NULL,
+    payload         BLOB NOT NULL,
+    status          TINYINT NOT NULL DEFAULT 0 COMMENT '0-待发送, 1-已发送, 2-失败',
+    retry_count     INT NOT NULL DEFAULT 0,
+    next_retry_time DATETIME NOT NULL,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_msg_id (msg_id),
+    INDEX idx_status_next_retry (status, next_retry_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='本地消息表 (Outbox Pattern)';
+
+-- 6. 用户信箱表
 CREATE TABLE IF NOT EXISTS t_inbox (
     id             BIGINT AUTO_INCREMENT PRIMARY KEY,
     owner_username VARCHAR(64) NOT NULL COMMENT '信箱所属用户',

@@ -114,6 +114,11 @@ func (l *Logic) initComponents() error {
 	}
 	l.resources = res
 
+	// 初始化管理员账号（可选）
+	if err := service.EnsureAdminUser(l.ctx, res.userRepo, res.sessionRepo, l.config.Admin.Username, l.config.Admin.Password, l.config.Admin.Nickname, l.logger); err != nil {
+		l.logger.Error("failed to ensure admin user", clog.Error(err))
+	}
+
 	// 3. 基于 Redis 抢占分配唯一实例 ID (WorkerID)
 	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
 		Driver: "redis",

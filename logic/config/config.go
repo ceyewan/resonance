@@ -38,6 +38,9 @@ type Config struct {
 	// 认证配置
 	Auth auth.Config `mapstructure:"auth"`
 
+	// 管理员初始化配置
+	Admin AdminConfig `mapstructure:"admin"`
+
 	// WorkerID 配置
 	WorkerID WorkerIDConfig `mapstructure:"worker_id"`
 
@@ -106,6 +109,13 @@ type RegistryConfig struct {
 	DefaultTTL      time.Duration `mapstructure:"default_ttl"`      // 租约 TTL
 	EnableCache     bool          `mapstructure:"enable_cache"`     // 开启缓存
 	CacheExpiration time.Duration `mapstructure:"cache_expiration"` // 缓存过期时间
+}
+
+// AdminConfig 管理员初始化配置
+type AdminConfig struct {
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Nickname string `mapstructure:"nickname"`
 }
 
 // WorkerIDConfig WorkerID 分发配置 (对齐 Gateway)
@@ -257,6 +267,9 @@ func dumpConfig(cfg *Config) {
 	}
 	if sanitized.Auth.SecretKey != "" {
 		sanitized.Auth.SecretKey = "***"
+	}
+	if sanitized.Admin.Password != "" {
+		sanitized.Admin.Password = "***"
 	}
 
 	data, _ := json.MarshalIndent(sanitized, "", "  ")
