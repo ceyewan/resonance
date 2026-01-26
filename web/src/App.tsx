@@ -1,127 +1,34 @@
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import { useAuthStore } from "@/stores/auth";
-import { useSessionStore } from "@/stores/session";
-import { useMessageStore, pushMessageToChatMessage } from "@/stores/message";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useWsMessageHandler } from "@/hooks/useWsMessageHandler";
 import { WsPacket } from "@/gen/gateway/v1/packet_pb";
-import type { SessionInfo } from "@/stores/session";
 import LoginPage from "@/pages/LoginPage";
 import ChatPage from "@/pages/ChatPage";
 
 /**
  * 应用入口组件
- * 处理路由、WebSocket 连接和消息路由
+ *
+ * 职责：
+ * - 路由控制（登录页 vs 聊天页）
+ * - WebSocket 连接管理
+ * - 连接状态传递给子组件
  */
 function App() {
-  const { isAuthenticated, accessToken, user } = useAuthStore();
-  const { updateLastMessage, markAsRead, updateSession, currentSessionId, getSessionById, upsertSession } = useSessionStore();
-  const { addMessage, markAsSent, markAsFailed } = useMessageStore();
+  const { isAuthenticated, accessToken } = useAuthStore();
 
-  // 使用 ref 保存 send 函数的引用，避免循环依赖
+  // 使用 ref 保存 send 函数的引用，供消息处理器使用
   const sendRef = useRef<((packet: WsPacket) => void) | null>(null);
 
-  // WebSocket 消息处理
-  const handleWsMessage = useCallback(
-    (packet: any) => {
-      const { payload } = packet;
-
-      // 处理服务器推送的消息
-      if (payload.case === "push") {
-        const push = payload.value;
-        console.log("[App] Received push message:", push);
-
-        // 转换为前端消息格式
-        const chatMessage = pushMessageToChatMessage(
-          push,
-          user?.username || "",
-        );
-
-        // 添加到消息列表
-        addMessage(chatMessage);
-
-        // 如果有会话元数据，自动创建或更新会话
-        if (push.sessionMeta) {
-          const { name, type } = push.sessionMeta;
-          const existingSession = getSessionById(chatMessage.sessionId);
-
-          if (!existingSession) {
-            // 创建新会话
-            const newSession: SessionInfo = {
-              sessionId: chatMessage.sessionId,
-              name: name || chatMessage.fromUsername, // 单聊用对方用户名
-              type: type || 1,
-              unreadCount: chatMessage.isOwn ? 0 : 1,
-              lastReadSeq: 0,
-              maxSeqId: Number(chatMessage.seqId),
-              lastMessage: {
-                msgId: BigInt(chatMessage.msgId),
-                seqId: chatMessage.seqId,
-                content: chatMessage.content,
-                type: chatMessage.msgType,
-                timestamp: chatMessage.timestamp,
-              },
-            };
-            upsertSession(newSession);
-          } else {
-            // 更新现有会话
-            updateLastMessage(chatMessage.sessionId, push);
-          }
-        } else {
-          // 没有元数据，尝试更新现有会话
-          updateLastMessage(chatMessage.sessionId, push);
-        }
-
-        // 处理未读数
-        const session = getSessionById(chatMessage.sessionId);
-        if (session) {
-          if (chatMessage.sessionId !== currentSessionId && !chatMessage.isOwn) {
-            // 如果不是当前会话，使用水位线计算未读数
-            const newUnread = Math.max(0, Number(chatMessage.seqId) - session.lastReadSeq);
-            updateSession(chatMessage.sessionId, { unreadCount: newUnread });
-          } else if (chatMessage.sessionId === currentSessionId && !chatMessage.isOwn) {
-            // 如果是当前会话，自动标记已读
-            markAsRead(chatMessage.sessionId, Number(chatMessage.seqId));
-          }
-        }
-
-        // 立即发送 Ack 确认（推送消息回执）
-        if (sendRef.current) {
-          const ackPacket = WsPacket.fromJsonString(
-            JSON.stringify({
-              seq: `ack-${push.msgId}`,
-              ack: {
-                refSeq: push.msgId.toString(),
-                msgId: push.msgId,
-                seqId: push.seqId,
-                sessionId: push.sessionId,
-              },
-            }),
-          );
-          sendRef.current(ackPacket);
-        }
-      }
-      // 处理消息确认（用于将待发送消息标记为已发送）
-      else if (payload.case === "ack") {
-        const ack = payload.value;
-        if (!ack.refSeq) {
-          return;
-        }
-        if (ack.error) {
-          markAsFailed(ack.refSeq);
-          return;
-        }
-        const seqId = typeof ack.seqId === "bigint" ? ack.seqId : BigInt(ack.seqId ?? 0);
-        const msgId = typeof ack.msgId === "bigint" ? ack.msgId.toString() : String(ack.msgId ?? ack.refSeq);
-        markAsSent(ack.refSeq, msgId, seqId);
-      }
-    },
-    [user, addMessage, updateLastMessage, markAsRead, updateSession, currentSessionId, getSessionById, upsertSession, markAsFailed, markAsSent],
-  );
+  // 消息处理器（处理 push 和 ack 消息）
+  const { handleMessage } = useWsMessageHandler({
+    getSend: () => sendRef.current,
+  });
 
   // WebSocket 连接（只在登录后激活）
-  const { isConnected, send } = useWebSocket({
+  const { isConnected, isConnecting, send } = useWebSocket({
     token: accessToken ?? undefined,
-    onMessage: handleWsMessage,
+    onMessage: handleMessage,
   });
 
   // 更新 send 引用
@@ -132,7 +39,7 @@ function App() {
       {!isAuthenticated ? (
         <LoginPage />
       ) : (
-        <ChatPage isConnected={isConnected} send={send} />
+        <ChatPage isConnected={isConnected} isConnecting={isConnecting} send={send} />
       )}
     </div>
   );

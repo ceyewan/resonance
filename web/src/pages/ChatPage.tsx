@@ -4,6 +4,7 @@ import { useSession } from "@/hooks/useSession";
 import { useMessageStore, createPendingMessage } from "@/stores/message";
 import { WsPacket } from "@/gen/gateway/v1/packet_pb";
 import { cn } from "@/lib/cn";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { SessionItem } from "@/components/SessionItem";
 import { MessageBubble } from "@/components/MessageBubble";
 import { ChatInput } from "@/components/ChatInput";
@@ -12,6 +13,7 @@ import { MESSAGE_TYPES } from "@/constants";
 
 interface ChatPageProps {
   isConnected: boolean;
+  isConnecting?: boolean;
   send: (packet: WsPacket) => void;
 }
 
@@ -19,7 +21,7 @@ interface ChatPageProps {
  * 聊天主页面
  * Telegram 风格：左侧会话列表，右侧聊天区域
  */
-export default function ChatPage({ isConnected, send }: ChatPageProps) {
+export default function ChatPage({ isConnected, isConnecting = false, send }: ChatPageProps) {
   const { user, logout } = useAuthStore();
   const { sessions, currentSession, isLoading, loadSessions, selectSession } =
     useSession();
@@ -98,23 +100,6 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
     [loadSessions, selectSession],
   );
 
-  // 连接状态指示器
-  const ConnectionStatus = () => (
-    <div className="flex items-center gap-1.5">
-      <span
-        className={cn(
-          "h-2 w-2 rounded-full",
-          isConnected
-            ? "bg-green-500"
-            : "bg-red-500",
-        )}
-      />
-      <span className="text-xs text-gray-500 dark:text-gray-400">
-        {isConnected ? "已连接" : "未连接"}
-      </span>
-    </div>
-  );
-
   return (
     <div className="flex h-full flex-col bg-gray-50 dark:bg-gray-900">
       {/* 顶部导航栏 */}
@@ -137,7 +122,7 @@ export default function ChatPage({ isConnected, send }: ChatPageProps) {
           <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
             Resonance
           </h1>
-          <ConnectionStatus />
+          <ConnectionStatus isConnected={isConnected} isConnecting={isConnecting} />
         </div>
 
         <div className="flex items-center gap-3">
