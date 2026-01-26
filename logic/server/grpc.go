@@ -103,6 +103,7 @@ func (s *GRPCServer) recoveryStreamInterceptor(srv interface{}, ss grpc.ServerSt
 }
 
 // loggerUnaryInterceptor 日志拦截器 (Unary)
+// 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
 func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	startTime := time.Now()
 	resp, err := handler(ctx, req)
@@ -123,16 +124,22 @@ func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}
 	}
 
 	if err != nil {
+		// 错误请求：记录为 Error
 		fields = append(fields, clog.Error(err))
 		s.logger.Error("grpc call failed", fields...)
+	} else if duration > 100*time.Millisecond {
+		// 慢请求（>100ms）：记录为 Warn
+		s.logger.Warn("grpc call slow", fields...)
 	} else {
-		s.logger.Info("grpc call success", fields...)
+		// 正常请求：记录为 Debug
+		s.logger.Debug("grpc call success", fields...)
 	}
 
 	return resp, err
 }
 
 // loggerStreamInterceptor 日志拦截器 (Stream)
+// 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
 func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
 	err := handler(srv, ss)
@@ -145,10 +152,15 @@ func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStre
 	}
 
 	if err != nil {
+		// 错误请求：记录为 Error
 		fields = append(fields, clog.Error(err))
 		s.logger.Error("grpc stream finished with error", fields...)
+	} else if duration > 100*time.Millisecond {
+		// 慢请求（>100ms）：记录为 Warn
+		s.logger.Warn("grpc stream slow", fields...)
 	} else {
-		s.logger.Info("grpc stream finished", fields...)
+		// 正常请求：记录为 Debug
+		s.logger.Debug("grpc stream finished", fields...)
 	}
 
 	return err

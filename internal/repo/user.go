@@ -106,6 +106,24 @@ func (r *userRepo) GetUserByUsername(ctx context.Context, username string) (*mod
 	return &user, nil
 }
 
+// GetUsersByUsernames 批量获取用户（避免 N+1 查询）
+func (r *userRepo) GetUsersByUsernames(ctx context.Context, usernames []string) ([]*model.User, error) {
+	if len(usernames) == 0 {
+		return []*model.User{}, nil
+	}
+
+	var users []*model.User
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Where("username IN ?", usernames).Find(&users).Error; err != nil {
+		r.logger.Error("批量获取用户失败",
+			clog.Int("count", len(usernames)),
+			clog.Error(err))
+		return nil, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	return users, nil
+}
+
 // SearchUsers 搜索用户（模糊匹配昵称或用户名）
 func (r *userRepo) SearchUsers(ctx context.Context, query string) ([]*model.User, error) {
 	if query == "" {

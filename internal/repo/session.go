@@ -132,6 +132,29 @@ func (r *sessionRepo) GetUserSession(ctx context.Context, username, sessionID st
 	return &member, nil
 }
 
+// GetUserSessionsBatch 批量获取用户的会话信息（避免 N+1 查询）
+func (r *sessionRepo) GetUserSessionsBatch(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error) {
+	if username == "" {
+		return nil, fmt.Errorf("username cannot be empty")
+	}
+	if len(sessionIDs) == 0 {
+		return []*model.SessionMember{}, nil
+	}
+
+	var members []*model.SessionMember
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Where("username = ? AND session_id IN ?", username, sessionIDs).
+		Find(&members).Error; err != nil {
+		r.logger.Error("批量获取用户会话失败",
+			clog.String("username", username),
+			clog.Int("count", len(sessionIDs)),
+			clog.Error(err))
+		return nil, fmt.Errorf("failed to get user sessions: %w", err)
+	}
+
+	return members, nil
+}
+
 // GetUserSessionList 获取用户的所有会话列表
 func (r *sessionRepo) GetUserSessionList(ctx context.Context, username string) ([]*model.Session, error) {
 	if username == "" {

@@ -40,6 +40,64 @@ type Config struct {
 
 	// WorkerID 配置
 	WorkerID WorkerIDConfig `mapstructure:"worker_id"`
+
+	// 可观测性配置
+	Observability struct {
+		Trace struct {
+			Disable  bool    `mapstructure:"disable"`  // 是否禁用 Trace
+			Endpoint string  `mapstructure:"endpoint"` // OTLP Collector 地址
+			Insecure bool    `mapstructure:"insecure"` // 是否使用不安全连接
+			Sampler  float64 `mapstructure:"sampler"`  // 采样率 (0.0-1.0)
+		} `mapstructure:"trace"`
+		Metrics struct {
+			Port          int    `mapstructure:"port"`           // Prometheus 端口
+			Path          string `mapstructure:"path"`           // Metrics 路径
+			EnableRuntime bool   `mapstructure:"enable_runtime"` // 是否启用运行时指标
+		} `mapstructure:"metrics"`
+	} `mapstructure:"observability"`
+
+	// Outbox 配置
+	Outbox OutboxConfig `mapstructure:"outbox"`
+}
+
+// OutboxConfig Outbox Job 配置
+type OutboxConfig struct {
+	BatchSize   int           `mapstructure:"batch_size"`   // 每次处理的消息批次大小
+	MaxRetries  int           `mapstructure:"max_retries"`  // 最大重试次数
+	TickerTime  time.Duration `mapstructure:"ticker_time"`  // 扫描间隔
+	WorkerCount int           `mapstructure:"worker_count"` // 并发处理的 Worker 数量
+}
+
+// GetBatchSize 获取批次大小，默认 100
+func (c *OutboxConfig) GetBatchSize() int {
+	if c.BatchSize <= 0 {
+		return 100
+	}
+	return c.BatchSize
+}
+
+// GetMaxRetries 获取最大重试次数，默认 5
+func (c *OutboxConfig) GetMaxRetries() int {
+	if c.MaxRetries <= 0 {
+		return 5
+	}
+	return c.MaxRetries
+}
+
+// GetTickerTime 获取扫描间隔，默认 1 秒
+func (c *OutboxConfig) GetTickerTime() time.Duration {
+	if c.TickerTime <= 0 {
+		return time.Second
+	}
+	return c.TickerTime
+}
+
+// GetWorkerCount 获取 Worker 数量，默认 5
+func (c *OutboxConfig) GetWorkerCount() int {
+	if c.WorkerCount <= 0 {
+		return 5
+	}
+	return c.WorkerCount
 }
 
 // RegistryConfig 服务注册配置

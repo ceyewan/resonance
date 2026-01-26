@@ -2,17 +2,14 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/internal/model"
 	"github.com/ceyewan/resonance/internal/repo"
-	"google.golang.org/protobuf/proto"
 )
 
 // ChatService 聊天服务
@@ -122,29 +119,11 @@ func (s *ChatService) SendMessage(ctx context.Context, req *logicv1.SendMessageR
 		Type:         req.Type,
 		Timestamp:    req.Timestamp,
 	}
-	eventData, err := proto.Marshal(event)
+
+	// 发布消息到 MQ 并保存到 Outbox
+	result, err := PublishMessageToMQ(ctx, s.messageRepo, event, msgContent, s.logger)
 	if err != nil {
-		s.logger.Error("failed to marshal push event", clog.Error(err))
-		return &logicv1.SendMessageResponse{
-			MsgId: msgID,
-			SeqId: seqID,
-			Error: "failed to marshal event",
-		}, nil
-	}
-	topic := string(proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string))
-
-	// 准备本地消息表记录
-	outbox := &model.MessageOutbox{
-		MsgID:         msgID,
-		Topic:         topic,
-		Payload:       eventData,
-		Status:        model.OutboxStatusPending,
-		NextRetryTime: time.Now(),
-	}
-
-	// 使用事务保存消息、更新序列号、记录 Outbox
-	if err := s.messageRepo.SaveMessageWithOutbox(ctx, msgContent, outbox); err != nil {
-		s.logger.Error("failed to save message with outbox", clog.Error(err))
+		s.logger.Error("failed to publish message to mq", clog.Error(err))
 		return &logicv1.SendMessageResponse{
 			MsgId: msgID,
 			SeqId: seqID,
@@ -153,26 +132,7 @@ func (s *ChatService) SendMessage(ctx context.Context, req *logicv1.SendMessageR
 	}
 
 	// 立即尝试发布到 MQ (Look-aside 优化)
-	// 显式传递参数，避免闭包捕获的不确定性
-	go func(outboxID int64, topic string, data []byte) {
-		// 注意：这里使用 context.Background() 或是单独的超时 context，因为当前 ctx 可能会随着 RPC 结束而取消
-		publishCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := s.mqClient.Publish(publishCtx, topic, data); err != nil {
-			s.logger.Warn("immediate publish failed, will be retried by job",
-				clog.Int64("msg_id", msgID),
-				clog.Error(err))
-			return
-		}
-
-		// 发布成功，标记为已发送
-		if err := s.messageRepo.UpdateOutboxStatus(context.Background(), outboxID, model.OutboxStatusSent); err != nil {
-			s.logger.Error("failed to update outbox status after publish",
-				clog.Int64("msg_id", msgID),
-				clog.Error(err))
-		}
-	}(outbox.ID, topic, eventData)
+	PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
 
 	s.logger.Info("message processed successfully",
 		clog.Int64("msg_id", msgID),

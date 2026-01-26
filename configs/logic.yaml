@@ -65,3 +65,22 @@ auth:
 worker_id:
   max_id: 1024
   key: resonance:logic:worker
+
+# 可观测性配置
+observability:
+  trace:
+    disable: false                    # 开发环境启用 Trace
+    endpoint: localhost:4317          # OTLP Collector 地址
+    insecure: true                    # 开发环境使用不安全连接
+    sampler: 1.0                      # 开发环境 100% 采样
+  metrics:
+    port: 9091                        # Prometheus 端口
+    path: /metrics                    # Metrics 路径
+    enable_runtime: true              # 启用运行时指标
+
+# Outbox Job 配置
+outbox:
+  batch_size: 100                     # 每次处理的消息批次大小
+  max_retries: 5                      # 最大重试次数
+  ticker_time: 1s                     # 扫描间隔
+  worker_count: 5                     # 并发处理的 Worker 数量

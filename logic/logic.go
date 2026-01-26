@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
@@ -14,6 +15,7 @@ import (
 	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/job"
+	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
 )
@@ -86,7 +88,26 @@ func (l *Logic) initComponents() error {
 	logger, _ := clog.New(&l.config.Log, clog.WithStandardContext())
 	l.logger = logger
 
-	// 2. 核心资源
+	// 2. 可观测性
+	obsCfg := &observability.Config{
+		Trace: observability.TraceConfig{
+			Disable:  l.config.Observability.Trace.Disable,
+			Endpoint: l.config.Observability.Trace.Endpoint,
+			Insecure: l.config.Observability.Trace.Insecure,
+			Sampler:  l.config.Observability.Trace.Sampler,
+		},
+		Metrics: observability.MetricsConfig{
+			Port:          l.config.Observability.Metrics.Port,
+			Path:          l.config.Observability.Metrics.Path,
+			EnableRuntime: l.config.Observability.Metrics.EnableRuntime,
+		},
+	}
+	if err := observability.Init(obsCfg); err != nil {
+		l.logger.Warn("failed to init observability", clog.Error(err))
+		// 可观测性初始化失败不影响服务启动
+	}
+
+	// 3. 核心资源
 	res, err := l.initResources()
 	if err != nil {
 		return err
@@ -108,14 +129,13 @@ func (l *Logic) initComponents() error {
 	l.serviceID = fmt.Sprintf("%s-%d", l.config.Service.Name, instanceID)
 	res.instanceIDStop = allocator.Stop
 
-	// 3.1 动态更新 Snowflake WorkerID
+	// 3.1 使用分配到的 instanceID 初始化 ID 生成器
 	msgIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
 	if err != nil {
 		return fmt.Errorf("msgID generator init: %w", err)
 	}
 	res.msgIDGen = msgIDGen
 
-	// sessionIDGen 也使用相同的 WorkerID
 	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
 	if err != nil {
 		return fmt.Errorf("sessionID generator init: %w", err)
@@ -137,7 +157,7 @@ func (l *Logic) initComponents() error {
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
 
 	// 5. 后台任务
-	l.outboxRelay = job.NewOutboxRelay(res.messageRepo, res.mqClient, logger)
+	l.outboxRelay = job.NewOutboxRelay(res.messageRepo, res.mqClient, logger, &l.config.Outbox)
 
 	// 6. gRPC Server
 	l.grpcServer = server.NewGRPCServer(
@@ -204,9 +224,9 @@ func (l *Logic) initResources() (*resources, error) {
 	}
 
 	// ID Generators
-	// 注意：Generator 稍后在 initComponents 中根据分配到的 instanceID 重新初始化
-	msgIDGen, _ := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: 0})
-	sessionIDGen, _ := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: 0})
+	// 注意：msgIDGen 和 sessionIDGen 稍后在 initComponents 中根据分配到的 instanceID 初始化
+	var msgIDGen idgen.Generator
+	var sessionIDGen idgen.Generator
 	sequencer, _ := idgen.NewSequencer(&idgen.SequencerConfig{
 		Driver:    "redis",
 		KeyPrefix: "resonance:logic:seq",
@@ -300,23 +320,45 @@ func (l *Logic) Close() error {
 		l.grpcServer.Stop()
 	}
 
-	// 3. 释放资源
+	// 3. 释放资源（带超时控制）
 	if l.resources != nil {
-		// 停止实例 ID 保活
-		if l.resources.instanceIDStop != nil {
-			l.resources.instanceIDStop()
+		// 创建带超时的 context，用于控制资源关闭的最大等待时间
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		// 使用 goroutine 并发关闭，监听超时
+		done := make(chan struct{})
+		go func() {
+			// 停止实例 ID 保活
+			if l.resources.instanceIDStop != nil {
+				l.resources.instanceIDStop()
+			}
+
+			// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
+			l.resources.routerRepo.Close()
+			l.resources.sessionRepo.Close()
+			l.resources.userRepo.Close()
+			l.resources.messageRepo.Close()
+
+			l.resources.etcdConn.Close()
+			l.resources.natsConn.Close()
+			l.resources.redisConn.Close()
+			l.resources.mysqlConn.Close()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			// 正常关闭完成
+		case <-shutdownCtx.Done():
+			// 超时，记录警告但继续
+			l.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
 		}
+	}
 
-		// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
-		l.resources.routerRepo.Close()
-		l.resources.sessionRepo.Close()
-		l.resources.userRepo.Close()
-		l.resources.messageRepo.Close()
-
-		l.resources.etcdConn.Close()
-		l.resources.natsConn.Close()
-		l.resources.redisConn.Close()
-		l.resources.mysqlConn.Close()
+	// 4. 关闭可观测性组件
+	if err := observability.Shutdown(context.Background()); err != nil {
+		l.logger.Error("observability shutdown failed", clog.Error(err))
 	}
 
 	return nil

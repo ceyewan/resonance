@@ -187,6 +187,33 @@ func (r *messageRepo) GetLastMessage(ctx context.Context, sessionID string) (*mo
 	return &message, nil
 }
 
+// GetLastMessagesBatch 批量获取会话的最后一条消息（避免 N+1 查询）
+func (r *messageRepo) GetLastMessagesBatch(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error) {
+	if len(sessionIDs) == 0 {
+		return []*model.MessageContent{}, nil
+	}
+
+	var messages []*model.MessageContent
+	gormDB := r.db.DB(ctx)
+
+	// 使用子查询获取每个会话的最后一条消息
+	// 子查询：对每个 session_id，获取 seq_id 最大的消息
+	subquery := gormDB.Select("session_id, MAX(seq_id) as max_seq_id").
+		Where("session_id IN ?", sessionIDs).
+		Group("session_id")
+
+	if err := gormDB.Where("(session_id, seq_id) IN (?)",
+		gormDB.Select("session_id, max_seq_id").Table("(?) as t", subquery)).
+		Find(&messages).Error; err != nil {
+		r.logger.Error("批量获取最后一条消息失败",
+			clog.Int("count", len(sessionIDs)),
+			clog.Error(err))
+		return nil, fmt.Errorf("failed to get last messages: %w", err)
+	}
+
+	return messages, nil
+}
+
 // GetUnreadMessages 获取用户未读消息 (从小群信箱)
 func (r *messageRepo) GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error) {
 	if username == "" {

@@ -27,6 +27,8 @@ type UserRepo interface {
 	CreateUser(ctx context.Context, user *model.User) error
 	// GetUserByUsername 根据用户名获取用户
 	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+	// GetUsersByUsernames 批量获取用户（避免 N+1 查询）
+	GetUsersByUsernames(ctx context.Context, usernames []string) ([]*model.User, error)
 	// SearchUsers 搜索用户
 	SearchUsers(ctx context.Context, query string) ([]*model.User, error)
 	// UpdateUser 更新用户信息
@@ -45,6 +47,8 @@ type SessionRepo interface {
 	GetUserSession(ctx context.Context, username, sessionID string) (*model.SessionMember, error)
 	// GetUserSessionList 获取用户的所有会话列表
 	GetUserSessionList(ctx context.Context, username string) ([]*model.Session, error)
+	// GetUserSessionsBatch 批量获取用户的会话信息（避免 N+1 查询）
+	GetUserSessionsBatch(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error)
 	// AddMember 添加成员
 	AddMember(ctx context.Context, member *model.SessionMember) error
 	// GetMembers 获取会话成员
@@ -69,6 +73,8 @@ type MessageRepo interface {
 	GetHistoryMessages(ctx context.Context, sessionID string, startSeq int64, limit int) ([]*model.MessageContent, error)
 	// GetLastMessage 获取会话的最后一条消息
 	GetLastMessage(ctx context.Context, sessionID string) (*model.MessageContent, error)
+	// GetLastMessagesBatch 批量获取会话的最后一条消息（避免 N+1 查询）
+	GetLastMessagesBatch(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
 	// GetUnreadMessages 获取用户未读消息 (从小群信箱)
 	GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error)
 

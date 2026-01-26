@@ -41,7 +41,8 @@ func NewAuthService(
 
 // Login 实现 AuthService.Login
 func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*logicv1.LoginResponse, error) {
-	s.logger.Info("login request", clog.String("username", req.Username))
+	// 日志脱敏：不记录用户名，避免用户枚举攻击
+	s.logger.Debug("login request")
 
 	// 获取用户
 	user, err := s.userRepo.GetUserByUsername(ctx, req.Username)
@@ -53,7 +54,8 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 
 	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		s.logger.Warn("invalid password", clog.String("username", req.Username), clog.Error(err))
+		// 日志脱敏：不记录用户名，避免用户枚举攻击
+		s.logger.Debug("invalid password", clog.Error(err))
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
 
@@ -83,7 +85,8 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 
 // Register 实现 AuthService.Register
 func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest) (*logicv1.RegisterResponse, error) {
-	s.logger.Info("register request", clog.String("username", req.Username))
+	// 日志脱敏：不记录用户名，避免用户枚举攻击
+	s.logger.Debug("register request")
 
 	// 创建用户，对密码进行哈希加密
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
