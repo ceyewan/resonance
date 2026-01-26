@@ -7,13 +7,18 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/registry"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
 
-// Context 中 trace_id 的键（与 middleware.TraceIDKey 保持一致，值为 "trace_id"）
+// Context 中 trace_id 的键（值为 "trace_id"，与 middleware.TraceIDKey 一致）
 const traceIDKey = "trace_id"
+
+// gRPC metadata 中使用标准的 W3C Trace Context traceparent header
+// 格式：version-trace-id-parent-id-flags（参考 https://www.w3.org/TR/trace-context/）
+const traceParentHeader = "traceparent"
 
 // Client 封装与 Logic 服务的 gRPC 连接
 type Client struct {
@@ -125,23 +130,61 @@ func NewClient(logicServiceName, gatewayID string, logger clog.Logger, reg regis
 }
 
 // traceContextUnaryInterceptor 链路追踪拦截器（一元调用）
-// 从 Context 提取 trace_id 并注入到 gRPC metadata
+// 从 Context 提取 trace_id 并注入到 gRPC metadata，同时注入 OTEL TraceContext
 func traceContextUnaryInterceptor() grpc.UnaryClientInterceptor {
 	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		if traceID := ctx.Value(traceIDKey); traceID != nil {
-			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID.(string))
+		// 优先使用 Context 中的 trace_id
+		var traceID string
+		if val := ctx.Value(traceIDKey); val != nil {
+			traceID = val.(string)
 		}
+		// 如果没有，使用 OTEL 生成的 TraceID
+		if traceID == "" {
+			traceID = observability.GetTraceID(ctx)
+		}
+
+		// 注入到 gRPC metadata（用于 Logic 服务日志）
+		if traceID != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
+		}
+
+		// 同时注入 OTEL TraceContext（用于 Trace 链路传递）
+		carrier := make(map[string]string)
+		observability.InjectTraceContext(ctx, carrier)
+		for key, value := range carrier {
+			ctx = metadata.AppendToOutgoingContext(ctx, key, value)
+		}
+
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
 }
 
 // traceContextStreamInterceptor 链路追踪拦截器（流式调用）
-// 从 Context 提取 trace_id 并注入到 gRPC metadata
+// 从 Context 提取 trace_id 并注入到 gRPC metadata，同时注入 OTEL TraceContext
 func traceContextStreamInterceptor() grpc.StreamClientInterceptor {
 	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		if traceID := ctx.Value(traceIDKey); traceID != nil {
-			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID.(string))
+		// 优先使用 Context 中的 trace_id
+		var traceID string
+		if val := ctx.Value(traceIDKey); val != nil {
+			traceID = val.(string)
 		}
+		// 如果没有，使用 OTEL 生成的 TraceID
+		if traceID == "" {
+			traceID = observability.GetTraceID(ctx)
+		}
+
+		// 注入到 gRPC metadata（用于 Logic 服务日志）
+		if traceID != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
+		}
+
+		// 同时注入 OTEL TraceContext（用于 Trace 链路传递）
+		carrier := make(map[string]string)
+		observability.InjectTraceContext(ctx, carrier)
+		for key, value := range carrier {
+			ctx = metadata.AppendToOutgoingContext(ctx, key, value)
+		}
+
 		return streamer(ctx, desc, cc, method, opts...)
 	}
 }

@@ -223,7 +223,7 @@ func (g *Gateway) initLogicDependencies() error {
 func (g *Gateway) initServers(idGen idgen.Generator) {
 	// WebSocket Handler
 	dispatcher := socket.NewDispatcher(g.logger, g.resources.logicClient)
-	wsHandler := socket.NewHandler(g.logger, g.resources.connMgr, dispatcher, idGen, g.config.WSConfig)
+	wsHandler := socket.NewHandler(g.logger, g.resources.connMgr, dispatcher, g.config.WSConfig)
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares

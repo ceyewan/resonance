@@ -423,3 +423,23 @@ func RecordGRPCError(ctx context.Context, labels ...metrics.Label) {
 func NewLogger(cfg *clog.Config) (clog.Logger, error) {
 	return clog.New(cfg, clog.WithTraceContext())
 }
+
+// ============================================================================
+// Trace ID 提取函数
+// ============================================================================
+
+// GetTraceID 从 Context 中获取 TraceID
+// 返回 OpenTelemetry 生成的 TraceID（十六进制格式）
+func GetTraceID(ctx context.Context) string {
+	_, span := otel.Tracer(TracerName).Start(ctx, "get-trace-id")
+	defer span.End()
+	return span.SpanContext().TraceID().String()
+}
+
+// GetSpanID 从 Context 中获取 SpanID
+// 返回 OpenTelemetry 生成的 SpanID（十六进制格式）
+func GetSpanID(ctx context.Context) string {
+	_, span := otel.Tracer(TracerName).Start(ctx, "get-span-id")
+	defer span.End()
+	return span.SpanContext().SpanID().String()
+}

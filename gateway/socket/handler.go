@@ -1,11 +1,9 @@
 package socket
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/middleware"
@@ -19,7 +17,6 @@ type Handler struct {
 	connMgr    *connection.Manager
 	dispatcher *Dispatcher
 	upgrader   *websocket.Upgrader
-	idgen      idgen.Generator
 	config     config.WSConfig
 }
 
@@ -28,7 +25,6 @@ func NewHandler(
 	logger clog.Logger,
 	connMgr *connection.Manager,
 	dispatcher *Dispatcher,
-	idgen idgen.Generator,
 	cfg config.WSConfig,
 ) *Handler {
 	upgrader := &websocket.Upgrader{
@@ -44,7 +40,6 @@ func NewHandler(
 		connMgr:    connMgr,
 		dispatcher: dispatcher,
 		upgrader:   upgrader,
-		idgen:      idgen,
 		config:     cfg,
 	}
 }
@@ -62,8 +57,9 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if traceID == "" {
 		traceID = r.Header.Get(middleware.TraceIDHeader)
 	}
-	if traceID == "" && h.idgen != nil {
-		traceID = fmt.Sprintf("%d", h.idgen.Next())
+	if traceID == "" {
+		// 使用 OTEL 生成的 TraceID
+		traceID = middleware.GetTraceID(r.Context())
 	}
 
 	// 升级连接

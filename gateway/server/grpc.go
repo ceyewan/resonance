@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/ceyewan/resonance/gateway/push"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -33,10 +35,12 @@ func NewGRPCServer(addr string, logger clog.Logger, pushService *push.Service) *
 func (s *GRPCServer) Start() error {
 	s.server = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
+			s.traceContextUnaryInterceptor,
 			s.recoveryUnaryInterceptor,
 			s.loggerUnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
+			s.traceContextStreamInterceptor,
 			s.recoveryStreamInterceptor,
 			s.loggerStreamInterceptor,
 		),
@@ -133,4 +137,66 @@ func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStre
 	}
 
 	return err
+}
+
+// traceContextUnaryInterceptor TraceContext 传递拦截器 (Unary)
+// 从 gRPC metadata 中提取 TraceContext 并注入到 Context，
+// 以支持 OTEL 链路追踪跨服务传递
+func (s *GRPCServer) traceContextUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// 从 gRPC metadata 中提取 TraceContext（如果有的话）
+	// 这样可以支持从客户端（如 Gateway Client）传递过来的 TraceContext
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		traceHeaders := make(map[string]string)
+		// 提取所有 trace 相关的 metadata
+		for key, values := range md {
+			if len(values) > 0 {
+				// 标准 W3C Trace Context header
+				if key == "traceparent" || key == "tracestate" {
+					traceHeaders[key] = values[0]
+				}
+			}
+		}
+		// 如果有 TraceContext 信息，注入到 Context
+		if len(traceHeaders) > 0 {
+			ctx = observability.ExtractTraceContext(ctx, traceHeaders)
+		}
+	}
+	return handler(ctx, req)
+}
+
+// traceContextStreamInterceptor TraceContext 传递拦截器 (Stream)
+// 从 gRPC metadata 中提取 TraceContext 并注入到 Context，
+// 以支持 OTEL 链路追踪跨服务传递
+func (s *GRPCServer) traceContextStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// 从 gRPC metadata 中提取 TraceContext（如果有的话）
+	ctx := ss.Context()
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		traceHeaders := make(map[string]string)
+		// 提取所有 trace 相关的 metadata
+		for key, values := range md {
+			if len(values) > 0 {
+				// 标准 W3C Trace Context header
+				if key == "traceparent" || key == "tracestate" {
+					traceHeaders[key] = values[0]
+				}
+			}
+		}
+		// 如果有 TraceContext 信息，注入到 Context
+		if len(traceHeaders) > 0 {
+			ctx = observability.ExtractTraceContext(ctx, traceHeaders)
+			// 创建一个包装的 ServerStream，使用更新后的 Context
+			ss = &wrappedServerStream{ServerStream: ss, ctx: ctx}
+		}
+	}
+	return handler(srv, ss)
+}
+
+// wrappedServerStream 包装 gRPC ServerStream 以支持自定义 Context
+type wrappedServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedServerStream) Context() context.Context {
+	return w.ctx
 }
