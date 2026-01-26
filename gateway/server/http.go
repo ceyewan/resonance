@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/resonance/gateway/api"
 	"github.com/ceyewan/resonance/gateway/config"
-	"github.com/ceyewan/resonance/gateway/handler"
-	"github.com/ceyewan/resonance/gateway/socket"
+	"github.com/ceyewan/resonance/gateway/ws"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,14 +15,14 @@ import (
 type HTTPServer struct {
 	config      *config.Config
 	logger      clog.Logger
-	handler     *handler.Handler
-	middlewares *handler.Middlewares
-	wsHandler   *socket.Handler
+	handler     *api.HTTPHandler
+	middlewares *api.Middlewares
+	wsHandler   *ws.Upgrader
 	server      *http.Server
 }
 
 // NewHTTPServer 创建 HTTP 服务
-func NewHTTPServer(cfg *config.Config, logger clog.Logger, h *handler.Handler, m *handler.Middlewares, wsHandler *socket.Handler) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, logger clog.Logger, h *api.HTTPHandler, m *api.Middlewares, wsHandler *ws.Upgrader) *HTTPServer {
 	return &HTTPServer{
 		config:      cfg,
 		logger:      logger,

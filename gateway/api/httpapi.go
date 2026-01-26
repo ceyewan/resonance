@@ -1,4 +1,4 @@
-package handler
+package api
 
 import (
 	"context"
@@ -6,102 +6,35 @@ import (
 	"connectrpc.com/connect"
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/middleware"
 	"github.com/gin-gonic/gin"
 )
 
-// Handler 实现 Gateway 的 HTTP API
-type Handler struct {
+// HTTPHandler 实现 Gateway 的 HTTP API
+type HTTPHandler struct {
 	logicClient *client.Client
 	logger      clog.Logger
 	authConfig  *middleware.AuthConfig
 }
 
-// NewHandler 创建 API Handler
-func NewHandler(logicClient *client.Client, logger clog.Logger) *Handler {
-	return &Handler{
+// NewHTTPHandler 创建 API Handler
+func NewHTTPHandler(logicClient *client.Client, logger clog.Logger) *HTTPHandler {
+	return &HTTPHandler{
 		logicClient: logicClient,
 		logger:      logger,
 		authConfig:  middleware.NewAuthConfig(logicClient, logger),
 	}
 }
 
-// RegisterRoutes 注册路由到 Gin，使用路由分组和中间件
-func (h *Handler) RegisterRoutes(router *gin.Engine, opts ...RouteOption) {
-	cfg := &RouteConfig{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
-	// 创建公共路由组（不需要认证）
-	publicGroup := router.Group("")
-	if cfg.RecoveryMiddleware != nil {
-		publicGroup.Use(cfg.RecoveryMiddleware)
-	}
-	if cfg.LoggerMiddleware != nil {
-		publicGroup.Use(cfg.LoggerMiddleware)
-	}
-	if cfg.SlowQueryMiddleware != nil {
-		publicGroup.Use(cfg.SlowQueryMiddleware)
-	}
-	if cfg.GlobalRateLimitMiddleware != nil {
-		publicGroup.Use(cfg.GlobalRateLimitMiddleware)
-	}
-	if cfg.IPRateLimitMiddleware != nil {
-		publicGroup.Use(cfg.IPRateLimitMiddleware)
-	}
-
-	// 注册公开路由（不需要认证）
-	h.registerPublicRoutes(publicGroup)
-
-	// 创建认证路由组（需要认证）
-	authGroup := router.Group("")
-	if cfg.RecoveryMiddleware != nil {
-		authGroup.Use(cfg.RecoveryMiddleware)
-	}
-	if cfg.LoggerMiddleware != nil {
-		authGroup.Use(cfg.LoggerMiddleware)
-	}
-	if cfg.SlowQueryMiddleware != nil {
-		authGroup.Use(cfg.SlowQueryMiddleware)
-	}
-	if cfg.GlobalRateLimitMiddleware != nil {
-		authGroup.Use(cfg.GlobalRateLimitMiddleware)
-	}
-	// 认证中间件
-	authGroup.Use(h.authConfig.RequireAuth())
-	if cfg.UserRateLimitMiddleware != nil {
-		authGroup.Use(cfg.UserRateLimitMiddleware)
-	}
-
-	// 注册需要认证的路由
-	h.registerAuthRoutes(authGroup)
-}
-
 // RequireAuthMiddleware 提供给外部路由使用的认证中间件
-func (h *Handler) RequireAuthMiddleware() gin.HandlerFunc {
+func (h *HTTPHandler) RequireAuthMiddleware() gin.HandlerFunc {
 	return h.authConfig.RequireAuth()
 }
 
-// registerPublicRoutes 注册公开路由（不需要认证）
-func (h *Handler) registerPublicRoutes(group *gin.RouterGroup) {
-	// AuthService: Login, Register
-	path, handler := gatewayv1connect.NewAuthServiceHandler(h)
-	group.Any(path+"*any", gin.WrapH(handler))
-}
-
-// registerAuthRoutes 注册需要认证的路由
-func (h *Handler) registerAuthRoutes(group *gin.RouterGroup) {
-	// SessionService: 所有接口都需要认证
-	path, handler := gatewayv1connect.NewSessionServiceHandler(h)
-	group.Any(path+"*any", gin.WrapH(handler))
-}
-
 // getUsernameFromContext 从 Context 中获取经过中间件解析的用户名
-func (h *Handler) getUsernameFromContext(ctx context.Context) (string, error) {
+func (h *HTTPHandler) getUsernameFromContext(ctx context.Context) (string, error) {
 	username, ok := ctx.Value(middleware.UsernameKey).(string)
 	if !ok || username == "" {
 		return "", connect.NewError(connect.CodeUnauthenticated, middleware.ErrMissingToken)
@@ -109,65 +42,10 @@ func (h *Handler) getUsernameFromContext(ctx context.Context) (string, error) {
 	return username, nil
 }
 
-// RouteConfig 路由配置
-type RouteConfig struct {
-	RecoveryMiddleware        gin.HandlerFunc
-	LoggerMiddleware          gin.HandlerFunc
-	SlowQueryMiddleware       gin.HandlerFunc
-	GlobalRateLimitMiddleware gin.HandlerFunc
-	IPRateLimitMiddleware     gin.HandlerFunc
-	UserRateLimitMiddleware   gin.HandlerFunc
-}
-
-// RouteOption 路由选项函数
-type RouteOption func(*RouteConfig)
-
-// WithRecovery 设置 Recovery 中间件
-func WithRecovery(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.RecoveryMiddleware = middleware
-	}
-}
-
-// WithLogger 设置 Logger 中间件
-func WithLogger(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.LoggerMiddleware = middleware
-	}
-}
-
-// WithSlowQuery 设置慢查询检测中间件
-func WithSlowQuery(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.SlowQueryMiddleware = middleware
-	}
-}
-
-// WithGlobalRateLimit 设置全局限流中间件
-func WithGlobalRateLimit(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.GlobalRateLimitMiddleware = middleware
-	}
-}
-
-// WithIPRateLimit 设置 IP 限流中间件
-func WithIPRateLimit(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.IPRateLimitMiddleware = middleware
-	}
-}
-
-// WithUserRateLimit 设置用户限流中间件
-func WithUserRateLimit(middleware gin.HandlerFunc) RouteOption {
-	return func(cfg *RouteConfig) {
-		cfg.UserRateLimitMiddleware = middleware
-	}
-}
-
 // ==================== AuthService 实现 ====================
 
 // Login 实现 AuthService.Login（公开接口）
-func (h *Handler) Login(
+func (h *HTTPHandler) Login(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.LoginRequest],
 ) (*connect.Response[gatewayv1.LoginResponse], error) {
@@ -193,7 +71,7 @@ func (h *Handler) Login(
 }
 
 // Register 实现 AuthService.Register（公开接口）
-func (h *Handler) Register(
+func (h *HTTPHandler) Register(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.RegisterRequest],
 ) (*connect.Response[gatewayv1.RegisterResponse], error) {
@@ -220,7 +98,7 @@ func (h *Handler) Register(
 }
 
 // Logout 实现 AuthService.Logout（公开接口，但通常需要 token）
-func (h *Handler) Logout(
+func (h *HTTPHandler) Logout(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.LogoutRequest],
 ) (*connect.Response[gatewayv1.LogoutResponse], error) {
@@ -237,7 +115,7 @@ func (h *Handler) Logout(
 // 以下接口需要认证，由路由中间件统一处理
 
 // GetSessionList 实现 SessionService.GetSessionList
-func (h *Handler) GetSessionList(
+func (h *HTTPHandler) GetSessionList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetSessionListRequest],
 ) (*connect.Response[gatewayv1.GetSessionListResponse], error) {
@@ -273,7 +151,7 @@ func (h *Handler) GetSessionList(
 }
 
 // CreateSession 实现 SessionService.CreateSession
-func (h *Handler) CreateSession(
+func (h *HTTPHandler) CreateSession(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.CreateSessionRequest],
 ) (*connect.Response[gatewayv1.CreateSessionResponse], error) {
@@ -303,7 +181,7 @@ func (h *Handler) CreateSession(
 }
 
 // GetRecentMessages 实现 SessionService.GetRecentMessages
-func (h *Handler) GetRecentMessages(
+func (h *HTTPHandler) GetRecentMessages(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetRecentMessagesRequest],
 ) (*connect.Response[gatewayv1.GetRecentMessagesResponse], error) {
@@ -331,7 +209,7 @@ func (h *Handler) GetRecentMessages(
 }
 
 // GetContactList 实现 SessionService.GetContactList
-func (h *Handler) GetContactList(
+func (h *HTTPHandler) GetContactList(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetContactListRequest],
 ) (*connect.Response[gatewayv1.GetContactListResponse], error) {
@@ -363,7 +241,7 @@ func (h *Handler) GetContactList(
 }
 
 // SearchUser 实现 SessionService.SearchUser
-func (h *Handler) SearchUser(
+func (h *HTTPHandler) SearchUser(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.SearchUserRequest],
 ) (*connect.Response[gatewayv1.SearchUserResponse], error) {
@@ -394,7 +272,7 @@ func (h *Handler) SearchUser(
 }
 
 // UpdateReadPosition 实现 SessionService.UpdateReadPosition
-func (h *Handler) UpdateReadPosition(
+func (h *HTTPHandler) UpdateReadPosition(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.UpdateReadPositionRequest],
 ) (*connect.Response[gatewayv1.UpdateReadPositionResponse], error) {

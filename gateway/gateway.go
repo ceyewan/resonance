@@ -10,14 +10,14 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/resonance/gateway/api"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/connection"
-	"github.com/ceyewan/resonance/gateway/handler"
 	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/ceyewan/resonance/gateway/push"
 	"github.com/ceyewan/resonance/gateway/server"
-	"github.com/ceyewan/resonance/gateway/socket"
+	"github.com/ceyewan/resonance/gateway/ws"
 )
 
 // Gateway 网关服务生命周期管理器
@@ -222,16 +222,16 @@ func (g *Gateway) initLogicDependencies() error {
 // initServers 初始化各个协议的服务端
 func (g *Gateway) initServers(idGen idgen.Generator) {
 	// WebSocket Handler
-	dispatcher := socket.NewDispatcher(g.logger, g.resources.logicClient)
-	wsHandler := socket.NewHandler(g.logger, g.resources.connMgr, dispatcher, g.config.WSConfig)
+	dispatcher := ws.NewDispatcher(g.logger, g.resources.logicClient)
+	wsHandler := ws.NewUpgrader(g.logger, g.resources.connMgr, dispatcher, g.config.WSConfig)
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares
 	limiter, _ := ratelimit.New(&ratelimit.Config{
 		Driver: ratelimit.DriverStandalone,
 	}, ratelimit.WithLogger(g.logger))
-	middlewares := handler.NewMiddlewares(g.logger, limiter, idGen)
-	apiHandler := handler.NewHandler(g.resources.logicClient, g.logger)
+	middlewares := api.NewMiddlewares(g.logger, limiter, idGen)
+	apiHandler := api.NewHTTPHandler(g.resources.logicClient, g.logger)
 
 	// Push Service
 	pushService := push.NewService(g.resources.connMgr, g.logger)

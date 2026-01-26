@@ -1,4 +1,4 @@
-package socket
+package ws
 
 import (
 	"net/http"
@@ -11,8 +11,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Handler 处理 WebSocket 连接握手和生命周期
-type Handler struct {
+// Upgrader 处理 WebSocket 连接握手
+type Upgrader struct {
 	logger     clog.Logger
 	connMgr    *connection.Manager
 	dispatcher *Dispatcher
@@ -20,13 +20,13 @@ type Handler struct {
 	config     config.WSConfig
 }
 
-// NewHandler 创建 WebSocket 处理器
-func NewHandler(
+// NewUpgrader 创建 WebSocket 升级器
+func NewUpgrader(
 	logger clog.Logger,
 	connMgr *connection.Manager,
 	dispatcher *Dispatcher,
 	cfg config.WSConfig,
-) *Handler {
+) *Upgrader {
 	upgrader := &websocket.Upgrader{
 		ReadBufferSize:  cfg.ReadBufferSize,
 		WriteBufferSize: cfg.WriteBufferSize,
@@ -35,7 +35,7 @@ func NewHandler(
 		},
 	}
 
-	return &Handler{
+	return &Upgrader{
 		logger:     logger,
 		connMgr:    connMgr,
 		dispatcher: dispatcher,
@@ -45,7 +45,7 @@ func NewHandler(
 }
 
 // HandleWebSocket 处理握手请求
-func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	username, _ := r.Context().Value(middleware.UsernameKey).(string)
 	if username == "" {
 		h.logger.Warn("websocket connection rejected: missing username", clog.String("remote_addr", r.RemoteAddr))
@@ -101,6 +101,6 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 // Upgrader 获取升级器
-func (h *Handler) Upgrader() *websocket.Upgrader {
+func (h *Upgrader) Upgrader() *websocket.Upgrader {
 	return h.upgrader
 }
