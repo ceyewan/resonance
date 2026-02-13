@@ -1,0 +1,36 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck # 检查未处理的错误
+    - gosimple # 简化代码建议
+    - govet # Go 官方静态分析工具
+    - ineffassign # 检查无效赋值
+    - staticcheck # 强大的静态分析工具
+    - typecheck # 类型检查
+    - unused # 检查未使用的常量、变量、函数和类型
+    - gofmt # 检查代码格式
+    - goimports # 检查 import 格式
+    - misspell # 检查拼写错误
+    - unconvert # 检查不必要的类型转换
+    - unparam # 检查未使用的函数参数 (正是你刚才发现的问题)
+
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/ceyewan/resonance
+
+issues:
+  # 排除一些自动生成文件的检查
+  exclude-dirs:
+    - docs
+    - deploy
+  # 默认排除规则通常已经够用，这里可以根据需要添加自定义排除规则
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck # 测试代码中忽略一些错误检查通常是可以接受的

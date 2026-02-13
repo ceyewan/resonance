@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier dev up down logs clean
+.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web dev up down logs clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -56,6 +56,34 @@ format-proto: ## 格式化 Proto 定义
 format-prettier: ## 格式化 TS/YAML/Markdown/JSON 等
 	@echo "🔧 格式化 Prettier 支持的文件..."
 	@prettier --write .
+
+lint: lint-go lint-proto lint-prettier lint-web ## 一键执行 Go/Proto/Prettier/Web Lint
+	@echo "✅ 全量 Lint 通过"
+
+lint-go: ## Go 静态检查（golangci-lint）
+	@echo "🔍 Go lint (golangci-lint)..."
+	@if ! command -v golangci-lint >/dev/null 2>&1; then \
+		echo "❌ 未安装 golangci-lint，请先安装后重试"; \
+		exit 1; \
+	fi
+	@golangci-lint run --config .golangci.yaml ./...
+
+lint-proto: ## Proto lint 检查
+	@echo "🔍 Buf lint..."
+	@cd api && buf lint
+
+lint-prettier: ## Prettier 格式检查
+	@echo "🔍 Prettier check..."
+	@prettier --check .
+
+lint-web: ## 前端 ESLint 检查
+	@echo "🔍 Web lint..."
+	@cd web && npm run type-check
+	@if [ -f web/eslint.config.js ] || [ -f web/eslint.config.mjs ] || [ -f web/eslint.config.cjs ] || [ -f web/.eslintrc ] || [ -f web/.eslintrc.js ] || [ -f web/.eslintrc.cjs ] || [ -f web/.eslintrc.json ] || [ -f web/.eslintrc.yaml ] || [ -f web/.eslintrc.yml ]; then \
+		cd web && npm run lint; \
+	else \
+		echo "ℹ️  未检测到 ESLint 配置，已跳过 npm run lint"; \
+	fi
 
 # ============================================================================
 # 本地开发（直接运行，不用 Docker）

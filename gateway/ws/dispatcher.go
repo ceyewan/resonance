@@ -2,10 +2,10 @@ package ws
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/genesis/xerrors"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/protocol"
@@ -65,7 +65,7 @@ func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, s
 		return err
 	}
 	if ackErr != "" {
-		return fmt.Errorf(ackErr)
+		return xerrors.New(ackErr)
 	}
 	return nil
 }

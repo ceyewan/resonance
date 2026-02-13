@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 import { useMessageStore, pushMessageToChatMessage } from "@/stores/message";
