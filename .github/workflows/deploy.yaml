@@ -3,7 +3,7 @@ name: Deploy Resonance
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build-and-push:

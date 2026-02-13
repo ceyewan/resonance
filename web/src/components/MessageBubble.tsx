@@ -85,18 +85,19 @@ export function MessageBubble({
       case "image":
         return (
           <div className="rounded-lg overflow-hidden">
-            <img
-              src={message.content}
-              alt="图片"
-              className="max-w-full rounded-lg"
-            />
+            <img src={message.content} alt="图片" className="max-w-full rounded-lg" />
           </div>
         );
       case "file":
         return (
           <div className="flex items-center gap-3">
             <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
             <span className="underline">{message.content}</span>
           </div>
@@ -105,7 +106,12 @@ export function MessageBubble({
         return (
           <div className="flex items-center gap-2">
             <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+              />
             </svg>
             <span className="text-sm">语音消息</span>
           </div>
@@ -132,20 +138,13 @@ export function MessageBubble({
   }
 
   return (
-    <div
-      className={cn(
-        "flex gap-2",
-        isOwn ? "flex-row-reverse" : "flex-row",
-      )}
-    >
+    <div className={cn("flex gap-2", isOwn ? "flex-row-reverse" : "flex-row")}>
       {/* 头像 */}
       {showAvatar && !isOwn && (
         <div
           className={cn(
             "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white",
-            senderAvatarUrl
-              ? "bg-gray-300 dark:bg-gray-600"
-              : avatarColor,
+            senderAvatarUrl ? "bg-gray-300 dark:bg-gray-600" : avatarColor,
           )}
         >
           {senderAvatarUrl ? (
@@ -161,17 +160,10 @@ export function MessageBubble({
       )}
 
       {/* 消息内容 */}
-      <div
-        className={cn(
-          "flex max-w-[75%] flex-col",
-          isOwn ? "items-end" : "items-start",
-        )}
-      >
+      <div className={cn("flex max-w-[75%] flex-col", isOwn ? "items-end" : "items-start")}>
         {/* 发送者名称（仅群聊且非己方消息显示） */}
         {!isOwn && showAvatar && senderName && (
-          <span className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-            {senderName}
-          </span>
+          <span className="mb-1 text-xs text-gray-500 dark:text-gray-400">{senderName}</span>
         )}
 
         {/* 气泡 */}
@@ -190,9 +182,7 @@ export function MessageBubble({
         <div
           className={cn(
             "mt-0.5 flex items-center gap-1 text-xs",
-            isOwn
-              ? "text-sky-200"
-              : "text-gray-400 dark:text-gray-500",
+            isOwn ? "text-sky-200" : "text-gray-400 dark:text-gray-500",
           )}
         >
           <span>{formatTime(message.timestamp)}</span>

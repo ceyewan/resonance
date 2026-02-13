@@ -97,18 +97,14 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const existing = state.messages[sessionId] || [];
 
       // 检查是否已存在（根据 msgId 或 seqId）
-      const exists = existing.find(
-        (m) => m.msgId === message.msgId || m.seqId === message.seqId,
-      );
+      const exists = existing.find((m) => m.msgId === message.msgId || m.seqId === message.seqId);
       if (exists) {
         // 更新现有消息
         return {
           messages: {
             ...state.messages,
             [sessionId]: existing.map((m) =>
-              m.msgId === message.msgId || m.seqId === message.seqId
-                ? { ...m, ...message }
-                : m,
+              m.msgId === message.msgId || m.seqId === message.seqId ? { ...m, ...message } : m,
             ),
           },
         };
@@ -127,9 +123,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const existing = state.messages[sessionId] || [];
       // 去重并追加
       const existingIds = new Set(existing.map((m) => m.msgId));
-      const uniqueNewMessages = newMessages.filter(
-        (m) => !existingIds.has(m.msgId),
-      );
+      const uniqueNewMessages = newMessages.filter((m) => !existingIds.has(m.msgId));
       return {
         messages: {
           ...state.messages,
@@ -143,9 +137,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const existing = state.messages[sessionId] || [];
       // 去重并前置（用于加载历史消息）
       const existingIds = new Set(existing.map((m) => m.msgId));
-      const uniqueNewMessages = newMessages.filter(
-        (m) => !existingIds.has(m.msgId),
-      );
+      const uniqueNewMessages = newMessages.filter((m) => !existingIds.has(m.msgId));
       return {
         messages: {
           ...state.messages,
@@ -171,9 +163,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       return {
         messages: {
           ...state.messages,
-          [sessionId]: messages.map((msg) =>
-            msg.seqId === seqId ? { ...msg, ...updates } : msg,
-          ),
+          [sessionId]: messages.map((msg) => (msg.seqId === seqId ? { ...msg, ...updates } : msg)),
         },
       };
     }),
@@ -182,9 +172,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((state) => {
       const newMessages = { ...state.messages };
       for (const sessionId in newMessages) {
-        newMessages[sessionId] = newMessages[sessionId].filter(
-          (msg) => msg.msgId !== msgId,
-        );
+        newMessages[sessionId] = newMessages[sessionId].filter((msg) => msg.msgId !== msgId);
       }
       return { messages: newMessages };
     }),

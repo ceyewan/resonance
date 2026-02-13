@@ -58,23 +58,23 @@ logic/
 
 ```yaml
 service:
-  name: logic-service
-  server_addr: :15090
+    name: logic-service
+    server_addr: :15090
 
 observability:
-  trace:
-    disable: false              # 是否禁用 Trace 上报
-    endpoint: localhost:4317     # OTLP Collector 地址
-    sampler: 1.0                 # 采样率
-  metrics:
-    port: 9091                   # Prometheus 端口
-    path: /metrics
+    trace:
+        disable: false # 是否禁用 Trace 上报
+        endpoint: localhost:4317 # OTLP Collector 地址
+        sampler: 1.0 # 采样率
+    metrics:
+        port: 9091 # Prometheus 端口
+        path: /metrics
 
 outbox:
-  batch_size: 100                # 每次处理的消息批次
-  max_retries: 5                 # 最大重试次数
-  ticker_time: 1s                # 扫描间隔
-  worker_count: 5                # 并发 Worker 数量
+    batch_size: 100 # 每次处理的消息批次
+    max_retries: 5 # 最大重试次数
+    ticker_time: 1s # 扫描间隔
+    worker_count: 5 # 并发 Worker 数量
 ```
 
 ## 🔑 关键组件
@@ -88,9 +88,9 @@ outbox:
 ### SessionService (会话服务)
 
 - **批量查询优化**：`GetSessionList` 使用批量查询避免 N+1 问题
-  - `GetUsersByUsernames()` - 批量获取用户信息
-  - `GetUserSessionsBatch()` - 批量获取会话成员
-  - `GetLastMessagesBatch()` - 批量获取最后消息（子查询优化）
+    - `GetUsersByUsernames()` - 批量获取用户信息
+    - `GetUserSessionsBatch()` - 批量获取会话成员
+    - `GetLastMessagesBatch()` - 批量获取最后消息（子查询优化）
 
 ### ChatService (聊天服务)
 
@@ -141,12 +141,12 @@ outbox:
 
 ### Metrics（业务指标）
 
-| 指标名称 | 说明 | 桶值 |
-|---------|------|------|
-| `logic_login_duration_seconds` | Login 耗时 | 0.01~1s |
-| `logic_register_duration_seconds` | Register 耗时 | 0.01~1s |
-| `logic_send_message_duration_seconds` | SendMessage 耗时 | 0.005~0.5s |
-| `logic_create_session_duration_seconds` | CreateSession 耗时 | 0.01~1s |
+| 指标名称                                | 说明               | 桶值       |
+| --------------------------------------- | ------------------ | ---------- |
+| `logic_login_duration_seconds`          | Login 耗时         | 0.01~1s    |
+| `logic_register_duration_seconds`       | Register 耗时      | 0.01~1s    |
+| `logic_send_message_duration_seconds`   | SendMessage 耗时   | 0.005~0.5s |
+| `logic_create_session_duration_seconds` | CreateSession 耗时 | 0.01~1s    |
 
 访问 `http://localhost:9091/metrics` 查看 Prometheus 指标。
 

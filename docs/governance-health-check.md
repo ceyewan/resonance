@@ -1,6 +1,7 @@
 # Issue: 服务健康检查机制
 
 ## 元信息
+
 - **ID**: GOV-004
 - **标题**: 实现服务健康检查端点
 - **优先级**: P1 - 高
@@ -11,6 +12,7 @@
 ## 问题描述
 
 当前系统缺少健康检查机制，导致：
+
 - K8s/容器编排无法判断服务是否健康
 - 不健康的实例无法自动摘除
 - 部署时无法判断服务是否真正可用
@@ -31,11 +33,11 @@
 
 ### 1. 健康检查级别
 
-| 级别 | 路径 | 检查内容 | 用途 |
-|------|------|----------|------|
-| Liveness | `/healthz/live` | 进程是否存活 | K8s liveness probe |
-| Readiness | `/healthz/ready` | 是否能处理请求 | K8s readiness probe |
-| Startup | `/healthz/startup` | 启动是否完成 | K8s startup probe |
+| 级别      | 路径               | 检查内容       | 用途                |
+| --------- | ------------------ | -------------- | ------------------- |
+| Liveness  | `/healthz/live`    | 进程是否存活   | K8s liveness probe  |
+| Readiness | `/healthz/ready`   | 是否能处理请求 | K8s readiness probe |
+| Startup   | `/healthz/startup` | 启动是否完成   | K8s startup probe   |
 
 ### 2. 检查项设计
 
@@ -121,31 +123,31 @@ func (g *Gateway) Readyz(w http.ResponseWriter, r *http.Request) {
 ```yaml
 # k8s/deployment.yaml
 spec:
-  containers:
-  - name: gateway
-    image: resonance/gateway:latest
-    ports:
-    - containerPort: 8080
-    - containerPort: 9090  # health check port
-    livenessProbe:
-      httpGet:
-        path: /healthz/live
-        port: 9090
-      initialDelaySeconds: 10
-      periodSeconds: 10
-    readinessProbe:
-      httpGet:
-        path: /healthz/ready
-        port: 9090
-      initialDelaySeconds: 5
-      periodSeconds: 5
-    startupProbe:
-      httpGet:
-        path: /healthz/startup
-        port: 9090
-      initialDelaySeconds: 0
-      periodSeconds: 2
-      failureThreshold: 30  # 最多等待 60 秒
+    containers:
+        - name: gateway
+          image: resonance/gateway:latest
+          ports:
+              - containerPort: 8080
+              - containerPort: 9090 # health check port
+          livenessProbe:
+              httpGet:
+                  path: /healthz/live
+                  port: 9090
+              initialDelaySeconds: 10
+              periodSeconds: 10
+          readinessProbe:
+              httpGet:
+                  path: /healthz/ready
+                  port: 9090
+              initialDelaySeconds: 5
+              periodSeconds: 5
+          startupProbe:
+              httpGet:
+                  path: /healthz/startup
+                  port: 9090
+              initialDelaySeconds: 0
+              periodSeconds: 2
+              failureThreshold: 30 # 最多等待 60 秒
 ```
 
 ### 5. Docker Compose 健康检查
@@ -153,17 +155,17 @@ spec:
 ```yaml
 # docker-compose.yml
 services:
-  gateway:
-    image: resonance/gateway:latest
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/healthz/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      logic:
-        condition: service_healthy
+    gateway:
+        image: resonance/gateway:latest
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9090/healthz/ready"]
+            interval: 5s
+            timeout: 3s
+            retries: 3
+            start_period: 30s
+        depends_on:
+            logic:
+                condition: service_healthy
 ```
 
 ### 6. 详细健康信息（可选）

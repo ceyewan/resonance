@@ -11,23 +11,23 @@
 ## 仍需补齐的能力（从 AUDIT 整合）
 
 1. **缓存层（Decorator）**
-   - 目标：User/Session 读多写少场景加速鉴权与会话查询。
-   - 策略：读穿透（Read-Through）+ 写后失效（Cache Aside）。
-   - 实现建议：`CachedUserRepo`/`CachedSessionRepo` 包装现有 Repo，对上层透明。
+    - 目标：User/Session 读多写少场景加速鉴权与会话查询。
+    - 策略：读穿透（Read-Through）+ 写后失效（Cache Aside）。
+    - 实现建议：`CachedUserRepo`/`CachedSessionRepo` 包装现有 Repo，对上层透明。
 
 2. **消息批量落库**
-   - 目标：Logic 侧批量写入消息内容，提升吞吐与减少 DB 压力。
-   - 缺口：`MessageRepo` 尚未提供 `BatchSaveMessages(ctx, msgs)`。
+    - 目标：Logic 侧批量写入消息内容，提升吞吐与减少 DB 压力。
+    - 缺口：`MessageRepo` 尚未提供 `BatchSaveMessages(ctx, msgs)`。
 
 3. **消息漫游缓存**
-   - 目标：历史消息查询的低延迟。
-   - 方案：Redis ZSET（key: `msg:{session_id}`，score: `seq_id`，value: message json）。
-   - 写入：Task 消费后先写 Redis，再异步/批量落库。
-   - 读取：先 Redis，不足再回源 DB。
+    - 目标：历史消息查询的低延迟。
+    - 方案：Redis ZSET（key: `msg:{session_id}`，score: `seq_id`，value: message json）。
+    - 写入：Task 消费后先写 Redis，再异步/批量落库。
+    - 读取：先 Redis，不足再回源 DB。
 
 4. **SeqID 生成能力下沉**
-   - 目标：将 `IncrSeqID` 逻辑封装进 `internal`，统一序列号生成策略。
-   - 原则：业务层仅调用接口，避免暴露基础组件。
+    - 目标：将 `IncrSeqID` 逻辑封装进 `internal`，统一序列号生成策略。
+    - 原则：业务层仅调用接口，避免暴露基础组件。
 
 ## 设计原则
 

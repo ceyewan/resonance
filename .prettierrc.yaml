@@ -1,0 +1,19 @@
+# Resonance Prettier 配置
+# 适用：ts/tsx/js/json/yaml/markdown/css 等由 prettier 支持的文件
+printWidth: 100
+tabWidth: 2
+useTabs: false
+semi: true
+singleQuote: false
+trailingComma: all
+bracketSpacing: true
+arrowParens: always
+endOfLine: lf
+
+overrides:
+  - files: "*.md"
+    options:
+      parser: markdown
+      tabWidth: 4
+      useTabs: false
+      proseWrap: preserve

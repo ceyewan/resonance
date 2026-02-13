@@ -12,16 +12,16 @@ Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP
 
 ## 技术栈
 
-| 类别 | 技术 | 版本 | 用途 |
-|------|------|------|------|
-| 框架 | React | 18.3+ | UI 框架 |
-| 语言 | TypeScript | 5.6+ | 类型安全 |
-| 构建 | Vite | 5.4+ | 开发服务器与打包 |
-| 状态 | Zustand | 4.5+ | 轻量状态管理 |
-| 样式 | Tailwind CSS | 3.4+ | 原子化 CSS |
-| UI 组件 | Radix UI | 1.x | 无头组件 |
-| API | ConnectRPC | 1.4+ | 类型安全的 RPC 调用 |
-| 实时通信 | WebSocket | - | Protobuf 消息推送 |
+| 类别     | 技术         | 版本  | 用途                |
+| -------- | ------------ | ----- | ------------------- |
+| 框架     | React        | 18.3+ | UI 框架             |
+| 语言     | TypeScript   | 5.6+  | 类型安全            |
+| 构建     | Vite         | 5.4+  | 开发服务器与打包    |
+| 状态     | Zustand      | 4.5+  | 轻量状态管理        |
+| 样式     | Tailwind CSS | 3.4+  | 原子化 CSS          |
+| UI 组件  | Radix UI     | 1.x   | 无头组件            |
+| API      | ConnectRPC   | 1.4+  | 类型安全的 RPC 调用 |
+| 实时通信 | WebSocket    | -     | Protobuf 消息推送   |
 
 ---
 

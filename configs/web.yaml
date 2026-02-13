@@ -16,5 +16,5 @@ static:
 
 log:
   level: debug
-  format: console  # 开发环境使用 console 格式，方便调试
+  format: console # 开发环境使用 console 格式，方便调试
   output: stdout

@@ -20,8 +20,7 @@ interface UseWebSocketReturn {
   reconnect: () => void;
 }
 
-const DEFAULT_WS_URL =
-  import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8080/ws";
+const DEFAULT_WS_URL = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8080/ws";
 
 /**
  * WebSocket Hook
@@ -153,7 +152,11 @@ export function useWebSocket({
       onCloseRef.current?.(event);
 
       // 尝试自动重连（非正常关闭时）
-      if (token && !event.wasClean && reconnectAttemptsRef.current < WS_CONFIG.MAX_RECONNECT_ATTEMPTS) {
+      if (
+        token &&
+        !event.wasClean &&
+        reconnectAttemptsRef.current < WS_CONFIG.MAX_RECONNECT_ATTEMPTS
+      ) {
         reconnectAttemptsRef.current++;
         console.log(`[WS] Reconnecting... Attempt ${reconnectAttemptsRef.current}`);
         reconnectTimeoutRef.current = setTimeout(() => {

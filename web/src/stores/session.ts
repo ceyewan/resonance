@@ -15,7 +15,7 @@ export interface SessionInfo {
   avatarUrl?: string;
   unreadCount: number;
   lastReadSeq: number; // 用户的已读水位线
-  maxSeqId: number;    // 会话的最新消息序列号 (新增字段，用于更准确计算)
+  maxSeqId: number; // 会话的最新消息序列号 (新增字段，用于更准确计算)
   lastMessage?: {
     msgId: bigint;
     seqId: bigint;
@@ -81,16 +81,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   upsertSession: (session) =>
     set((state) => {
-      const exists = state.sessions.find(
-        (s) => s.sessionId === session.sessionId,
-      );
+      const exists = state.sessions.find((s) => s.sessionId === session.sessionId);
       if (exists) {
         // 更新现有会话
         return {
           sessions: state.sessions.map((s) =>
-            s.sessionId === session.sessionId
-              ? { ...s, ...session }
-              : s,
+            s.sessionId === session.sessionId ? { ...s, ...session } : s,
           ),
         };
       }
@@ -111,10 +107,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   removeSession: (sessionId) =>
     set((state) => ({
       sessions: state.sessions.filter((s) => s.sessionId !== sessionId),
-      currentSessionId:
-        state.currentSessionId === sessionId
-          ? null
-          : state.currentSessionId,
+      currentSessionId: state.currentSessionId === sessionId ? null : state.currentSessionId,
     })),
 
   setCurrentSessionId: (sessionId) =>
@@ -134,9 +127,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const newUnreadCount = Math.max(0, session.maxSeqId - seqId);
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.sessionId === sessionId
-          ? { ...s, lastReadSeq: seqId, unreadCount: newUnreadCount }
-          : s,
+        s.sessionId === sessionId ? { ...s, lastReadSeq: seqId, unreadCount: newUnreadCount } : s,
       ),
     }));
 
@@ -162,13 +153,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // 更新会话的最后消息，并移到顶部
       const updatedSessions = state.sessions.map((s) => {
         if (s.sessionId === sessionId) {
-            // 修正：我们更新 maxSeqId。
-            const newMaxSeqId = Math.max(s.maxSeqId || 0, seqId);
-            
-            // 暂时先只更新消息内容和 maxSeqId。
-            // 未读数的增加逻辑需要知道 "是否是自己发的" 和 "是否当前会话"。
-            // 让我们保持 App.tsx 控制 unread 的增加，但是改为 "Recalculate" 模式。
-            
+          // 修正：我们更新 maxSeqId。
+          const newMaxSeqId = Math.max(s.maxSeqId || 0, seqId);
+
+          // 暂时先只更新消息内容和 maxSeqId。
+          // 未读数的增加逻辑需要知道 "是否是自己发的" 和 "是否当前会话"。
+          // 让我们保持 App.tsx 控制 unread 的增加，但是改为 "Recalculate" 模式。
+
           return {
             ...s,
             maxSeqId: newMaxSeqId,
@@ -185,16 +176,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
 
       // 将有新消息的会话移到顶部
-      const targetSession = updatedSessions.find(
-        (s) => s.sessionId === sessionId,
-      );
+      const targetSession = updatedSessions.find((s) => s.sessionId === sessionId);
       if (!targetSession) {
         return { sessions: updatedSessions };
       }
 
-      const otherSessions = updatedSessions.filter(
-        (s) => s.sessionId !== sessionId,
-      );
+      const otherSessions = updatedSessions.filter((s) => s.sessionId !== sessionId);
 
       return {
         sessions: [targetSession, ...otherSessions],

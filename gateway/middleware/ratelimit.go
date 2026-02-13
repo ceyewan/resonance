@@ -146,22 +146,22 @@ var PredefinedRateLimits = struct {
 	AuthIPLimits: map[string]ratelimit.Limit{
 		// ConnectRPC 路径
 		"/gateway.v1.AuthService/Login": {
-			Rate:  10,  // 登录：10 QPS (防暴力破解)
+			Rate:  10, // 登录：10 QPS (防暴力破解)
 			Burst: 20,
 		},
 		"/gateway.v1.AuthService/Register": {
-			Rate:  5,   // 注册：5 QPS (防刷注册)
+			Rate:  5, // 注册：5 QPS (防刷注册)
 			Burst: 10,
 		},
 	},
 	SessionUserLimits: map[string]ratelimit.Limit{
 		// Session 操作（用户级别限流）
 		"/gateway.v1.SessionService/GetSessionList": {
-			Rate:  50,  // 获取会话列表
+			Rate:  50, // 获取会话列表
 			Burst: 100,
 		},
 		"/gateway.v1.SessionService/CreateSession": {
-			Rate:  10,  // 创建会话
+			Rate:  10, // 创建会话
 			Burst: 20,
 		},
 		"/gateway.v1.SessionService/GetRecentMessages": {
@@ -169,11 +169,11 @@ var PredefinedRateLimits = struct {
 			Burst: 200,
 		},
 		"/gateway.v1.SessionService/GetContactList": {
-			Rate:  50,  // 获取联系人列表
+			Rate:  50, // 获取联系人列表
 			Burst: 100,
 		},
 		"/gateway.v1.SessionService/SearchUser": {
-			Rate:  20,  // 搜索用户
+			Rate:  20, // 搜索用户
 			Burst: 50,
 		},
 	},

@@ -24,8 +24,8 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  string                   access_token = 1;
-  resonance.common.v1.User user         = 2;
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
 }
 
 message RegisterRequest {
@@ -35,8 +35,8 @@ message RegisterRequest {
 }
 
 message RegisterResponse {
-  string                   access_token = 1;
-  resonance.common.v1.User user         = 2;
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
 }
 
 message ValidateTokenRequest {
@@ -44,7 +44,7 @@ message ValidateTokenRequest {
 }
 
 message ValidateTokenResponse {
-  bool                     valid    = 1;
-  resonance.common.v1.User user     = 2;
-  string                   username = 3;
+  bool valid = 1;
+  resonance.common.v1.User user = 2;
+  string username = 3;
 }

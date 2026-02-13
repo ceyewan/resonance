@@ -37,10 +37,12 @@ Gateway 是 Resonance IM 系统的网关服务，负责处理客户端连接、�
 ```
 
 **对外接口**：
+
 - **RESTful API** (Gin) - 认证、会话管理接口
 - **WebSocket** - 实时消息通道（Protobuf 序列化）
 
 **对内功能**：
+
 - **转发 HTTP 请求** - 通过 gRPC 客户端转发到 Logic 服务
 - **上报状态** - 批量同步用户上下线到 Logic PresenceService
 - **接收推送** - 接收 Task 服务的 Push 请求并转发给 WebSocket 客户端
@@ -96,33 +98,33 @@ gateway/
 
 ```yaml
 service:
-  name: gateway-service
-  http_port: 8080               # HTTP/WebSocket 服务端口
-  grpc_port: 15091              # gRPC Push 服务端口
+    name: gateway-service
+    http_port: 8080 # HTTP/WebSocket 服务端口
+    grpc_port: 15091 # gRPC Push 服务端口
 
 # Logic 服务名称（用于服务发现）
 logic_service_name: logic-service
 
 # WebSocket 配置
 ws_config:
-  max_message_size: 1048576     # 1MB
-  ping_interval: 30             # 秒
-  pong_timeout: 60              # 秒
+    max_message_size: 1048576 # 1MB
+    ping_interval: 30 # 秒
+    pong_timeout: 60 # 秒
 
 # 可观测性配置
 observability:
-  trace:
-    disable: false              # 是否禁用 Trace 上报
-    endpoint: localhost:4317     # OTLP Collector 地址
-    sampler: 1.0                 # 采样率
-  metrics:
-    port: 9092                   # Prometheus 端口
-    path: /metrics
+    trace:
+        disable: false # 是否禁用 Trace 上报
+        endpoint: localhost:4317 # OTLP Collector 地址
+        sampler: 1.0 # 采样率
+    metrics:
+        port: 9092 # Prometheus 端口
+        path: /metrics
 
 # StatusBatcher 配置
 status_batcher:
-  batch_size: 50                 # 批量大小阈值
-  flush_interval: 100ms          # 刷新间隔
+    batch_size: 50 # 批量大小阈值
+    flush_interval: 100ms # 刷新间隔
 ```
 
 ## 🔌 接口说明
@@ -131,14 +133,14 @@ status_batcher:
 
 **端口**：`http_port` (默认 `8080`)
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/v1/auth/login` | POST | 用户登录 |
-| `/api/v1/auth/register` | POST | 用户注册 |
-| `/api/v1/session/list` | GET | 获取会话列表 |
-| `/api/v1/session/create` | POST | 创建会话 |
-| `/api/v1/session/messages` | GET | 获取历史消息 |
-| `/api/v1/session/search` | GET | 搜索用户 |
+| 端点                       | 方法 | 说明         |
+| -------------------------- | ---- | ------------ |
+| `/api/v1/auth/login`       | POST | 用户登录     |
+| `/api/v1/auth/register`    | POST | 用户注册     |
+| `/api/v1/session/list`     | GET  | 获取会话列表 |
+| `/api/v1/session/create`   | POST | 创建会话     |
+| `/api/v1/session/messages` | GET  | 获取历史消息 |
+| `/api/v1/session/search`   | GET  | 搜索用户     |
 
 ### 2. WebSocket 接口
 
@@ -146,11 +148,11 @@ status_batcher:
 
 **消息格式**：Protobuf 二进制
 
-| 消息类型 | 说明 |
-|---------|------|
-| Pulse | 心跳保活 |
-| Chat | 聊天消息 |
-| Ack | 消息确认 |
+| 消息类型 | 说明     |
+| -------- | -------- |
+| Pulse    | 心跳保活 |
+| Chat     | 聊天消息 |
+| Ack      | 消息确认 |
 
 ### 3. Push RPC 接口 (内部)
 
@@ -163,6 +165,7 @@ status_batcher:
 ### StatusBatcher 状态批量同步
 
 **双重触发机制**：
+
 - **数量触发**：当缓冲区达到 `batch_size` 时立即刷新
 - **时间触发**：每隔 `flush_interval` 强制刷新
 
@@ -176,6 +179,7 @@ status_batcher:
 ```
 
 **优势**：
+
 - 减少 RPC 调用次数，提升性能
 - 应对重连风暴（大量用户同时上线）
 
@@ -189,6 +193,7 @@ status_batcher:
 4. **关闭**：清理资源，触发状态回调
 
 **心跳机制**：
+
 - 服务端定期发送 Ping
 - 客户端回复 Pong (Pulse 消息)
 - 超时未回复则断开连接
@@ -202,6 +207,7 @@ Task 服务 → Gateway PushService → WebSocket 连接 → 客户端
 ```
 
 **特点**：
+
 - 支持批量推送（单次 RPC 推送多个用户）
 - 查找本地连接，跨网关用户忽略
 - 推送失败记录指标
@@ -216,21 +222,21 @@ Task 服务 → Gateway PushService → WebSocket 连接 → 客户端
 
 ### Metrics（业务指标）
 
-| 指标名称 | 类型 | 说明 |
-|---------|------|------|
-| `gateway_websocket_connections_active` | Gauge | 当前活跃连接数 |
-| `gateway_websocket_connections_total` | Counter | 累计连接数 |
-| `gateway_messages_pulse_total` | Counter | 心跳消息数 |
-| `gateway_messages_received_total` | Counter | 接收聊天消息数 |
-| `gateway_messages_sent_total` | Counter | 推送消息数 |
-| `gateway_push_duration_seconds` | Histogram | 推送延迟分布 |
-| `gateway_push_failed_total` | Counter | 推送失败数 |
-| `gateway_http_requests_total` | Counter | HTTP 请求总数 |
-| `gateway_http_request_duration_seconds` | Histogram | HTTP 请求延迟 |
-| `gateway_http_errors_total` | Counter | HTTP 错误数 |
-| `gateway_grpc_requests_total` | Counter | gRPC 请求总数 |
-| `gateway_grpc_request_duration_seconds` | Histogram | gRPC 请求延迟 |
-| `gateway_grpc_errors_total` | Counter | gRPC 错误数 |
+| 指标名称                                | 类型      | 说明           |
+| --------------------------------------- | --------- | -------------- |
+| `gateway_websocket_connections_active`  | Gauge     | 当前活跃连接数 |
+| `gateway_websocket_connections_total`   | Counter   | 累计连接数     |
+| `gateway_messages_pulse_total`          | Counter   | 心跳消息数     |
+| `gateway_messages_received_total`       | Counter   | 接收聊天消息数 |
+| `gateway_messages_sent_total`           | Counter   | 推送消息数     |
+| `gateway_push_duration_seconds`         | Histogram | 推送延迟分布   |
+| `gateway_push_failed_total`             | Counter   | 推送失败数     |
+| `gateway_http_requests_total`           | Counter   | HTTP 请求总数  |
+| `gateway_http_request_duration_seconds` | Histogram | HTTP 请求延迟  |
+| `gateway_http_errors_total`             | Counter   | HTTP 错误数    |
+| `gateway_grpc_requests_total`           | Counter   | gRPC 请求总数  |
+| `gateway_grpc_request_duration_seconds` | Histogram | gRPC 请求延迟  |
+| `gateway_grpc_errors_total`             | Counter   | gRPC 错误数    |
 
 访问 `http://localhost:9092/metrics` 查看 Prometheus 指标。
 

@@ -1,6 +1,7 @@
 # Issue: 消息历史拉取功能
 
 ## 元信息
+
 - **ID**: FEAT-002
 - **标题**: 实现消息历史拉取（分页查询）
 - **优先级**: P0 - 关键
@@ -11,6 +12,7 @@
 ## 问题描述
 
 当前系统无法拉取历史消息，导致：
+
 - 新用户进入会话看不到历史记录
 - 用户切换设备后消息丢失
 - 无法上下文查看之前的对话
@@ -67,6 +69,7 @@ service ChatService {
 ### 2. 分页策略
 
 **游标分页（推荐）**：
+
 - 使用 `seq_id` 作为游标
 - 避免传统 `OFFSET` 分页的性能问题
 - 支持向前/向后双向查询
@@ -143,12 +146,14 @@ func (r *messageRepo) GetMessages(ctx context.Context, sessionID string, seqID i
 ### 5. 性能优化
 
 **索引优化**：
+
 ```sql
 -- 确保索引支持游标查询
 CREATE INDEX idx_session_seq ON t_message_content(session_id, seq_id);
 ```
 
 **缓存优化**（可选）：
+
 - 最近 100 条消息缓存在 Redis
 - Key: `messages:{session_id}:latest`
 - TTL: 10 分钟
@@ -156,6 +161,7 @@ CREATE INDEX idx_session_seq ON t_message_content(session_id, seq_id);
 ### 6. 消息内容压缩（可选优化）
 
 对于大量历史消息，可以在客户端缓存后：
+
 - 返回列表时不包含 content 字段
 - 客户端按需获取完整内容
 

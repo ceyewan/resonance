@@ -23,8 +23,7 @@ interface ChatPageProps {
  */
 export default function ChatPage({ isConnected, isConnecting = false, send }: ChatPageProps) {
   const { user, logout } = useAuthStore();
-  const { sessions, currentSession, isLoading, loadSessions, selectSession } =
-    useSession();
+  const { sessions, currentSession, isLoading, loadSessions, selectSession } = useSession();
   const { getSessionMessages } = useMessageStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
@@ -34,9 +33,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
     loadSessions();
   }, [loadSessions]);
 
-  const messages = currentSession
-    ? getSessionMessages(currentSession.sessionId)
-    : [];
+  const messages = currentSession ? getSessionMessages(currentSession.sessionId) : [];
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -119,9 +116,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
             />
           </svg>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Resonance
-          </h1>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Resonance</h1>
           <ConnectionStatus isConnected={isConnected} isConnecting={isConnecting} />
         </div>
 
@@ -188,7 +183,12 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                 title="新建聊天"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
                 </svg>
               </button>
             </div>
@@ -232,9 +232,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                     d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                   />
                 </svg>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  暂无对话
-                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">暂无对话</p>
               </div>
             ) : (
               sessions.map((session) => (
@@ -254,12 +252,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
           {!currentSession ? (
             // 空状态
             <div className="flex flex-1 flex-col items-center justify-center text-gray-500 dark:text-gray-400">
-              <svg
-                className="mb-4 h-16 w-16"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
+              <svg className="mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -291,7 +284,12 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                 {/* 更多操作 */}
                 <button className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                    />
                   </svg>
                 </button>
               </div>
@@ -300,9 +298,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               <div className="flex-1 overflow-y-auto p-4">
                 {messages.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      暂无消息，开始聊天吧
-                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">暂无消息，开始聊天吧</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

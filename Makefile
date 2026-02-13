@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy dev up down logs clean
+.PHONY: help gen tidy format format-go format-proto format-prettier dev up down logs clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -38,6 +38,24 @@ tidy: ## 整理 Go 依赖
 	@echo "🧹 整理 Go 依赖..."
 	@go mod tidy
 	@echo "✅ 完成"
+
+format: format-go format-proto format-prettier ## 一键格式化 Go/Proto/TS/YAML/MD
+	@echo "✅ 全量格式化完成"
+
+format-go: ## 格式化 Go 代码（排除 api/gen）
+	@echo "🔧 格式化 Go 代码..."
+	@GO_FILES="$$(rg --files -g '*.go' -g '!api/gen/**')"; \
+	if [ -n "$$GO_FILES" ]; then \
+		echo "$$GO_FILES" | xargs gofmt -w; \
+	fi
+
+format-proto: ## 格式化 Proto 定义
+	@echo "🔧 格式化 Proto..."
+	@cd api && buf format -w proto
+
+format-prettier: ## 格式化 TS/YAML/Markdown/JSON 等
+	@echo "🔧 格式化 Prettier 支持的文件..."
+	@prettier --write .
 
 # ============================================================================
 # 本地开发（直接运行，不用 Docker）

@@ -85,15 +85,18 @@ NATS (PushEvent with trace_headers)
 ### 设计优势
 
 **职责分离**:
+
 - Storage Consumer 专注消息落库，失败可重试
 - Push Consumer 专注在线推送，解耦存储和推送
 
 **异步持久化**:
+
 - 每个 Gateway 维护独立队列和推送 Loop
 - MQ 消费不阻塞推送，提高吞吐量
 - Gateway 重启不影响队列中待推送消息
 
 **资源隔离**:
+
 - 两个消费者独立配置 Worker 数
 - 存储慢不影响推送，推送慢不影响存储
 
@@ -107,6 +110,7 @@ Task 服务支持 OpenTelemetry 分布式追踪，Trace Context 通过以下方�
 2. **NATS Message Headers** - MQ 原生 Headers（兜底）
 
 **Trace 链路**:
+
 ```
 Logic → MQ → Task.Consumer → Task.Dispatcher → Gateway
    (inject)   (extract)     (child span)      (propagate)
@@ -114,26 +118,27 @@ Logic → MQ → Task.Consumer → Task.Dispatcher → Gateway
 
 ### Metrics 指标
 
-| 指标名称 | 类型 | 说明 |
-|---------|------|------|
+| 指标名称                                | 类型      | 说明             |
+| --------------------------------------- | --------- | ---------------- |
 | `task_storage_process_duration_seconds` | Histogram | Storage 处理耗时 |
-| `task_push_enqueue_total` | Counter | Push 入队成功数 |
-| `task_push_enqueue_failed_total` | Counter | Push 入队失败数 |
-| `task_push_process_duration_seconds` | Histogram | Push 处理耗时 |
-| `task_gateway_queue_depth` | Gauge | Gateway 队列深度 |
-| `task_gateway_connected_total` | Gauge | Gateway 连接数 |
+| `task_push_enqueue_total`               | Counter   | Push 入队成功数  |
+| `task_push_enqueue_failed_total`        | Counter   | Push 入队失败数  |
+| `task_push_process_duration_seconds`    | Histogram | Push 处理耗时    |
+| `task_gateway_queue_depth`              | Gauge     | Gateway 队列深度 |
+| `task_gateway_connected_total`          | Gauge     | Gateway 连接数   |
 
 **配置示例**:
+
 ```yaml
 observability:
-  trace:
-    endpoint: localhost:4317  # OTLP Collector
-    sampler: 1.0               # 采样率
-    insecure: true             # 非加密连接
-  metrics:
-    port: 9090                 # Prometheus 端口
-    path: /metrics
-    enable_runtime: true       # Go Runtime 指标
+    trace:
+        endpoint: localhost:4317 # OTLP Collector
+        sampler: 1.0 # 采样率
+        insecure: true # 非加密连接
+    metrics:
+        port: 9090 # Prometheus 端口
+        path: /metrics
+        enable_runtime: true # Go Runtime 指标
 ```
 
 ## ⚙️ 配置说明
@@ -180,28 +185,28 @@ type ConsumerConfig struct {
 ```yaml
 # configs/task.yaml
 log:
-  level: debug
-  format: json
+    level: debug
+    format: json
 
 mysql:
-  host: 127.0.0.1
-  port: 3306
-  database: resonance
+    host: 127.0.0.1
+    port: 3306
+    database: resonance
 
 redis:
-  addr: 127.0.0.1:6379
+    addr: 127.0.0.1:6379
 
 nats:
-  url: nats://127.0.0.1:4222
+    url: nats://127.0.0.1:4222
 
 etcd:
-  endpoints:
-    - 127.0.0.1:2379
+    endpoints:
+        - 127.0.0.1:2379
 
 registry:
-  namespace: /resonance/services
-  default_ttl: 30s
-  poll_interval: 10s  # 服务发现轮询间隔
+    namespace: /resonance/services
+    default_ttl: 30s
+    poll_interval: 10s # 服务发现轮询间隔
 
 gateway_service_name: gateway-service
 gateway_queue_size: 1000
@@ -209,28 +214,28 @@ gateway_pusher_count: 3
 
 # 可观测性配置
 observability:
-  trace:
-    endpoint: localhost:4317  # Tempo/Jaeger OTLP 端口
-    sampler: 1.0
-    insecure: true
-  metrics:
-    port: 9090
-    path: /metrics
-    enable_runtime: true
+    trace:
+        endpoint: localhost:4317 # Tempo/Jaeger OTLP 端口
+        sampler: 1.0
+        insecure: true
+    metrics:
+        port: 9090
+        path: /metrics
+        enable_runtime: true
 
 storage_consumer:
-  topic: resonance.push.event.v1
-  queue_group: resonance_group_storage
-  worker_count: 20
-  max_retry: 3
-  retry_interval: 5
+    topic: resonance.push.event.v1
+    queue_group: resonance_group_storage
+    worker_count: 20
+    max_retry: 3
+    retry_interval: 5
 
 push_consumer:
-  topic: resonance.push.event.v1
-  queue_group: resonance_group_push
-  worker_count: 50
-  max_retry: 3
-  retry_interval: 5
+    topic: resonance.push.event.v1
+    queue_group: resonance_group_push
+    worker_count: 50
+    max_retry: 3
+    retry_interval: 5
 ```
 
 ## 🔑 关键组件
@@ -264,6 +269,7 @@ func NewConsumer(
 - `DispatchPush` - 查询路由，投递推送任务到队列
 
 **特性**:
+
 - 自动创建子 Span 用于追踪
 - 记录推送入队/失败指标
 - 更新 Gateway 队列深度指标
@@ -277,6 +283,7 @@ func NewConsumer(
 - 为每个 Gateway 创建独立队列和推送 Loop
 
 **服务发现**:
+
 - 当前使用轮询模式（默认 10s）
 - TODO: 考虑使用 registry.Watch 实现实时监听
 
@@ -293,6 +300,7 @@ type GatewayClient struct {
 ```
 
 **特性**:
+
 - **独立队列**: 每个 Gateway 一个 buffered channel
 - **并发推送**: 支持配置多个 pusher 并发处理
 - **重试机制**: 推送失败自动重试 3 次
@@ -303,35 +311,35 @@ type GatewayClient struct {
 
 ### 双消费者优势
 
-| 场景 | 单消费者 | 双消费者 |
-|------|---------|---------|
-| 存储慢 | 阻塞推送 | 推送继续 |
-| 推送慢 | 阻塞存储 | 存储继续 |
-| Worker 配置 | 共享 | 独立配置 |
-| 重试策略 | 统一 | 分离 |
+| 场景        | 单消费者 | 双消费者 |
+| ----------- | -------- | -------- |
+| 存储慢      | 阻塞推送 | 推送继续 |
+| 推送慢      | 阻塞存储 | 存储继续 |
+| Worker 配置 | 共享     | 独立配置 |
+| 重试策略    | 统一     | 分离     |
 
 ### 并发配置
 
 ```yaml
 storage_consumer:
-  worker_count: 20   # 存储需要更多 Worker（数据库 IO）
+    worker_count: 20 # 存储需要更多 Worker（数据库 IO）
 
 push_consumer:
-  worker_count: 50   # 推送需要更多 Worker（网络 IO）
+    worker_count: 50 # 推送需要更多 Worker（网络 IO）
 
-gateway_pusher_count: 3  # 每个 Gateway 3 个并发推送协程
+gateway_pusher_count: 3 # 每个 Gateway 3 个并发推送协程
 ```
 
 ## 🔧 可靠性保障
 
 ### 消息处理可靠性
 
-| 场景 | 处理方式 |
-|------|---------|
-| 处理失败 | Nak 重试（可配置重试次数） |
+| 场景     | 处理方式                         |
+| -------- | -------------------------------- |
+| 处理失败 | Nak 重试（可配置重试次数）       |
 | 解析失败 | Ack + 日志记录（TODO: 死信队列） |
-| 队列满 | 返回错误，由 Consumer 重试 |
-| 网络超时 | 自动重试 3 次 |
+| 队列满   | 返回错误，由 Consumer 重试       |
+| 网络超时 | 自动重试 3 次                    |
 
 ### 优雅关闭
 

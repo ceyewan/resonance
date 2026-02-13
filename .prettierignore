@@ -1,0 +1,11 @@
+# VCS
+.git
+
+# Dependencies / build artifacts
+**/node_modules
+web/dist
+web/.vite
+
+# Generated code
+api/gen
+web/src/gen

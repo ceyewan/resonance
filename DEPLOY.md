@@ -13,6 +13,7 @@ vim .env
 ```
 
 **重要配置项**：
+
 - `RESONANCE_ENV=prod` - **Docker 环境必须设置为 prod**（连接 Docker hostname）
 - `RESONANCE_MYSQL_PASSWORD` - MySQL 密码
 - `RESONANCE_AUTH_SECRET_KEY` - JWT 密钥（至少 32 字符）
@@ -34,10 +35,12 @@ make down        # 停止服务
 ```
 
 访问地址：
+
 - Web: http://localhost:4173
 - Gateway: http://localhost:8080
 
 **关键点**：
+
 - ✅ `.env` 中必须设置 `RESONANCE_ENV=prod`
 - ✅ 服务会连接 Docker hostname（mysql、redis、nats、etcd）
 - ❌ 如果 `RESONANCE_ENV` 为空或 `dev`，服务会尝试连接 `127.0.0.1` 导致失败
@@ -59,19 +62,22 @@ make dev
 ```
 
 访问地址：
+
 - Web: http://localhost:5173
 - Gateway: http://localhost:8080
 
 **关键点**：
+
 - ✅ `.env` 中 `RESONANCE_ENV` 留空或设置为 `dev`
 - ✅ 服务会连接 `127.0.0.1`（本地 Docker 暴露的端口）
-- ⚠️  需要先 `make up` 启动基础设施，再 `make dev` 启动业务服务
+- ⚠️ 需要先 `make up` 启动基础设施，再 `make dev` 启动业务服务
 
 ---
 
 ### 4. 生产环境部署
 
 #### 前置条件
+
 - 服务器已安装 Docker 和 Docker Compose
 - 已安装并配置 Caddy（用于反向代理和 HTTPS）
 - DNS 已解析到服务器 IP
@@ -105,6 +111,7 @@ vim .env
 ```
 
 访问地址：
+
 - Gateway: https://im-api.ceyewan.xyz
 - Web: https://chat.ceyewan.xyz
 
@@ -115,6 +122,7 @@ vim .env
 生产环境已集成 Watchtower，会自动检测镜像更新并重启容器。
 
 **工作流程**：
+
 1. 本地打 tag 并推送：`git tag v0.2 && git push origin v0.2`
 2. GitHub Actions 自动构建并推送镜像到 Docker Hub（tag: v0.2 和 latest）
 3. Watchtower 在 60 秒内检测到新镜像并自动更新容器
@@ -122,6 +130,7 @@ vim .env
 **完全自动化，无需手动操作！**
 
 **注意**：
+
 - 脚本参数 `./scripts/deploy-production.sh v0.1` 中的 tag 会覆盖 `.env` 中的 `RESONANCE_IMAGE`
 - 建议在 `.env` 中设置默认 tag，脚本参数用于临时切换版本
 
@@ -154,39 +163,42 @@ make help
 **加载顺序**：`环境变量 > .env > configs/{service}.prod.yaml > configs/{service}.yaml`
 
 **配置文件设计**：
+
 - `{service}.yaml` - **本地直接运行配置**（127.0.0.1，console 日志，debug 级别）
 - `{service}.prod.yaml` - **Docker 环境覆盖配置**（Docker hostname，JSON 日志，info 级别）
 
 **环境切换**：通过 `.env` 中的 `RESONANCE_ENV` 控制加载哪个配置
 
-| RESONANCE_ENV | 加载的配置文件 | 连接地址 | 日志格式 | 用途 |
-|---------------|----------------|----------|----------|------|
-| 留空 或 `dev` | `{service}.yaml` | 127.0.0.1 | console | 本地直接运行（`make dev`） |
-| `prod` | `{service}.prod.yaml` + `{service}.yaml` | Docker hostname | JSON | Docker 环境（`make up` / 生产环境） |
+| RESONANCE_ENV | 加载的配置文件                           | 连接地址        | 日志格式 | 用途                                |
+| ------------- | ---------------------------------------- | --------------- | -------- | ----------------------------------- |
+| 留空 或 `dev` | `{service}.yaml`                         | 127.0.0.1       | console  | 本地直接运行（`make dev`）          |
+| `prod`        | `{service}.prod.yaml` + `{service}.yaml` | Docker hostname | JSON     | Docker 环境（`make up` / 生产环境） |
 
 **使用步骤**：
 
 1. **Docker 环境**（`make up`）：
-   ```bash
-   # .env 中设置
-   RESONANCE_ENV=prod
 
-   # 启动
-   make up
-   # 加载：环境变量 > .env > logic.prod.yaml > logic.yaml
-   # 连接：mysql:3306, redis:6379
-   ```
+    ```bash
+    # .env 中设置
+    RESONANCE_ENV=prod
+
+    # 启动
+    make up
+    # 加载：环境变量 > .env > logic.prod.yaml > logic.yaml
+    # 连接：mysql:3306, redis:6379
+    ```
 
 2. **本地直接运行**（`make dev`）：
-   ```bash
-   # .env 中设置（可选）
-   RESONANCE_ENV=
 
-   # 启动
-   make dev
-   # 加载：环境变量 > .env > logic.yaml
-   # 连接：127.0.0.1:3306, 127.0.0.1:6379
-   ```
+    ```bash
+    # .env 中设置（可选）
+    RESONANCE_ENV=
+
+    # 启动
+    make dev
+    # 加载：环境变量 > .env > logic.yaml
+    # 连接：127.0.0.1:3306, 127.0.0.1:6379
+    ```
 
 ### 配置文件层级
 
@@ -213,11 +225,13 @@ make help
 **原则**：不在 `configs/*.yaml` 中硬编码密码和密钥
 
 **实践**：
+
 - MySQL 密码：`RESONANCE_MYSQL_PASSWORD`
 - JWT 密钥：`RESONANCE_AUTH_SECRET_KEY`
 - 其他密码：统一在 `.env` 中配置
 
 **生产环境检查清单**：
+
 - [ ] 修改 `RESONANCE_MYSQL_ROOT_PASSWORD`
 - [ ] 修改 `RESONANCE_MYSQL_PASSWORD`
 - [ ] 修改 `RESONANCE_AUTH_SECRET_KEY`（至少 32 字符）
@@ -229,6 +243,7 @@ make help
 ## 故障排查
 
 ### 查看日志
+
 ```bash
 # 所有服务
 make logs
@@ -238,11 +253,13 @@ docker compose -p resonance logs -f gateway
 ```
 
 ### 重启服务
+
 ```bash
 docker compose -p resonance restart gateway
 ```
 
 ### 清理并重新部署
+
 ```bash
 make clean
 make up
@@ -252,17 +269,18 @@ make up
 
 ## 配置文件对比
 
-| 配置项 | 本地直接运行 (`*.yaml`) | Docker 环境 (`*.prod.yaml`) |
-|--------|-------------------------|----------------------------|
-| 使用场景 | `make dev` | `make up` / 生产环境 |
-| 日志格式 | console | JSON |
-| 日志级别 | debug | info |
-| MySQL 主机 | 127.0.0.1 | mysql |
-| Redis 地址 | 127.0.0.1:6379 | redis:6379 |
-| NATS URL | nats://127.0.0.1:4222 | nats://nats:4222 |
-| Etcd 端点 | 127.0.0.1:2379 | etcd:2379 |
+| 配置项     | 本地直接运行 (`*.yaml`) | Docker 环境 (`*.prod.yaml`) |
+| ---------- | ----------------------- | --------------------------- |
+| 使用场景   | `make dev`              | `make up` / 生产环境        |
+| 日志格式   | console                 | JSON                        |
+| 日志级别   | debug                   | info                        |
+| MySQL 主机 | 127.0.0.1               | mysql                       |
+| Redis 地址 | 127.0.0.1:6379          | redis:6379                  |
+| NATS URL   | nats://127.0.0.1:4222   | nats://nats:4222            |
+| Etcd 端点  | 127.0.0.1:2379          | etcd:2379                   |
 
 **关键点**：
+
 - `make dev` - 本地直接运行，连接 `127.0.0.1`（需要先 `make up` 启动基础设施）
 - `make up` - Docker 环境，自动使用 `RESONANCE_ENV=prod`，连接 Docker hostname
 
@@ -285,4 +303,3 @@ resonance/
     ├── deploy-production.sh  # 生产部署脚本
     └── build-push.sh         # 镜像构建脚本
 ```
-

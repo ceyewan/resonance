@@ -17,14 +17,14 @@
 
 ```go
 import (
-    gatewayv1 "resonance/api/gen/go/gateway/v1"
-    "resonance/api/gen/go/gateway/v1/gatewayv1connect"
-    "connectrpc.com/connect"
+    "net/http"
+
+    gatewayv1connect "github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
 )
 
 // 使用 ConnectRPC Handler
-handler := gatewayv1connect.NewAuthServiceHandler(&authHandler{})
-http.Handle(gatewayv1connect.NewAuthServiceHandler(handler))
+path, handler := gatewayv1connect.NewAuthServiceHandler(&authHandler{})
+http.Handle(path, handler)
 ```
 
 **前端代码示例**:
@@ -32,18 +32,18 @@ http.Handle(gatewayv1connect.NewAuthServiceHandler(handler))
 ```typescript
 import { createPromiseClient } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
-import { AuthService } from "./gen/gateway/v1/api_connect";
+import { AuthService } from "@/gen/gateway/v1/api_connect";
 
 const transport = createConnectTransport({
-  baseUrl: "http://localhost:8080",
-  // 默认使用 Connect Protocol (HTTP/1.1 + JSON)
+    baseUrl: "http://localhost:8080",
+    // 默认使用 Connect Protocol (HTTP/1.1 + JSON)
 });
 const client = createPromiseClient(AuthService, transport);
 
 // 调用方法（实际发送: POST /resonance.gateway.v1.AuthService/Login）
 const response = await client.login({
-  username: "user123",
-  password: "pass456",
+    username: "user123",
+    password: "pass456",
 });
 ```
 
@@ -82,7 +82,7 @@ client := gatewayv1.NewPushServiceClient(conn)
 - `proto/logic/v1/auth.proto`
 - `proto/logic/v1/session.proto`
 - `proto/logic/v1/chat.proto`
-- `proto/logic/v1/gateway_ops.proto`
+- `proto/logic/v1/presence.proto`
 
 **生成代码**:
 
@@ -120,7 +120,7 @@ sessionClient := logicv1.NewSessionServiceClient(conn)
 
 ### buf.gen.ts.yaml
 
-为 `gateway/v1/api.proto` 和 `common/*` 生成 TypeScript 代码
+为 `gateway/v1/api.proto`、`gateway/v1/packet.proto` 和 `common/*` 生成 TypeScript 代码
 
 ---
 
@@ -133,7 +133,7 @@ make gen
 # 分步说明：
 # 1. 生成 Go base + gRPC (所有 proto)
 # 2. 生成 ConnectRPC (仅 gateway/v1/api.proto)
-# 3. 生成 TypeScript (仅 gateway/v1/api.proto + common)
+# 3. 生成 TypeScript (gateway/v1/api.proto + gateway/v1/packet.proto + common)
 ```
 
 ---
@@ -151,8 +151,7 @@ ls api/gen/go/gateway/v1/
 
 # Logic - 没有 ConnectRPC
 ls api/gen/go/logic/v1/
-# ✅ auth_grpc.pb.go, session_grpc.pb.go, chat_grpc.pb.go
-# ✅ gateway_ops_grpc.pb.go (都是纯 gRPC)
+# ✅ auth_grpc.pb.go, session_grpc.pb.go, chat_grpc.pb.go, presence_grpc.pb.go (都是纯 gRPC)
 
 # TypeScript - 只有 Gateway API
 ls api/gen/ts/
@@ -169,28 +168,35 @@ ls api/gen/ts/
 │  (Browser/App)  │
 └────────┬────────┘
          │ ConnectRPC (HTTP/JSON)
-         │ 使用: gatewayv1connect
          ▼
 ┌─────────────────┐
 │     Gateway     │
 │   (对外服务)     │
-└────┬───────┬────┘
-     │       │
-     │ gRPC  │ gRPC
-     │       │
-     ▼       ▼
-┌────────┐ ┌────────┐
-│ Logic  │ │  Task  │
-│(业务层) │ │(任务层) │
-└────────┘ └───┬────┘
-                │
-                │ gRPC
-                │ 使用: gatewayv1.PushServiceClient
-                ▼
-           ┌─────────────────┐
-           │     Gateway     │
-           │  (Push Service) │
-           └─────────────────┘
+└────────┬────────┘
+         │ gRPC
+         ▼
+┌─────────────────┐
+│      Logic      │
+│     (业务层)     │
+└────────┬────────┘
+         │ MQ Publish (NATS / PushEvent)
+         ▼
+┌─────────────────┐
+│       Task      │
+│     (任务层)     │
+└────────┬────────┘
+         │ gRPC (PushServiceClient)
+         ▼
+┌─────────────────┐
+│     Gateway     │
+│  (Push Service) │
+└────────┬────────┘
+         │ WebSocket Push
+         ▼
+┌─────────────────┐
+│   前端客户端     │
+│  (Browser/App)  │
+└─────────────────┘
 ```
 
 ---

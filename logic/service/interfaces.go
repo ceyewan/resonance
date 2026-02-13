@@ -43,4 +43,3 @@ var (
 	_ ChatServiceInterface     = (*ChatService)(nil)
 	_ PresenceServiceInterface = (*PresenceService)(nil)
 )
-

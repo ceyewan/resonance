@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package resonance.logic.v1;
 
-import "common/v1/types.proto";
 import "gateway/v1/packet.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
@@ -30,8 +29,8 @@ service SessionService {
 
 message UpdateReadPositionRequest {
   string session_id = 1;
-  int64  seq_id     = 2; // 用户当前读到的最新一条消息的 seq_id
-  string username   = 3; // 操作用户
+  int64 seq_id = 2; // 用户当前读到的最新一条消息的 seq_id
+  string username = 3; // 操作用户
 }
 
 message UpdateReadPositionResponse {
@@ -43,13 +42,13 @@ message GetSessionListRequest {
 }
 
 message SessionInfo {
-  string                           session_id    = 1;
-  string                           name          = 2; // 单聊通常是对方昵称，群聊是群名
-  int32                            type          = 3; // 1-单聊, 2-群聊
-  string                           avatar_url    = 4;
-  int64                            unread_count  = 5;
-  int64                            last_read_seq = 6;
-  resonance.gateway.v1.PushMessage last_message  = 7; // 最新一条消息
+  string session_id = 1;
+  string name = 2; // 单聊通常是对方昵称，群聊是群名
+  int32 type = 3; // 1-单聊, 2-群聊
+  string avatar_url = 4;
+  int64 unread_count = 5;
+  int64 last_read_seq = 6;
+  resonance.gateway.v1.PushMessage last_message = 7; // 最新一条消息
 }
 
 message GetSessionListResponse {
@@ -57,10 +56,10 @@ message GetSessionListResponse {
 }
 
 message CreateSessionRequest {
-  string          creator_username = 1;
-  repeated string members          = 2; // 对于单聊，长度为1；群聊则为多个
-  string          name             = 3; // 仅群聊有效
-  int32           type             = 4; // 1-单聊, 2-群聊
+  string creator_username = 1;
+  repeated string members = 2; // 对于单聊，长度为1；群聊则为多个
+  string name = 3; // 仅群聊有效
+  int32 type = 4; // 1-单聊, 2-群聊
 }
 
 message CreateSessionResponse {
@@ -69,8 +68,8 @@ message CreateSessionResponse {
 
 message GetRecentMessagesRequest {
   string session_id = 1;
-  int64  limit      = 2;
-  int64  before_seq = 3; // 用于翻页，如果是登录拉取可传 0
+  int64 limit = 2;
+  int64 before_seq = 3; // 用于翻页，如果是登录拉取可传 0
 }
 
 message GetRecentMessagesResponse {
@@ -82,8 +81,8 @@ message GetContactListRequest {
 }
 
 message ContactInfo {
-  string username   = 1;
-  string nickname   = 2;
+  string username = 1;
+  string nickname = 2;
   string avatar_url = 3;
 }
 

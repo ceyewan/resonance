@@ -12,4 +12,3 @@ type PusherManager interface {
 	// Close 关闭所有连接
 	Close()
 }
-

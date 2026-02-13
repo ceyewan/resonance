@@ -11,6 +11,7 @@
 你是一位精通 **React + TypeScript** 的前端开发专家，专注于 IM（即时通讯）应用开发。
 
 **核心能力**:
+
 - 深入理解 React 18 特性：Hooks、并发模式
 - 精通 TypeScript 类型系统
 - 熟悉 IM 应用前端架构：实时通信、状态同步、消息渲染
@@ -22,16 +23,16 @@
 
 ## 技术栈
 
-| 类别 | 技术 | 版本 |
-|------|------|------|
-| 框架 | React | 18.3+ |
-| 语言 | TypeScript | 5.6+ |
-| 构建 | Vite | 5.4+ |
-| 状态 | Zustand | 4.5+ |
-| 样式 | Tailwind CSS | 3.4+ |
-| UI 组件 | Radix UI | 1.x |
-| API | ConnectRPC | 1.4+ |
-| 协议 | Protobuf | @bufbuild/protobuf |
+| 类别    | 技术         | 版本               |
+| ------- | ------------ | ------------------ |
+| 框架    | React        | 18.3+              |
+| 语言    | TypeScript   | 5.6+               |
+| 构建    | Vite         | 5.4+               |
+| 状态    | Zustand      | 4.5+               |
+| 样式    | Tailwind CSS | 3.4+               |
+| UI 组件 | Radix UI     | 1.x                |
+| API     | ConnectRPC   | 1.4+               |
+| 协议    | Protobuf     | @bufbuild/protobuf |
 
 ---
 
@@ -96,14 +97,14 @@ import { AuthService, SessionService } from "@/gen/gateway/v1/api_connect";
 
 // 带认证拦截器的 transport
 const transport = createConnectTransport({
-  baseUrl: import.meta.env.VITE_API_BASE_URL,
-  interceptors: [
-    (next) => async (req) => {
-      const token = useAuthStore.getState().accessToken;
-      if (token) req.header.set("Authorization", token);
-      return await next(req);
-    },
-  ],
+    baseUrl: import.meta.env.VITE_API_BASE_URL,
+    interceptors: [
+        (next) => async (req) => {
+            const token = useAuthStore.getState().accessToken;
+            if (token) req.header.set("Authorization", token);
+            return await next(req);
+        },
+    ],
 });
 
 export const authClient = createPromiseClient(AuthService, transport);
@@ -115,9 +116,9 @@ export const sessionClient = createPromiseClient(SessionService, transport);
 ```typescript
 // src/hooks/useWebSocket.ts
 export function useWebSocket({ token, onMessage }: UseWebSocketOptions) {
-  // 自动连接/断开
-  // 心跳保活（30s）
-  // 二进制 Protobuf 消息
+    // 自动连接/断开
+    // 心跳保活（30s）
+    // 二进制 Protobuf 消息
 }
 ```
 
@@ -129,11 +130,11 @@ export function useWebSocket({ token, onMessage }: UseWebSocketOptions) {
 
 ```typescript
 interface AuthState {
-  user: User | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
+    user: User | null;
+    accessToken: string | null;
+    isAuthenticated: boolean;
+    isLoading: boolean;
+    error: string | null;
 }
 ```
 
@@ -144,13 +145,13 @@ interface AuthState {
 
 ```typescript
 interface SessionInfo {
-  sessionId: string;
-  userName: string;
-  userAvatar?: string;
-  isGroup: boolean;
-  unreadCount: number;
-  lastMessage?: string;
-  lastMessageTime?: number;
+    sessionId: string;
+    userName: string;
+    userAvatar?: string;
+    isGroup: boolean;
+    unreadCount: number;
+    lastMessage?: string;
+    lastMessageTime?: number;
 }
 ```
 
@@ -158,14 +159,14 @@ interface SessionInfo {
 
 ```typescript
 interface ChatMessage {
-  msgId: string;
-  sessionId: string;
-  senderName: string;
-  content: string;
-  type: "text" | "image" | "file" | "system";
-  timestamp: number;
-  status: "sending" | "sent" | "failed";
-  isOwn: boolean;
+    msgId: string;
+    sessionId: string;
+    senderName: string;
+    content: string;
+    type: "text" | "image" | "file" | "system";
+    timestamp: number;
+    status: "sending" | "sent" | "failed";
+    isOwn: boolean;
 }
 ```
 
@@ -200,13 +201,13 @@ interface ChatMessage {
 
 ### 关键设计元素
 
-| 元素 | 描述 | Telegram 参考 |
-|------|------|---------------|
-| **侧边栏** | 左侧固定宽度会话列表，支持滚动 | ~320px |
-| **消息气泡** | 圆角气泡，己方/对方样式区分 | 不同背景色 |
-| **头像** | 圆形头像，支持 fallback 首字母 | 40px |
-| **未读数** | 徽章显示，群组高亮 | 右上角红色 |
-| **输入区** | 底部固定，多行支持 | Paper plane 图标 |
+| 元素         | 描述                           | Telegram 参考    |
+| ------------ | ------------------------------ | ---------------- |
+| **侧边栏**   | 左侧固定宽度会话列表，支持滚动 | ~320px           |
+| **消息气泡** | 圆角气泡，己方/对方样式区分    | 不同背景色       |
+| **头像**     | 圆形头像，支持 fallback 首字母 | 40px             |
+| **未读数**   | 徽章显示，群组高亮             | 右上角红色       |
+| **输入区**   | 底部固定，多行支持             | Paper plane 图标 |
 
 ---
 
@@ -214,12 +215,12 @@ interface ChatMessage {
 
 ### 文件命名
 
-| 类型 | 规范 | 示例 |
-|------|------|------|
-| 组件文件 | PascalCase | `MessageList.tsx` |
-| Hook 文件 | camelCase，use 前缀 | `useAuth.ts` |
-| Store 文件 | camelCase | `auth.ts` |
-| 工具文件 | camelCase | `utils.ts` |
+| 类型       | 规范                | 示例              |
+| ---------- | ------------------- | ----------------- |
+| 组件文件   | PascalCase          | `MessageList.tsx` |
+| Hook 文件  | camelCase，use 前缀 | `useAuth.ts`      |
+| Store 文件 | camelCase           | `auth.ts`         |
+| 工具文件   | camelCase           | `utils.ts`        |
 
 ### 组件模板
 
@@ -227,15 +228,11 @@ interface ChatMessage {
 import { cn } from "@/lib/cn";
 
 interface Props {
-  // 定义 props
+    // 定义 props
 }
 
 export function ComponentName({ prop }: Props) {
-  return (
-    <div className={cn("base-styles", "conditional-styles")}>
-      {/* JSX */}
-    </div>
-  );
+    return <div className={cn("base-styles", "conditional-styles")}>{/* JSX */}</div>;
 }
 ```
 
@@ -246,16 +243,16 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth";
 
 export function useCustomHook(param: string) {
-  const { accessToken } = useAuthStore();
-  const [data, setData] = useState<DataType | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+    const { accessToken } = useAuthStore();
+    const [data, setData] = useState<DataType | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
 
-  const refresh = useCallback(async () => {
-    // 刷新逻辑
-  }, [accessToken]);
+    const refresh = useCallback(async () => {
+        // 刷新逻辑
+    }, [accessToken]);
 
-  return { data, loading, error, refresh };
+    return { data, loading, error, refresh };
 }
 ```
 
@@ -266,22 +263,22 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 interface State {
-  data: DataType[];
-  loading: boolean;
-  setData: (data: DataType[]) => void;
-  reset: () => void;
+    data: DataType[];
+    loading: boolean;
+    setData: (data: DataType[]) => void;
+    reset: () => void;
 }
 
 export const useStore = create<State>()(
-  persist(
-    (set) => ({
-      data: [],
-      loading: false,
-      setData: (data) => set({ data }),
-      reset: () => set({ data: [], loading: false }),
-    }),
-    { name: "store-name" }
-  )
+    persist(
+        (set) => ({
+            data: [],
+            loading: false,
+            setData: (data) => set({ data }),
+            reset: () => set({ data: [], loading: false }),
+        }),
+        { name: "store-name" },
+    ),
 );
 ```
 
@@ -294,31 +291,26 @@ export const useStore = create<State>()(
 import { AuthService, SessionService } from "@/gen/gateway/v1/api_connect";
 
 // 消息类型
-import type {
-  LoginRequest,
-  LoginResponse,
-  SessionInfo,
-} from "@/gen/gateway/v1/api_pb";
+import type { LoginRequest, LoginResponse, SessionInfo } from "@/gen/gateway/v1/api_pb";
 
 // WebSocket 消息类型
-import {
-  WsPacket,
-  ChatRequest,
-} from "@/gen/gateway/v1/packet_pb";
+import { WsPacket, ChatRequest } from "@/gen/gateway/v1/packet_pb";
 ```
 
 ### Protobuf 消息创建
 
 ```typescript
 // 使用 fromJsonString 创建（推荐，支持 oneof 展开）
-const packet = WsPacket.fromJsonString(JSON.stringify({
-  seq: `msg-${Date.now()}`,
-  chat: {
-    sessionId: "session-123",
-    content: "Hello!",
-    type: "text",
-  },
-}));
+const packet = WsPacket.fromJsonString(
+    JSON.stringify({
+        seq: `msg-${Date.now()}`,
+        chat: {
+            sessionId: "session-123",
+            content: "Hello!",
+            type: "text",
+        },
+    }),
+);
 
 // 二进制序列化
 const binary = packet.toBinary();

@@ -13,16 +13,16 @@ service ChatService {
 
 message SendMessageRequest {
   // 1, 2 预留给 id, seq
-  string session_id    = 3;
+  string session_id = 3;
   string from_username = 4;
-  string to_username   = 5;
-  string content       = 6;
-  string type          = 7;
-  int64  timestamp     = 8;
+  string to_username = 5;
+  string content = 6;
+  string type = 7;
+  int64 timestamp = 8;
 }
 
 message SendMessageResponse {
-  int64  msg_id = 1; // 对应消息ID
-  int64  seq_id = 2; // 对应消息序号
-  string error  = 3; // 错误信息
+  int64 msg_id = 1; // 对应消息ID
+  int64 seq_id = 2; // 对应消息序号
+  string error = 3; // 错误信息
 }

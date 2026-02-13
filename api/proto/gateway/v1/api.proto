@@ -46,8 +46,8 @@ message LoginRequest {
 }
 
 message LoginResponse {
-  string                   access_token = 1;
-  resonance.common.v1.User user         = 2;
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
 }
 
 message RegisterRequest {
@@ -57,8 +57,8 @@ message RegisterRequest {
 }
 
 message RegisterResponse {
-  string                   access_token = 1;
-  resonance.common.v1.User user         = 2;
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
 }
 
 message LogoutRequest {
@@ -74,13 +74,13 @@ message GetSessionListRequest {
 }
 
 message SessionInfo {
-  string                           session_id    = 1;
-  string                           name          = 2;
-  int32                            type          = 3;
-  string                           avatar_url    = 4;
-  int64                            unread_count  = 5;
-  int64                            last_read_seq = 6;
-  resonance.gateway.v1.PushMessage last_message  = 7;
+  string session_id = 1;
+  string name = 2;
+  int32 type = 3;
+  string avatar_url = 4;
+  int64 unread_count = 5;
+  int64 last_read_seq = 6;
+  resonance.gateway.v1.PushMessage last_message = 7;
 }
 
 message GetSessionListResponse {
@@ -88,10 +88,10 @@ message GetSessionListResponse {
 }
 
 message CreateSessionRequest {
-  string          access_token = 1;
-  repeated string members      = 2;
-  string          name         = 3;
-  int32           type         = 4;
+  string access_token = 1;
+  repeated string members = 2;
+  string name = 3;
+  int32 type = 4;
 }
 
 message CreateSessionResponse {
@@ -100,9 +100,9 @@ message CreateSessionResponse {
 
 message GetRecentMessagesRequest {
   string access_token = 1;
-  string session_id   = 2;
-  int64  limit        = 3;
-  int64  before_seq   = 4;
+  string session_id = 2;
+  int64 limit = 3;
+  int64 before_seq = 4;
 }
 
 message GetRecentMessagesResponse {
@@ -114,8 +114,8 @@ message GetContactListRequest {
 }
 
 message ContactInfo {
-  string username   = 1;
-  string nickname   = 2;
+  string username = 1;
+  string nickname = 2;
   string avatar_url = 3;
 }
 
@@ -125,7 +125,7 @@ message GetContactListResponse {
 
 message SearchUserRequest {
   string access_token = 1;
-  string query        = 2;
+  string query = 2;
 }
 
 message SearchUserResponse {
@@ -134,8 +134,8 @@ message SearchUserResponse {
 
 message UpdateReadPositionRequest {
   string access_token = 1;
-  string session_id   = 2;
-  int64  seq_id       = 3;
+  string session_id = 2;
+  int64 seq_id = 3;
 }
 
 message UpdateReadPositionResponse {

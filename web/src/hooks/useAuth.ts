@@ -17,12 +17,7 @@ interface UseAuthReturn {
  * 处理登录、注册、登出操作
  */
 export function useAuth(): UseAuthReturn {
-  const {
-    setAuth,
-    logout: clearAuth,
-    setError,
-    clearError,
-  } = useAuthStore();
+  const { setAuth, logout: clearAuth, setError, clearError } = useAuthStore();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setErrorState] = useState<string | null>(null);
@@ -67,10 +62,7 @@ export function useAuth(): UseAuthReturn {
 
         setAuth(user, token);
       } catch (err) {
-        const errorMsg =
-          err instanceof Error
-            ? err.message
-            : ERROR_MESSAGES.AUTH_FAILED;
+        const errorMsg = err instanceof Error ? err.message : ERROR_MESSAGES.AUTH_FAILED;
         setErrorState(errorMsg);
         setError(errorMsg);
         throw err;
@@ -117,10 +109,7 @@ export function useAuth(): UseAuthReturn {
 
         setAuth(user, token);
       } catch (err) {
-        const errorMsg =
-          err instanceof Error
-            ? err.message
-            : ERROR_MESSAGES.REGISTER_FAILED;
+        const errorMsg = err instanceof Error ? err.message : ERROR_MESSAGES.REGISTER_FAILED;
         setErrorState(errorMsg);
         setError(errorMsg);
         throw err;

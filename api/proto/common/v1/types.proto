@@ -5,7 +5,7 @@ package resonance.common.v1;
 option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
 
 message User {
-  string username   = 1; // 唯一标识
-  string nickname   = 2; // 展示名称
+  string username = 1; // 唯一标识
+  string nickname = 2; // 展示名称
   string avatar_url = 3; // 头像
 }

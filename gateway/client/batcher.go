@@ -13,12 +13,12 @@ import (
 // StatusBatcher 聚合用户在线状态变更，批量同步到 Logic
 // 采用双重触发机制：数量触发 + 时间触发
 type StatusBatcher struct {
-	client   logicv1.PresenceServiceClient
+	client    logicv1.PresenceServiceClient
 	gatewayID string
-	logger   clog.Logger
+	logger    clog.Logger
 
 	// 批量配置
-	batchSize int    // 数量触发阈值
+	batchSize     int           // 数量触发阈值
 	flushInterval time.Duration // 时间触发间隔
 
 	// 缓冲区
@@ -26,11 +26,11 @@ type StatusBatcher struct {
 	offlineBuf []*logicv1.UserOffline
 
 	// 同步控制
-	mu       sync.Mutex
-	seq      atomic.Int64
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
-	running  atomic.Bool
+	mu      sync.Mutex
+	seq     atomic.Int64
+	stopCh  chan struct{}
+	wg      sync.WaitGroup
+	running atomic.Bool
 }
 
 // BatcherOption 配置 StatusBatcher 的选项
@@ -61,7 +61,7 @@ func NewStatusBatcher(
 		client:        client,
 		gatewayID:     gatewayID,
 		logger:        logger,
-		batchSize:     50,  // 默认 50 条触发
+		batchSize:     50,                     // 默认 50 条触发
 		flushInterval: 100 * time.Millisecond, // 默认 100ms 触发
 		onlineBuf:     make([]*logicv1.UserOnline, 0, 50),
 		offlineBuf:    make([]*logicv1.UserOffline, 0, 50),

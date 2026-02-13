@@ -11,10 +11,10 @@ message WsPacket {
 
   // 消息负载
   oneof payload {
-    Pulse       pulse = 10; // 心跳
-    ChatRequest chat  = 11; // 来自客户端的聊天消息
-    PushMessage push  = 12; // 推送给客户端的消息
-    Ack         ack   = 13; // 确认
+    Pulse pulse = 10; // 心跳
+    ChatRequest chat = 11; // 来自客户端的聊天消息
+    PushMessage push = 12; // 推送给客户端的消息
+    Ack ack = 13; // 确认
   }
 }
 
@@ -25,39 +25,39 @@ message Pulse {}
 // 字段编号与 PushMessage 保持一致，方便转换
 message ChatRequest {
   // 1, 2 预留给 id, seq (客户端发送时通常没有)
-  string session_id    = 3; // 会话ID
+  string session_id = 3; // 会话ID
   string from_username = 4; // 发送者 (客户端可不填，由网关填充)
-  string to_username   = 5; // 目标用户 (私聊时可能需要)
-  string content       = 6; // 内容
-  string type          = 7; // 类型
-  int64  timestamp     = 8; // timestamp 可选字段，可由网关填充
+  string to_username = 5; // 目标用户 (私聊时可能需要)
+  string content = 6; // 内容
+  string type = 7; // 类型
+  int64 timestamp = 8; // timestamp 可选字段，可由网关填充
 }
 
 // SessionMeta 是会话元数据
 // 用于在推送消息时携带会话信息，避免前端额外查询
 message SessionMeta {
   string name = 1; // 会话名称
-  int32  type = 2; // 会话类型：1=单聊, 2=群聊
+  int32 type = 2; // 会话类型：1=单聊, 2=群聊
 }
 
 // PushMessage 是推送给用户的消息
 message PushMessage {
-  int64  msg_id        = 1; // 全局唯一物理ID (Snowflake)
-  int64  seq_id        = 2; // 会话内逻辑时钟
-  string session_id    = 3; // 会话ID
+  int64 msg_id = 1; // 全局唯一物理ID (Snowflake)
+  int64 seq_id = 2; // 会话内逻辑时钟
+  string session_id = 3; // 会话ID
   string from_username = 4; // 发送者
-  string to_username   = 5; // 接收者/目标用户
-  string content       = 6; // 内容
-  string type          = 7; // 类型
-  int64  timestamp     = 8; // 时间戳
+  string to_username = 5; // 接收者/目标用户
+  string content = 6; // 内容
+  string type = 7; // 类型
+  int64 timestamp = 8; // 时间戳
   SessionMeta session_meta = 10; // 会话元数据（首次推送时携带）
 }
 
 // Ack 是可靠交付的确认
 message Ack {
-  string ref_seq   = 1; // 引用的序列号（客户端生成的临时 ID）
-  int64  msg_id    = 2; // 服务端生成的消息 ID
-  int64  seq_id    = 3; // 会话内的序列 ID
+  string ref_seq = 1; // 引用的序列号（客户端生成的临时 ID）
+  int64 msg_id = 2; // 服务端生成的消息 ID
+  int64 seq_id = 3; // 会话内的序列 ID
   string session_id = 4; // 所属会话
-  string error      = 5; // 失败原因（为空表示成功）
+  string error = 5; // 失败原因（为空表示成功）
 }

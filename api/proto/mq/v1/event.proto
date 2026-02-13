@@ -10,17 +10,17 @@ option go_package = "github.com/ceyewan/resonance/api/gen/go/mq/v1;mqv1";
 message PushEvent {
   option (resonance.common.v1.default_topic) = "resonance.push.event.v1";
 
-  int64  msg_id        = 1;
-  int64  seq_id        = 2;
-  string session_id    = 3;
+  int64 msg_id = 1;
+  int64 seq_id = 2;
+  string session_id = 3;
   string from_username = 4;
-  string to_username   = 5;
-  string content       = 6;
-  string type          = 7;
-  int64  timestamp     = 8;
+  string to_username = 5;
+  string content = 6;
+  string type = 7;
+  int64 timestamp = 8;
   // 会话元数据（首次推送时携带）
-  string session_name = 9;  // 会话名称
-  int32  session_type = 10; // 会话类型：1=单聊, 2=群聊
+  string session_name = 9; // 会话名称
+  int32 session_type = 10; // 会话类型：1=单聊, 2=群聊
 
   // 可观测性：分布式追踪上下文
   // 用于 MQ 场景下的 Trace 传播，由 trace.Inject 填充

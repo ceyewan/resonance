@@ -38,12 +38,14 @@
 ```
 
 **服务职责**：
+
 - **Web**：React 前端，ConnectRPC 调用 Gateway，WebSocket 接收消息
 - **Gateway**：WebSocket 长连接、心跳检测、消息推送、协议解析
 - **Logic**：消息路由、权限验证、会话管理
 - **Task**：离线消息、持久化、统计分析
 
 **通信方式**：
+
 - Web → Gateway：ConnectRPC (HTTP)、WebSocket
 - Gateway → Logic：gRPC
 - Logic → NATS → Task：MQ (异步消息)
@@ -52,18 +54,21 @@
 ## 技术栈
 
 **后端**：
+
 - 语言：Go 1.25+
 - 基础组件：[Genesis v0.2.0](github.com/ceyewan/genesis) (本地子模块)
 - 服务间：gRPC
 - 消息队列：NATS
 
 **前端**：
+
 - 框架：React 18 + TypeScript
 - 构建：Vite
 - 状态：Zustand
 - 通信：ConnectRPC + WebSocket
 
 **存储**：
+
 - MySQL：消息历史、用户信息、会话数据
 - Redis：路由映射、在线状态、缓存
 
@@ -71,23 +76,23 @@
 
 ### 组件分类
 
-| 层级 | 组件 | 用途 | 是否必要 |
-|------|------|------|----------|
-| L0 | `clog` | 结构化日志 (基于 slog) | ✅ 必要 |
-| L0 | `config` | 配置管理 (支持多源加载) | ✅ 必要 |
-| L0 | `xerrors` | 增强型错误处理 | ✅ 必要 |
-| L0 | `metrics` | OpenTelemetry 指标收集 | 按需 |
-| L1 | `connector` | MySQL/Redis/NATS/Etcd 连接 | ✅ 必要 |
-| L1 | `db` | GORM 数据库操作 | ✅ 必要 |
-| L2 | `idgen` | Snowflake/UUID/Sequence 生成 | 推荐 |
-| L2 | `mq` | NATS 消息队列 | 推荐 |
-| L2 | `cache` | 统一缓存接口 (Redis) | 推荐 |
-| L2 | `dlock` | 分布式锁 (Redis/Etcd) | 按需 |
-| L2 | `idempotency` | 幂等性组件 | 按需 |
-| L3 | `auth` | JWT 认证授权 | 推荐 |
-| L3 | `ratelimit` | 限流组件 | 按需 |
-| L3 | `breaker` | 熔断器组件 | 按需 |
-| L3 | `registry` | Etcd 服务注册发现 | 按需 |
+| 层级 | 组件          | 用途                         | 是否必要 |
+| ---- | ------------- | ---------------------------- | -------- |
+| L0   | `clog`        | 结构化日志 (基于 slog)       | ✅ 必要  |
+| L0   | `config`      | 配置管理 (支持多源加载)      | ✅ 必要  |
+| L0   | `xerrors`     | 增强型错误处理               | ✅ 必要  |
+| L0   | `metrics`     | OpenTelemetry 指标收集       | 按需     |
+| L1   | `connector`   | MySQL/Redis/NATS/Etcd 连接   | ✅ 必要  |
+| L1   | `db`          | GORM 数据库操作              | ✅ 必要  |
+| L2   | `idgen`       | Snowflake/UUID/Sequence 生成 | 推荐     |
+| L2   | `mq`          | NATS 消息队列                | 推荐     |
+| L2   | `cache`       | 统一缓存接口 (Redis)         | 推荐     |
+| L2   | `dlock`       | 分布式锁 (Redis/Etcd)        | 按需     |
+| L2   | `idempotency` | 幂等性组件                   | 按需     |
+| L3   | `auth`        | JWT 认证授权                 | 推荐     |
+| L3   | `ratelimit`   | 限流组件                     | 按需     |
+| L3   | `breaker`     | 熔断器组件                   | 按需     |
+| L3   | `registry`    | Etcd 服务注册发现            | 按需     |
 
 ### 查看文档
 

@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/auth";
 import {
   CreateSessionRequest,
   SearchUserRequest,
-  GetContactListRequest
+  GetContactListRequest,
 } from "@/gen/gateway/v1/api_pb";
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
@@ -52,11 +52,13 @@ export async function createSession(params: {
 /**
  * 搜索用户
  */
-export async function searchUsers(query: string): Promise<Array<{
-  username: string;
-  nickname: string;
-  avatarUrl: string;
-}>> {
+export async function searchUsers(query: string): Promise<
+  Array<{
+    username: string;
+    nickname: string;
+    avatarUrl: string;
+  }>
+> {
   const req = new SearchUserRequest({ query });
   const resp = await sessionClient.searchUser(req);
   return resp.users.map((u) => ({
@@ -69,11 +71,13 @@ export async function searchUsers(query: string): Promise<Array<{
 /**
  * 获取联系人列表
  */
-export async function getContactList(): Promise<Array<{
-  username: string;
-  nickname: string;
-  avatarUrl: string;
-}>> {
+export async function getContactList(): Promise<
+  Array<{
+    username: string;
+    nickname: string;
+    avatarUrl: string;
+  }>
+> {
   const req = new GetContactListRequest();
   const resp = await sessionClient.getContactList(req);
   return resp.contacts.map((c) => ({

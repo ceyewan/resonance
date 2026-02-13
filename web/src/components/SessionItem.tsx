@@ -61,9 +61,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
       onClick={onClick}
       className={cn(
         "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors",
-        isActive
-          ? "bg-sky-500 dark:bg-sky-600"
-          : "hover:bg-gray-100 dark:hover:bg-gray-800",
+        isActive ? "bg-sky-500 dark:bg-sky-600" : "hover:bg-gray-100 dark:hover:bg-gray-800",
       )}
     >
       {/* 头像 */}
@@ -90,9 +88,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
           <h3
             className={cn(
               "truncate text-sm font-semibold",
-              isActive
-                ? "text-white"
-                : "text-gray-900 dark:text-gray-100",
+              isActive ? "text-white" : "text-gray-900 dark:text-gray-100",
             )}
           >
             {displayName}
@@ -102,9 +98,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
               <span
                 className={cn(
                   "text-xs",
-                  isActive
-                    ? "text-sky-100"
-                    : "text-gray-500 dark:text-gray-400",
+                  isActive ? "text-sky-100" : "text-gray-500 dark:text-gray-400",
                 )}
               >
                 {formatTime(session.lastMessage.timestamp)}
@@ -114,9 +108,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
               <span
                 className={cn(
                   "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold",
-                  isActive
-                    ? "bg-white text-sky-500"
-                    : "bg-sky-500 text-white",
+                  isActive ? "bg-white text-sky-500" : "bg-sky-500 text-white",
                 )}
               >
                 {session.unreadCount > 99 ? "99+" : session.unreadCount}
@@ -127,15 +119,10 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <p
           className={cn(
             "mt-0.5 truncate text-sm",
-            isActive
-              ? "text-sky-100"
-              : "text-gray-500 dark:text-gray-400",
+            isActive ? "text-sky-100" : "text-gray-500 dark:text-gray-400",
           )}
         >
-          {formatLastMessage(
-            session.lastMessage?.content,
-            session.lastMessage?.type,
-          )}
+          {formatLastMessage(session.lastMessage?.content, session.lastMessage?.type)}
         </p>
       </div>
     </div>

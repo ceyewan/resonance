@@ -23,8 +23,7 @@ x-resonance-build: &resonance-build
 x-resonance-service: &resonance-service
   image: ${RESONANCE_IMAGE:-ceyewan/resonance:local}
   build: *resonance-build
-  environment: &resonance-env
-    # 环境配置
+  environment: &resonance-env # 环境配置
     RESONANCE_ENV: ${RESONANCE_ENV:-}
     RESONANCE_DEBUG_CONFIG: ${RESONANCE_DEBUG_CONFIG:-false}
     # MySQL 配置
@@ -142,9 +141,9 @@ services:
       # - WATCHTOWER_NOTIFICATIONS=shoutrrr
       # - WATCHTOWER_NOTIFICATION_URL=telegram://token@telegram?channels=chat_id
     labels:
-      com.centurylinklabs.watchtower.enable: "false"  # Watchtower 不监控自己
+      com.centurylinklabs.watchtower.enable: "false" # Watchtower 不监控自己
     profiles:
-      - production  # 只在生产环境启用
+      - production # 只在生产环境启用
 
 networks:
   caddy:

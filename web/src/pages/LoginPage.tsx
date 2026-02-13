@@ -60,9 +60,7 @@ export default function LoginPage() {
               />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Resonance
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Resonance</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             {isLogin ? "登录到您的账号" : "创建新账号"}
           </p>
@@ -135,11 +133,7 @@ export default function LoginPage() {
           {/* 错误提示 */}
           {error && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-600 dark:bg-red-900/20 dark:text-red-400">
-              <svg
-                className="h-5 w-5 flex-shrink-0"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
+              <svg className="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
                   d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -163,11 +157,7 @@ export default function LoginPage() {
           >
             {isLoading ? (
               <span className="flex items-center justify-center gap-2">
-                <svg
-                  className="h-4 w-4 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle
                     className="opacity-25"
                     cx="12"
@@ -184,8 +174,10 @@ export default function LoginPage() {
                 </svg>
                 {isLogin ? "登录中..." : "注册中..."}
               </span>
+            ) : isLogin ? (
+              "登录"
             ) : (
-              isLogin ? "登录" : "注册"
+              "注册"
             )}
           </button>
         </form>

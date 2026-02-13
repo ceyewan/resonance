@@ -48,10 +48,7 @@ export function useWsMessageHandler({ getSend }: UseWsMessageHandlerOptions) {
       console.log("[WsMessageHandler] Received push message:", push);
 
       // 转换为前端消息格式
-      const chatMessage = pushMessageToChatMessage(
-        push,
-        user?.username || "",
-      );
+      const chatMessage = pushMessageToChatMessage(push, user?.username || "");
 
       // 添加到消息列表
       addMessage(chatMessage);
@@ -147,7 +144,8 @@ export function useWsMessageHandler({ getSend }: UseWsMessageHandlerOptions) {
       }
 
       const seqId = typeof ack.seqId === "bigint" ? ack.seqId : BigInt(ack.seqId ?? 0);
-      const msgId = typeof ack.msgId === "bigint" ? ack.msgId.toString() : String(ack.msgId ?? ack.refSeq);
+      const msgId =
+        typeof ack.msgId === "bigint" ? ack.msgId.toString() : String(ack.msgId ?? ack.refSeq);
       markAsSent(ack.refSeq, msgId, seqId);
     },
     [markAsFailed, markAsSent],

@@ -6,12 +6,12 @@
 service:
   name: logic-service
   host: localhost
-  server_addr: :15090            # gRPC 服务地址 (5位数)
+  server_addr: :15090 # gRPC 服务地址 (5位数)
 
 # 基础组件配置
 log:
   level: debug
-  format: console  # 开发环境使用 console 格式，方便调试
+  format: console # 开发环境使用 console 格式，方便调试
   output: stdout
 
 mysql:
@@ -19,7 +19,7 @@ mysql:
   host: 127.0.0.1
   port: 3306
   username: resonance
-  password: ""  # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
+  password: "" # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
   database: resonance
   charset: utf8mb4
   max_idle_conns: 10
@@ -57,14 +57,14 @@ registry:
 
 # 认证配置
 auth:
-  secret_key: ""  # 从环境变量 RESONANCE_AUTH_SECRET_KEY 读取（生产环境必须设置）
+  secret_key: "" # 从环境变量 RESONANCE_AUTH_SECRET_KEY 读取（生产环境必须设置）
   issuer: resonance-service
   access_token_ttl: 24h
 
 # 管理员初始化配置
 admin:
   username: ceyewan
-  password: ""  # 从环境变量 RESONANCE_ADMIN_PASSWORD 读取
+  password: "" # 从环境变量 RESONANCE_ADMIN_PASSWORD 读取
   nickname: 管理员
 
 # ID 生成器配置 (对齐 Gateway 分桶分发机制)
@@ -75,18 +75,18 @@ worker_id:
 # 可观测性配置
 observability:
   trace:
-    disable: false                    # 开发环境启用 Trace
-    endpoint: localhost:4317          # OTLP Collector 地址
-    insecure: true                    # 开发环境使用不安全连接
-    sampler: 1.0                      # 开发环境 100% 采样
+    disable: false # 开发环境启用 Trace
+    endpoint: localhost:4317 # OTLP Collector 地址
+    insecure: true # 开发环境使用不安全连接
+    sampler: 1.0 # 开发环境 100% 采样
   metrics:
-    port: 9091                        # Prometheus 端口
-    path: /metrics                    # Metrics 路径
-    enable_runtime: true              # 启用运行时指标
+    port: 9091 # Prometheus 端口
+    path: /metrics # Metrics 路径
+    enable_runtime: true # 启用运行时指标
 
 # Outbox Job 配置
 outbox:
-  batch_size: 100                     # 每次处理的消息批次大小
-  max_retries: 5                      # 最大重试次数
-  ticker_time: 1s                     # 扫描间隔
-  worker_count: 5                     # 并发处理的 Worker 数量
+  batch_size: 100 # 每次处理的消息批次大小
+  max_retries: 5 # 最大重试次数
+  ticker_time: 1s # 扫描间隔
+  worker_count: 5 # 并发处理的 Worker 数量

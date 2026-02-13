@@ -201,16 +201,19 @@ export function NewChatModal({
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            新建聊天
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">新建聊天</h2>
           <button
             onClick={handleClose}
             className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
             disabled={isCreating}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -283,7 +286,14 @@ export function NewChatModal({
           {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <svg className="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
                 <path
                   className="opacity-75"
                   fill="currentColor"
@@ -308,9 +318,12 @@ export function NewChatModal({
               </svg>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {isGroupMode
-                  ? (contacts.length === 0 ? "暂无联系人" : "未找到匹配的联系人")
-                  : (searchQuery ? "未找到用户" : "输入搜索关键词")
-                }
+                  ? contacts.length === 0
+                    ? "暂无联系人"
+                    : "未找到匹配的联系人"
+                  : searchQuery
+                    ? "未找到用户"
+                    : "输入搜索关键词"}
               </p>
             </div>
           ) : (
@@ -329,14 +342,20 @@ export function NewChatModal({
                   >
                     {/* 复选框（仅群聊模式） */}
                     {isGroupMode && (
-                      <div className={cn(
-                        "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
-                        isSelected
-                          ? "border-sky-500 bg-sky-500"
-                          : "border-gray-300 dark:border-gray-600",
-                      )}>
+                      <div
+                        className={cn(
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                          isSelected
+                            ? "border-sky-500 bg-sky-500"
+                            : "border-gray-300 dark:border-gray-600",
+                        )}
+                      >
                         {isSelected && (
-                          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <svg
+                            className="h-3 w-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
                             <path
                               fillRule="evenodd"
                               d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -364,15 +383,36 @@ export function NewChatModal({
 
                     {/* 单聊模式箭头 */}
                     {!isGroupMode && (
-                      <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      <svg
+                        className="h-5 w-5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
                       </svg>
                     )}
 
                     {/* 群聊模式加载中 */}
                     {isGroupMode && isCreating && isSelected && (
-                      <svg className="h-5 w-5 animate-spin text-sky-500" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <svg
+                        className="h-5 w-5 animate-spin text-sky-500"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
                         <path
                           className="opacity-75"
                           fill="currentColor"

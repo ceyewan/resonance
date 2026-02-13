@@ -49,9 +49,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
             <div className="text-center">
               <div className="mb-4 text-6xl">⚠️</div>
-              <h1 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
-                出错了
-              </h1>
+              <h1 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">出错了</h1>
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
                 应用遇到了意外错误，请刷新页面重试
               </p>

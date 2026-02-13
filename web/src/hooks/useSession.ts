@@ -39,11 +39,7 @@ export function useSession(): UseSessionReturn {
     markAsRead,
   } = useSessionStore();
 
-  const {
-    setMessages,
-    prependMessages,
-    getSessionMessages,
-  } = useMessageStore();
+  const { setMessages, prependMessages, getSessionMessages } = useMessageStore();
 
   const [isLoading, setIsLoadingState] = useState(false);
   const [error, setErrorState] = useState<string | null>(null);
@@ -88,10 +84,7 @@ export function useSession(): UseSessionReturn {
         setCurrentSessionId(convertedSessions[0].sessionId);
       }
     } catch (err) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : ERROR_MESSAGES.SESSION_LOAD_FAILED;
+      const errorMsg = err instanceof Error ? err.message : ERROR_MESSAGES.SESSION_LOAD_FAILED;
       setErrorState(errorMsg);
       setError(errorMsg);
     } finally {
@@ -174,9 +167,7 @@ export function useCurrentSession() {
   const { currentSession, loadRecentMessages } = useSession();
   const { getSessionMessages, isLoading } = useMessageStore();
 
-  const messages = currentSession
-    ? getSessionMessages(currentSession.sessionId)
-    : [];
+  const messages = currentSession ? getSessionMessages(currentSession.sessionId) : [];
 
   const loadMore = useCallback(
     async (limit?: number) => {
@@ -185,11 +176,7 @@ export function useCurrentSession() {
       const oldestMessage = messages[0];
       const beforeSeq = oldestMessage ? oldestMessage.seqId : undefined;
 
-      await loadRecentMessages(
-        currentSession.sessionId,
-        limit,
-        beforeSeq,
-      );
+      await loadRecentMessages(currentSession.sessionId, limit, beforeSeq);
     },
     [currentSession, loadRecentMessages, messages],
   );

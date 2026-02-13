@@ -8,7 +8,7 @@ service:
 
 log:
   level: debug
-  format: console  # 开发环境使用 console 格式，方便调试
+  format: console # 开发环境使用 console 格式，方便调试
   output: stdout
 
 mysql:
@@ -16,7 +16,7 @@ mysql:
   host: 127.0.0.1
   port: 3306
   username: resonance
-  password: ""  # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
+  password: "" # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
   database: resonance
   charset: utf8mb4
   max_idle_conns: 10
@@ -50,11 +50,11 @@ registry:
   default_ttl: 30s
   enable_cache: true
   cache_expiration: 10s
-  poll_interval: 10s  # 服务发现轮询间隔
+  poll_interval: 10s # 服务发现轮询间隔
 
 gateway_service_name: gateway-service
-gateway_queue_size: 1000     # 每个 Gateway 的推送队列大小
-gateway_pusher_count: 3      # 每个 Gateway 的并发推送协程数
+gateway_queue_size: 1000 # 每个 Gateway 的推送队列大小
+gateway_pusher_count: 3 # 每个 Gateway 的并发推送协程数
 
 # 存储消费者配置（写扩散）
 storage_consumer:

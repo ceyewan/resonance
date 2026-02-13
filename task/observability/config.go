@@ -32,7 +32,7 @@ type MetricsConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Trace: TraceConfig{
-			Disable: false,
+			Disable:  false,
 			Endpoint: "localhost:4317",
 			Sampler:  1.0,
 			Insecure: true,

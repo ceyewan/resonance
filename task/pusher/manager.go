@@ -59,7 +59,8 @@ func (m *Manager) Start() error {
 // poll 定期轮询服务变动
 // TODO: P3 - 考虑使用 registry.Watch 替代轮询
 // Genesis registry.Registry 接口提供了 Watch 方法可以实时监听服务变化：
-//   Watch(ctx context.Context, serviceName string) (<-chan ServiceEvent, error)
+//
+//	Watch(ctx context.Context, serviceName string) (<-chan ServiceEvent, error)
 //
 // 优势：
 //   - 实时响应服务上下线，无需等待 pollInterval
