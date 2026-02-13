@@ -15,12 +15,12 @@ import (
 // OutboxRelay 负责扫描本地消息表并将未发送的消息补发到 MQ
 type OutboxRelay struct {
 	messageRepo repo.MessageRepo
-	mqClient    mq.Client
+	mqClient    mq.MQ
 	logger      clog.Logger
 	config      *config.OutboxConfig
 }
 
-func NewOutboxRelay(messageRepo repo.MessageRepo, mqClient mq.Client, logger clog.Logger, cfg *config.OutboxConfig) *OutboxRelay {
+func NewOutboxRelay(messageRepo repo.MessageRepo, mqClient mq.MQ, logger clog.Logger, cfg *config.OutboxConfig) *OutboxRelay {
 	return &OutboxRelay{
 		messageRepo: messageRepo,
 		mqClient:    mqClient,

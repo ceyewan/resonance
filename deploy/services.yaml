@@ -2,15 +2,15 @@
 # Resonance 服务编排配置
 #
 # 本地开发模式：
-#   DEPLOY_ENV=local docker compose -f deploy/base.yaml -f deploy/services.yaml up -d
+#   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
 #   - 暴露 Gateway (8080) 和 Web (4173) 端口到 127.0.0.1
 #   - 不使用 Caddy
 #
 # 生产模式（使用宿主机 Caddy）：
-#   DEPLOY_ENV=production docker compose -f deploy/base.yaml -f deploy/services.yaml up -d
-#   - 不暴露端口到宿主机
+#   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml --profile production up -d
+#   - 建议将 GATEWAY_PORT_BINDING / WEB_PORT_BINDING 置空
 #   - 通过 Caddy labels 让宿主机 Caddy 反向代理
-#   - 需要先在宿主机安装 Caddy 并配置 Docker 集成
+#   - Watchtower 仅在 production profile 启用
 # =============================================================================
 
 x-resonance-build: &resonance-build
@@ -26,8 +26,8 @@ x-resonance-service: &resonance-service
   environment: &resonance-env # 环境配置
     RESONANCE_ENV: ${RESONANCE_ENV:-}
     RESONANCE_DEBUG_CONFIG: ${RESONANCE_DEBUG_CONFIG:-false}
-    # MySQL 配置
-    RESONANCE_MYSQL_PASSWORD: ${RESONANCE_MYSQL_PASSWORD:-}
+    # PostgreSQL 配置
+    RESONANCE_POSTGRES_PASSWORD: ${RESONANCE_POSTGRES_PASSWORD:-}
     # JWT 认证配置
     RESONANCE_AUTH_SECRET_KEY: ${RESONANCE_AUTH_SECRET_KEY:-}
     RESONANCE_AUTH_ISSUER: ${RESONANCE_AUTH_ISSUER:-}
@@ -43,11 +43,11 @@ services:
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
-      RESONANCE_MYSQL_HOST: mysql
+      RESONANCE_POSTGRES_HOST: postgres
     container_name: resonance-logic
     command: ["-module", "logic"]
     depends_on:
-      - mysql
+      - postgres
       - redis
       - etcd
       - nats
@@ -74,7 +74,7 @@ services:
       - resonance-net
       - caddy
     labels:
-      # 生产环境 Caddy 配置（DEPLOY_ENV=production 时生效）
+      # 生产环境 Caddy 配置（当域名变量不为空时生效）
       caddy: ${CADDY_GATEWAY_DOMAIN:-}
       caddy.reverse_proxy: "{{upstreams 8080}}"
       caddy.encode: gzip
@@ -87,11 +87,11 @@ services:
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
-      RESONANCE_MYSQL_HOST: mysql
+      RESONANCE_POSTGRES_HOST: postgres
     container_name: resonance-task
     command: ["-module", "task"]
     depends_on:
-      - mysql
+      - postgres
       - redis
       - nats
       - etcd
@@ -116,7 +116,7 @@ services:
       - resonance-net
       - caddy
     labels:
-      # 生产环境 Caddy 配置（DEPLOY_ENV=production 时生效）
+      # 生产环境 Caddy 配置（当域名变量不为空时生效）
       caddy: ${CADDY_WEB_DOMAIN:-}
       caddy.reverse_proxy: "{{upstreams 4173}}"
       caddy.encode: gzip

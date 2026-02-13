@@ -31,7 +31,7 @@ func New() (*Web, error) {
 		return nil, err
 	}
 
-	logger, _ := clog.New(&cfg.Log, clog.WithStandardContext())
+	logger, _ := clog.New(&cfg.Log, clog.WithTraceContext())
 
 	dist := cfg.Static.GetDistDir()
 	if err := validateDistDir(dist); err != nil {

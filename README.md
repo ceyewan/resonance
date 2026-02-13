@@ -109,7 +109,7 @@ resonance/
 - Go 1.25+
 - Node.js 18+
 - Redis 6.0+
-- MySQL 8.0+
+- PostgreSQL 17+
 - Buf (Protobuf 代码生成)
 
 ### 安装运行
@@ -136,7 +136,7 @@ make tidy
 **4. 启动基础设施 (可选)**
 
 ```bash
-# 使用 Docker 启动 Redis/MySQL
+# 使用 Docker 启动 PostgreSQL/Redis
 make up
 ```
 
@@ -219,6 +219,13 @@ npm run type-check       # 类型检查
 
 - **后端开发**: 参考 [CLAUDE.md](./CLAUDE.md)
 - **前端开发**: 参考 [web/FRONTEND.md](./web/FRONTEND.md)
+
+## 部署文档
+
+- **部署总览**: [deploy/README.md](./deploy/README.md)
+- **Compose 基础设施**: [deploy/base.yaml](./deploy/base.yaml)
+- **Compose 业务服务**: [deploy/services.yaml](./deploy/services.yaml)
+- **镜像构建**: [deploy/Dockerfile](./deploy/Dockerfile)
 
 ## 设计原则
 

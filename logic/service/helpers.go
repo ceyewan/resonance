@@ -86,7 +86,7 @@ func PublishMessageToMQ(
 //   - data: 消息数据
 //   - logger: 日志记录器
 func PublishMessageToMQAsync(
-	mqClient mq.Client,
+	mqClient mq.MQ,
 	outboxID int64,
 	topic string,
 	data []byte,

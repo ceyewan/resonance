@@ -39,55 +39,39 @@ services:
         max-size: "5m"
         max-file: "2"
 
-  mysql:
-    image: mysql:8.0
-    container_name: resonance-mysql
-    hostname: resonance-mysql
+  postgres:
+    image: postgres:17-alpine
+    container_name: resonance-postgres
+    hostname: postgres
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${RESONANCE_MYSQL_ROOT_PASSWORD:-root123}
-      MYSQL_DATABASE: ${RESONANCE_MYSQL_DATABASE:-resonance}
-      MYSQL_USER: ${RESONANCE_MYSQL_USER:-resonance}
-      MYSQL_PASSWORD: ${RESONANCE_MYSQL_PASSWORD:-resonance123}
-    command:
-      - mysqld
-      - --performance_schema=OFF
-      - --innodb_buffer_pool_size=256M
-      - --max_connections=50
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+      POSTGRES_DB: ${RESONANCE_POSTGRES_DATABASE:-resonance}
+      POSTGRES_USER: ${RESONANCE_POSTGRES_USER:-resonance}
+      POSTGRES_PASSWORD: ${RESONANCE_POSTGRES_PASSWORD:-resonance123}
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ../internal/schema/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - postgres-data:/var/lib/postgresql/data
+      - ../internal/schema/schema_postgres.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    ports:
+      - "127.0.0.1:5432:5432"
     networks:
       - resonance-net
     deploy:
       resources:
         limits:
-          memory: 768M
-        reservations:
           memory: 512M
+        reservations:
+          memory: 256M
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p${RESONANCE_MYSQL_ROOT_PASSWORD:-root123}",
-        ]
+      test: ["CMD", "pg_isready", "-U", "${RESONANCE_POSTGRES_USER:-resonance}"]
       interval: 10s
       timeout: 3s
       retries: 3
-      start_period: 30s
+      start_period: 10s
 
   redis:
     image: redis:7.2-alpine
@@ -163,6 +147,6 @@ networks:
 
 volumes:
   etcd-data:
-  mysql-data:
+  postgres-data:
   redis-data:
   nats-data:

@@ -13,8 +13,8 @@ log:
 service:
   host: ""
 
-mysql:
-  host: mysql
+postgres:
+  host: postgres
 
 redis:
   addr: redis:6379

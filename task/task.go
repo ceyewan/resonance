@@ -37,15 +37,15 @@ type Task struct {
 
 // resources 内部资源聚合
 type resources struct {
-	redisConn   connector.RedisConnector
-	mysqlConn   connector.MySQLConnector
-	natsConn    connector.NATSConnector
-	etcdConn    connector.EtcdConnector
-	mqClient    mq.Client
-	registry    registry.Registry
-	routerRepo  repo.RouterRepo
-	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo
+	redisConn    connector.RedisConnector
+	postgresConn connector.PostgreSQLConnector
+	natsConn     connector.NATSConnector
+	etcdConn     connector.EtcdConnector
+	mqClient     mq.MQ
+	registry     registry.Registry
+	routerRepo   repo.RouterRepo
+	sessionRepo  repo.SessionRepo
+	messageRepo  repo.MessageRepo
 }
 
 // New 创建 Task 实例
@@ -143,10 +143,10 @@ func (t *Task) initComponents() error {
 
 // initResources 初始化外部连接和 Repo
 func (t *Task) initResources() (*resources, error) {
-	// MySQL
-	mysqlConn, err := connector.NewMySQL(&t.config.MySQL)
+	// PostgreSQL
+	postgresConn, err := connector.NewPostgreSQL(&t.config.PostgreSQL)
 	if err != nil {
-		return nil, fmt.Errorf("mysql init: %w", err)
+		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
 
 	// Redis
@@ -165,7 +165,7 @@ func (t *Task) initResources() (*resources, error) {
 	}
 	// MQ Client (NATS Core)
 	mqClient, err := mq.New(&mq.Config{
-		Driver: mq.DriverNatsCore,
+		Driver: mq.DriverNATSCore,
 	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
@@ -194,10 +194,10 @@ func (t *Task) initResources() (*resources, error) {
 	}
 
 	// NewSessionRepo 需要 db.DB 接口
-	// 使用 genesis/db 封装 MySQLConnector
+	// 使用 genesis/db 封装 PostgreSQLConnector
 	dbInstance, err := db.New(&db.Config{
-		Driver: "mysql",
-	}, db.WithMySQLConnector(mysqlConn), db.WithLogger(t.logger))
+		Driver: "postgresql",
+	}, db.WithPostgreSQLConnector(postgresConn), db.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}
@@ -213,15 +213,15 @@ func (t *Task) initResources() (*resources, error) {
 	}
 
 	return &resources{
-		mysqlConn:   mysqlConn,
-		redisConn:   redisConn,
-		natsConn:    natsConn,
-		etcdConn:    etcdConn,
-		mqClient:    mqClient,
-		registry:    reg,
-		sessionRepo: sessionRepo,
-		messageRepo: messageRepo,
-		routerRepo:  routerRepo,
+		postgresConn: postgresConn,
+		redisConn:    redisConn,
+		natsConn:     natsConn,
+		etcdConn:     etcdConn,
+		mqClient:     mqClient,
+		registry:     reg,
+		sessionRepo:  sessionRepo,
+		messageRepo:  messageRepo,
+		routerRepo:   routerRepo,
 	}, nil
 }
 
@@ -277,7 +277,7 @@ func (t *Task) Close() error {
 			t.resources.etcdConn.Close()
 			t.resources.natsConn.Close()
 			t.resources.redisConn.Close()
-			t.resources.mysqlConn.Close()
+			t.resources.postgresConn.Close()
 			close(done)
 		}()
 

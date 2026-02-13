@@ -10,8 +10,8 @@ log:
   format: json
   output: stdout
 
-mysql:
-  host: mysql
+postgres:
+  host: postgres
 
 redis:
   addr: redis:6379

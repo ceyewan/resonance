@@ -19,7 +19,7 @@ type ChatService struct {
 	messageRepo repo.MessageRepo
 	idGen       idgen.Generator // Snowflake ID 生成器
 	sequencer   idgen.Sequencer
-	mqClient    mq.Client
+	mqClient    mq.MQ
 	logger      clog.Logger
 }
 
@@ -29,7 +29,7 @@ func NewChatService(
 	messageRepo repo.MessageRepo,
 	idGen idgen.Generator,
 	sequencer idgen.Sequencer,
-	mqClient mq.Client,
+	mqClient mq.MQ,
 	logger clog.Logger,
 ) *ChatService {
 	return &ChatService{

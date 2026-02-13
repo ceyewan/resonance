@@ -27,7 +27,7 @@ type SessionService struct {
 	sessionIDGen idgen.Generator // 用于生成 SessionID
 	msgIDGen     idgen.Generator // 用于生成消息 ID
 	sequencer    idgen.Sequencer // 用于生成会话 SeqID
-	mqClient     mq.Client       // 用于发送系统消息
+	mqClient     mq.MQ           // 用于发送系统消息
 	logger       clog.Logger
 }
 
@@ -39,7 +39,7 @@ func NewSessionService(
 	sessionIDGen idgen.Generator,
 	msgIDGen idgen.Generator,
 	sequencer idgen.Sequencer,
-	mqClient mq.Client,
+	mqClient mq.MQ,
 	logger clog.Logger,
 ) *SessionService {
 	return &SessionService{

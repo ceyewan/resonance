@@ -14,14 +14,14 @@ log:
   format: console # 开发环境使用 console 格式，方便调试
   output: stdout
 
-mysql:
-  name: logic-mysql
+postgres:
+  name: logic-postgres
   host: 127.0.0.1
-  port: 3306
+  port: 5432
   username: resonance
-  password: "" # 从环境变量 RESONANCE_MYSQL_PASSWORD 读取
+  password: "" # 从环境变量 RESONANCE_POSTGRES_PASSWORD 读取
   database: resonance
-  charset: utf8mb4
+  sslmode: disable
   max_idle_conns: 10
   max_open_conns: 20
   conn_max_lifetime: 1h

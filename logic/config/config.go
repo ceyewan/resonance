@@ -26,11 +26,11 @@ type Config struct {
 	} `mapstructure:"service"`
 
 	// 基础组件配置
-	Log   clog.Config           `mapstructure:"log"`   // 日志配置
-	MySQL connector.MySQLConfig `mapstructure:"mysql"` // MySQL 配置
-	Redis connector.RedisConfig `mapstructure:"redis"` // Redis 配置
-	NATS  connector.NATSConfig  `mapstructure:"nats"`  // NATS 配置
-	Etcd  connector.EtcdConfig  `mapstructure:"etcd"`  // Etcd 配置
+	Log        clog.Config                `mapstructure:"log"`      // 日志配置
+	PostgreSQL connector.PostgreSQLConfig `mapstructure:"postgres"` // PostgreSQL 配置
+	Redis      connector.RedisConfig      `mapstructure:"redis"`    // Redis 配置
+	NATS       connector.NATSConfig       `mapstructure:"nats"`     // NATS 配置
+	Etcd       connector.EtcdConfig       `mapstructure:"etcd"`     // Etcd 配置
 
 	// 服务注册发现配置
 	Registry RegistryConfig `mapstructure:"registry"`
@@ -253,8 +253,8 @@ func MustLoad() *Config {
 func dumpConfig(cfg *Config) {
 	// 创建配置副本用于脱敏
 	sanitized := *cfg
-	if sanitized.MySQL.Password != "" {
-		sanitized.MySQL.Password = "***"
+	if sanitized.PostgreSQL.Password != "" {
+		sanitized.PostgreSQL.Password = "***"
 	}
 	if sanitized.Redis.Password != "" {
 		sanitized.Redis.Password = "***"

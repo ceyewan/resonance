@@ -21,7 +21,7 @@ type HandlerFunc func(context.Context, *mqv1.PushEvent) error
 
 // Consumer MQ 消费者
 type Consumer struct {
-	mqClient mq.Client
+	mqClient mq.MQ
 	handler  HandlerFunc
 	config   config.ConsumerConfig
 	logger   clog.Logger
@@ -39,7 +39,7 @@ type Consumer struct {
 
 // NewConsumer 创建消费者
 func NewConsumer(
-	mqClient mq.Client,
+	mqClient mq.MQ,
 	handler HandlerFunc,
 	config config.ConsumerConfig,
 	logger clog.Logger,
@@ -106,7 +106,7 @@ func (c *Consumer) Start() error {
 //   - NATS Core 模式下没有原生背压支持
 //   - 简单的丢弃策略可能导致消息丢失
 //   - 需要配合 MQ 客户端的流控机制
-func (c *Consumer) receiveMessage(ctx context.Context, msg mq.Message) error {
+func (c *Consumer) receiveMessage(msg mq.Message) error {
 	select {
 	case c.jobsCh <- msg:
 		return nil

@@ -43,9 +43,9 @@ type Logic struct {
 type resources struct {
 	etcdConn       connector.EtcdConnector
 	redisConn      connector.RedisConnector
-	mysqlConn      connector.MySQLConnector
+	postgresConn   connector.PostgreSQLConnector
 	natsConn       connector.NATSConnector
-	mqClient       mq.Client
+	mqClient       mq.MQ
 	authenticator  auth.Authenticator
 	msgIDGen       idgen.Generator // 用于 MsgID (Snowflake)
 	sessionIDGen   idgen.Generator // 用于 SessionID (Snowflake)
@@ -85,7 +85,7 @@ func New() (*Logic, error) {
 // initComponents 初始化所有组件
 func (l *Logic) initComponents() error {
 	// 1. 日志
-	logger, _ := clog.New(&l.config.Log, clog.WithStandardContext())
+	logger, _ := clog.New(&l.config.Log, clog.WithTraceContext())
 	l.logger = logger
 
 	// 2. 可观测性
@@ -179,12 +179,12 @@ func (l *Logic) initComponents() error {
 
 // initResources 初始化资源
 func (l *Logic) initResources() (*resources, error) {
-	// DB (MySQL)
-	mysqlConn, err := connector.NewMySQL(&l.config.MySQL)
+	// DB (PostgreSQL)
+	postgresConn, err := connector.NewPostgreSQL(&l.config.PostgreSQL)
 	if err != nil {
-		return nil, fmt.Errorf("mysql init: %w", err)
+		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
-	dbInstance, err := db.New(&db.Config{Driver: "mysql"}, db.WithMySQLConnector(mysqlConn), db.WithLogger(l.logger))
+	dbInstance, err := db.New(&db.Config{Driver: "postgresql"}, db.WithPostgreSQLConnector(postgresConn), db.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}
@@ -203,7 +203,7 @@ func (l *Logic) initResources() (*resources, error) {
 	if err := natsConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	mqClient, err := mq.New(&mq.Config{Driver: mq.DriverNatsCore}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
+	mqClient, err := mq.New(&mq.Config{Driver: mq.DriverNATSCore}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
@@ -258,7 +258,7 @@ func (l *Logic) initResources() (*resources, error) {
 	}
 
 	return &resources{
-		mysqlConn:     mysqlConn,
+		postgresConn:  postgresConn,
 		redisConn:     redisConn,
 		natsConn:      natsConn,
 		etcdConn:      etcdConn,
@@ -348,7 +348,7 @@ func (l *Logic) Close() error {
 			l.resources.etcdConn.Close()
 			l.resources.natsConn.Close()
 			l.resources.redisConn.Close()
-			l.resources.mysqlConn.Close()
+			l.resources.postgresConn.Close()
 			close(done)
 		}()
 

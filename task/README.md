@@ -254,7 +254,7 @@ push_consumer:
 type HandlerFunc func(context.Context, *mqv1.PushEvent) error
 
 func NewConsumer(
-    mqClient mq.Client,
+    mqClient mq.MQ,
     handler  HandlerFunc,
     config   config.ConsumerConfig,
     logger   clog.Logger,

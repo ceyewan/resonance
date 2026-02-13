@@ -20,7 +20,7 @@ fi
 if ! grep -q "^RESONANCE_ENV=prod" .env; then
     echo "⚠️  警告：.env 中 RESONANCE_ENV 未设置为 prod"
     echo ""
-    echo "Docker 环境需要使用 prod 配置以连接 Docker hostname（mysql、redis 等）"
+    echo "Docker 环境需要使用 prod 配置以连接 Docker hostname（postgres、redis 等）"
     echo "请在 .env 中设置："
     echo "  RESONANCE_ENV=prod"
     echo ""
