@@ -172,7 +172,21 @@ interface ChatMessage {
 
 ---
 
-## UI 设计参考（Telegram 风格）
+## UI 设计规范
+
+### 设计语言：Liquid Glass
+
+本项目采用 **Apple Liquid Glass** 设计语言（WWDC 2025），结合 Telegram 的布局结构，创造现代、流畅的 IM 界面体验。
+
+**核心特征**：
+- **光学玻璃效果**：多层透明、模糊、饱和度增强
+- **流动交互**：平滑的动画过渡和动态反馈
+- **深度层次**：通过玻璃叠加创造空间感
+- **明暗双主题**：完整支持明暗模式切换
+
+详细设计规范请参阅：[LIQUID_GLASS_DESIGN.md](./LIQUID_GLASS_DESIGN.md)
+
+### 布局结构（参考 Telegram）
 
 ### 布局结构
 
@@ -201,13 +215,38 @@ interface ChatMessage {
 
 ### 关键设计元素
 
-| 元素         | 描述                           | Telegram 参考    |
-| ------------ | ------------------------------ | ---------------- |
-| **侧边栏**   | 左侧固定宽度会话列表，支持滚动 | ~320px           |
-| **消息气泡** | 圆角气泡，己方/对方样式区分    | 不同背景色       |
-| **头像**     | 圆形头像，支持 fallback 首字母 | 40px             |
-| **未读数**   | 徽章显示，群组高亮             | 右上角红色       |
-| **输入区**   | 底部固定，多行支持             | Paper plane 图标 |
+| 元素         | 描述                           | Liquid Glass 实现                    |
+| ------------ | ------------------------------ | ------------------------------------- |
+| **侧边栏**   | 左侧固定宽度会话列表，支持滚动 | `lg-glass-1` 背景，圆角 16px          |
+| **消息气泡** | 圆角气泡，己方/对方样式区分    | `lg-bubble-own` / `lg-bubble-other`  |
+| **头像**     | 圆形头像，支持 fallback 首字母 | 40px，带内阴影高光                    |
+| **未读数**   | 徽章显示，群组高亮             | `lg-badge` 类，脉冲动画可选           |
+| **输入区**   | 底部固定，多行支持             | `lg-input` 类，focus 时外发光效果     |
+
+### CSS 类命名规范
+
+所有液态玻璃相关类以 `lg-` 前缀命名：
+
+| 类名前缀 | 用途           | 示例                  |
+| -------- | -------------- | --------------------- |
+| `lg-glass-*` | 玻璃背景层级   | `lg-glass-1/2/3`      |
+| `lg-btn-*`   | 按钮样式       | `lg-btn-primary`      |
+| `lg-input`    | 输入框样式     | `lg-input`            |
+| `lg-bubble-*` | 消息气泡       | `lg-bubble-own`       |
+| `lg-modal-*`  | 模态框         | `lg-modal-content`    |
+| `lg-glow-*`   | 光晕效果       | `lg-glow-border`      |
+| `lg-animate-*`| 动画效果       | `lg-animate-in`       |
+
+### 兼容性别名
+
+保留 `tg-*` 类作为别名（向后兼容）：
+
+```css
+.tg-glass { @apply lg-glass-2; }
+.tg-glass-strong { @apply lg-glass-3; }
+.tg-accent-btn { @apply lg-btn-primary; }
+.tg-input { @apply lg-input; }
+```
 
 ---
 

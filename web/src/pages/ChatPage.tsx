@@ -19,7 +19,7 @@ interface ChatPageProps {
 
 /**
  * 聊天主页面
- * Telegram 风格：左侧会话列表，右侧聊天区域
+ * Liquid Glass 设计风格
  */
 export default function ChatPage({ isConnected, isConnecting = false, send }: ChatPageProps) {
   const { user, logout } = useAuthStore();
@@ -34,15 +34,21 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   }, [loadSessions]);
 
   const messages = currentSession ? getSessionMessages(currentSession.sessionId) : [];
+  const prevMessageCountRef = useRef(0);
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
+  // 仅在切换会话或新消息到达时滚动，状态更新不触发
   useEffect(() => {
-    scrollToBottom();
-  }, [currentSession, messages, scrollToBottom]);
+    const currentCount = messages.length;
+    if (currentCount > prevMessageCountRef.current || currentSession) {
+      scrollToBottom();
+    }
+    prevMessageCountRef.current = currentCount;
+  }, [currentSession, messages.length, scrollToBottom]);
 
   // 发送消息
   const handleSendMessage = useCallback(
@@ -100,11 +106,11 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   return (
     <div className="relative flex h-full flex-col px-3 pb-3 pt-3 md:px-4 md:pt-4">
       {/* 顶部导航栏 */}
-      <header className="tg-glass-strong tg-panel-outline mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
+      <header className="lg-glass-2 lg-glow-border mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <svg
-            className="h-6 w-6 text-sky-500 drop-shadow-[0_8px_14px_rgba(2,132,199,0.34)]"
+            className="h-6 w-6 text-sky-500 drop-shadow-[0_10px_18px_rgba(2,132,199,0.42)]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -130,8 +136,8 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
           <button
             onClick={logout}
             className={cn(
-              "rounded-xl px-3 py-1.5 text-sm font-medium transition-colors",
-              "text-slate-600 hover:bg-white/45 hover:text-slate-900",
+              "rounded-xl px-3 py-1.5 text-sm font-medium transition-all duration-200",
+              "text-slate-600 hover:bg-white/45 hover:text-slate-900 hover:shadow-md",
               "dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-white",
             )}
           >
@@ -143,7 +149,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
       {/* 主内容区 */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
         {/* 左侧会话列表 */}
-        <aside className="tg-glass tg-panel-outline flex w-full shrink-0 flex-col overflow-hidden rounded-2xl md:w-80">
+        <aside className="lg-glass-1 lg-glow-border flex w-full shrink-0 flex-col overflow-hidden rounded-2xl md:w-80">
           {/* 搜索框和新建按钮 */}
           <div className="border-b border-white/35 p-3 dark:border-slate-200/10">
             <div className="flex items-center gap-2">
@@ -166,7 +172,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                   placeholder="搜索"
                   disabled
                   className={cn(
-                    "tg-input w-full rounded-full py-2 pl-10 pr-4 text-sm",
+                    "lg-input w-full rounded-full py-2 pl-10 pr-4 text-sm",
                     "placeholder-slate-500",
                     "disabled:opacity-50",
                   )}
@@ -175,10 +181,11 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               <button
                 onClick={() => setIsNewChatModalOpen(true)}
                 className={cn(
-                  "tg-accent-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0",
+                  "lg-btn-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0",
                   "focus:outline-none focus:ring-2 focus:ring-sky-400/40 focus:ring-offset-2 focus:ring-offset-transparent",
                 )}
                 title="新建聊天"
+                aria-label="新建聊天"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -246,11 +253,11 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
         </aside>
 
         {/* 右侧聊天区域 */}
-        <main className="tg-glass tg-panel-outline flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        <main className="lg-glass-1 lg-glow-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
           {!currentSession ? (
             // 空状态
             <div className="flex flex-1 flex-col items-center justify-center text-slate-500 dark:text-slate-400">
-              <svg className="mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="mb-4 h-16 w-16 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -266,7 +273,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               <div className="flex h-14 items-center justify-between border-b border-white/35 px-4 dark:border-slate-200/10">
                 <div className="flex items-center gap-3">
                   {/* 头像 */}
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-[0_10px_16px_-10px_rgba(2,132,199,0.8)]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-[0_10px_16px_-10px_rgba(2,132,199,0.85)]">
                     {currentSession.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div>
@@ -280,7 +287,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                 </div>
 
                 {/* 更多操作 */}
-                <button className="rounded-full p-2 text-slate-500 transition-colors hover:bg-white/45 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100">
+                <button aria-label="更多操作" title="更多操作" className="rounded-full p-2 text-slate-500 transition-all duration-200 hover:bg-white/45 hover:text-slate-700 hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -329,6 +336,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
         isOpen={isNewChatModalOpen}
         onClose={() => setIsNewChatModalOpen(false)}
         onSessionCreated={handleSessionCreated}
+        currentUsername={user?.username}
       />
     </div>
   );

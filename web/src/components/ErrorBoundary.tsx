@@ -46,25 +46,25 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       // 使用自定义备用 UI 或默认备用 UI
       return (
         this.props.fallback || (
-          <div className="flex h-screen w-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-            <div className="text-center">
+          <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-sky-100/60 via-blue-50/40 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+            <div className="lg-glass-3 lg-glow-border rounded-3xl p-8 text-center">
               <div className="mb-4 text-6xl">⚠️</div>
-              <h1 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">出错了</h1>
-              <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              <h1 className="mb-2 text-xl font-semibold text-slate-900 dark:text-white">出错了</h1>
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
                 应用遇到了意外错误，请刷新页面重试
               </p>
               <button
                 onClick={() => window.location.reload()}
-                className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600"
+                className="lg-btn-primary"
               >
                 刷新页面
               </button>
               {process.env.NODE_ENV === "development" && this.state.error && (
                 <details className="mt-4 text-left">
-                  <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+                  <summary className="cursor-pointer text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">
                     错误详情
                   </summary>
-                  <pre className="mt-2 overflow-auto rounded bg-gray-100 p-4 text-xs text-red-600 dark:bg-gray-800">
+                  <pre className="lg-glass-1 mt-2 overflow-auto rounded-xl p-4 text-xs text-red-600 dark:text-red-400">
                     {this.state.error.stack}
                   </pre>
                 </details>

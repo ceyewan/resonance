@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { getAvatarColor, getAvatarInitial } from "@/lib/avatar";
 import type { ChatMessage } from "@/stores/message";
 import { TIME_FORMAT } from "@/constants";
 
@@ -12,7 +13,7 @@ interface MessageBubbleProps {
 
 /**
  * 消息气泡组件
- * Telegram 风格
+ * Liquid Glass 设计风格
  */
 export function MessageBubble({
   message,
@@ -26,11 +27,6 @@ export function MessageBubble({
     // 后端发送的是秒级时间戳，需要转换为毫秒
     const date = new Date(Number(timestamp) * 1000);
     return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
-  };
-
-  // 获取头像首字母
-  const getAvatarInitial = (name: string) => {
-    return name?.charAt(0)?.toUpperCase() || "?";
   };
 
   // 头像颜色
@@ -61,7 +57,7 @@ export function MessageBubble({
         );
       case "failed":
         return (
-          <svg className="h-4 w-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="h-4 w-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -72,7 +68,7 @@ export function MessageBubble({
       case "sent":
       default:
         return (
-          <svg className="h-4 w-4 text-sky-400" fill="currentColor" viewBox="0 0 20 20">
+          <svg className="h-4 w-4 text-sky-200" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" />
           </svg>
         );
@@ -84,7 +80,7 @@ export function MessageBubble({
     switch (message.msgType) {
       case "image":
         return (
-          <div className="rounded-lg overflow-hidden">
+          <div className="overflow-hidden rounded-lg">
             <img src={message.content} alt="图片" className="max-w-full rounded-lg" />
           </div>
         );
@@ -130,7 +126,7 @@ export function MessageBubble({
   if (message.msgType === "system") {
     return (
       <div className="flex justify-center">
-        <div className="rounded-full border border-white/45 bg-white/60 px-3 py-1 text-xs text-slate-500 backdrop-blur-md dark:border-slate-200/10 dark:bg-slate-800/55 dark:text-slate-400">
+        <div className="lg-bubble-system rounded-full px-3 py-1 text-xs">
           {message.content}
         </div>
       </div>
@@ -169,10 +165,8 @@ export function MessageBubble({
         {/* 气泡 */}
         <div
           className={cn(
-            "rounded-2xl border px-3 py-2 backdrop-blur-md",
-            isOwn
-              ? "border-sky-300/40 bg-gradient-to-br from-sky-500/92 to-sky-600/88 text-white shadow-[0_14px_24px_-16px_rgba(2,132,199,0.9)]"
-              : "border-white/45 bg-white/62 text-slate-900 shadow-[0_12px_20px_-16px_rgba(15,23,42,0.35)] dark:border-slate-200/12 dark:bg-slate-800/58 dark:text-slate-100",
+            "rounded-2xl px-3 py-2 transition-all duration-300",
+            isOwn ? "lg-bubble-own text-white" : "lg-bubble-other",
           )}
         >
           {renderContent()}
@@ -182,7 +176,7 @@ export function MessageBubble({
         <div
           className={cn(
             "mt-0.5 flex items-center gap-1 text-xs",
-            isOwn ? "text-sky-200" : "text-slate-400 dark:text-slate-500",
+            isOwn ? "text-sky-600 dark:text-sky-300" : "text-slate-400 dark:text-slate-500",
           )}
         >
           <span>{formatTime(message.timestamp)}</span>
@@ -193,31 +187,4 @@ export function MessageBubble({
   );
 }
 
-// 根据名称生成头像颜色
-function getAvatarColor(name: string): string {
-  const colors = [
-    "bg-red-500",
-    "bg-orange-500",
-    "bg-amber-500",
-    "bg-green-500",
-    "bg-emerald-500",
-    "bg-teal-500",
-    "bg-cyan-500",
-    "bg-sky-500",
-    "bg-blue-500",
-    "bg-indigo-500",
-    "bg-violet-500",
-    "bg-purple-500",
-    "bg-fuchsia-500",
-    "bg-pink-500",
-    "bg-rose-500",
-  ];
 
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  const index = Math.abs(hash) % colors.length;
-  return colors[index];
-}

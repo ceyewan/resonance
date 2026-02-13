@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * 登录/注册页面
- * Telegram 风格的简洁设计
+ * Liquid Glass 设计风格
  */
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -41,13 +41,13 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex h-full items-center justify-center px-4 py-10">
-      <div className="tg-glass-strong tg-panel-outline w-full max-w-md rounded-3xl p-8 sm:p-9">
+      <div className="lg-glass-3 lg-glow-border lg-glow-top lg-animate-in w-full max-w-md rounded-3xl p-8 sm:p-9">
         {/* Logo / 标题 */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">
             {/* 简单的纸飞机图标 */}
             <svg
-              className="h-16 w-16 text-sky-500 drop-shadow-[0_10px_18px_rgba(2,132,199,0.35)]"
+              className="h-16 w-16 text-sky-500 drop-shadow-[0_12px_22px_rgba(2,132,199,0.45)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -88,7 +88,7 @@ export default function LoginPage() {
               disabled={isLoading}
               autoComplete="username"
               className={cn(
-                "tg-input w-full px-4 py-2.5",
+                "lg-input w-full",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
@@ -114,7 +114,7 @@ export default function LoginPage() {
               disabled={isLoading}
               autoComplete={isLogin ? "current-password" : "new-password"}
               className={cn(
-                "tg-input w-full px-4 py-2.5",
+                "lg-input w-full",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
@@ -139,9 +139,9 @@ export default function LoginPage() {
             type="submit"
             disabled={isLoading || !username.trim() || !password.trim()}
             className={cn(
-              "tg-accent-btn w-full",
+              "lg-btn-primary w-full",
               "focus:outline-none focus:ring-2 focus:ring-sky-400/40 focus:ring-offset-2 focus:ring-offset-transparent",
-              "disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0",
+              "disabled:cursor-not-allowed disabled:opacity-55",
             )}
           >
             {isLoading ? (

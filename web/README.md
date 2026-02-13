@@ -1,12 +1,12 @@
 # Resonance Web
 
-Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，参考 Telegram UI 设计。
+Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，融合 **Telegram 布局** 与 **Apple Liquid Glass 设计语言**。
 
 ## 概述
 
 Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP)** 和 **WebSocket (Protobuf)** 与 Gateway 服务通信。
 
-**设计目标**：参考 Telegram 的 UI/UX 设计，打造简洁、高效的即时通讯体验。
+**设计目标**：打造现代、流畅的即时通讯体验，采用 Apple Liquid Glass 设计语言（WWDC 2025），创造具有光学玻璃质感和流动交互的界面。
 
 ---
 
@@ -19,6 +19,7 @@ Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP
 | 构建     | Vite         | 5.4+  | 开发服务器与打包    |
 | 状态     | Zustand      | 4.5+  | 轻量状态管理        |
 | 样式     | Tailwind CSS | 3.4+  | 原子化 CSS          |
+| 设计语言 | Liquid Glass | -     | Apple 液态玻璃风格  |
 | API      | ConnectRPC   | 1.4+  | 类型安全的 RPC 调用 |
 | 实时通信 | WebSocket    | -     | Protobuf 消息推送   |
 
@@ -70,7 +71,7 @@ web/
 | `postcss.config.js` | 把 Tailwind 和 Autoprefixer 挂进 CSS 构建管道。 |
 | `eslint.config.js` | 定义 TS/TSX 的静态检查规则与忽略目录。 |
 | `index.html` | 声明浏览器入口 HTML（`#root` 挂载点与基础 meta）。 |
-| `src/styles/globals.css` | 放全局样式与设计 token（当前含 Telegram + 液态玻璃基底）。 |
+| `src/styles/globals.css` | 放全局样式与设计 token（Liquid Glass 玻璃效果类）。 |
 | `.gitignore` | 约束前端目录下不入库文件（`node_modules`、`dist`、缓存文件等）。 |
 
 ## 目录清理说明
@@ -176,7 +177,7 @@ npm run lint         # ESLint 检查
 
 ---
 
-## 待实现功能（Telegram 参考）
+## 待实现功能
 
 - [ ] 消息长按菜单（回复/转发/删除）
 - [ ] 消息回复链
@@ -187,7 +188,7 @@ npm run lint         # ESLint 检查
 - [ ] 搜索功能
 - [ ] 消息已读状态（双勾）
 - [ ] 在线状态指示器
-- [ ] 暗色主题切换
+- [ ] 暗色主题切换（UI 已支持，需添加切换按钮）
 - [ ] 消息表情反应
 - [ ] 消息转发
 - [ ] 跳转到未读消息

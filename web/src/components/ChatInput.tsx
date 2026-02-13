@@ -9,6 +9,7 @@ interface ChatInputProps {
 
 /**
  * 聊天输入框组件
+ * Liquid Glass 设计风格
  * 支持多行输入、自动高度调整
  */
 export function ChatInput({
@@ -60,12 +61,13 @@ export function ChatInput({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-colors",
-            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-all duration-200",
+            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700 hover:shadow-sm",
             "dark:text-slate-300 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55 dark:hover:text-slate-100",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
           title="发送附件（即将推出）"
+          aria-label="发送附件"
         >
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -88,7 +90,7 @@ export function ChatInput({
             disabled={disabled}
             rows={1}
             className={cn(
-              "tg-input max-h-[120px] w-full resize-none rounded-2xl px-4 py-2.5",
+              "lg-input max-h-[120px] w-full resize-none px-4 py-2.5",
               "disabled:cursor-not-allowed disabled:opacity-50",
             )}
             style={{ minHeight: "42px" }}
@@ -100,12 +102,13 @@ export function ChatInput({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-colors",
-            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-all duration-200",
+            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700 hover:shadow-sm",
             "dark:text-slate-300 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55 dark:hover:text-slate-100",
             "disabled:cursor-not-allowed disabled:opacity-50",
           )}
           title="表情（即将推出）"
+          aria-label="选择表情"
         >
           <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -125,10 +128,11 @@ export function ChatInput({
             "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border transition-all duration-200",
             !value.trim() || disabled
               ? "border-white/50 bg-white/45 text-slate-400 dark:border-slate-200/10 dark:bg-slate-700/55 dark:text-slate-500"
-              : "border-sky-300/45 bg-gradient-to-br from-sky-500/92 to-sky-600/90 text-white shadow-[0_14px_22px_-14px_rgba(2,132,199,0.9)] hover:-translate-y-[1px]",
-            "disabled:cursor-not-allowed",
+              : "lg-btn-primary border-transparent p-0 shadow-md",
+            "disabled:cursor-not-allowed disabled:shadow-none",
           )}
           title="发送"
+          aria-label="发送消息"
         >
           <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
             <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { getAvatarColor, getAvatarInitial } from "@/lib/avatar";
 import type { SessionInfo } from "@/stores/session";
 import { TIME_FORMAT, DEFAULTS } from "@/constants";
 
@@ -10,16 +11,11 @@ interface SessionItemProps {
 
 /**
  * 会话列表项组件
- * Telegram 风格
+ * Liquid Glass 设计风格
  */
 export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
   // 获取显示名称
   const displayName = session.name || DEFAULTS.GROUP_NAME;
-
-  // 获取头像首字母
-  const getAvatarInitial = (name: string) => {
-    return name?.charAt(0)?.toUpperCase() || "?";
-  };
 
   // 格式化最后消息时间
   const formatTime = (timestamp?: bigint) => {
@@ -58,12 +54,20 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      aria-selected={isActive}
+      aria-label={`会话: ${displayName}`}
       className={cn(
-        "mx-1.5 my-1 flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3 transition-all",
-        isActive
-          ? "border border-sky-300/35 bg-gradient-to-br from-sky-500/85 to-sky-600/80 shadow-[0_16px_26px_-16px_rgba(2,132,199,0.95)] dark:border-sky-300/25"
-          : "border border-transparent hover:border-white/40 hover:bg-white/45 dark:hover:border-slate-200/10 dark:hover:bg-slate-800/55",
+        "lg-session-item",
+        isActive && "lg-session-item-active",
       )}
     >
       {/* 头像 */}
@@ -89,7 +93,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <div className="flex items-center justify-between">
           <h3
             className={cn(
-              "truncate text-sm font-semibold",
+              "truncate text-sm font-semibold transition-colors",
               isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
             )}
           >
@@ -99,7 +103,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
             {session.lastMessage?.timestamp ? (
               <span
                 className={cn(
-                  "text-xs",
+                  "text-xs transition-colors",
                   isActive ? "text-sky-100" : "text-slate-500 dark:text-slate-400",
                 )}
               >
@@ -109,8 +113,10 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
             {session.unreadCount > 0 ? (
               <span
                 className={cn(
-                  "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold",
-                  isActive ? "bg-white/95 text-sky-600" : "bg-sky-500 text-white",
+                  "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold shadow-sm",
+                  isActive
+                    ? "bg-white/95 text-sky-600 shadow-[0_4px_12px_-4px_rgba(255,255,255,0.5)]"
+                    : "bg-sky-500 text-white shadow-[0_4px_12px_-4px_rgba(14,165,233,0.6)]",
                 )}
               >
                 {session.unreadCount > 99 ? "99+" : session.unreadCount}
@@ -120,8 +126,8 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         </div>
         <p
           className={cn(
-            "mt-0.5 truncate text-sm",
-            isActive ? "text-sky-100" : "text-slate-500 dark:text-slate-400",
+            "mt-0.5 truncate text-sm transition-colors",
+            isActive ? "text-sky-50" : "text-slate-500 dark:text-slate-400",
           )}
         >
           {formatLastMessage(session.lastMessage?.content, session.lastMessage?.type)}
@@ -131,31 +137,4 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
   );
 }
 
-// 根据名称生成头像颜色
-function getAvatarColor(name: string): string {
-  const colors = [
-    "bg-red-500",
-    "bg-orange-500",
-    "bg-amber-500",
-    "bg-green-500",
-    "bg-emerald-500",
-    "bg-teal-500",
-    "bg-cyan-500",
-    "bg-sky-500",
-    "bg-blue-500",
-    "bg-indigo-500",
-    "bg-violet-500",
-    "bg-purple-500",
-    "bg-fuchsia-500",
-    "bg-pink-500",
-    "bg-rose-500",
-  ];
 
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-
-  const index = Math.abs(hash) % colors.length;
-  return colors[index];
-}

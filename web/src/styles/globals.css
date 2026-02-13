@@ -4,10 +4,36 @@
 
 @layer base {
   :root {
-    --tg-accent: 14 165 233;
-    --tg-accent-strong: 2 132 199;
-    --tg-surface-light: 255 255 255;
-    --tg-surface-dark: 15 23 42;
+    /* Liquid Glass 配色系统 */
+    --lg-sky-400: 56 189 248;
+    --lg-sky-500: 14 165 233;
+    --lg-sky-600: 2 132 199;
+
+    /* 玻璃透明度层级 */
+    --lg-glass-opacity-1: 0.45;
+    --lg-glass-opacity-2: 0.55;
+    --lg-glass-opacity-3: 0.68;
+
+    /* 玻璃背景色（亮色主题） */
+    --lg-glass-bg: 255, 255, 255;
+    --lg-glass-blur-1: 16px;
+    --lg-glass-blur-2: 24px;
+    --lg-glass-blur-3: 32px;
+
+    /* 分隔线统一透明度 */
+    --lg-border-opacity: 0.35;
+
+    /* 兼容旧版 */
+    --tg-accent: var(--lg-sky-500);
+    --tg-accent-strong: var(--lg-sky-600);
+  }
+
+  .dark {
+    --lg-glass-bg: 15, 23, 42;
+    --lg-glass-opacity-1: 0.55;
+    --lg-glass-opacity-2: 0.65;
+    --lg-glass-opacity-3: 0.75;
+    --lg-border-opacity: 0.1;
   }
 
   * {
@@ -21,16 +47,16 @@
   body {
     @apply h-full font-sans text-gray-900 antialiased dark:text-gray-100;
     background:
-      radial-gradient(130% 120% at 15% 10%, rgba(var(--tg-accent), 0.32) 0%, rgba(255, 255, 255, 0) 50%),
-      radial-gradient(110% 100% at 85% 0%, rgba(var(--tg-accent-strong), 0.2) 0%, rgba(255, 255, 255, 0) 42%),
+      radial-gradient(130% 120% at 15% 10%, rgba(var(--lg-sky-500), 0.32) 0%, rgba(255, 255, 255, 0) 50%),
+      radial-gradient(110% 100% at 85% 0%, rgba(var(--lg-sky-600), 0.2) 0%, rgba(255, 255, 255, 0) 42%),
       linear-gradient(160deg, #eef5ff 0%, #e6f1ff 45%, #dceeff 100%);
     background-attachment: fixed;
   }
 
   .dark body {
     background:
-      radial-gradient(130% 120% at 10% 0%, rgba(var(--tg-accent), 0.22) 0%, rgba(15, 23, 42, 0) 45%),
-      radial-gradient(115% 105% at 90% 0%, rgba(var(--tg-accent-strong), 0.16) 0%, rgba(15, 23, 42, 0) 42%),
+      radial-gradient(130% 120% at 10% 0%, rgba(var(--lg-sky-500), 0.22) 0%, rgba(15, 23, 42, 0) 45%),
+      radial-gradient(115% 105% at 90% 0%, rgba(var(--lg-sky-600), 0.16) 0%, rgba(15, 23, 42, 0) 42%),
       linear-gradient(160deg, #0f172a 0%, #111d33 45%, #0b1220 100%);
   }
 
@@ -48,91 +74,615 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-slate-300/80 dark:bg-slate-600/80;
+    @apply rounded-full;
+    background-color: rgba(203, 213, 225, 0.8);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: rgba(71, 85, 105, 0.8);
   }
 
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-400 dark:bg-slate-500;
   }
+
+  /* 减弱动效支持 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
+/* ============================================
+   Liquid Glass 核心样式类
+   ============================================ */
+
 @layer components {
-  .tg-glass {
-    @apply border border-white/40 bg-white/55 backdrop-blur-xl;
+  /* ----- 基础玻璃层级 ----- */
+
+  /* 第一级玻璃 - 最轻 */
+  .lg-glass-1 {
+    @apply border;
+    border-color: rgba(255, 255, 255, var(--lg-border-opacity));
+    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-1));
+    backdrop-filter: blur(var(--lg-glass-blur-1)) saturate(1.1) contrast(1.05) brightness(1.02);
+    -webkit-backdrop-filter: blur(var(--lg-glass-blur-1)) saturate(1.1) contrast(1.05) brightness(1.02);
     box-shadow:
-      0 24px 44px -30px rgba(15, 23, 42, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.62);
+      0 20px 40px -25px rgba(15, 23, 42, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.2);
   }
 
-  .dark .tg-glass {
-    @apply border-slate-200/10 bg-slate-900/45;
+  /* 第二级玻璃 - 中等 */
+  .lg-glass-2 {
+    @apply border;
+    border-color: rgba(255, 255, 255, calc(var(--lg-border-opacity) + 0.05));
+    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-2));
+    backdrop-filter: blur(var(--lg-glass-blur-2)) saturate(1.15) contrast(1.08) brightness(1.03);
+    -webkit-backdrop-filter: blur(var(--lg-glass-blur-2)) saturate(1.15) contrast(1.08) brightness(1.03);
     box-shadow:
-      0 28px 52px -34px rgba(2, 6, 23, 0.9),
-      inset 0 1px 0 rgba(148, 163, 184, 0.18);
+      0 24px 48px -30px rgba(15, 23, 42, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.25);
   }
 
-  .tg-glass-strong {
-    @apply border border-white/45 bg-white/70 backdrop-blur-2xl;
+  /* 第三级玻璃 - 最强 */
+  .lg-glass-3 {
+    @apply border;
+    border-color: rgba(255, 255, 255, calc(var(--lg-border-opacity) + 0.1));
+    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-3));
+    backdrop-filter: blur(var(--lg-glass-blur-3)) saturate(1.2) contrast(1.1) brightness(1.04);
+    -webkit-backdrop-filter: blur(var(--lg-glass-blur-3)) saturate(1.2) contrast(1.1) brightness(1.04);
     box-shadow:
       0 28px 56px -34px rgba(15, 23, 42, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.3);
   }
 
-  .dark .tg-glass-strong {
-    @apply border-slate-200/15 bg-slate-900/60;
+  /* ----- 暗色主题玻璃 ----- */
+
+  .dark .lg-glass-1 {
+    border-color: rgba(148, 163, 184, 0.08);
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(18px) saturate(1.05) contrast(1.1) brightness(1.1);
+    -webkit-backdrop-filter: blur(18px) saturate(1.05) contrast(1.1) brightness(1.1);
     box-shadow:
-      0 32px 62px -36px rgba(2, 6, 23, 0.95),
-      inset 0 1px 0 rgba(148, 163, 184, 0.22);
+      0 24px 48px -32px rgba(0, 0, 0, 0.85),
+      inset 0 1px 0 rgba(148, 163, 184, 0.15),
+      inset 0 -1px 0 rgba(148, 163, 184, 0.05);
   }
 
-  .tg-accent-btn {
-    @apply rounded-xl px-4 py-2.5 font-semibold text-white transition-all duration-200;
-    background: linear-gradient(135deg, rgba(var(--tg-accent), 0.92), rgba(var(--tg-accent-strong), 0.94));
+  .dark .lg-glass-2 {
+    border-color: rgba(148, 163, 184, 0.1);
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(28px) saturate(1.08) contrast(1.12) brightness(1.12);
+    -webkit-backdrop-filter: blur(28px) saturate(1.08) contrast(1.12) brightness(1.12);
     box-shadow:
-      0 16px 28px -20px rgba(var(--tg-accent-strong), 0.85),
-      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      0 28px 56px -36px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(148, 163, 184, 0.18),
+      inset 0 -1px 0 rgba(148, 163, 184, 0.08);
   }
 
-  .tg-accent-btn:hover {
-    transform: translateY(-1px);
+  .dark .lg-glass-3 {
+    border-color: rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(36px) saturate(1.1) contrast(1.15) brightness(1.15);
+    -webkit-backdrop-filter: blur(36px) saturate(1.1) contrast(1.15) brightness(1.15);
     box-shadow:
-      0 18px 32px -20px rgba(var(--tg-accent-strong), 0.95),
-      inset 0 1px 0 rgba(255, 255, 255, 0.32);
+      0 32px 64px -40px rgba(0, 0, 0, 0.95),
+      inset 0 1px 0 rgba(148, 163, 184, 0.22),
+      inset 0 -1px 0 rgba(148, 163, 184, 0.1);
   }
 
-  .tg-input {
-    @apply rounded-xl border border-white/50 bg-white/70 text-gray-900 placeholder-gray-500 backdrop-blur-md transition-colors;
-  }
+  /* ----- 边缘高光效果 ----- */
 
-  .tg-input:focus {
-    @apply border-sky-400/60 bg-white/80 outline-none ring-2 ring-sky-400/30;
-  }
-
-  .dark .tg-input {
-    @apply border-slate-200/10 bg-slate-800/55 text-slate-100 placeholder-slate-400;
-  }
-
-  .dark .tg-input:focus {
-    @apply border-sky-300/40 bg-slate-800/80 ring-sky-300/20;
-  }
-
-  .tg-panel-outline {
+  /* 顶部高光 */
+  .lg-glow-top {
     position: relative;
   }
 
-  .tg-panel-outline::before {
+  .lg-glow-top::before {
     content: "";
     position: absolute;
-    inset: 0;
+    top: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.8) 50%,
+      transparent 100%
+    );
     border-radius: inherit;
     pointer-events: none;
-    border: 1px solid rgba(255, 255, 255, 0.38);
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    padding: 1px;
   }
 
-  .dark .tg-panel-outline::before {
-    border-color: rgba(148, 163, 184, 0.16);
+  .dark .lg-glow-top::before {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(148, 163, 184, 0.3) 50%,
+      transparent 100%
+    );
+  }
+
+  /* 圆角边缘光晕 */
+  .lg-glow-border {
+    position: relative;
+  }
+
+  .lg-glow-border::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.5) 0%,
+      rgba(255, 255, 255, 0.1) 40%,
+      rgba(255, 255, 255, 0.3) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#fff 0 0) padding-box,
+      linear-gradient(#fff 0 0);
+    mask:
+      linear-gradient(#fff 0 0) padding-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  .dark .lg-glow-border::after {
+    background: linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.2) 0%,
+      rgba(148, 163, 184, 0.05) 40%,
+      rgba(148, 163, 184, 0.15) 100%
+    );
+  }
+
+  /* ----- 按钮样式 ----- */
+
+  /* 主要按钮 */
+  .lg-btn-primary {
+    @apply rounded-2xl px-5 py-2.5 font-semibold text-white;
+    background: linear-gradient(135deg, rgb(14 165 233 / 0.95) 0%, rgb(2 132 199 / 0.98) 100%);
+    backdrop-filter: blur(8px) saturate(1.1);
+    box-shadow:
+      0 16px 32px -20px rgb(2 132 199 / 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .lg-btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.01);
+    box-shadow:
+      0 20px 40px -20px rgb(2 132 199 / 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    filter: brightness(1.05);
+  }
+
+  .lg-btn-primary:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+    box-shadow:
+      0 8px 16px -12px rgb(2 132 199 / 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .dark .lg-btn-primary {
+    background: linear-gradient(135deg, rgb(56 189 248 / 0.9) 0%, rgb(14 165 233 / 0.95) 100%);
+    box-shadow:
+      0 16px 32px -20px rgb(14 165 233 / 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+  }
+
+  .dark .lg-btn-primary:hover:not(:disabled) {
+    box-shadow:
+      0 20px 40px -20px rgb(14 165 233 / 0.65),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  }
+
+  /* 次要按钮（玻璃风格） */
+  .lg-btn-secondary {
+    @apply rounded-2xl px-5 py-2.5 font-semibold;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(16px) saturate(1.1);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    color: rgb(15, 23, 42);
+    box-shadow:
+      0 12px 24px -18px rgba(15, 23, 42, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .lg-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.65);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-1px);
+    box-shadow:
+      0 16px 32px -20px rgba(15, 23, 42, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .lg-btn-secondary {
+    background: rgba(30, 41, 59, 0.55);
+    border-color: rgba(148, 163, 184, 0.15);
+    color: rgb(241, 245, 249);
+    box-shadow:
+      0 12px 24px -18px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(148, 163, 184, 0.15);
+  }
+
+  .dark .lg-btn-secondary:hover {
+    background: rgba(30, 41, 59, 0.65);
+    border-color: rgba(148, 163, 184, 0.2);
+    box-shadow:
+      0 16px 32px -20px rgba(0, 0, 0, 0.6),
+      inset 0 1px 0 rgba(148, 163, 184, 0.2);
+  }
+
+  /* ----- 输入框样式 ----- */
+
+  .lg-input {
+    @apply rounded-2xl px-4 py-2.5;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(20px) saturate(1.05);
+    -webkit-backdrop-filter: blur(20px) saturate(1.05);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    color: rgb(15, 23, 42);
+    transition: all 0.2s ease;
+    box-shadow:
+      inset 0 2px 4px -2px rgba(15, 23, 42, 0.05),
+      0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  .lg-input::placeholder {
+    color: rgba(71, 85, 105, 0.7);
+  }
+
+  .lg-input:focus {
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(14, 165, 233, 0.5);
+    outline: none;
+    box-shadow:
+      inset 0 2px 4px -2px rgba(15, 23, 42, 0.03),
+      0 0 0 3px rgba(14, 165, 233, 0.15),
+      0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  }
+
+  .dark .lg-input {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.15);
+    color: rgb(241, 245, 249);
+    box-shadow:
+      inset 0 2px 4px -2px rgba(0, 0, 0, 0.2),
+      0 1px 0 rgba(148, 163, 184, 0.1) inset;
+  }
+
+  .dark .lg-input::placeholder {
+    color: rgba(148, 163, 184, 0.6);
+  }
+
+  .dark .lg-input:focus {
+    background: rgba(30, 41, 59, 0.75);
+    border-color: rgba(56, 189, 248, 0.5);
+    box-shadow:
+      inset 0 2px 4px -2px rgba(0, 0, 0, 0.15),
+      0 0 0 3px rgba(56, 189, 248, 0.15),
+      0 1px 0 rgba(148, 163, 184, 0.15) inset;
+  }
+
+  /* ----- 消息气泡样式 ----- */
+
+  /* 己方消息气泡 */
+  .lg-bubble-own {
+    background: linear-gradient(135deg, rgb(14 165 233 / 0.92) 0%, rgb(2 132 199 / 0.95) 100%);
+    backdrop-filter: blur(12px) saturate(1.15);
+    -webkit-backdrop-filter: blur(12px) saturate(1.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow:
+      0 12px 28px -16px rgb(2 132 199 / 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .lg-bubble-own {
+    background: linear-gradient(135deg, rgb(56 189 248 / 0.85) 0%, rgb(14 165 233 / 0.9) 100%);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow:
+      0 12px 28px -16px rgb(14 165 233 / 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  }
+
+  /* 对方消息气泡 */
+  .lg-bubble-other {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(20px) saturate(1.1) contrast(1.05);
+    -webkit-backdrop-filter: blur(20px) saturate(1.1) contrast(1.05);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 10px 24px -16px rgba(15, 23, 42, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+  }
+
+  .dark .lg-bubble-other {
+    background: rgba(30, 41, 59, 0.65);
+    backdrop-filter: blur(20px) saturate(1.05) contrast(1.1);
+    -webkit-backdrop-filter: blur(20px) saturate(1.05) contrast(1.1);
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow:
+      0 10px 24px -16px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(148, 163, 184, 0.15),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  }
+
+  /* 系统消息气泡 */
+  .lg-bubble-system {
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(16px) saturate(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(1.05);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: rgba(71, 85, 105, 0.9);
+  }
+
+  .dark .lg-bubble-system {
+    background: rgba(15, 23, 42, 0.6);
+    border-color: rgba(148, 163, 184, 0.1);
+    color: rgba(148, 163, 184, 0.8);
+  }
+
+  /* ----- 会话列表项样式 ----- */
+
+  .lg-session-item {
+    @apply mx-1.5 my-1 flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3;
+    background: transparent;
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .lg-session-item:hover {
+    background: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.35);
+  }
+
+  .dark .lg-session-item:hover {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(148, 163, 184, 0.12);
+  }
+
+  .lg-session-item:focus-visible {
+    outline: 2px solid rgba(14, 165, 233, 0.6);
+    outline-offset: 2px;
+  }
+
+  .lg-session-item-active {
+    background: linear-gradient(135deg, rgb(14 165 233 / 0.88) 0%, rgb(2 132 199 / 0.92) 100%);
+    backdrop-filter: blur(16px) saturate(1.15);
+    -webkit-backdrop-filter: blur(16px) saturate(1.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow:
+      0 16px 32px -20px rgb(2 132 199 / 0.75),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    color: white;
+  }
+
+  /* 通过 CSS 继承让 active 状态子元素变白 */
+  .lg-session-item-active,
+  .lg-session-item-active * {
+    --tw-text-opacity: 1;
+  }
+
+  .lg-session-item-active [class*="text-slate-"] {
+    color: rgba(255, 255, 255, 0.95);
+  }
+
+  /* ----- 可访问性样式 ----- */
+
+  .lg-focus-visible:focus-visible {
+    outline: 2px solid rgba(14, 165, 233, 0.6);
+    outline-offset: 2px;
+  }
+
+  .lg-skip-link {
+    @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50;
+    @apply lg-btn-primary;
+  }
+
+  /* ----- 模态框样式 ----- */
+
+  .lg-modal-overlay {
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(8px) saturate(1.05);
+    -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  }
+
+  .dark .lg-modal-overlay {
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  .lg-modal-content {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(32px) saturate(1.15) contrast(1.08);
+    -webkit-backdrop-filter: blur(32px) saturate(1.15) contrast(1.08);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 32px 64px -32px rgba(15, 23, 42, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  }
+
+  .dark .lg-modal-content {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(148, 163, 184, 0.15);
+    box-shadow:
+      0 32px 64px -32px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(148, 163, 184, 0.2);
+  }
+
+  /* ----- 连接状态指示器 ----- */
+
+  .lg-status-badge {
+    @apply flex items-center gap-1.5 rounded-full border px-2.5 py-1;
+    border-color: rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(12px) saturate(1.05);
+    -webkit-backdrop-filter: blur(12px) saturate(1.05);
+  }
+
+  .dark .lg-status-badge {
+    border-color: rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.55);
+  }
+
+  .lg-status-dot {
+    @apply h-2 w-2 rounded-full;
+  }
+
+  .lg-status-dot.connected {
+    @apply bg-green-500;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.75);
+  }
+
+  .lg-status-dot.connecting {
+    @apply bg-yellow-500 animate-pulse;
+    box-shadow: 0 0 10px rgba(234, 179, 8, 0.75);
+  }
+
+  .lg-status-dot.disconnected {
+    @apply bg-red-500;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.75);
+  }
+
+  /* ----- 动画效果 ----- */
+
+  /* 液态入场动画 */
+  @keyframes lg-liquid-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+      filter: blur(8px);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      filter: blur(0);
+    }
+  }
+
+  .lg-animate-in {
+    animation: lg-liquid-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* 脉冲光晕 */
+  @keyframes lg-pulse-glow {
+    0%, 100% {
+      box-shadow:
+        0 0 20px rgb(14 165 233 / 0.3),
+        0 0 40px rgb(14 165 233 / 0.1);
+    }
+    50% {
+      box-shadow:
+        0 0 30px rgb(14 165 233 / 0.5),
+        0 0 60px rgb(14 165 233 / 0.2);
+    }
+  }
+
+  .lg-pulse-glow {
+    animation: lg-pulse-glow 2s ease-in-out infinite;
+  }
+
+  /* ----- 兼容性别名 ----- */
+
+  .tg-glass {
+    @apply lg-glass-2;
+  }
+
+  .tg-glass-strong {
+    @apply lg-glass-3;
+  }
+
+  .tg-accent-btn {
+    @apply lg-btn-primary;
+  }
+
+  .tg-input {
+    @apply lg-input;
+  }
+
+  .tg-panel-outline {
+    @apply lg-glow-border;
+  }
+}
+
+
+/* ============================================
+   backdrop-filter 降级方案
+   ============================================ */
+
+@supports not (backdrop-filter: blur(10px)) {
+  .lg-glass-1 {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .lg-glass-2 {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .lg-glass-3 {
+    background: rgba(255, 255, 255, 0.97);
+  }
+
+  .dark .lg-glass-1 {
+    background: rgba(15, 23, 42, 0.92);
+  }
+
+  .dark .lg-glass-2 {
+    background: rgba(15, 23, 42, 0.95);
+  }
+
+  .dark .lg-glass-3 {
+    background: rgba(15, 23, 42, 0.97);
+  }
+
+  .lg-bubble-own {
+    background: rgb(14, 165, 233);
+  }
+
+  .lg-bubble-other {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .dark .lg-bubble-other {
+    background: rgba(30, 41, 59, 0.95);
+  }
+
+  .lg-modal-content {
+    background: rgba(255, 255, 255, 0.97);
+  }
+
+  .dark .lg-modal-content {
+    background: rgba(15, 23, 42, 0.97);
+  }
+
+  .lg-input {
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .dark .lg-input {
+    background: rgba(30, 41, 59, 0.95);
   }
 }

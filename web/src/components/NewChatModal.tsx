@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { searchUsers, getContactList, createSession } from "@/api/client";
 import { cn } from "@/lib/cn";
 
@@ -19,6 +19,7 @@ type ChatMode = "single" | "group";
 
 /**
  * 新建聊天弹窗
+ * Liquid Glass 设计风格
  * - 单聊：搜索用户（添加新联系人）
  * - 群聊：从联系人列表多选 + 输入群名
  */
@@ -187,6 +188,19 @@ export function NewChatModal({
     }
   }, [selectedUsers, groupName, onSessionCreated, handleClose]);
 
+  // Escape 键关闭弹窗
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isCreating) {
+        handleClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, isCreating, handleClose]);
+
   if (!isOpen) return null;
 
   const isGroupMode = mode === "group";
@@ -194,17 +208,24 @@ export function NewChatModal({
   const isLoading = isGroupMode ? isLoadingContacts : isSearching;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4 backdrop-blur-md">
+    <div
+      className="lg-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-chat-modal-title"
+      onClick={() => !isCreating && handleClose()}
+    >
       <div
-        className="tg-glass-strong tg-panel-outline w-full max-w-md rounded-3xl"
+        ref={dialogRef}
+        className="lg-modal-content lg-glow-border lg-animate-in w-full max-w-md rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
         <div className="flex items-center justify-between border-b border-white/40 p-4 dark:border-slate-200/10">
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">新建聊天</h2>
+          <h2 id="new-chat-modal-title" className="text-lg font-semibold text-slate-900 dark:text-white">新建聊天</h2>
           <button
             onClick={handleClose}
-            className="rounded-full p-1 text-slate-500 transition-colors hover:bg-white/45 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100"
+            className="rounded-full p-1 text-slate-500 transition-all duration-200 hover:bg-white/45 hover:text-slate-700 hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100"
             disabled={isCreating}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -224,10 +245,10 @@ export function NewChatModal({
             onClick={() => setMode("single")}
             disabled={isCreating}
             className={cn(
-              "flex-1 px-4 py-3 text-sm font-medium transition-colors",
+              "flex-1 px-4 py-3 text-sm font-medium transition-all duration-200",
               mode === "single"
                 ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                : "text-slate-500 hover:text-slate-700 hover:bg-white/30 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30",
               "disabled:opacity-50",
             )}
           >
@@ -237,10 +258,10 @@ export function NewChatModal({
             onClick={() => setMode("group")}
             disabled={isCreating}
             className={cn(
-              "flex-1 px-4 py-3 text-sm font-medium transition-colors",
+              "flex-1 px-4 py-3 text-sm font-medium transition-all duration-200",
               mode === "group"
                 ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                : "text-slate-500 hover:text-slate-700 hover:bg-white/30 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30",
               "disabled:opacity-50",
             )}
           >
@@ -271,7 +292,7 @@ export function NewChatModal({
               placeholder={isGroupMode ? "搜索联系人" : "搜索用户名或昵称"}
               disabled={isCreating}
               className={cn(
-                "tg-input w-full py-2 pl-10 pr-4 text-sm",
+                "lg-input w-full py-2 pl-10 pr-4 text-sm",
                 "disabled:opacity-50",
               )}
               autoFocus
@@ -333,8 +354,8 @@ export function NewChatModal({
                     key={user.username}
                     onClick={() => !isCreating && toggleUser(user.username)}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 transition-colors",
-                      "hover:border-white/40 hover:bg-white/45 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55",
+                      "flex cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 transition-all duration-200",
+                      "hover:border-white/40 hover:bg-white/45 hover:shadow-sm dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55",
                       isCreating && "opacity-50 cursor-not-allowed",
                     )}
                   >
@@ -342,7 +363,7 @@ export function NewChatModal({
                     {isGroupMode && (
                       <div
                         className={cn(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
                           isSelected
                             ? "border-sky-500 bg-sky-500"
                             : "border-slate-300 dark:border-slate-500",
@@ -435,7 +456,7 @@ export function NewChatModal({
               placeholder="输入群名"
               disabled={isCreating}
               className={cn(
-                "tg-input w-full px-4 py-2 text-sm",
+                "lg-input w-full px-4 py-2 text-sm",
                 "disabled:opacity-50",
               )}
             />
@@ -455,9 +476,7 @@ export function NewChatModal({
             onClick={handleClose}
             disabled={isCreating}
             className={cn(
-              "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
-              "text-slate-700 hover:bg-white/45",
-              "dark:text-slate-200 dark:hover:bg-slate-700/55",
+              "lg-btn-secondary rounded-xl px-4 py-2 text-sm",
               "disabled:opacity-50",
             )}
           >
@@ -472,8 +491,8 @@ export function NewChatModal({
                 onClick={handleCreateGroup}
                 disabled={isCreating || selectedUsers.length < 2}
                 className={cn(
-                  "tg-accent-btn rounded-xl px-4 py-2 text-sm",
-                  "disabled:opacity-50 disabled:hover:translate-y-0",
+                  "lg-btn-primary rounded-xl px-4 py-2 text-sm",
+                  "disabled:opacity-50",
                 )}
               >
                 创建
