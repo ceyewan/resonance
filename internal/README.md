@@ -1,36 +1,30 @@
-# internal 说明与待办
+# Internal
 
-`internal` 是 Resonance 的业务 DAL/SDK 层：提供模型与仓储接口，供 Logic/Task 等服务调用。当前以 DB/Redis 直连为主，优先保证业务可用与清晰边界。
+`internal` 是 Resonance 的业务数据访问层（DAL）与仓储抽象层，面向 `logic`、`task` 等服务提供稳定的模型与 Repository 接口。
 
-## 现状与已覆盖能力
+## 目录结构
 
-- 用户、会话、消息、信箱的基本 CRUD 能力已具备。
-- MessageRepo 支持 Outbox Pattern（事务内写消息 + 记录 outbox）。
-- RouterRepo 提供用户与网关映射（Redis）。
+```text
+internal/
+├── model/                 # 业务数据模型（User/Session/Message/Inbox/Outbox）
+├── repo/                  # Repository 接口与实现（PostgreSQL + Redis）
+└── schema/
+    └── schema.sql         # PostgreSQL 初始化脚本
+```
 
-## 仍需补齐的能力（从 AUDIT 整合）
+## 核心职责
 
-1. **缓存层（Decorator）**
-    - 目标：User/Session 读多写少场景加速鉴权与会话查询。
-    - 策略：读穿透（Read-Through）+ 写后失效（Cache Aside）。
-    - 实现建议：`CachedUserRepo`/`CachedSessionRepo` 包装现有 Repo，对上层透明。
-
-2. **消息批量落库**
-    - 目标：Logic 侧批量写入消息内容，提升吞吐与减少 DB 压力。
-    - 缺口：`MessageRepo` 尚未提供 `BatchSaveMessages(ctx, msgs)`。
-
-3. **消息漫游缓存**
-    - 目标：历史消息查询的低延迟。
-    - 方案：Redis ZSET（key: `msg:{session_id}`，score: `seq_id`，value: message json）。
-    - 写入：Task 消费后先写 Redis，再异步/批量落库。
-    - 读取：先 Redis，不足再回源 DB。
-
-4. **SeqID 生成能力下沉**
-    - 目标：将 `IncrSeqID` 逻辑封装进 `internal`，统一序列号生成策略。
-    - 原则：业务层仅调用接口，避免暴露基础组件。
+- 统一数据模型，避免各服务重复定义结构。
+- 提供面向业务的仓储接口，屏蔽底层存储细节。
+- 约束数据访问边界，保障上层服务演进时的稳定性。
 
 ## 设计原则
 
-- 业务优先：先满足 IM 业务场景，再扩展基础能力。
-- 依赖透明：`internal` 对上层提供稳定接口，基础组件细节在内部消化。
-- 可演进：按需引入缓存/批量/幂等等能力，不做过度设计。
+- 业务优先：接口按 IM 场景抽象，不暴露过多基础组件细节。
+- 显式依赖：连接器与日志由调用方注入，仓储层不做隐式全局依赖。
+- 易测试：仓储测试使用 Testcontainers，默认以 PostgreSQL/Redis 集成测试为主。
+
+## 相关文档
+
+- 仓储接口与实现：[`internal/repo/README.md`](./repo/README.md)
+- 数据库初始化脚本：[`internal/schema/schema.sql`](./schema/schema.sql)

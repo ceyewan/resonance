@@ -39,6 +39,13 @@ func WithLogger(logger clog.Logger) RouterRepoOption {
 //   - redisConn: Redis 连接器，由调用方提供
 //   - opts: 可选配置项
 func NewRouterRepo(redisConn connector.RedisConnector, opts ...RouterRepoOption) (RouterRepo, error) {
+	if redisConn == nil {
+		return nil, fmt.Errorf("redis connector cannot be nil")
+	}
+	if redisConn.GetClient() == nil {
+		return nil, fmt.Errorf("redis connector is not connected: call Connect() before NewRouterRepo")
+	}
+
 	// 默认配置
 	options := &routerRepoOptions{
 		logger: nil, // 将由 cache 组件创建默认 logger

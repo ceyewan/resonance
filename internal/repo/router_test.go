@@ -134,37 +134,60 @@ func TestRouterRepo_ErrorHandling(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 创建一个无效的 Redis 连接器配置
-	redisConfig := &connector.RedisConfig{
+	// 创建一个未连接的 Redis 连接器
+	unconnectedCfg := &connector.RedisConfig{
 		Name: "invalid-redis",
 		Addr: "invalid-host:6379",
 	}
-
-	redisConn, err := connector.NewRedis(redisConfig, connector.WithLogger(logger))
+	unconnectedConn, err := connector.NewRedis(unconnectedCfg, connector.WithLogger(logger))
 	require.NoError(t, err)
 
-	// 不连接 Redis，测试错误处理
-	routerRepo, err := NewRouterRepo(redisConn)
-	require.NoError(t, err)
-	defer routerRepo.Close()
-
-	ctx := context.Background()
-	testRouter := &model.Router{
-		Username:  "testuser",
-		GatewayID: "gateway-001",
-		RemoteIP:  "192.168.1.100",
-		Timestamp: time.Now().Unix(),
-	}
-
-	// 测试设置失败
-	t.Run("SetUserGateway_Failure", func(t *testing.T) {
-		err := routerRepo.SetUserGateway(ctx, testRouter)
-		assert.Error(t, err)
+	t.Run("NewRouterRepo_ShouldFail_WhenRedisNotConnected", func(t *testing.T) {
+		_, err := NewRouterRepo(unconnectedConn)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not connected")
 	})
 
-	// 测试获取失败
-	t.Run("GetUserGateway_Failure", func(t *testing.T) {
-		_, err := routerRepo.GetUserGateway(ctx, testRouter.Username)
+	t.Run("SetGet_ShouldReturnError_WhenRedisClosed", func(t *testing.T) {
+		host, port, err := startRedisContainer()
+		if err != nil {
+			t.Skipf("redis container unavailable: %v", err)
+		}
+
+		cfg := &connector.RedisConfig{
+			Name:         "error-handling-redis",
+			Addr:         fmt.Sprintf("%s:%d", host, port),
+			DB:           2,
+			PoolSize:     5,
+			MinIdleConns: 1,
+			DialTimeout:  3 * time.Second,
+			ReadTimeout:  3 * time.Second,
+			WriteTimeout: 3 * time.Second,
+		}
+		conn, err := connector.NewRedis(cfg, connector.WithLogger(logger))
+		require.NoError(t, err)
+		require.NoError(t, conn.Connect(context.Background()))
+		defer conn.Close()
+
+		routerRepo, err := NewRouterRepo(conn, WithLogger(logger))
+		require.NoError(t, err)
+		defer routerRepo.Close()
+
+		// 主动关闭连接，验证仓储层返回错误而不是 panic
+		require.NoError(t, conn.Close())
+
+		ctx := context.Background()
+		testRouter := &model.Router{
+			Username:  "testuser",
+			GatewayID: "gateway-001",
+			RemoteIP:  "192.168.1.100",
+			Timestamp: time.Now().Unix(),
+		}
+
+		err = routerRepo.SetUserGateway(ctx, testRouter)
+		assert.Error(t, err)
+
+		_, err = routerRepo.GetUserGateway(ctx, testRouter.Username)
 		assert.Error(t, err)
 	})
 }

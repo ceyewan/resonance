@@ -35,7 +35,7 @@ type Session struct {
 type SessionMember struct {
 	SessionID   string `gorm:"primaryKey;column:session_id;type:varchar(64);not null"`
 	Username    string `gorm:"primaryKey;column:username;type:varchar(64);not null"`
-	Role        int    `gorm:"column:role;type:tinyint;default:0"` // 0-成员, 1-管理员
+	Role        int    `gorm:"column:role;type:smallint;default:0"` // 0-成员, 1-管理员
 	LastReadSeq int64  `gorm:"column:last_read_seq;type:bigint;default:0"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
