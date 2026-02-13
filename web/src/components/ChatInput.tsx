@@ -53,17 +53,17 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+    <div className="border-t border-white/35 px-3 py-3 dark:border-slate-200/10 md:px-4">
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
         {/* 附件按钮 */}
         <button
           type="button"
           disabled={disabled}
           className={cn(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors",
-            "hover:bg-gray-100 hover:text-gray-700",
-            "dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-colors",
+            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700",
+            "dark:text-slate-300 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55 dark:hover:text-slate-100",
+            "disabled:cursor-not-allowed disabled:opacity-50",
           )}
           title="发送附件（即将推出）"
         >
@@ -88,13 +88,8 @@ export function ChatInput({
             disabled={disabled}
             rows={1}
             className={cn(
-              "max-h-[120px] w-full resize-none rounded-2xl border border-gray-300 px-4 py-2.5",
-              "bg-gray-100 text-gray-900 placeholder-gray-500",
-              "focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500",
-              "dark:focus:border-sky-400 dark:focus:bg-gray-700",
-              "transition-colors",
+              "tg-input max-h-[120px] w-full resize-none rounded-2xl px-4 py-2.5",
+              "disabled:cursor-not-allowed disabled:opacity-50",
             )}
             style={{ minHeight: "42px" }}
           />
@@ -105,10 +100,10 @@ export function ChatInput({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors",
-            "hover:bg-gray-100 hover:text-gray-700",
-            "dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-transparent text-slate-500 transition-colors",
+            "hover:border-white/45 hover:bg-white/45 hover:text-slate-700",
+            "dark:text-slate-300 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55 dark:hover:text-slate-100",
+            "disabled:cursor-not-allowed disabled:opacity-50",
           )}
           title="表情（即将推出）"
         >
@@ -127,10 +122,10 @@ export function ChatInput({
           type="submit"
           disabled={disabled || !value.trim()}
           className={cn(
-            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors",
+            "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border transition-all duration-200",
             !value.trim() || disabled
-              ? "bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-500"
-              : "bg-sky-500 text-white hover:bg-sky-600 dark:bg-sky-600 dark:hover:bg-sky-500",
+              ? "border-white/50 bg-white/45 text-slate-400 dark:border-slate-200/10 dark:bg-slate-700/55 dark:text-slate-500"
+              : "border-sky-300/45 bg-gradient-to-br from-sky-500/92 to-sky-600/90 text-white shadow-[0_14px_22px_-14px_rgba(2,132,199,0.9)] hover:-translate-y-[1px]",
             "disabled:cursor-not-allowed",
           )}
           title="发送"

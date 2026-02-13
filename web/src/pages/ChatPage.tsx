@@ -98,13 +98,13 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   );
 
   return (
-    <div className="flex h-full flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="relative flex h-full flex-col px-3 pb-3 pt-3 md:px-4 md:pt-4">
       {/* 顶部导航栏 */}
-      <header className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
+      <header className="tg-glass-strong tg-panel-outline mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <svg
-            className="h-6 w-6 text-sky-500"
+            className="h-6 w-6 text-sky-500 drop-shadow-[0_8px_14px_rgba(2,132,199,0.34)]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -122,7 +122,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
 
         <div className="flex items-center gap-3">
           {/* 用户信息 */}
-          <span className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="text-sm text-slate-600 dark:text-slate-300">
             {user?.nickname || user?.username}
           </span>
 
@@ -130,9 +130,9 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
           <button
             onClick={logout}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-              "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
-              "dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white",
+              "rounded-xl px-3 py-1.5 text-sm font-medium transition-colors",
+              "text-slate-600 hover:bg-white/45 hover:text-slate-900",
+              "dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-white",
             )}
           >
             登出
@@ -141,11 +141,11 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
       </header>
 
       {/* 主内容区 */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
         {/* 左侧会话列表 */}
-        <aside className="w-80 border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+        <aside className="tg-glass tg-panel-outline flex w-full shrink-0 flex-col overflow-hidden rounded-2xl md:w-80">
           {/* 搜索框和新建按钮 */}
-          <div className="border-b border-gray-200 p-3 dark:border-gray-700">
+          <div className="border-b border-white/35 p-3 dark:border-slate-200/10">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <svg
@@ -166,19 +166,17 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                   placeholder="搜索"
                   disabled
                   className={cn(
-                    "w-full rounded-full border border-gray-300 bg-gray-100 py-2 pl-10 pr-4 text-sm",
-                    "placeholder-gray-500 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
+                    "tg-input w-full rounded-full py-2 pl-10 pr-4 text-sm",
+                    "placeholder-slate-500",
                     "disabled:opacity-50",
-                    "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
                   )}
                 />
               </div>
               <button
                 onClick={() => setIsNewChatModalOpen(true)}
                 className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full",
-                  "bg-sky-500 text-white transition-colors hover:bg-sky-600",
-                  "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2",
+                  "tg-accent-btn flex h-9 w-9 shrink-0 items-center justify-center rounded-full p-0",
+                  "focus:outline-none focus:ring-2 focus:ring-sky-400/40 focus:ring-offset-2 focus:ring-offset-transparent",
                 )}
                 title="新建聊天"
               >
@@ -195,10 +193,10 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
           </div>
 
           {/* 会话列表 */}
-          <div className="overflow-y-auto" style={{ maxHeight: "calc(100vh - 8rem)" }}>
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center justify-center p-8">
-                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                   <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle
                       className="opacity-25"
@@ -220,7 +218,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
             ) : sessions.length === 0 ? (
               <div className="flex flex-col items-center p-8 text-center">
                 <svg
-                  className="mb-3 h-12 w-12 text-gray-400"
+                  className="mb-3 h-12 w-12 text-slate-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -232,7 +230,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                     d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                   />
                 </svg>
-                <p className="text-sm text-gray-500 dark:text-gray-400">暂无对话</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">暂无对话</p>
               </div>
             ) : (
               sessions.map((session) => (
@@ -248,10 +246,10 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
         </aside>
 
         {/* 右侧聊天区域 */}
-        <main className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+        <main className="tg-glass tg-panel-outline flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
           {!currentSession ? (
             // 空状态
-            <div className="flex flex-1 flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+            <div className="flex flex-1 flex-col items-center justify-center text-slate-500 dark:text-slate-400">
               <svg className="mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
@@ -265,24 +263,24 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
           ) : (
             <>
               {/* 聊天头部 */}
-              <div className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800">
+              <div className="flex h-14 items-center justify-between border-b border-white/35 px-4 dark:border-slate-200/10">
                 <div className="flex items-center gap-3">
                   {/* 头像 */}
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500 text-sm font-semibold text-white">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-[0_10px_16px_-10px_rgba(2,132,199,0.8)]">
                     {currentSession.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div>
-                    <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
                       {currentSession.name}
                     </h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {currentSession.type === 2 ? "群聊" : "单聊"}
                     </p>
                   </div>
                 </div>
 
                 {/* 更多操作 */}
-                <button className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300">
+                <button className="rounded-full p-2 text-slate-500 transition-colors hover:bg-white/45 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -295,10 +293,10 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               </div>
 
               {/* 消息列表 */}
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto p-4 md:p-5">
                 {messages.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">暂无消息，开始聊天吧</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">暂无消息，开始聊天吧</p>
                   </div>
                 ) : (
                   <div className="space-y-4">

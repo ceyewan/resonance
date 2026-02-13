@@ -40,14 +40,14 @@ export default function LoginPage() {
   }, [error, clearError]);
 
   return (
-    <div className="flex h-full items-center justify-center bg-gradient-to-br from-sky-500 to-blue-600">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl dark:bg-gray-800">
+    <div className="relative flex h-full items-center justify-center px-4 py-10">
+      <div className="tg-glass-strong tg-panel-outline w-full max-w-md rounded-3xl p-8 sm:p-9">
         {/* Logo / 标题 */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">
             {/* 简单的纸飞机图标 */}
             <svg
-              className="h-16 w-16 text-sky-500"
+              className="h-16 w-16 text-sky-500 drop-shadow-[0_10px_18px_rgba(2,132,199,0.35)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -60,8 +60,8 @@ export default function LoginPage() {
               />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Resonance</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Resonance</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             {isLogin ? "登录到您的账号" : "创建新账号"}
           </p>
         </div>
@@ -72,7 +72,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="username"
-              className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
             >
               用户名
             </label>
@@ -88,13 +88,8 @@ export default function LoginPage() {
               disabled={isLoading}
               autoComplete="username"
               className={cn(
-                "w-full rounded-lg border border-gray-300 px-4 py-2.5",
-                "text-gray-900 placeholder-gray-400",
-                "bg-gray-50 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-                "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
-                "dark:focus:border-sky-400 dark:focus:bg-gray-800",
-                "transition-colors",
+                "tg-input w-full px-4 py-2.5",
+                "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
           </div>
@@ -103,7 +98,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
             >
               密码
             </label>
@@ -119,20 +114,15 @@ export default function LoginPage() {
               disabled={isLoading}
               autoComplete={isLogin ? "current-password" : "new-password"}
               className={cn(
-                "w-full rounded-lg border border-gray-300 px-4 py-2.5",
-                "text-gray-900 placeholder-gray-400",
-                "bg-gray-50 focus:border-sky-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-                "disabled:opacity-50 disabled:cursor-not-allowed",
-                "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
-                "dark:focus:border-sky-400 dark:focus:bg-gray-800",
-                "transition-colors",
+                "tg-input w-full px-4 py-2.5",
+                "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
           </div>
 
           {/* 错误提示 */}
           {error && (
-            <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            <div className="flex items-center gap-2 rounded-xl border border-red-200/60 bg-red-50/85 p-3 text-red-600 backdrop-blur-sm dark:border-red-300/20 dark:bg-red-950/35 dark:text-red-300">
               <svg className="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                 <path
                   fillRule="evenodd"
@@ -149,10 +139,9 @@ export default function LoginPage() {
             type="submit"
             disabled={isLoading || !username.trim() || !password.trim()}
             className={cn(
-              "w-full rounded-lg bg-sky-500 px-4 py-3 font-semibold text-white",
-              "hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:ring-offset-2",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-colors",
+              "tg-accent-btn w-full",
+              "focus:outline-none focus:ring-2 focus:ring-sky-400/40 focus:ring-offset-2 focus:ring-offset-transparent",
+              "disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0",
             )}
           >
             {isLoading ? (
@@ -183,20 +172,20 @@ export default function LoginPage() {
         </form>
 
         {/* 切换登录/注册 */}
-        <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+        <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-300">
           {isLogin ? "还没有账号？ " : "已有账号？ "}
           <button
             type="button"
             onClick={handleToggleMode}
             disabled={isLoading}
-            className="font-semibold text-sky-500 hover:text-sky-600 focus:outline-none focus:underline disabled:opacity-50 disabled:cursor-not-allowed dark:text-sky-400 dark:hover:text-sky-300"
+            className="font-semibold text-sky-600 hover:text-sky-700 focus:outline-none focus:underline disabled:cursor-not-allowed disabled:opacity-50 dark:text-sky-300 dark:hover:text-sky-200"
           >
             {isLogin ? "立即注册" : "返回登录"}
           </button>
         </div>
 
         {/* 底部说明 */}
-        <p className="mt-8 text-center text-xs text-gray-500 dark:text-gray-500">
+        <p className="mt-8 text-center text-xs text-slate-500 dark:text-slate-400">
           登录即表示您同意我们的服务条款和隐私政策
         </p>
       </div>

@@ -60,14 +60,16 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
     <div
       onClick={onClick}
       className={cn(
-        "flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors",
-        isActive ? "bg-sky-500 dark:bg-sky-600" : "hover:bg-gray-100 dark:hover:bg-gray-800",
+        "mx-1.5 my-1 flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3 transition-all",
+        isActive
+          ? "border border-sky-300/35 bg-gradient-to-br from-sky-500/85 to-sky-600/80 shadow-[0_16px_26px_-16px_rgba(2,132,199,0.95)] dark:border-sky-300/25"
+          : "border border-transparent hover:border-white/40 hover:bg-white/45 dark:hover:border-slate-200/10 dark:hover:bg-slate-800/55",
       )}
     >
       {/* 头像 */}
       <div
         className={cn(
-          "flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white",
+          "flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full text-lg font-semibold text-white shadow-[0_10px_14px_-10px_rgba(15,23,42,0.8)]",
           avatarColor,
         )}
       >
@@ -88,7 +90,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
           <h3
             className={cn(
               "truncate text-sm font-semibold",
-              isActive ? "text-white" : "text-gray-900 dark:text-gray-100",
+              isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
             )}
           >
             {displayName}
@@ -98,7 +100,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
               <span
                 className={cn(
                   "text-xs",
-                  isActive ? "text-sky-100" : "text-gray-500 dark:text-gray-400",
+                  isActive ? "text-sky-100" : "text-slate-500 dark:text-slate-400",
                 )}
               >
                 {formatTime(session.lastMessage.timestamp)}
@@ -108,7 +110,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
               <span
                 className={cn(
                   "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold",
-                  isActive ? "bg-white text-sky-500" : "bg-sky-500 text-white",
+                  isActive ? "bg-white/95 text-sky-600" : "bg-sky-500 text-white",
                 )}
               >
                 {session.unreadCount > 99 ? "99+" : session.unreadCount}
@@ -119,7 +121,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <p
           className={cn(
             "mt-0.5 truncate text-sm",
-            isActive ? "text-sky-100" : "text-gray-500 dark:text-gray-400",
+            isActive ? "text-sky-100" : "text-slate-500 dark:text-slate-400",
           )}
         >
           {formatLastMessage(session.lastMessage?.content, session.lastMessage?.type)}

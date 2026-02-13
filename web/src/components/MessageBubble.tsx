@@ -130,7 +130,7 @@ export function MessageBubble({
   if (message.msgType === "system") {
     return (
       <div className="flex justify-center">
-        <div className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+        <div className="rounded-full border border-white/45 bg-white/60 px-3 py-1 text-xs text-slate-500 backdrop-blur-md dark:border-slate-200/10 dark:bg-slate-800/55 dark:text-slate-400">
           {message.content}
         </div>
       </div>
@@ -143,7 +143,7 @@ export function MessageBubble({
       {showAvatar && !isOwn && (
         <div
           className={cn(
-            "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white",
+            "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-medium text-white shadow-[0_8px_12px_-8px_rgba(15,23,42,0.75)]",
             senderAvatarUrl ? "bg-gray-300 dark:bg-gray-600" : avatarColor,
           )}
         >
@@ -163,16 +163,16 @@ export function MessageBubble({
       <div className={cn("flex max-w-[75%] flex-col", isOwn ? "items-end" : "items-start")}>
         {/* 发送者名称（仅群聊且非己方消息显示） */}
         {!isOwn && showAvatar && senderName && (
-          <span className="mb-1 text-xs text-gray-500 dark:text-gray-400">{senderName}</span>
+          <span className="mb-1 text-xs text-slate-500 dark:text-slate-400">{senderName}</span>
         )}
 
         {/* 气泡 */}
         <div
           className={cn(
-            "rounded-2xl px-3 py-2",
+            "rounded-2xl border px-3 py-2 backdrop-blur-md",
             isOwn
-              ? "bg-sky-500 text-white"
-              : "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100",
+              ? "border-sky-300/40 bg-gradient-to-br from-sky-500/92 to-sky-600/88 text-white shadow-[0_14px_24px_-16px_rgba(2,132,199,0.9)]"
+              : "border-white/45 bg-white/62 text-slate-900 shadow-[0_12px_20px_-16px_rgba(15,23,42,0.35)] dark:border-slate-200/12 dark:bg-slate-800/58 dark:text-slate-100",
           )}
         >
           {renderContent()}
@@ -182,7 +182,7 @@ export function MessageBubble({
         <div
           className={cn(
             "mt-0.5 flex items-center gap-1 text-xs",
-            isOwn ? "text-sky-200" : "text-gray-400 dark:text-gray-500",
+            isOwn ? "text-sky-200" : "text-slate-400 dark:text-slate-500",
           )}
         >
           <span>{formatTime(message.timestamp)}</span>

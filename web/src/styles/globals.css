@@ -3,6 +3,13 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --tg-accent: 14 165 233;
+    --tg-accent-strong: 2 132 199;
+    --tg-surface-light: 255 255 255;
+    --tg-surface-dark: 15 23 42;
+  }
+
   * {
     @apply border-gray-200 dark:border-gray-700;
   }
@@ -12,7 +19,23 @@
   }
 
   body {
-    @apply h-full font-sans text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100;
+    @apply h-full font-sans text-gray-900 antialiased dark:text-gray-100;
+    background:
+      radial-gradient(130% 120% at 15% 10%, rgba(var(--tg-accent), 0.32) 0%, rgba(255, 255, 255, 0) 50%),
+      radial-gradient(110% 100% at 85% 0%, rgba(var(--tg-accent-strong), 0.2) 0%, rgba(255, 255, 255, 0) 42%),
+      linear-gradient(160deg, #eef5ff 0%, #e6f1ff 45%, #dceeff 100%);
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background:
+      radial-gradient(130% 120% at 10% 0%, rgba(var(--tg-accent), 0.22) 0%, rgba(15, 23, 42, 0) 45%),
+      radial-gradient(115% 105% at 90% 0%, rgba(var(--tg-accent-strong), 0.16) 0%, rgba(15, 23, 42, 0) 42%),
+      linear-gradient(160deg, #0f172a 0%, #111d33 45%, #0b1220 100%);
+  }
+
+  #root {
+    @apply h-full;
   }
 
   /* 自定义滚动条 */
@@ -25,10 +48,91 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-gray-300 dark:bg-gray-600;
+    @apply rounded-full bg-slate-300/80 dark:bg-slate-600/80;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-gray-500;
+    @apply bg-slate-400 dark:bg-slate-500;
+  }
+}
+
+@layer components {
+  .tg-glass {
+    @apply border border-white/40 bg-white/55 backdrop-blur-xl;
+    box-shadow:
+      0 24px 44px -30px rgba(15, 23, 42, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.62);
+  }
+
+  .dark .tg-glass {
+    @apply border-slate-200/10 bg-slate-900/45;
+    box-shadow:
+      0 28px 52px -34px rgba(2, 6, 23, 0.9),
+      inset 0 1px 0 rgba(148, 163, 184, 0.18);
+  }
+
+  .tg-glass-strong {
+    @apply border border-white/45 bg-white/70 backdrop-blur-2xl;
+    box-shadow:
+      0 28px 56px -34px rgba(15, 23, 42, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .dark .tg-glass-strong {
+    @apply border-slate-200/15 bg-slate-900/60;
+    box-shadow:
+      0 32px 62px -36px rgba(2, 6, 23, 0.95),
+      inset 0 1px 0 rgba(148, 163, 184, 0.22);
+  }
+
+  .tg-accent-btn {
+    @apply rounded-xl px-4 py-2.5 font-semibold text-white transition-all duration-200;
+    background: linear-gradient(135deg, rgba(var(--tg-accent), 0.92), rgba(var(--tg-accent-strong), 0.94));
+    box-shadow:
+      0 16px 28px -20px rgba(var(--tg-accent-strong), 0.85),
+      inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  }
+
+  .tg-accent-btn:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 18px 32px -20px rgba(var(--tg-accent-strong), 0.95),
+      inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  }
+
+  .tg-input {
+    @apply rounded-xl border border-white/50 bg-white/70 text-gray-900 placeholder-gray-500 backdrop-blur-md transition-colors;
+  }
+
+  .tg-input:focus {
+    @apply border-sky-400/60 bg-white/80 outline-none ring-2 ring-sky-400/30;
+  }
+
+  .dark .tg-input {
+    @apply border-slate-200/10 bg-slate-800/55 text-slate-100 placeholder-slate-400;
+  }
+
+  .dark .tg-input:focus {
+    @apply border-sky-300/40 bg-slate-800/80 ring-sky-300/20;
+  }
+
+  .tg-panel-outline {
+    position: relative;
+  }
+
+  .tg-panel-outline::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    padding: 1px;
+  }
+
+  .dark .tg-panel-outline::before {
+    border-color: rgba(148, 163, 184, 0.16);
   }
 }

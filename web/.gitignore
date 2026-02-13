@@ -26,6 +26,8 @@ dist-ssr
 
 # TypeScript
 *.tsbuildinfo
+vite.config.js
+vite.config.d.ts
 
 # Cache / Coverage
 .eslintcache

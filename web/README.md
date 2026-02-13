@@ -19,7 +19,6 @@ Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP
 | 构建     | Vite         | 5.4+  | 开发服务器与打包    |
 | 状态     | Zustand      | 4.5+  | 轻量状态管理        |
 | 样式     | Tailwind CSS | 3.4+  | 原子化 CSS          |
-| UI 组件  | Radix UI     | 1.x   | 无头组件            |
 | API      | ConnectRPC   | 1.4+  | 类型安全的 RPC 调用 |
 | 实时通信 | WebSocket    | -     | Protobuf 消息推送   |
 
@@ -56,6 +55,29 @@ web/
 ├── AGENTS.md                # AI 助手开发指引（类似 CLAUDE.md）
 └── README.md                # 本文档
 ```
+
+---
+
+## 配置速查（每个文件一句话）
+
+| 文件 | 一句话职责 |
+| --- | --- |
+| `package.json` | 定义前端依赖与脚本入口（`dev/build/lint/type-check`）。 |
+| `vite.config.ts` | 控制开发服务器与构建行为（别名 `@`、`src/gen` 软链解析、打包告警策略）。 |
+| `tsconfig.json` | 定义业务代码的 TypeScript 编译规则（严格模式、路径别名、React JSX）。 |
+| `tsconfig.node.json` | 给 Node 侧配置文件（主要是 `vite.config.ts`）提供独立 TS 类型环境。 |
+| `tailwind.config.ts` | 定义 Tailwind 扫描范围、暗色模式策略与主题扩展。 |
+| `postcss.config.js` | 把 Tailwind 和 Autoprefixer 挂进 CSS 构建管道。 |
+| `eslint.config.js` | 定义 TS/TSX 的静态检查规则与忽略目录。 |
+| `index.html` | 声明浏览器入口 HTML（`#root` 挂载点与基础 meta）。 |
+| `src/styles/globals.css` | 放全局样式与设计 token（当前含 Telegram + 液态玻璃基底）。 |
+| `.gitignore` | 约束前端目录下不入库文件（`node_modules`、`dist`、缓存文件等）。 |
+
+## 目录清理说明
+
+- 可随时删除（构建会再生成）：`dist/`、`*.tsbuildinfo`、`vite.config.js`、`vite.config.d.ts`
+- 一般不入库：`node_modules/`
+- 业务源码与配置（`src/`、`package.json`、`vite.config.ts` 等）应保留
 
 ---
 

@@ -194,17 +194,17 @@ export function NewChatModal({
   const isLoading = isGroupMode ? isLoadingContacts : isSearching;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 px-4 backdrop-blur-md">
       <div
-        className="w-full max-w-md rounded-2xl bg-white shadow-xl dark:bg-gray-800"
+        className="tg-glass-strong tg-panel-outline w-full max-w-md rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">新建聊天</h2>
+        <div className="flex items-center justify-between border-b border-white/40 p-4 dark:border-slate-200/10">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">新建聊天</h2>
           <button
             onClick={handleClose}
-            className="rounded-full p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            className="rounded-full p-1 text-slate-500 transition-colors hover:bg-white/45 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100"
             disabled={isCreating}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -219,15 +219,15 @@ export function NewChatModal({
         </div>
 
         {/* 模式切换 */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-white/40 dark:border-slate-200/10">
           <button
             onClick={() => setMode("single")}
             disabled={isCreating}
             className={cn(
               "flex-1 px-4 py-3 text-sm font-medium transition-colors",
               mode === "single"
-                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300",
+                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
               "disabled:opacity-50",
             )}
           >
@@ -239,8 +239,8 @@ export function NewChatModal({
             className={cn(
               "flex-1 px-4 py-3 text-sm font-medium transition-colors",
               mode === "group"
-                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300",
+                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
+                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
               "disabled:opacity-50",
             )}
           >
@@ -271,9 +271,7 @@ export function NewChatModal({
               placeholder={isGroupMode ? "搜索联系人" : "搜索用户名或昵称"}
               disabled={isCreating}
               className={cn(
-                "w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm",
-                "placeholder-gray-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-                "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
+                "tg-input w-full py-2 pl-10 pr-4 text-sm",
                 "disabled:opacity-50",
               )}
               autoFocus
@@ -304,7 +302,7 @@ export function NewChatModal({
           ) : displayList.length === 0 ? (
             <div className="flex flex-col items-center p-8 text-center">
               <svg
-                className="mb-3 h-12 w-12 text-gray-400"
+                className="mb-3 h-12 w-12 text-slate-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -316,7 +314,7 @@ export function NewChatModal({
                   d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 {isGroupMode
                   ? contacts.length === 0
                     ? "暂无联系人"
@@ -335,8 +333,8 @@ export function NewChatModal({
                     key={user.username}
                     onClick={() => !isCreating && toggleUser(user.username)}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors",
-                      "hover:bg-gray-100 dark:hover:bg-gray-700",
+                      "flex cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 transition-colors",
+                      "hover:border-white/40 hover:bg-white/45 dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55",
                       isCreating && "opacity-50 cursor-not-allowed",
                     )}
                   >
@@ -347,7 +345,7 @@ export function NewChatModal({
                           "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
                           isSelected
                             ? "border-sky-500 bg-sky-500"
-                            : "border-gray-300 dark:border-gray-600",
+                            : "border-slate-300 dark:border-slate-500",
                         )}
                       >
                         {isSelected && (
@@ -367,16 +365,16 @@ export function NewChatModal({
                     )}
 
                     {/* 头像 */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-[0_10px_16px_-10px_rgba(2,132,199,0.9)]">
                       {(user.nickname || user.username).charAt(0).toUpperCase()}
                     </div>
 
                     {/* 用户信息 */}
                     <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                      <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
                         {user.nickname || user.username}
                       </p>
-                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
                         @{user.username}
                       </p>
                     </div>
@@ -384,7 +382,7 @@ export function NewChatModal({
                     {/* 单聊模式箭头 */}
                     {!isGroupMode && (
                       <svg
-                        className="h-5 w-5 text-gray-400"
+                        className="h-5 w-5 text-slate-400"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -429,7 +427,7 @@ export function NewChatModal({
 
         {/* 群名输入（仅群聊模式） */}
         {isGroupMode && (
-          <div className="border-t border-gray-200 p-4 dark:border-gray-700">
+          <div className="border-t border-white/40 p-4 dark:border-slate-200/10">
             <input
               type="text"
               value={groupName}
@@ -437,9 +435,7 @@ export function NewChatModal({
               placeholder="输入群名"
               disabled={isCreating}
               className={cn(
-                "w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm",
-                "placeholder-gray-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20",
-                "dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-500",
+                "tg-input w-full px-4 py-2 text-sm",
                 "disabled:opacity-50",
               )}
             />
@@ -449,19 +445,19 @@ export function NewChatModal({
         {/* 错误提示 */}
         {error && (
           <div className="px-4 pb-2">
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-red-500 dark:text-red-400">{error}</p>
           </div>
         )}
 
         {/* 底部操作按钮 */}
-        <div className="flex border-t border-gray-200 p-4 dark:border-gray-700">
+        <div className="flex border-t border-white/40 p-4 dark:border-slate-200/10">
           <button
             onClick={handleClose}
             disabled={isCreating}
             className={cn(
-              "rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-              "text-gray-700 hover:bg-gray-100",
-              "dark:text-gray-300 dark:hover:bg-gray-700",
+              "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
+              "text-slate-700 hover:bg-white/45",
+              "dark:text-slate-200 dark:hover:bg-slate-700/55",
               "disabled:opacity-50",
             )}
           >
@@ -469,16 +465,15 @@ export function NewChatModal({
           </button>
           {isGroupMode && (
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 已选 {selectedUsers.length} 人
               </span>
               <button
                 onClick={handleCreateGroup}
                 disabled={isCreating || selectedUsers.length < 2}
                 className={cn(
-                  "rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors",
-                  "bg-sky-500 hover:bg-sky-600",
-                  "disabled:opacity-50 disabled:hover:bg-sky-500",
+                  "tg-accent-btn rounded-xl px-4 py-2 text-sm",
+                  "disabled:opacity-50 disabled:hover:translate-y-0",
                 )}
               >
                 创建
