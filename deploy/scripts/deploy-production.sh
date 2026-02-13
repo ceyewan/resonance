@@ -1,7 +1,7 @@
 #!/bin/bash
 # 生产环境部署脚本
-# 用法：./scripts/deploy-production.sh [TAG]
-# 示例：./scripts/deploy-production.sh latest
+# 用法：./deploy/scripts/deploy-production.sh [TAG]
+# 示例：./deploy/scripts/deploy-production.sh latest
 
 set -e
 
@@ -36,4 +36,3 @@ echo "  - Gateway: https://im-api.ceyewan.xyz"
 echo "  - Web:     https://chat.ceyewan.xyz"
 echo ""
 echo "💡 Watchtower 已启用，每 60 秒检查镜像更新"
-

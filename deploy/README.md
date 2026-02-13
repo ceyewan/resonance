@@ -7,6 +7,9 @@
 - `base.yaml`：基础设施服务（PostgreSQL、Redis、NATS、Etcd）
 - `services.yaml`：业务服务（Logic、Gateway、Task、Web、Watchtower）
 - `Dockerfile`：统一多阶段构建文件
+- `scripts/deploy-local.sh`：本地全 Docker 启动脚本
+- `scripts/deploy-production.sh`：生产部署脚本（启用 production profile）
+- `scripts/build-push.sh`：镜像构建与推送脚本
 
 ## 当前支持的部署方式
 
@@ -27,7 +30,7 @@ make logs
 make down
 
 # 方式 2：脚本
-./scripts/deploy-local.sh
+./deploy/scripts/deploy-local.sh
 ```
 
 访问地址：
@@ -80,10 +83,10 @@ make dev
 
 ```bash
 # 指定 tag
-./scripts/deploy-production.sh v0.1
+./deploy/scripts/deploy-production.sh v0.1
 
 # 或 latest
-./scripts/deploy-production.sh latest
+./deploy/scripts/deploy-production.sh latest
 ```
 
 访问地址（示例）：
@@ -134,13 +137,13 @@ Genesis Config 加载顺序：
 
 ```bash
 # 本地镜像
-./scripts/build-push.sh local
+./deploy/scripts/build-push.sh local
 
 # 构建 amd64
-./scripts/build-push.sh amd64
+./deploy/scripts/build-push.sh amd64
 
 # 构建并推送
-./scripts/build-push.sh push 0 v0.1
+./deploy/scripts/build-push.sh push 0 v0.1
 ```
 
 ## 常用运维命令
@@ -174,7 +177,7 @@ make clean && make up
 
 1. 服务起不来：先看 `make logs`，再看单服务日志。
 2. 本地混合模式连不上数据库：确认 PostgreSQL 端口 `127.0.0.1:5432` 已监听。
-3. 生产无自动更新：确认是通过 `scripts/deploy-production.sh` 启动（含 `--profile production`）。
+3. 生产无自动更新：确认是通过 `deploy/scripts/deploy-production.sh` 启动（含 `--profile production`）。
 
 ## 相关文档
 

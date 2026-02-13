@@ -1,9 +1,9 @@
 #!/bin/bash
 # Go 项目镜像构建与上传脚本
 # 用法：
-#   构建本地镜像: ./scripts/build-push.sh local [CGO_ENABLED]
-#   构建 amd64镜像: ./scripts/build-push.sh amd64 [CGO_ENABLED]
-#   构建并上传: ./scripts/build-push.sh push [CGO_ENABLED] [TAG]
+#   构建本地镜像: ./deploy/scripts/build-push.sh local [CGO_ENABLED]
+#   构建 amd64镜像: ./deploy/scripts/build-push.sh amd64 [CGO_ENABLED]
+#   构建并上传: ./deploy/scripts/build-push.sh push [CGO_ENABLED] [TAG]
 
 set -e
 

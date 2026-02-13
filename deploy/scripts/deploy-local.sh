@@ -1,6 +1,6 @@
 #!/bin/bash
 # 本地 Docker 部署脚本
-# 用法：./scripts/deploy-local.sh
+# 用法：./deploy/scripts/deploy-local.sh
 
 set -e
 

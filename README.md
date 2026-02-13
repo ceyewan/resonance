@@ -92,6 +92,11 @@ resonance/
 │   ├── consumer/          # MQ 消费者
 │   └── task.go
 │
+├── deploy/                # 部署相关文件
+│   ├── base.yaml          # 基础设施编排
+│   ├── services.yaml      # 业务服务编排
+│   ├── Dockerfile         # 统一镜像构建
+│   └── scripts/           # 部署/发布脚本
 └── web/                   # React 前端
     ├── src/
     │   ├── api/           # ConnectRPC 客户端
@@ -226,6 +231,7 @@ npm run type-check       # 类型检查
 - **Compose 基础设施**: [deploy/base.yaml](./deploy/base.yaml)
 - **Compose 业务服务**: [deploy/services.yaml](./deploy/services.yaml)
 - **镜像构建**: [deploy/Dockerfile](./deploy/Dockerfile)
+- **部署脚本**: [deploy/scripts](./deploy/scripts)
 
 ## 设计原则
 

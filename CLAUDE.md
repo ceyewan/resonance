@@ -143,6 +143,11 @@ resonance/
 │   └── logic.go           # 生命周期管理
 ├── gateway/               # Gateway 服务
 ├── task/                  # Task 服务
+├── deploy/                # 部署配置与脚本
+│   ├── base.yaml          # 基础设施编排
+│   ├── services.yaml      # 业务服务编排
+│   ├── Dockerfile         # 统一镜像构建
+│   └── scripts/           # 部署脚本
 └── web/                   # React 前端
     ├── src/
     │   ├── api/           # ConnectRPC 客户端

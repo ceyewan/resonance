@@ -116,8 +116,8 @@ dev: gen ## 本地开发模式（需要先启动基础设施）
 # Docker 部署
 # ============================================================================
 up: ## 启动所有服务（Docker）- 需要在 .env 中设置 RESONANCE_ENV=prod
-	@chmod +x scripts/deploy-local.sh
-	@./scripts/deploy-local.sh
+	@chmod +x deploy/scripts/deploy-local.sh
+	@./deploy/scripts/deploy-local.sh
 
 down: ## 停止所有服务
 	@echo "🛑 停止服务..."
