@@ -1,0 +1,24 @@
+# =============================================================================
+# Resonance 生产环境覆盖配置
+#
+# 用法：
+#   docker compose --env-file .env -p resonance \
+#     -f deploy/base.yaml \
+#     -f deploy/services.yaml \
+#     -f deploy/services.prod.yaml \
+#     --profile production up -d
+#
+# 目标：
+#   1) gateway / web 不对宿主机暴露端口（仅通过 caddy 网络反代）
+#   2) 为 web 注入运行时 API/WS 地址（可被 .env 覆盖）
+# =============================================================================
+
+services:
+  gateway:
+    ports: !reset []
+
+  web:
+    ports: !reset []
+    environment:
+      RESONANCE_WEB_API_BASE_URL: ${RESONANCE_WEB_API_BASE_URL:-https://${CADDY_GATEWAY_DOMAIN}}
+      RESONANCE_WEB_WS_BASE_URL: ${RESONANCE_WEB_WS_BASE_URL:-wss://${CADDY_GATEWAY_DOMAIN}/ws}

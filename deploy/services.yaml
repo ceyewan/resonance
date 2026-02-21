@@ -7,8 +7,8 @@
 #   - 不使用 Caddy
 #
 # 生产模式（使用宿主机 Caddy）：
-#   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml --profile production up -d
-#   - 建议将 GATEWAY_PORT_BINDING / WEB_PORT_BINDING 置空
+#   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production up -d
+#   - gateway / web 不对宿主机暴露端口（由 services.prod.yaml 覆盖）
 #   - 通过 Caddy labels 让宿主机 Caddy 反向代理
 #   - Watchtower 仅在 production profile 启用
 # =============================================================================
@@ -21,15 +21,14 @@ x-resonance-build: &resonance-build
 x-resonance-service: &resonance-service
   image: ${RESONANCE_IMAGE:-ceyewan/resonance:local}
   build: *resonance-build
+  env_file:
+    - ../.env
   environment: &resonance-env # 环境配置
-    RESONANCE_ENV: ${RESONANCE_ENV:-}
+    RESONANCE_ENV: ${RESONANCE_ENV:-prod}
     RESONANCE_DEBUG_CONFIG: ${RESONANCE_DEBUG_CONFIG:-false}
-    # PostgreSQL 配置
-    RESONANCE_POSTGRES_PASSWORD: ${RESONANCE_POSTGRES_PASSWORD:-}
-    # JWT 认证配置
-    RESONANCE_AUTH_SECRET_KEY: ${RESONANCE_AUTH_SECRET_KEY:-}
-    RESONANCE_AUTH_ISSUER: ${RESONANCE_AUTH_ISSUER:-}
-    RESONANCE_AUTH_ACCESS_TOKEN_TTL: ${RESONANCE_AUTH_ACCESS_TOKEN_TTL:-}
+  volumes:
+    # 挂载外部配置目录：改配置后重启容器即可生效，无需重建镜像
+    - ${RESONANCE_CONFIG_DIR:-../configs}:/app/configs:ro
   networks:
     - resonance-net
   restart: unless-stopped
@@ -45,10 +44,6 @@ services:
     environment:
       <<: *resonance-env
       RESONANCE_POSTGRES_HOST: postgres
-      # 管理员账号（从环境变量读取）
-      RESONANCE_ADMIN_USERNAME: ${RESONANCE_ADMIN_USERNAME:-}
-      RESONANCE_ADMIN_PASSWORD: ${RESONANCE_ADMIN_PASSWORD:-}
-      RESONANCE_ADMIN_NICKNAME: ${RESONANCE_ADMIN_NICKNAME:-}
     restart: "no"  # 一次性任务，执行完不重启
     labels:
       com.centurylinklabs.watchtower.enable: "false"  # 不需要自动更新

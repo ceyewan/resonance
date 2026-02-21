@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -114,6 +115,16 @@ func (w *Web) staticHandler() http.Handler {
 			w.health.ReadinessHandler()(rw, r)
 			return
 		}
+		if r.URL.Path == "/runtime-config.js" {
+			if r.Method != http.MethodGet {
+				http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			rw.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+			rw.Header().Set("Cache-Control", "no-store")
+			writeRuntimeConfig(rw)
+			return
+		}
 
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
@@ -143,6 +154,21 @@ func (w *Web) staticHandler() http.Handler {
 
 		http.NotFound(rw, r)
 	})
+}
+
+func writeRuntimeConfig(rw http.ResponseWriter) {
+	payload := map[string]string{
+		"apiBaseUrl": os.Getenv("RESONANCE_WEB_API_BASE_URL"),
+		"wsBaseUrl":  os.Getenv("RESONANCE_WEB_WS_BASE_URL"),
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(rw, "failed to encode runtime config", http.StatusInternalServerError)
+		return
+	}
+	_, _ = rw.Write([]byte("window.__RESONANCE_RUNTIME_CONFIG__ = "))
+	_, _ = rw.Write(data)
+	_, _ = rw.Write([]byte(";\n"))
 }
 
 func sanitizePath(requestPath string) string {

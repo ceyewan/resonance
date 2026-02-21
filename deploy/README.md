@@ -6,10 +6,12 @@
 
 - `base.yaml`：基础设施服务（PostgreSQL、Redis、NATS、Etcd）
 - `services.yaml`：业务服务（Logic、Gateway、Task、Web、Watchtower）
+- `services.prod.yaml`：生产覆盖（关闭业务端口暴露，注入前端运行时地址）
 - `Dockerfile`：统一多阶段构建文件
 - `scripts/deploy-local.sh`：本地全 Docker 启动脚本
 - `scripts/deploy-production.sh`：生产部署脚本（启用 production profile）
 - `scripts/build-push.sh`：镜像构建与推送脚本
+- `../.env.example`：统一环境变量模板（本地与生产共用）
 
 ## 当前支持的部署方式
 
@@ -40,7 +42,8 @@ make down
 
 关键点：
 
-- `.env` 中需设置 `RESONANCE_ENV=prod`（使用 Docker hostname）
+- `.env` 通过 `env_file` 注入所有业务容器（同一份变量可同时驱动 Compose 与应用）
+- 默认挂载 `${RESONANCE_CONFIG_DIR:-../configs}` 到容器 `/app/configs`，改 YAML 后重启容器即可生效
 - Docker 网络中的 PostgreSQL 主机名为 `postgres`
 
 ### 2. 本地混合模式（业务进程本地 + 基础设施 Docker）
@@ -82,6 +85,12 @@ make dev
 命令：
 
 ```bash
+# 使用统一模板
+cp .env.example .env
+
+# Makefile
+make up-prod
+
 # 指定 tag
 ./deploy/scripts/deploy-production.sh v0.1
 
@@ -92,11 +101,16 @@ make dev
 访问地址（示例）：
 
 - Gateway: `https://im-api.ceyewan.xyz`
-- Web: `https://chat.ceyewan.xyz`
+- Web: `https://ceyewan.xyz`
 
 关键点：
 
-- 生产脚本会带 `--profile production`，启用 Watchtower
+- 生产脚本会带 `-f deploy/services.prod.yaml --profile production`，启用 Watchtower
+- `gateway/web` 不暴露宿主机端口，仅通过 Caddy 反向代理访问
+- `web` 运行时配置通过环境变量注入：
+  - `RESONANCE_WEB_API_BASE_URL`
+  - `RESONANCE_WEB_WS_BASE_URL`
+- 生产脚本会校验 `RESONANCE_ENV=prod`、域名是否设置、以及关键密码/密钥是否仍是默认值
 - 脚本参数 tag 会覆盖 `.env` 里的 `RESONANCE_IMAGE`
 
 ## 环境变量说明
@@ -107,10 +121,13 @@ make dev
 | --- | --- | --- |
 | `RESONANCE_ENV` | 配置环境（dev/prod） | `prod` |
 | `RESONANCE_IMAGE` | 业务镜像 | `ceyewan/resonance:v0.1` |
-| `GATEWAY_PORT_BINDING` | Gateway 端口映射 | `127.0.0.1:8080:8080` |
-| `WEB_PORT_BINDING` | Web 端口映射 | `127.0.0.1:4173:4173` |
+| `RESONANCE_CONFIG_DIR` | 挂载配置目录 | `../configs` |
+| `GATEWAY_PORT_BINDING` | Gateway 本地端口映射（仅本地模式） | `127.0.0.1:8080:8080` |
+| `WEB_PORT_BINDING` | Web 本地端口映射（仅本地模式） | `127.0.0.1:4173:4173` |
 | `CADDY_GATEWAY_DOMAIN` | Gateway 域名 | `im-api.ceyewan.xyz` |
-| `CADDY_WEB_DOMAIN` | Web 域名 | `chat.ceyewan.xyz` |
+| `CADDY_WEB_DOMAIN` | Web 域名 | `ceyewan.xyz` |
+| `RESONANCE_WEB_API_BASE_URL` | Web 运行时 API 地址 | `https://im-api.ceyewan.xyz` |
+| `RESONANCE_WEB_WS_BASE_URL` | Web 运行时 WS 地址 | `wss://im-api.ceyewan.xyz/ws` |
 
 ### PostgreSQL 变量
 
@@ -122,9 +139,14 @@ make dev
 
 ### 配置加载顺序
 
-Genesis Config 加载顺序：
+容器内应用加载顺序（Genesis）：
 
-`环境变量 > .env > configs/{service}.prod.yaml > configs/{service}.yaml`
+`运行时环境变量 > configs/{service}.prod.yaml > configs/{service}.yaml`
+
+Compose 侧说明：
+
+- 项目根 `.env` 由 Compose 读取并注入到容器（`env_file`）
+- 因此改 `.env` 后重建/重启容器即可让应用拿到新值
 
 环境差异：
 
@@ -132,6 +154,17 @@ Genesis Config 加载顺序：
 | --- | --- | --- |
 | 留空或 `dev` | `127.0.0.1:5432` | 本地业务进程直跑（`make dev`） |
 | `prod` | `postgres:5432` | Docker 环境（`make up` / 生产） |
+
+### 配置修改与生效
+
+1. 修改环境变量（`.env`）：
+   - `docker compose ... up -d --force-recreate <service>`
+2. 修改 YAML（`configs/*.yaml`）：
+   - `docker compose ... restart <service>`
+3. 修改前端 API/WS 地址（无需重建前端）：
+   - 设置 `RESONANCE_WEB_API_BASE_URL`
+   - 设置 `RESONANCE_WEB_WS_BASE_URL`
+   - 重启 `web` 服务
 
 ## 镜像构建与发布
 
@@ -161,6 +194,12 @@ docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml down
 # 重启单服务
 docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml restart gateway
 
+# 生产环境状态（包含生产覆盖）
+docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production ps
+
+# 生产环境日志（包含生产覆盖）
+docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production logs -f
+
 # 清理卷并重建
 make clean && make up
 ```
@@ -172,6 +211,7 @@ make clean && make up
 - [ ] 修改 `RESONANCE_ADMIN_PASSWORD`
 - [ ] 设置 `RESONANCE_ENV=prod`
 - [ ] 设置 `CADDY_GATEWAY_DOMAIN` / `CADDY_WEB_DOMAIN`
+- [ ] 设置 `RESONANCE_WEB_API_BASE_URL` / `RESONANCE_WEB_WS_BASE_URL`
 
 ## 故障排查
 

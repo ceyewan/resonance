@@ -8,3 +8,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  __RESONANCE_RUNTIME_CONFIG__?: {
+    apiBaseUrl?: string;
+    wsBaseUrl?: string;
+  };
+}

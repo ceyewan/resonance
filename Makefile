@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up down logs clean
+.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up up-prod down down-prod logs logs-prod clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -11,7 +11,8 @@
 export
 
 # Docker Compose 命令
-COMPOSE := docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml
+COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml
+COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
 
 # ============================================================================
 # 帮助信息
@@ -127,13 +128,25 @@ up: ## 启动所有服务（Docker）- 需要在 .env 中设置 RESONANCE_ENV=pr
 	@chmod +x deploy/scripts/deploy-local.sh
 	@./deploy/scripts/deploy-local.sh
 
+up-prod: ## 启动生产配置（Caddy 反代，不暴露业务端口）
+	@chmod +x deploy/scripts/deploy-production.sh
+	@./deploy/scripts/deploy-production.sh latest
+
 down: ## 停止所有服务
 	@echo "🛑 停止服务..."
 	@$(COMPOSE) down
 	@echo "✅ 已停止"
 
+down-prod: ## 停止生产配置服务
+	@echo "🛑 停止生产服务..."
+	@$(COMPOSE_PROD) down
+	@echo "✅ 已停止"
+
 logs: ## 查看日志
 	@$(COMPOSE) logs -f
+
+logs-prod: ## 查看生产配置日志
+	@$(COMPOSE_PROD) logs -f
 
 clean: ## 清理所有数据（包括 volumes）
 	@echo "🗑️  清理数据..."

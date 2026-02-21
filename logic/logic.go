@@ -184,6 +184,9 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
+	if err := postgresConn.Connect(l.ctx); err != nil {
+		return nil, fmt.Errorf("postgresql connect: %w", err)
+	}
 	dbInstance, err := db.New(&db.Config{Driver: "postgresql"}, db.WithPostgreSQLConnector(postgresConn), db.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
@@ -193,6 +196,9 @@ func (l *Logic) initResources() (*resources, error) {
 	redisConn, err := connector.NewRedis(&l.config.Redis)
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
+	}
+	if err := redisConn.Connect(l.ctx); err != nil {
+		return nil, fmt.Errorf("redis connect: %w", err)
 	}
 
 	// NATS

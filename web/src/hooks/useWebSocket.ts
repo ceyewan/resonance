@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { WsPacket } from "@/gen/gateway/v1/packet_pb";
 import { WS_CONFIG } from "@/constants";
+import { defaultWsBaseUrl, runtimeWsBaseUrl } from "@/config/runtime";
 
 interface UseWebSocketOptions {
   url?: string;
@@ -20,7 +21,7 @@ interface UseWebSocketReturn {
   reconnect: () => void;
 }
 
-const DEFAULT_WS_URL = import.meta.env.VITE_WS_BASE_URL || "ws://localhost:8080/ws";
+const DEFAULT_WS_URL = runtimeWsBaseUrl || import.meta.env.VITE_WS_BASE_URL || defaultWsBaseUrl();
 
 /**
  * WebSocket Hook

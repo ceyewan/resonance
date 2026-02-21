@@ -48,6 +48,9 @@ func Run() error {
 		return fmt.Errorf("postgresql connector: %w", err)
 	}
 	defer postgresConn.Close()
+	if err := postgresConn.Connect(context.Background()); err != nil {
+		return fmt.Errorf("postgresql connect: %w", err)
+	}
 
 	dbInstance, err := db.New(&db.Config{Driver: "postgresql"}, db.WithPostgreSQLConnector(postgresConn), db.WithLogger(logger))
 	if err != nil {
@@ -154,4 +157,3 @@ func loadConfig() (*Config, error) {
 	}
 	return &cfg, nil
 }
-

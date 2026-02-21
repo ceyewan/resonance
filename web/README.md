@@ -93,7 +93,7 @@ npm install
 
 ### 2. 配置环境变量
 
-创建 `.env.local` 文件：
+开发模式创建 `.env.local` 文件：
 
 ```bash
 # Gateway API 地址（ConnectRPC）
@@ -102,6 +102,13 @@ VITE_API_BASE_URL=http://localhost:8080
 # Gateway WebSocket 地址
 VITE_WS_BASE_URL=ws://localhost:8080/ws
 ```
+
+生产（容器）模式支持运行时配置，无需重建前端包：
+
+- `RESONANCE_WEB_API_BASE_URL`：覆盖 API 地址
+- `RESONANCE_WEB_WS_BASE_URL`：覆盖 WebSocket 地址
+
+WebServer 会在 `/runtime-config.js` 动态下发这两个值。
 
 ### 3. 确保协议代码已生成
 

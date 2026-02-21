@@ -1,6 +1,7 @@
 .git
 .vscode
 .idea
+.env
 bin/
 web/node_modules
 *.log

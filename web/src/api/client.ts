@@ -7,8 +7,9 @@ import {
   SearchUserRequest,
   GetContactListRequest,
 } from "@/gen/gateway/v1/api_pb";
+import { defaultApiBaseUrl, runtimeApiBaseUrl } from "@/config/runtime";
 
-const baseUrl = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8080`;
+const baseUrl = runtimeApiBaseUrl || import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl();
 
 // 创建带 token 的 transport
 export const transport = createConnectTransport({

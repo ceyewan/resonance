@@ -153,11 +153,17 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
+	if err := postgresConn.Connect(t.ctx); err != nil {
+		return nil, fmt.Errorf("postgresql connect: %w", err)
+	}
 
 	// Redis
 	redisConn, err := connector.NewRedis(&t.config.Redis)
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
+	}
+	if err := redisConn.Connect(t.ctx); err != nil {
+		return nil, fmt.Errorf("redis connect: %w", err)
 	}
 
 	// NATS

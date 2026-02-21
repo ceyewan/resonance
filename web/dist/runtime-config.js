@@ -1,0 +1,1 @@
+window.__RESONANCE_RUNTIME_CONFIG__ = window.__RESONANCE_RUNTIME_CONFIG__ || {};

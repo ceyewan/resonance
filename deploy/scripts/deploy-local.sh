@@ -4,6 +4,10 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$PROJECT_ROOT"
+
 echo "🚀 本地 Docker 部署"
 echo ""
 
@@ -41,7 +45,7 @@ docker network create resonance-net 2>/dev/null || true
 
 # 5. 启动服务
 echo "🚀 启动服务..."
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
 
 echo ""
 echo "✅ 部署完成"
