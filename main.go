@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ceyewan/resonance/bootstrap"
 	"github.com/ceyewan/resonance/gateway"
 	"github.com/ceyewan/resonance/logic"
 	"github.com/ceyewan/resonance/task"
@@ -19,7 +20,7 @@ func main() {
 	flag.Parse()
 
 	if module == "" {
-		fmt.Println("error: module param required! Available: gateway, logic, task, web")
+		fmt.Println("error: module param required! Available: init, gateway, logic, task, web")
 		os.Exit(1)
 	}
 
@@ -27,6 +28,14 @@ func main() {
 
 	// 各个组件负责自己的配置加载
 	switch module {
+	case "init":
+		if err := bootstrap.Run(); err != nil {
+			fmt.Printf("❌ Init failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("✅ Database initialization completed")
+		return
+
 	case "gateway":
 		g, err := gateway.New()
 		if err != nil {
@@ -81,7 +90,7 @@ func main() {
 
 	default:
 		fmt.Printf("❌ Unknown module: %s\n", module)
-		fmt.Println("Available modules: gateway, logic, task, web")
+		fmt.Println("Available modules: init, gateway, logic, task, web")
 		os.Exit(1)
 	}
 }

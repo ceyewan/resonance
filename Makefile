@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web dev up down logs clean
+.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up down logs clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -84,6 +84,14 @@ lint-web: ## 前端 ESLint 检查
 	else \
 		echo "ℹ️  未检测到 ESLint 配置，已跳过 npm run lint"; \
 	fi
+
+# ============================================================================
+# 数据库初始化
+# ============================================================================
+init: ## 初始化数据库（建表 + 种子数据，幂等可重复执行）
+	@echo "🔧 初始化数据库..."
+	@RESONANCE_ENV=$(RESONANCE_ENV) go run main.go -module init
+	@echo ""
 
 # ============================================================================
 # 本地开发（直接运行，不用 Docker）

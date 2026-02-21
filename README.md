@@ -71,9 +71,8 @@ resonance/
 │   │   └── common/        # 通用类型
 │   └── gen/               # 生成代码 (Go/TS)
 │
-├── internal/              # 公共 SDK
-│   ├── model/             # 数据模型
-│   └── repo/              # 业务接口定义
+├── model/                 # 数据模型
+├── repo/                  # 业务接口定义
 │
 ├── logic/                 # Logic 服务
 │   ├── config/            # 配置加载
@@ -145,7 +144,14 @@ make tidy
 make up
 ```
 
-**5. 启动后端服务**
+**5. 初始化数据库**
+
+```bash
+# 建表 + 种子数据（幂等，可重复执行）
+make init
+```
+
+**6. 启动后端服务**
 
 ```bash
 # 终端 1: 启动 Gateway
@@ -158,7 +164,7 @@ make run-logic
 make run-task
 ```
 
-**6. 启动前端**
+**7. 启动前端**
 
 ```bash
 cd web

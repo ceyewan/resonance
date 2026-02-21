@@ -12,12 +12,12 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/resonance/internal/repo"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/job"
 	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
+	"github.com/ceyewan/resonance/repo"
 )
 
 // Logic Logic 服务生命周期管理器
@@ -113,11 +113,6 @@ func (l *Logic) initComponents() error {
 		return err
 	}
 	l.resources = res
-
-	// 初始化管理员账号（可选）
-	if err := service.EnsureAdminUser(l.ctx, res.userRepo, res.sessionRepo, l.config.Admin.Username, l.config.Admin.Password, l.config.Admin.Nickname, l.logger); err != nil {
-		l.logger.Error("failed to ensure admin user", clog.Error(err))
-	}
 
 	// 3. 基于 Redis 抢占分配唯一实例 ID (WorkerID)
 	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
