@@ -8,6 +8,7 @@ import (
 	"github.com/ceyewan/resonance/gateway/api"
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/ws"
+	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,17 +19,19 @@ type HTTPServer struct {
 	handler     *api.HTTPHandler
 	middlewares *api.Middlewares
 	wsHandler   *ws.Upgrader
+	healthProbe *health.Probe
 	server      *http.Server
 }
 
 // NewHTTPServer 创建 HTTP 服务
-func NewHTTPServer(cfg *config.Config, logger clog.Logger, h *api.HTTPHandler, m *api.Middlewares, wsHandler *ws.Upgrader) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, logger clog.Logger, h *api.HTTPHandler, m *api.Middlewares, wsHandler *ws.Upgrader, healthProbe *health.Probe) *HTTPServer {
 	return &HTTPServer{
 		config:      cfg,
 		logger:      logger,
 		handler:     h,
 		middlewares: m,
 		wsHandler:   wsHandler,
+		healthProbe: healthProbe,
 	}
 }
 
@@ -54,9 +57,10 @@ func (s *HTTPServer) Start() error {
 
 	// 健康检查
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "ok",
-		})
+		s.healthProbe.LivenessHandler()(c.Writer, c.Request)
+	})
+	router.GET("/ready", func(c *gin.Context) {
+		s.healthProbe.ReadinessHandler()(c.Writer, c.Request)
 	})
 
 	s.server = &http.Server{

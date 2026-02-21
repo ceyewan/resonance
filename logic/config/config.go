@@ -23,6 +23,7 @@ type Config struct {
 		Name       string `mapstructure:"name"`        // 服务名称
 		Host       string `mapstructure:"host"`        // 服务主机名
 		ServerAddr string `mapstructure:"server_addr"` // gRPC 服务地址
+		HTTPPort   int    `mapstructure:"http_port"`   // HTTP 健康检查端口（0=禁用）
 	} `mapstructure:"service"`
 
 	// 基础组件配置
@@ -157,6 +158,15 @@ func (c *Config) GetServerAddr() string {
 		return ":15090"
 	}
 	return c.Service.ServerAddr
+}
+
+// GetHTTPAddr 获取 HTTP 健康检查地址，默认 :15091
+func (c *Config) GetHTTPAddr() string {
+	port := c.Service.HTTPPort
+	if port <= 0 {
+		port = 15091
+	}
+	return fmt.Sprintf(":%d", port)
 }
 
 // GetAdvertiseEndpoint 返回服务注册使用的 host:port

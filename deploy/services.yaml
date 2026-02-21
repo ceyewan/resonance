@@ -17,8 +17,6 @@ x-resonance-build: &resonance-build
   context: ..
   dockerfile: deploy/Dockerfile
   target: final
-  args:
-    CGO_ENABLED: "${CGO_ENABLED:-0}"
 
 x-resonance-service: &resonance-service
   image: ${RESONANCE_IMAGE:-ceyewan/resonance:local}
@@ -37,6 +35,24 @@ x-resonance-service: &resonance-service
   restart: unless-stopped
 
 services:
+  init:
+    <<: *resonance-service
+    container_name: resonance-init
+    command: ["-module", "init"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *resonance-env
+      RESONANCE_POSTGRES_HOST: postgres
+      # 管理员账号（从环境变量读取）
+      RESONANCE_ADMIN_USERNAME: ${RESONANCE_ADMIN_USERNAME:-}
+      RESONANCE_ADMIN_PASSWORD: ${RESONANCE_ADMIN_PASSWORD:-}
+      RESONANCE_ADMIN_NICKNAME: ${RESONANCE_ADMIN_NICKNAME:-}
+    restart: "no"  # 一次性任务，执行完不重启
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"  # 不需要自动更新
+
   logic:
     <<: *resonance-service
     hostname: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
@@ -47,10 +63,14 @@ services:
     container_name: resonance-logic
     command: ["-module", "logic"]
     depends_on:
-      - postgres
-      - redis
-      - etcd
-      - nats
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -63,10 +83,12 @@ services:
     container_name: resonance-gateway
     command: ["-module", "gateway"]
     depends_on:
-      - logic
-      - redis
-      - etcd
-      - nats
+      redis:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
     # 本地开发：暴露端口；生产环境：通过 Caddy labels
     ports:
       - "${GATEWAY_PORT_BINDING:-127.0.0.1:8080:8080}"
@@ -91,11 +113,14 @@ services:
     container_name: resonance-task
     command: ["-module", "task"]
     depends_on:
-      - postgres
-      - redis
-      - nats
-      - etcd
-      - gateway
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
@@ -107,8 +132,6 @@ services:
       HOSTNAME: ${RESONANCE_WEB_HOSTNAME:-web-service-001}
     container_name: resonance-web
     command: ["-module", "web"]
-    depends_on:
-      - gateway
     # 本地开发：暴露端口；生产环境：通过 Caddy labels
     ports:
       - "${WEB_PORT_BINDING:-127.0.0.1:4173:4173}"

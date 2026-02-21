@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/resonance/pkg/health"
 	webcfg "github.com/ceyewan/resonance/webserver/config"
 )
 
@@ -20,6 +21,7 @@ type Web struct {
 	config    *webcfg.Config
 	logger    clog.Logger
 	server    *http.Server
+	health    *health.Probe
 	distDir   string
 	indexPath string
 }
@@ -41,6 +43,7 @@ func New() (*Web, error) {
 	w := &Web{
 		config:    cfg,
 		logger:    logger,
+		health:    health.NewProbe(),
 		distDir:   dist,
 		indexPath: filepath.Join(dist, cfg.Static.GetIndexFile()),
 	}
@@ -71,6 +74,8 @@ func (w *Web) Run() error {
 	if err != nil {
 		return fmt.Errorf("listen tcp %s: %w", w.server.Addr, err)
 	}
+	w.health.SetShutdown(false)
+	w.health.SetReady(true)
 
 	go func() {
 		if err := w.server.Serve(ln); err != nil && err != http.ErrServerClosed {
@@ -82,6 +87,8 @@ func (w *Web) Run() error {
 
 // Close 优雅退出
 func (w *Web) Close() error {
+	w.health.SetReady(false)
+	w.health.SetShutdown(true)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return w.server.Shutdown(ctx)
@@ -98,6 +105,16 @@ func (w *Web) staticHandler() http.Handler {
 	}
 
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		// 健康检查端点
+		if r.URL.Path == "/health" {
+			w.health.LivenessHandler()(rw, r)
+			return
+		}
+		if r.URL.Path == "/ready" {
+			w.health.ReadinessHandler()(rw, r)
+			return
+		}
+
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 			return

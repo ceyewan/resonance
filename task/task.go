@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
+	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/config"
 	"github.com/ceyewan/resonance/task/consumer"
@@ -33,6 +34,7 @@ type Task struct {
 	dispatcher      *dispatcher.Dispatcher
 	storageConsumer *consumer.Consumer
 	pushConsumer    *consumer.Consumer
+	healthServer    *health.Server
 }
 
 // resources 内部资源聚合
@@ -138,6 +140,9 @@ func (t *Task) initComponents() error {
 	)
 	t.pushConsumer.SetName("push")
 
+	// 7. 健康检查 Server
+	t.healthServer = health.NewServer(t.config.GetHTTPAddr(), logger)
+
 	return nil
 }
 
@@ -229,6 +234,11 @@ func (t *Task) initResources() (*resources, error) {
 func (t *Task) Run() error {
 	t.logger.Info("starting task service...")
 
+	// 启动健康检查服务器
+	if err := t.healthServer.Start(); err != nil {
+		return fmt.Errorf("health server start: %w", err)
+	}
+
 	// 启动 Pusher Manager (开始服务发现)
 	if err := t.pusherMgr.Start(); err != nil {
 		return fmt.Errorf("pusher manager start: %w", err)
@@ -242,15 +252,31 @@ func (t *Task) Run() error {
 		return fmt.Errorf("push consumer start: %w", err)
 	}
 
+	// 服务就绪，标记健康检查
+	t.healthServer.SetReady(true)
+
 	return nil
 }
 
 // Close 优雅关闭
 func (t *Task) Close() error {
 	t.logger.Info("shutting down task service...")
+
+	// 标记服务未就绪
+	if t.healthServer != nil {
+		t.healthServer.SetReady(false)
+	}
+
 	t.cancel()
 
-	// 1. 停止消费
+	// 1. 停止健康检查服务器
+	if t.healthServer != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = t.healthServer.Stop(shutdownCtx)
+		cancel()
+	}
+
+	// 2. 停止消费
 	if t.storageConsumer != nil {
 		t.storageConsumer.Stop()
 	}
@@ -258,12 +284,12 @@ func (t *Task) Close() error {
 		t.pushConsumer.Stop()
 	}
 
-	// 2. 关闭 Pusher (断开 Gateway 连接)
+	// 3. 关闭 Pusher (断开 Gateway 连接)
 	if t.pusherMgr != nil {
 		t.pusherMgr.Close()
 	}
 
-	// 3. 释放资源（带超时控制）
+	// 4. 释放资源（带超时控制）
 	if t.resources != nil {
 		// 创建带超时的 context，用于控制资源关闭的最大等待时间
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -290,7 +316,7 @@ func (t *Task) Close() error {
 		}
 	}
 
-	// 4. 关闭可观测性组件
+	// 5. 关闭可观测性组件
 	if err := observability.Shutdown(context.Background()); err != nil {
 		t.logger.Error("observability shutdown failed", clog.Error(err))
 	}

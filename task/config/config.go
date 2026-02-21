@@ -18,7 +18,8 @@ import (
 type Config struct {
 	// 服务基础配置
 	Service struct {
-		Name string `mapstructure:"name"` // 服务名称
+		Name     string `mapstructure:"name"`      // 服务名称
+		HTTPPort int    `mapstructure:"http_port"` // HTTP 健康检查端口（0=禁用）
 	} `mapstructure:"service"`
 
 	// 基础组件配置
@@ -81,6 +82,15 @@ type ConsumerConfig struct {
 	WorkerCount   int    `mapstructure:"worker_count"`   // 并发处理协程数
 	MaxRetry      int    `mapstructure:"max_retry"`      // 最大重试次数
 	RetryInterval int    `mapstructure:"retry_interval"` // 重试间隔（秒）
+}
+
+// GetHTTPAddr 获取 HTTP 健康检查地址，默认 :15092
+func (c *Config) GetHTTPAddr() string {
+	port := c.Service.HTTPPort
+	if port <= 0 {
+		port = 15092
+	}
+	return fmt.Sprintf(":%d", port)
 }
 
 // Load 创建并加载 Task 配置（无参数）

@@ -17,6 +17,7 @@ import (
 	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
+	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/repo"
 )
 
@@ -28,7 +29,8 @@ type Logic struct {
 	serviceID string
 
 	// 服务器
-	grpcServer *server.GRPCServer
+	grpcServer   *server.GRPCServer
+	healthServer *health.Server
 
 	// 后台任务
 	outboxRelay *job.OutboxRelay
@@ -161,13 +163,16 @@ func (l *Logic) initComponents() error {
 
 	// 6. gRPC Server
 	l.grpcServer = server.NewGRPCServer(
-		l.config.Service.ServerAddr,
+		l.config.GetServerAddr(),
 		logger,
 		authSvc,
 		sessionSvc,
 		chatSvc,
 		presenceSvc,
 	)
+
+	// 7. 健康检查 Server
+	l.healthServer = health.NewServer(l.config.GetHTTPAddr(), logger)
 
 	return nil
 }
@@ -274,6 +279,11 @@ func (l *Logic) initResources() (*resources, error) {
 func (l *Logic) Run() error {
 	l.logger.Info("starting logic service...")
 
+	// 启动健康检查服务器
+	if err := l.healthServer.Start(); err != nil {
+		return fmt.Errorf("health server start: %w", err)
+	}
+
 	// 启动后台任务
 	go l.outboxRelay.Start(l.ctx)
 
@@ -286,7 +296,13 @@ func (l *Logic) Run() error {
 	}()
 
 	// 注册服务
-	return l.registerService()
+	if err := l.registerService(); err != nil {
+		return err
+	}
+
+	// 服务注册成功后才标记就绪
+	l.healthServer.SetReady(true)
+	return nil
 }
 
 // registerService 注册服务到 Etcd
@@ -307,20 +323,33 @@ func (l *Logic) registerService() error {
 // Close 优雅关闭
 func (l *Logic) Close() error {
 	l.logger.Info("shutting down logic service...")
+
+	// 标记服务未就绪
+	if l.healthServer != nil {
+		l.healthServer.SetReady(false)
+	}
+
 	l.cancel()
 
-	// 1. 注销服务
+	// 1. 停止健康检查服务器
+	if l.healthServer != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = l.healthServer.Stop(shutdownCtx)
+		cancel()
+	}
+
+	// 2. 注销服务
 	if l.registry != nil {
 		l.registry.Deregister(context.Background(), l.serviceID)
 		l.registry.Close()
 	}
 
-	// 2. 停止服务器
+	// 3. 停止 gRPC 服务器
 	if l.grpcServer != nil {
 		l.grpcServer.Stop()
 	}
 
-	// 3. 释放资源（带超时控制）
+	// 4. 释放资源（带超时控制）
 	if l.resources != nil {
 		// 创建带超时的 context，用于控制资源关闭的最大等待时间
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -356,7 +385,7 @@ func (l *Logic) Close() error {
 		}
 	}
 
-	// 4. 关闭可观测性组件
+	// 5. 关闭可观测性组件
 	if err := observability.Shutdown(context.Background()); err != nil {
 		l.logger.Error("observability shutdown failed", clog.Error(err))
 	}

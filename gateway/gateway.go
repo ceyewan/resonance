@@ -18,6 +18,7 @@ import (
 	"github.com/ceyewan/resonance/gateway/push"
 	"github.com/ceyewan/resonance/gateway/server"
 	"github.com/ceyewan/resonance/gateway/ws"
+	"github.com/ceyewan/resonance/pkg/health"
 )
 
 // Gateway 网关服务生命周期管理器
@@ -29,8 +30,9 @@ type Gateway struct {
 	workerID  int64  // 唯一 worker 实例 ID，例如 001, 002 等
 
 	// 服务实例
-	httpServer *server.HTTPServer
-	grpcServer *server.GRPCServer
+	httpServer  *server.HTTPServer
+	grpcServer  *server.GRPCServer
+	healthProbe *health.Probe
 
 	// 核心资源
 	resources *resources
@@ -147,6 +149,7 @@ func (g *Gateway) initComponents() error {
 	}
 
 	// 8. 初始化服务接口 (Servers)
+	g.healthProbe = health.NewProbe()
 	g.initServers(idGen)
 
 	return nil
@@ -237,13 +240,15 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	pushService := push.NewService(g.resources.connMgr, g.logger)
 
 	// Servers
-	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares, wsHandler)
+	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares, wsHandler, g.healthProbe)
 	g.grpcServer = server.NewGRPCServer(fmt.Sprintf(":%d", g.config.GetGRPCPort()), g.logger, pushService)
 }
 
 // Run 启动所有服务并注册
 func (g *Gateway) Run() error {
 	g.logger.Info("starting gateway servers...")
+	g.healthProbe.SetReady(false)
+	g.healthProbe.SetShutdown(false)
 
 	// 启动 StatusBatcher
 	g.resources.logicClient.StartStatusBatcher()
@@ -251,7 +256,11 @@ func (g *Gateway) Run() error {
 	go g.grpcServer.Start()
 	go g.httpServer.Start()
 
-	return g.registerService()
+	if err := g.registerService(); err != nil {
+		return err
+	}
+	g.healthProbe.SetReady(true)
+	return nil
 }
 
 // registerService 注册服务实例
@@ -279,6 +288,10 @@ func (g *Gateway) registerService() error {
 func (g *Gateway) Close() error {
 	if g.logger != nil {
 		g.logger.Info("shutting down gateway...")
+	}
+	if g.healthProbe != nil {
+		g.healthProbe.SetReady(false)
+		g.healthProbe.SetShutdown(true)
 	}
 	g.cancel()
 

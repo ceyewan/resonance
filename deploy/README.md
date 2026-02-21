@@ -143,7 +143,7 @@ Genesis Config 加载顺序：
 ./deploy/scripts/build-push.sh amd64
 
 # 构建并推送
-./deploy/scripts/build-push.sh push 0 v0.1
+./deploy/scripts/build-push.sh push v0.1
 ```
 
 ## 常用运维命令
