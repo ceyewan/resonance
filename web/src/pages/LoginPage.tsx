@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex h-full items-center justify-center px-4 py-10">
-      <div className="lg-glass-3 lg-glow-border lg-glow-top lg-animate-in w-full max-w-md rounded-3xl p-8 sm:p-9">
+      <div className="lg-glass-strong lg-animate-in w-full max-w-md rounded-3xl p-8 sm:p-9">
         {/* Logo / 标题 */}
         <div className="mb-8 text-center">
           <div className="mb-4 flex justify-center">

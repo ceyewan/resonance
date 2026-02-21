@@ -118,7 +118,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-3 pb-3 pt-3 md:px-4 md:pt-4">
       {/* 顶部导航栏 */}
-      <header className="lg-glass-2 lg-glow-border sticky top-0 z-40 mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl border border-slate-300/70 px-4 dark:border-slate-600/45">
+      <header className="lg-glass-strong sticky top-0 z-40 mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <svg
@@ -161,7 +161,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
       {/* 主内容区 */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
         {/* 左侧会话列表 */}
-        <aside className="lg-glass-1 lg-glow-border flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-300/70 dark:border-slate-600/45 md:w-80">
+        <aside className="lg-glass flex w-full shrink-0 flex-col overflow-hidden rounded-2xl md:w-80">
           {/* 搜索框和新建按钮 */}
           <div className="border-b border-white/35 p-3 dark:border-slate-200/10">
             <div className="flex items-center gap-2">
@@ -265,7 +265,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
         </aside>
 
         {/* 右侧聊天区域 */}
-        <main className="lg-glass-1 lg-glow-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300/70 dark:border-slate-600/45">
+        <main className="lg-glass flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
           {!currentSession ? (
             // 空状态
             <div className="flex flex-1 flex-col items-center justify-center text-slate-500 dark:text-slate-400">
