@@ -122,7 +122,14 @@ func (c *Consumer) worker(id int) {
 
 	for {
 		select {
-		case msg := <-c.jobsCh:
+		case msg, ok := <-c.jobsCh:
+			if !ok {
+				c.logger.Debug("jobs channel closed", clog.Int("worker_id", id))
+				return
+			}
+			if msg == nil {
+				continue
+			}
 			c.handleMessage(c.ctx, msg)
 		case <-c.ctx.Done():
 			// 优雅关闭：处理完 jobsCh 中剩余的消息
@@ -137,7 +144,13 @@ func (c *Consumer) worker(id int) {
 func (c *Consumer) drainJobs(workerID int) {
 	for {
 		select {
-		case msg := <-c.jobsCh:
+		case msg, ok := <-c.jobsCh:
+			if !ok {
+				return
+			}
+			if msg == nil {
+				continue
+			}
 			c.handleMessage(c.ctx, msg)
 		default:
 			// 队列已空
@@ -274,20 +287,17 @@ func (c *Consumer) recordMetrics(ctx context.Context, start time.Time, status st
 func (c *Consumer) Stop() error {
 	c.logger.Info("stopping consumer")
 
-	// 1. 取消订阅，停止接收新消息
+	// 1. 取消 context，通知回调和 worker 停止接收新消息
+	c.cancel()
+
+	// 2. 取消订阅，停止接收新消息
 	if c.subscription != nil {
 		if err := c.subscription.Unsubscribe(); err != nil {
 			c.logger.Error("failed to unsubscribe", clog.Error(err))
 		}
 	}
 
-	// 2. 关闭任务通道，不再接收新任务
-	close(c.jobsCh)
-
-	// 3. 取消 context，触发 worker 优雅退出
-	c.cancel()
-
-	// 4. 等待所有 worker 处理完剩余任务
+	// 3. 等待所有 worker 处理完剩余任务
 	c.wg.Wait()
 
 	c.logger.Info("consumer stopped")

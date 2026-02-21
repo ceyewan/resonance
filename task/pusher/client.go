@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -31,6 +32,8 @@ type GatewayClient struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          *sync.WaitGroup
+	closing     atomic.Bool
+	closeOnce   sync.Once
 }
 
 // NewClient 创建 Gateway 客户端
@@ -72,7 +75,13 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 
 // Enqueue 将推送任务加入队列（非阻塞）
 func (c *GatewayClient) Enqueue(task *PushTask) error {
+	if c.closing.Load() {
+		return fmt.Errorf("gateway %s client closing", c.id)
+	}
+
 	select {
+	case <-c.ctx.Done():
+		return fmt.Errorf("gateway %s client closing", c.id)
 	case c.pushQueue <- task:
 		// 更新队列深度指标
 		observability.SetGatewayQueueDepth(context.Background(), c.id, len(c.pushQueue))
@@ -84,7 +93,17 @@ func (c *GatewayClient) Enqueue(task *PushTask) error {
 
 // EnqueueBlocking 将推送任务加入队列（阻塞直到有空位）
 func (c *GatewayClient) EnqueueBlocking(task *PushTask) {
-	c.pushQueue <- task
+	if c.closing.Load() {
+		c.logger.Warn("enqueue skipped: client closing", clog.String("gateway_id", c.id))
+		return
+	}
+	select {
+	case <-c.ctx.Done():
+		c.logger.Warn("enqueue skipped: client canceled", clog.String("gateway_id", c.id))
+		return
+	case c.pushQueue <- task:
+		observability.SetGatewayQueueDepth(context.Background(), c.id, len(c.pushQueue))
+	}
 }
 
 // pushLoop 持续从队列取消息并推送
@@ -99,7 +118,11 @@ func (c *GatewayClient) pushLoop(workerID int) {
 			c.drainQueue(workerID)
 			c.logger.Debug("pusher stopped", clog.String("gateway_id", c.id), clog.Int("worker_id", workerID))
 			return
-		case task := <-c.pushQueue:
+		case task, ok := <-c.pushQueue:
+			if !ok {
+				c.logger.Debug("push queue closed", clog.String("gateway_id", c.id), clog.Int("worker_id", workerID))
+				return
+			}
 			if task != nil {
 				c.doPush(task)
 				// 消费后更新队列深度指标
@@ -114,7 +137,10 @@ func (c *GatewayClient) drainQueue(workerID int) {
 	drained := 0
 	for {
 		select {
-		case task := <-c.pushQueue:
+		case task, ok := <-c.pushQueue:
+			if !ok {
+				return
+			}
 			if task != nil {
 				c.doPush(task)
 				drained++
@@ -198,19 +224,21 @@ func (c *GatewayClient) doPush(task *PushTask) {
 
 // Close 关闭连接
 func (c *GatewayClient) Close() error {
-	c.logger.Info("closing gateway client", clog.String("gateway_id", c.id))
+	var closeErr error
+	c.closeOnce.Do(func() {
+		c.logger.Info("closing gateway client", clog.String("gateway_id", c.id))
+		c.closing.Store(true)
 
-	// 1. 停止接收新任务
-	close(c.pushQueue)
+		// 1. 取消 context，触发 pushLoop 优雅退出（会先 drain 队列）
+		c.cancel()
 
-	// 2. 取消 context，触发 pushLoop 优雅退出（会先 drain 队列）
-	c.cancel()
+		// 2. 等待 loop 处理完剩余消息并退出
+		c.wg.Wait()
 
-	// 3. 等待 loop 处理完剩余消息并退出
-	c.wg.Wait()
-
-	// 4. 关闭 gRPC 连接
-	return c.conn.Close()
+		// 3. 关闭 gRPC 连接
+		closeErr = c.conn.Close()
+	})
+	return closeErr
 }
 
 // QueueSize 返回当前队列长度
