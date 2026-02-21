@@ -25,7 +25,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   const { user, logout } = useAuthStore();
   const { sessions, currentSession, isLoading, loadSessions, selectSession } = useSession();
   const { getSessionMessages } = useMessageStore();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
 
   // 加载会话列表
@@ -35,20 +35,32 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
 
   const messages = currentSession ? getSessionMessages(currentSession.sessionId) : [];
   const prevMessageCountRef = useRef(0);
+  const prevSessionIdRef = useRef<string | null>(null);
 
-  // 滚动到底部
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // 仅滚动消息容器，避免触发页面级滚动
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    container.scrollTo({
+      top: container.scrollHeight,
+      behavior,
+    });
   }, []);
 
-  // 仅在切换会话或新消息到达时滚动，状态更新不触发
+  // 仅在会话切换或新增消息时滚动，避免因会话对象引用变化导致抖动
   useEffect(() => {
+    const sessionId = currentSession?.sessionId ?? null;
     const currentCount = messages.length;
-    if (currentCount > prevMessageCountRef.current || currentSession) {
-      scrollToBottom();
+    const sessionChanged = sessionId !== prevSessionIdRef.current;
+    const hasNewMessage = currentCount > prevMessageCountRef.current;
+
+    if (sessionChanged || hasNewMessage) {
+      scrollToBottom(sessionChanged ? "auto" : "smooth");
     }
+
+    prevSessionIdRef.current = sessionId;
     prevMessageCountRef.current = currentCount;
-  }, [currentSession, messages.length, scrollToBottom]);
+  }, [currentSession?.sessionId, messages.length, scrollToBottom]);
 
   // 发送消息
   const handleSendMessage = useCallback(
@@ -79,7 +91,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
       );
 
       send(packet);
-      scrollToBottom();
+      scrollToBottom("smooth");
     },
     [currentSession, isConnected, user, send, scrollToBottom],
   );
@@ -104,9 +116,9 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
   );
 
   return (
-    <div className="relative flex h-full flex-col px-3 pb-3 pt-3 md:px-4 md:pt-4">
+    <div className="relative flex h-full flex-col overflow-hidden px-3 pb-3 pt-3 md:px-4 md:pt-4">
       {/* 顶部导航栏 */}
-      <header className="lg-glass-2 lg-glow-border mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl px-4">
+      <header className="lg-glass-2 lg-glow-border sticky top-0 z-40 mb-3 flex h-14 shrink-0 items-center justify-between rounded-2xl border border-slate-300/70 px-4 dark:border-slate-600/45">
         <div className="flex items-center gap-3">
           {/* Logo */}
           <svg
@@ -149,7 +161,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
       {/* 主内容区 */}
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden md:flex-row">
         {/* 左侧会话列表 */}
-        <aside className="lg-glass-1 lg-glow-border flex w-full shrink-0 flex-col overflow-hidden rounded-2xl md:w-80">
+        <aside className="lg-glass-1 lg-glow-border flex w-full shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-300/70 dark:border-slate-600/45 md:w-80">
           {/* 搜索框和新建按钮 */}
           <div className="border-b border-white/35 p-3 dark:border-slate-200/10">
             <div className="flex items-center gap-2">
@@ -253,7 +265,7 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
         </aside>
 
         {/* 右侧聊天区域 */}
-        <main className="lg-glass-1 lg-glow-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
+        <main className="lg-glass-1 lg-glow-border flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300/70 dark:border-slate-600/45">
           {!currentSession ? (
             // 空状态
             <div className="flex flex-1 flex-col items-center justify-center text-slate-500 dark:text-slate-400">
@@ -300,7 +312,10 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
               </div>
 
               {/* 消息列表 */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-5">
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto border-y border-slate-300/55 bg-white/20 p-4 dark:border-slate-700/45 dark:bg-slate-900/20 md:p-5"
+              >
                 {messages.length === 0 ? (
                   <div className="flex h-full items-center justify-center">
                     <p className="text-sm text-slate-500 dark:text-slate-400">暂无消息，开始聊天吧</p>
@@ -315,7 +330,6 @@ export default function ChatPage({ isConnected, isConnecting = false, send }: Ch
                         senderName={message.fromUsername}
                       />
                     ))}
-                    <div ref={messagesEndRef} />
                   </div>
                 )}
               </div>

@@ -35,7 +35,7 @@ function App() {
   sendRef.current = send;
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
+    <div className="relative h-[var(--app-height)] w-full overflow-hidden">
       <div className="pointer-events-none absolute -left-24 -top-28 h-72 w-72 rounded-full bg-sky-400/30 blur-3xl dark:bg-sky-500/20" />
       <div className="pointer-events-none absolute -right-28 top-8 h-80 w-80 rounded-full bg-blue-400/20 blur-3xl dark:bg-blue-500/15" />
       <div className="pointer-events-none absolute bottom-[-140px] left-1/3 h-80 w-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />

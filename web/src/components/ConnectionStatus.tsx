@@ -7,7 +7,7 @@ interface ConnectionStatusProps {
 
 /**
  * 连接状态指示器组件
- * Liquid Glass 设计风格
+ * Liquid Glass T1 级实现
  */
 export function ConnectionStatus({ isConnected, isConnecting }: ConnectionStatusProps) {
   const getStatusClass = () => {

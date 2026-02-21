@@ -11,16 +11,13 @@ interface SessionItemProps {
 
 /**
  * 会话列表项组件
- * Liquid Glass 设计风格
+ * Liquid Glass T1 级实现 - 纯 CSS 模糊方案
  */
 export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
-  // 获取显示名称
   const displayName = session.name || DEFAULTS.GROUP_NAME;
 
-  // 格式化最后消息时间
   const formatTime = (timestamp?: bigint) => {
     if (!timestamp) return "";
-
     const date = new Date(Number(timestamp) / 1000000);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
@@ -28,14 +25,11 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
     if (isToday) {
       return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
     }
-
     return date.toLocaleDateString("zh-CN", TIME_FORMAT.SESSION_TIME as any);
   };
 
-  // 格式化最后消息内容
   const formatLastMessage = (content?: string, type?: string) => {
     if (!content) return "暂无消息";
-
     switch (type) {
       case "image":
         return "[图片]";
@@ -93,24 +87,24 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <div className="flex items-center justify-between">
           <h3
             className={cn(
-              "truncate text-sm font-semibold transition-colors",
+              "lg-session-title truncate text-sm font-semibold transition-colors",
               isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
             )}
           >
             {displayName}
           </h3>
           <div className="flex items-center gap-2">
-            {session.lastMessage?.timestamp ? (
+            {session.lastMessage?.timestamp !== undefined && (
               <span
                 className={cn(
-                  "text-xs transition-colors",
-                  isActive ? "text-sky-100" : "text-slate-500 dark:text-slate-400",
+                  "lg-session-meta text-xs transition-colors",
+                  isActive ? "text-white/90" : "text-slate-500 dark:text-slate-400",
                 )}
               >
                 {formatTime(session.lastMessage.timestamp)}
               </span>
-            ) : null}
-            {session.unreadCount > 0 ? (
+            )}
+            {session.unreadCount > 0 && (
               <span
                 className={cn(
                   "flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold shadow-sm",
@@ -121,13 +115,13 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
               >
                 {session.unreadCount > 99 ? "99+" : session.unreadCount}
               </span>
-            ) : null}
+            )}
           </div>
         </div>
         <p
           className={cn(
-            "mt-0.5 truncate text-sm transition-colors",
-            isActive ? "text-sky-50" : "text-slate-500 dark:text-slate-400",
+            "lg-session-meta mt-0.5 truncate text-sm transition-colors",
+            isActive ? "text-white/85" : "text-slate-500 dark:text-slate-400",
           )}
         >
           {formatLastMessage(session.lastMessage?.content, session.lastMessage?.type)}
@@ -136,5 +130,3 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
     </div>
   );
 }
-
-

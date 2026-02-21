@@ -13,7 +13,7 @@ interface MessageBubbleProps {
 
 /**
  * 消息气泡组件
- * Liquid Glass 设计风格
+ * Liquid Glass T1 级实现
  */
 export function MessageBubble({
   message,
@@ -22,17 +22,13 @@ export function MessageBubble({
   senderName,
   senderAvatarUrl,
 }: MessageBubbleProps) {
-  // 格式化时间
   const formatTime = (timestamp: bigint) => {
-    // 后端发送的是秒级时间戳，需要转换为毫秒
     const date = new Date(Number(timestamp) * 1000);
     return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
   };
 
-  // 头像颜色
   const avatarColor = getAvatarColor(senderName || "");
 
-  // 消息状态图标
   const renderStatusIcon = () => {
     if (!isOwn) return null;
 
@@ -75,7 +71,6 @@ export function MessageBubble({
     }
   };
 
-  // 渲染消息内容
   const renderContent = () => {
     switch (message.msgType) {
       case "image":
@@ -157,7 +152,7 @@ export function MessageBubble({
 
       {/* 消息内容 */}
       <div className={cn("flex max-w-[75%] flex-col", isOwn ? "items-end" : "items-start")}>
-        {/* 发送者名称（仅群聊且非己方消息显示） */}
+        {/* 发送者名称 */}
         {!isOwn && showAvatar && senderName && (
           <span className="mb-1 text-xs text-slate-500 dark:text-slate-400">{senderName}</span>
         )}
@@ -186,5 +181,3 @@ export function MessageBubble({
     </div>
   );
 }
-
-

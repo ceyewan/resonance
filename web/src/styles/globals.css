@@ -4,36 +4,52 @@
 
 @layer base {
   :root {
-    /* Liquid Glass 配色系统 */
+    /* === Liquid Glass 配色系统 === */
     --lg-sky-400: 56 189 248;
     --lg-sky-500: 14 165 233;
     --lg-sky-600: 2 132 199;
 
-    /* 玻璃透明度层级 */
-    --lg-glass-opacity-1: 0.45;
-    --lg-glass-opacity-2: 0.55;
-    --lg-glass-opacity-3: 0.68;
+    /* === 玻璃透明度层级 === */
+    --lg-opacity-1: 0.45;
+    --lg-opacity-2: 0.55;
+    --lg-opacity-3: 0.68;
 
-    /* 玻璃背景色（亮色主题） */
-    --lg-glass-bg: 255, 255, 255;
-    --lg-glass-blur-1: 16px;
-    --lg-glass-blur-2: 24px;
-    --lg-glass-blur-3: 32px;
+    /* === 玻璃背景色 RGB === */
+    --lg-bg-light: 255 255 255;
+    --lg-bg-dark: 15 23 42;
 
-    /* 分隔线统一透明度 */
+    /* === 模糊半径 === */
+    --lg-blur-1: 16px;
+    --lg-blur-2: 24px;
+    --lg-blur-3: 32px;
+
+    /* === 边框透明度 === */
     --lg-border-opacity: 0.35;
 
-    /* 兼容旧版 */
+    /* === 光源模型 (135° 左上角) === */
+    --lg-highlight-strong: 255 255 255;
+    --lg-highlight-strong-opacity: 0.6;
+    --lg-highlight-weak-opacity: 0.2;
+    --lg-shadow-color: 15 23 42;
+    --lg-shadow-opacity: 0.15;
+
+    /* === 兼容旧版 === */
     --tg-accent: var(--lg-sky-500);
     --tg-accent-strong: var(--lg-sky-600);
+    --app-height: 100vh;
   }
 
   .dark {
-    --lg-glass-bg: 15, 23, 42;
-    --lg-glass-opacity-1: 0.55;
-    --lg-glass-opacity-2: 0.65;
-    --lg-glass-opacity-3: 0.75;
+    --lg-bg-light: 30 41 59;
+    --lg-bg-dark: 15 23 42;
+    --lg-opacity-1: 0.55;
+    --lg-opacity-2: 0.65;
+    --lg-opacity-3: 0.75;
     --lg-border-opacity: 0.1;
+    --lg-highlight-strong-opacity: 0.15;
+    --lg-highlight-weak-opacity: 0.05;
+    --lg-shadow-color: 0 0 0;
+    --lg-shadow-opacity: 0.4;
   }
 
   * {
@@ -41,11 +57,12 @@
   }
 
   html {
-    @apply h-full;
+    @apply h-full overflow-hidden;
+    overscroll-behavior: none;
   }
 
   body {
-    @apply h-full font-sans text-gray-900 antialiased dark:text-gray-100;
+    @apply h-full overflow-hidden font-sans text-gray-900 antialiased dark:text-gray-100;
     background:
       radial-gradient(130% 120% at 15% 10%, rgba(var(--lg-sky-500), 0.32) 0%, rgba(255, 255, 255, 0) 50%),
       radial-gradient(110% 100% at 85% 0%, rgba(var(--lg-sky-600), 0.2) 0%, rgba(255, 255, 255, 0) 42%),
@@ -61,32 +78,34 @@
   }
 
   #root {
-    @apply h-full;
+    @apply h-full overflow-hidden;
   }
 
-  /* 自定义滚动条 */
+  @supports (height: 100dvh) {
+    :root {
+      --app-height: 100dvh;
+    }
+  }
+
+  /* 滚动条 */
   ::-webkit-scrollbar {
     @apply h-2 w-2;
   }
-
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-
   ::-webkit-scrollbar-thumb {
     @apply rounded-full;
     background-color: rgba(203, 213, 225, 0.8);
   }
-
   .dark ::-webkit-scrollbar-thumb {
     background-color: rgba(71, 85, 105, 0.8);
   }
-
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-slate-400 dark:bg-slate-500;
   }
 
-  /* 减弱动效支持 */
+  /* 减弱动效 */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -103,52 +122,35 @@
    ============================================ */
 
 @layer components {
-  /* ----- 基础玻璃层级 ----- */
+  /* === 基础玻璃层级 === */
 
-  /* 第一级玻璃 - 最轻 */
-  .lg-glass-1 {
+  .lg-glass {
     @apply border;
-    border-color: rgba(255, 255, 255, var(--lg-border-opacity));
-    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-1));
-    backdrop-filter: blur(var(--lg-glass-blur-1)) saturate(1.1) contrast(1.05) brightness(1.02);
-    -webkit-backdrop-filter: blur(var(--lg-glass-blur-1)) saturate(1.1) contrast(1.05) brightness(1.02);
+    background: rgba(var(--lg-bg-light), var(--lg-opacity-1));
+    backdrop-filter: blur(var(--lg-blur-1)) saturate(1.15) contrast(1.05) brightness(1.02);
+    -webkit-backdrop-filter: blur(var(--lg-blur-1)) saturate(1.15) contrast(1.05) brightness(1.02);
+    border-color: rgba(var(--lg-highlight-strong), var(--lg-border-opacity));
     box-shadow:
-      0 20px 40px -25px rgba(15, 23, 42, 0.35),
-      inset 0 1px 0 rgba(255, 255, 255, 0.6),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.2);
+      0 20px 40px -25px rgba(var(--lg-shadow-color), var(--lg-shadow-opacity)),
+      inset 0 1px 0 rgba(var(--lg-highlight-strong), var(--lg-highlight-strong-opacity)),
+      inset 0 -1px 0 rgba(var(--lg-highlight-strong), var(--lg-highlight-weak-opacity));
   }
 
-  /* 第二级玻璃 - 中等 */
-  .lg-glass-2 {
+  .lg-glass-strong {
     @apply border;
-    border-color: rgba(255, 255, 255, calc(var(--lg-border-opacity) + 0.05));
-    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-2));
-    backdrop-filter: blur(var(--lg-glass-blur-2)) saturate(1.15) contrast(1.08) brightness(1.03);
-    -webkit-backdrop-filter: blur(var(--lg-glass-blur-2)) saturate(1.15) contrast(1.08) brightness(1.03);
+    background: rgba(var(--lg-bg-light), var(--lg-opacity-2));
+    backdrop-filter: blur(var(--lg-blur-2)) saturate(1.2) contrast(1.08) brightness(1.03);
+    -webkit-backdrop-filter: blur(var(--lg-blur-2)) saturate(1.2) contrast(1.08) brightness(1.03);
+    border-color: rgba(var(--lg-highlight-strong), calc(var(--lg-border-opacity) + 0.05));
     box-shadow:
-      0 24px 48px -30px rgba(15, 23, 42, 0.45),
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+      0 24px 48px -30px rgba(var(--lg-shadow-color), calc(var(--lg-shadow-opacity) + 0.1)),
+      inset 0 1px 0 rgba(var(--lg-highlight-strong), calc(var(--lg-highlight-strong-opacity) + 0.1)),
+      inset 0 -1px 0 rgba(var(--lg-highlight-strong), calc(var(--lg-highlight-weak-opacity) + 0.05));
   }
 
-  /* 第三级玻璃 - 最强 */
-  .lg-glass-3 {
-    @apply border;
-    border-color: rgba(255, 255, 255, calc(var(--lg-border-opacity) + 0.1));
-    background: rgba(var(--lg-glass-bg), var(--lg-glass-opacity-3));
-    backdrop-filter: blur(var(--lg-glass-blur-3)) saturate(1.2) contrast(1.1) brightness(1.04);
-    -webkit-backdrop-filter: blur(var(--lg-glass-blur-3)) saturate(1.2) contrast(1.1) brightness(1.04);
-    box-shadow:
-      0 28px 56px -34px rgba(15, 23, 42, 0.5),
-      inset 0 1px 0 rgba(255, 255, 255, 0.8),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.3);
-  }
-
-  /* ----- 暗色主题玻璃 ----- */
-
-  .dark .lg-glass-1 {
+  .dark .lg-glass {
+    background: rgba(var(--lg-bg-dark), var(--lg-opacity-1));
     border-color: rgba(148, 163, 184, 0.08);
-    background: rgba(15, 23, 42, 0.55);
     backdrop-filter: blur(18px) saturate(1.05) contrast(1.1) brightness(1.1);
     -webkit-backdrop-filter: blur(18px) saturate(1.05) contrast(1.1) brightness(1.1);
     box-shadow:
@@ -157,9 +159,9 @@
       inset 0 -1px 0 rgba(148, 163, 184, 0.05);
   }
 
-  .dark .lg-glass-2 {
+  .dark .lg-glass-strong {
+    background: rgba(var(--lg-bg-dark), var(--lg-opacity-2));
     border-color: rgba(148, 163, 184, 0.1);
-    background: rgba(15, 23, 42, 0.65);
     backdrop-filter: blur(28px) saturate(1.08) contrast(1.12) brightness(1.12);
     -webkit-backdrop-filter: blur(28px) saturate(1.08) contrast(1.12) brightness(1.12);
     box-shadow:
@@ -168,96 +170,14 @@
       inset 0 -1px 0 rgba(148, 163, 184, 0.08);
   }
 
-  .dark .lg-glass-3 {
-    border-color: rgba(148, 163, 184, 0.12);
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(36px) saturate(1.1) contrast(1.15) brightness(1.15);
-    -webkit-backdrop-filter: blur(36px) saturate(1.1) contrast(1.15) brightness(1.15);
-    box-shadow:
-      0 32px 64px -40px rgba(0, 0, 0, 0.95),
-      inset 0 1px 0 rgba(148, 163, 184, 0.22),
-      inset 0 -1px 0 rgba(148, 163, 184, 0.1);
-  }
+  /* === 按钮样式 === */
 
-  /* ----- 边缘高光效果 ----- */
-
-  /* 顶部高光 */
-  .lg-glow-top {
-    position: relative;
-  }
-
-  .lg-glow-top::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 10%;
-    right: 10%;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.8) 50%,
-      transparent 100%
-    );
-    border-radius: inherit;
-    pointer-events: none;
-  }
-
-  .dark .lg-glow-top::before {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(148, 163, 184, 0.3) 50%,
-      transparent 100%
-    );
-  }
-
-  /* 圆角边缘光晕 */
-  .lg-glow-border {
-    position: relative;
-  }
-
-  .lg-glow-border::after {
-    content: "";
-    position: absolute;
-    inset: -1px;
-    border-radius: inherit;
-    padding: 1px;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.5) 0%,
-      rgba(255, 255, 255, 0.1) 40%,
-      rgba(255, 255, 255, 0.3) 100%
-    );
-    -webkit-mask:
-      linear-gradient(#fff 0 0) padding-box,
-      linear-gradient(#fff 0 0);
-    mask:
-      linear-gradient(#fff 0 0) padding-box,
-      linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-  }
-
-  .dark .lg-glow-border::after {
-    background: linear-gradient(
-      135deg,
-      rgba(148, 163, 184, 0.2) 0%,
-      rgba(148, 163, 184, 0.05) 40%,
-      rgba(148, 163, 184, 0.15) 100%
-    );
-  }
-
-  /* ----- 按钮样式 ----- */
-
-  /* 主要按钮 */
   .lg-btn-primary {
     @apply rounded-2xl px-5 py-2.5 font-semibold text-white;
-    background: linear-gradient(135deg, rgb(14 165 233 / 0.95) 0%, rgb(2 132 199 / 0.98) 100%);
+    background: linear-gradient(135deg, rgb(var(--lg-sky-500) / 0.95) 0%, rgb(var(--lg-sky-600) / 0.98) 100%);
     backdrop-filter: blur(8px) saturate(1.1);
     box-shadow:
-      0 16px 32px -20px rgb(2 132 199 / 0.7),
+      0 16px 32px -20px rgb(var(--lg-sky-600) / 0.7),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       0 0 0 1px rgba(255, 255, 255, 0.1) inset;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -266,40 +186,38 @@
   .lg-btn-primary:hover:not(:disabled) {
     transform: translateY(-2px) scale(1.01);
     box-shadow:
-      0 20px 40px -20px rgb(2 132 199 / 0.85),
+      0 20px 40px -20px rgb(var(--lg-sky-600) / 0.85),
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
       0 0 0 1px rgba(255, 255, 255, 0.15) inset;
-    filter: brightness(1.05);
   }
 
   .lg-btn-primary:active:not(:disabled) {
     transform: translateY(0) scale(0.98);
     box-shadow:
-      0 8px 16px -12px rgb(2 132 199 / 0.6),
+      0 8px 16px -12px rgb(var(--lg-sky-600) / 0.6),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
   .dark .lg-btn-primary {
-    background: linear-gradient(135deg, rgb(56 189 248 / 0.9) 0%, rgb(14 165 233 / 0.95) 100%);
+    background: linear-gradient(135deg, rgb(var(--lg-sky-400) / 0.9) 0%, rgb(var(--lg-sky-500) / 0.95) 100%);
     box-shadow:
-      0 16px 32px -20px rgb(14 165 233 / 0.5),
+      0 16px 32px -20px rgb(var(--lg-sky-500) / 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
       0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   }
 
   .dark .lg-btn-primary:hover:not(:disabled) {
     box-shadow:
-      0 20px 40px -20px rgb(14 165 233 / 0.65),
+      0 20px 40px -20px rgb(var(--lg-sky-500) / 0.65),
       inset 0 1px 0 rgba(255, 255, 255, 0.25),
       0 0 0 1px rgba(255, 255, 255, 0.12) inset;
   }
 
-  /* 次要按钮（玻璃风格） */
   .lg-btn-secondary {
     @apply rounded-2xl px-5 py-2.5 font-semibold;
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(16px) saturate(1.1);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     color: rgb(15, 23, 42);
     box-shadow:
       0 12px 24px -18px rgba(15, 23, 42, 0.3),
@@ -308,8 +226,8 @@
   }
 
   .lg-btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.65);
-    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(255, 255, 255, 0.6);
     transform: translateY(-1px);
     box-shadow:
       0 16px 32px -20px rgba(15, 23, 42, 0.4),
@@ -317,8 +235,8 @@
   }
 
   .dark .lg-btn-secondary {
-    background: rgba(30, 41, 59, 0.55);
-    border-color: rgba(148, 163, 184, 0.15);
+    background: rgba(30, 41, 59, 0.75);
+    border-color: rgba(148, 163, 184, 0.2);
     color: rgb(241, 245, 249);
     box-shadow:
       0 12px 24px -18px rgba(0, 0, 0, 0.5),
@@ -326,26 +244,27 @@
   }
 
   .dark .lg-btn-secondary:hover {
-    background: rgba(30, 41, 59, 0.65);
-    border-color: rgba(148, 163, 184, 0.2);
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(148, 163, 184, 0.25);
     box-shadow:
       0 16px 32px -20px rgba(0, 0, 0, 0.6),
       inset 0 1px 0 rgba(148, 163, 184, 0.2);
   }
 
-  /* ----- 输入框样式 ----- */
+  /* === 输入框样式 === */
 
   .lg-input {
     @apply rounded-2xl px-4 py-2.5;
-    background: rgba(255, 255, 255, 0.6);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(20px) saturate(1.05);
     -webkit-backdrop-filter: blur(20px) saturate(1.05);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(71, 85, 105, 0.35);
     color: rgb(15, 23, 42);
     transition: all 0.2s ease;
     box-shadow:
       inset 0 2px 4px -2px rgba(15, 23, 42, 0.05),
-      0 1px 0 rgba(255, 255, 255, 0.5) inset;
+      0 1px 0 rgba(255, 255, 255, 0.5) inset,
+      0 0 0 1px rgba(255, 255, 255, 0.3);
   }
 
   .lg-input::placeholder {
@@ -353,22 +272,23 @@
   }
 
   .lg-input:focus {
-    background: rgba(255, 255, 255, 0.75);
-    border-color: rgba(14, 165, 233, 0.5);
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(var(--lg-sky-500), 0.75);
     outline: none;
     box-shadow:
       inset 0 2px 4px -2px rgba(15, 23, 42, 0.03),
-      0 0 0 3px rgba(14, 165, 233, 0.15),
+      0 0 0 3px rgba(var(--lg-sky-500), 0.22),
       0 1px 0 rgba(255, 255, 255, 0.6) inset;
   }
 
   .dark .lg-input {
-    background: rgba(30, 41, 59, 0.6);
-    border-color: rgba(148, 163, 184, 0.15);
+    background: rgba(30, 41, 59, 0.75);
+    border-color: rgba(148, 163, 184, 0.35);
     color: rgb(241, 245, 249);
     box-shadow:
       inset 0 2px 4px -2px rgba(0, 0, 0, 0.2),
-      0 1px 0 rgba(148, 163, 184, 0.1) inset;
+      0 1px 0 rgba(148, 163, 184, 0.1) inset,
+      0 0 0 1px rgba(15, 23, 42, 0.45);
   }
 
   .dark .lg-input::placeholder {
@@ -376,43 +296,41 @@
   }
 
   .dark .lg-input:focus {
-    background: rgba(30, 41, 59, 0.75);
-    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(30, 41, 59, 0.85);
+    border-color: rgba(var(--lg-sky-400), 0.72);
     box-shadow:
       inset 0 2px 4px -2px rgba(0, 0, 0, 0.15),
-      0 0 0 3px rgba(56, 189, 248, 0.15),
+      0 0 0 3px rgba(var(--lg-sky-400), 0.24),
       0 1px 0 rgba(148, 163, 184, 0.15) inset;
   }
 
-  /* ----- 消息气泡样式 ----- */
+  /* === 消息气泡样式 === */
 
-  /* 己方消息气泡 */
   .lg-bubble-own {
-    background: linear-gradient(135deg, rgb(14 165 233 / 0.92) 0%, rgb(2 132 199 / 0.95) 100%);
+    background: linear-gradient(135deg, rgb(var(--lg-sky-500) / 0.92) 0%, rgb(var(--lg-sky-600) / 0.95) 100%);
     backdrop-filter: blur(12px) saturate(1.15);
     -webkit-backdrop-filter: blur(12px) saturate(1.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
     box-shadow:
-      0 12px 28px -16px rgb(2 132 199 / 0.7),
+      0 12px 28px -16px rgb(var(--lg-sky-600) / 0.7),
       inset 0 1px 0 rgba(255, 255, 255, 0.25),
       inset 0 -1px 0 rgba(0, 0, 0, 0.1);
   }
 
   .dark .lg-bubble-own {
-    background: linear-gradient(135deg, rgb(56 189 248 / 0.85) 0%, rgb(14 165 233 / 0.9) 100%);
+    background: linear-gradient(135deg, rgb(var(--lg-sky-400) / 0.85) 0%, rgb(var(--lg-sky-500) / 0.9) 100%);
     border-color: rgba(255, 255, 255, 0.15);
     box-shadow:
-      0 12px 28px -16px rgb(14 165 233 / 0.5),
+      0 12px 28px -16px rgb(var(--lg-sky-500) / 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.15),
       inset 0 -1px 0 rgba(0, 0, 0, 0.15);
   }
 
-  /* 对方消息气泡 */
   .lg-bubble-other {
-    background: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(20px) saturate(1.1) contrast(1.05);
     -webkit-backdrop-filter: blur(20px) saturate(1.1) contrast(1.05);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(203, 213, 225, 0.6);
     box-shadow:
       0 10px 24px -16px rgba(15, 23, 42, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -420,17 +338,16 @@
   }
 
   .dark .lg-bubble-other {
-    background: rgba(30, 41, 59, 0.65);
+    background: rgba(30, 41, 59, 0.75);
     backdrop-filter: blur(20px) saturate(1.05) contrast(1.1);
     -webkit-backdrop-filter: blur(20px) saturate(1.05) contrast(1.1);
-    border-color: rgba(148, 163, 184, 0.15);
+    border-color: rgba(148, 163, 184, 0.25);
     box-shadow:
       0 10px 24px -16px rgba(0, 0, 0, 0.5),
       inset 0 1px 0 rgba(148, 163, 184, 0.15),
       inset 0 -1px 0 rgba(0, 0, 0, 0.1);
   }
 
-  /* 系统消息气泡 */
   .lg-bubble-system {
     background: rgba(255, 255, 255, 0.45);
     backdrop-filter: blur(16px) saturate(1.05);
@@ -445,7 +362,7 @@
     color: rgba(148, 163, 184, 0.8);
   }
 
-  /* ----- 会话列表项样式 ----- */
+  /* === 会话列表项样式 === */
 
   .lg-session-item {
     @apply mx-1.5 my-1 flex cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3;
@@ -455,54 +372,42 @@
   }
 
   .lg-session-item:hover {
-    background: rgba(255, 255, 255, 0.4);
-    border-color: rgba(255, 255, 255, 0.35);
+    box-shadow:
+      0 10px 20px -16px rgba(15, 23, 42, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
   }
 
   .dark .lg-session-item:hover {
-    background: rgba(30, 41, 59, 0.5);
-    border-color: rgba(148, 163, 184, 0.12);
+    box-shadow:
+      0 12px 24px -18px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(148, 163, 184, 0.1);
   }
 
   .lg-session-item:focus-visible {
-    outline: 2px solid rgba(14, 165, 233, 0.6);
+    outline: 2px solid rgba(var(--lg-sky-500), 0.6);
     outline-offset: 2px;
   }
 
   .lg-session-item-active {
-    background: linear-gradient(135deg, rgb(14 165 233 / 0.88) 0%, rgb(2 132 199 / 0.92) 100%);
-    backdrop-filter: blur(16px) saturate(1.15);
-    -webkit-backdrop-filter: blur(16px) saturate(1.15);
-    border-color: rgba(255, 255, 255, 0.3);
+    background: linear-gradient(135deg, rgb(7 89 133 / 0.98) 0%, rgb(var(--lg-sky-600) / 0.98) 100%);
+    border-color: rgba(186, 230, 253, 0.6);
     box-shadow:
-      0 16px 32px -20px rgb(2 132 199 / 0.75),
+      0 16px 32px -20px rgb(3 105 161 / 0.8),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
-    color: white;
+    color: rgba(255, 255, 255, 0.98);
   }
 
-  /* 通过 CSS 继承让 active 状态子元素变白 */
-  .lg-session-item-active,
-  .lg-session-item-active * {
-    --tw-text-opacity: 1;
+  .lg-session-item-active .lg-session-title {
+    color: rgba(255, 255, 255, 0.98);
+    text-shadow: 0 1px 1px rgba(2, 6, 23, 0.2);
   }
 
-  .lg-session-item-active [class*="text-slate-"] {
-    color: rgba(255, 255, 255, 0.95);
+  .lg-session-item-active .lg-session-meta {
+    color: rgba(240, 249, 255, 0.95);
   }
 
-  /* ----- 可访问性样式 ----- */
-
-  .lg-focus-visible:focus-visible {
-    outline: 2px solid rgba(14, 165, 233, 0.6);
-    outline-offset: 2px;
-  }
-
-  .lg-skip-link {
-    @apply sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50;
-    @apply lg-btn-primary;
-  }
-
-  /* ----- 模态框样式 ----- */
+  /* === 模态框样式 === */
 
   .lg-modal-overlay {
     background: rgba(15, 23, 42, 0.4);
@@ -515,10 +420,9 @@
   }
 
   .lg-modal-content {
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(32px) saturate(1.15) contrast(1.08);
-    -webkit-backdrop-filter: blur(32px) saturate(1.15) contrast(1.08);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    @apply lg-glass-strong;
+    background: rgba(255, 255, 255, 0.85);
+    border-color: rgba(255, 255, 255, 0.6);
     box-shadow:
       0 32px 64px -32px rgba(15, 23, 42, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -526,14 +430,14 @@
   }
 
   .dark .lg-modal-content {
-    background: rgba(15, 23, 42, 0.8);
-    border-color: rgba(148, 163, 184, 0.15);
+    background: rgba(15, 23, 42, 0.92);
+    border-color: rgba(148, 163, 184, 0.2);
     box-shadow:
       0 32px 64px -32px rgba(0, 0, 0, 0.9),
       inset 0 1px 0 rgba(148, 163, 184, 0.2);
   }
 
-  /* ----- 连接状态指示器 ----- */
+  /* === 连接状态指示器 === */
 
   .lg-status-badge {
     @apply flex items-center gap-1.5 rounded-full border px-2.5 py-1;
@@ -567,9 +471,8 @@
     box-shadow: 0 0 10px rgba(239, 68, 68, 0.75);
   }
 
-  /* ----- 动画效果 ----- */
+  /* === 动画效果 === */
 
-  /* 液态入场动画 */
   @keyframes lg-liquid-in {
     0% {
       opacity: 0;
@@ -587,17 +490,16 @@
     animation: lg-liquid-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* 脉冲光晕 */
   @keyframes lg-pulse-glow {
     0%, 100% {
       box-shadow:
-        0 0 20px rgb(14 165 233 / 0.3),
-        0 0 40px rgb(14 165 233 / 0.1);
+        0 0 20px rgb(var(--lg-sky-500) / 0.3),
+        0 0 40px rgb(var(--lg-sky-500) / 0.1);
     }
     50% {
       box-shadow:
-        0 0 30px rgb(14 165 233 / 0.5),
-        0 0 60px rgb(14 165 233 / 0.2);
+        0 0 30px rgb(var(--lg-sky-500) / 0.5),
+        0 0 60px rgb(var(--lg-sky-500) / 0.2);
     }
   }
 
@@ -605,84 +507,81 @@
     animation: lg-pulse-glow 2s ease-in-out infinite;
   }
 
-  /* ----- 兼容性别名 ----- */
-
+  /* === 兼容性别名 === */
   .tg-glass {
-    @apply lg-glass-2;
+    @apply lg-glass;
   }
-
   .tg-glass-strong {
-    @apply lg-glass-3;
+    @apply lg-glass-strong;
   }
-
   .tg-accent-btn {
     @apply lg-btn-primary;
   }
-
   .tg-input {
     @apply lg-input;
   }
-
-  .tg-panel-outline {
-    @apply lg-glow-border;
-  }
 }
-
 
 /* ============================================
    backdrop-filter 降级方案
    ============================================ */
 
 @supports not (backdrop-filter: blur(10px)) {
-  .lg-glass-1 {
+  .lg-glass {
     background: rgba(255, 255, 255, 0.92);
   }
-
-  .lg-glass-2 {
+  .lg-glass-strong {
     background: rgba(255, 255, 255, 0.95);
   }
-
-  .lg-glass-3 {
-    background: rgba(255, 255, 255, 0.97);
-  }
-
-  .dark .lg-glass-1 {
+  .dark .lg-glass {
     background: rgba(15, 23, 42, 0.92);
   }
-
-  .dark .lg-glass-2 {
+  .dark .lg-glass-strong {
     background: rgba(15, 23, 42, 0.95);
   }
-
-  .dark .lg-glass-3 {
-    background: rgba(15, 23, 42, 0.97);
-  }
-
   .lg-bubble-own {
-    background: rgb(14, 165, 233);
+    background: rgb(var(--lg-sky-500));
   }
-
   .lg-bubble-other {
     background: rgba(255, 255, 255, 0.95);
   }
-
   .dark .lg-bubble-other {
     background: rgba(30, 41, 59, 0.95);
   }
-
   .lg-modal-content {
     background: rgba(255, 255, 255, 0.97);
   }
-
   .dark .lg-modal-content {
     background: rgba(15, 23, 42, 0.97);
   }
-
   .lg-input {
     background: rgba(255, 255, 255, 0.95);
   }
-
   .dark .lg-input {
     background: rgba(30, 41, 59, 0.95);
+  }
+}
+
+/* ============================================
+   降低透明度支持
+   ============================================ */
+
+@media (prefers-reduced-transparency: reduce) {
+  .lg-glass {
+    background: rgb(255, 255, 255);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid rgb(203, 213, 225);
+  }
+  .lg-glass-strong {
+    background: rgb(255, 255, 255);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    border: 1px solid rgb(203, 213, 225);
+  }
+  .dark .lg-glass,
+  .dark .lg-glass-strong {
+    background: rgb(15, 23, 42);
+    border: 1px solid rgb(51, 65, 85);
   }
 }

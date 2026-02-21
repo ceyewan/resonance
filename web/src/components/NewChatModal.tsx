@@ -19,9 +19,7 @@ type ChatMode = "single" | "group";
 
 /**
  * 新建聊天弹窗
- * Liquid Glass 设计风格
- * - 单聊：搜索用户（添加新联系人）
- * - 群聊：从联系人列表多选 + 输入群名
+ * Liquid Glass T2 级实现 - Modal 组件使用高强度玻璃效果
  */
 export function NewChatModal({
   isOpen,
@@ -40,7 +38,6 @@ export function NewChatModal({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 搜索用户
   const handleSearch = useCallback(async () => {
     const query = searchQuery.trim();
     if (!query) {
@@ -51,7 +48,6 @@ export function NewChatModal({
     setError(null);
     try {
       const result = await searchUsers(query);
-      // 过滤掉当前用户
       setSearchResults(result.filter((u) => u.username !== currentUsername));
     } catch (err) {
       console.error("[NewChatModal] Failed to search users:", err);
@@ -61,17 +57,13 @@ export function NewChatModal({
     }
   }, [searchQuery, currentUsername]);
 
-  // 搜索防抖
   useEffect(() => {
     if (mode === "single") {
-      const timer = setTimeout(() => {
-        handleSearch();
-      }, 300);
+      const timer = setTimeout(() => handleSearch(), 300);
       return () => clearTimeout(timer);
     }
   }, [mode, searchQuery, handleSearch]);
 
-  // 加载联系人列表（群聊模式）
   const loadContacts = useCallback(async () => {
     setIsLoadingContacts(true);
     setError(null);
@@ -86,14 +78,12 @@ export function NewChatModal({
     }
   }, []);
 
-  // 切换到群聊模式时加载联系人
   useEffect(() => {
     if (mode === "group" && contacts.length === 0) {
       loadContacts();
     }
   }, [mode, contacts.length, loadContacts]);
 
-  // 切换模式时重置状态
   useEffect(() => {
     setSelectedUsers([]);
     setGroupName("");
@@ -102,7 +92,6 @@ export function NewChatModal({
     setError(null);
   }, [mode]);
 
-  // 关闭弹窗
   const handleClose = useCallback(() => {
     setSelectedUsers([]);
     setGroupName("");
@@ -113,27 +102,22 @@ export function NewChatModal({
     onClose();
   }, [onClose]);
 
-  // 切换用户选择
   const toggleUser = useCallback(
     (username: string) => {
       if (mode === "single") {
-        // 单聊：直接创建
         quickStartChat(username);
         return;
       }
-      // 群聊：多选
-      setSelectedUsers((prev) => {
-        if (prev.includes(username)) {
-          return prev.filter((u) => u !== username);
-        }
-        return [...prev, username];
-      });
+      setSelectedUsers((prev) =>
+        prev.includes(username)
+          ? prev.filter((u) => u !== username)
+          : [...prev, username]
+      );
       setError(null);
     },
-    [mode],
+    [mode]
   );
 
-  // 快速开始单聊
   const quickStartChat = useCallback(
     async (username: string) => {
       setIsCreating(true);
@@ -152,10 +136,9 @@ export function NewChatModal({
         setIsCreating(false);
       }
     },
-    [onSessionCreated, handleClose],
+    [onSessionCreated, handleClose]
   );
 
-  // 创建群聊
   const handleCreateGroup = useCallback(async () => {
     if (selectedUsers.length === 0) {
       setError("请选择至少一个成员");
@@ -188,14 +171,11 @@ export function NewChatModal({
     }
   }, [selectedUsers, groupName, onSessionCreated, handleClose]);
 
-  // Escape 键关闭弹窗
   const dialogRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isCreating) {
-        handleClose();
-      }
+      if (e.key === "Escape" && !isCreating) handleClose();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
@@ -209,7 +189,7 @@ export function NewChatModal({
 
   return (
     <div
-      className="lg-modal-overlay fixed inset-0 z-50 flex items-center justify-center px-4"
+      className="lg-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="new-chat-modal-title"
@@ -217,73 +197,50 @@ export function NewChatModal({
     >
       <div
         ref={dialogRef}
-        className="lg-modal-content lg-glow-border lg-animate-in w-full max-w-md rounded-3xl"
+        className="lg-modal-content lg-animate-in w-full max-w-md rounded-3xl shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between border-b border-white/40 p-4 dark:border-slate-200/10">
-          <h2 id="new-chat-modal-title" className="text-lg font-semibold text-slate-900 dark:text-white">新建聊天</h2>
+        <div className="flex items-center justify-between border-b border-white/40 p-4 dark:border-white/10">
+          <h2 id="new-chat-modal-title" className="text-lg font-semibold text-slate-900 dark:text-white">
+            新建聊天
+          </h2>
           <button
             onClick={handleClose}
-            className="rounded-full p-1 text-slate-500 transition-all duration-200 hover:bg-white/45 hover:text-slate-700 hover:shadow-sm dark:text-slate-300 dark:hover:bg-slate-700/55 dark:hover:text-slate-100"
+            className="rounded-full p-1.5 text-slate-500 transition-all hover:bg-white/50 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-slate-100"
             disabled={isCreating}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* 模式切换 */}
-        <div className="flex border-b border-white/40 dark:border-slate-200/10">
-          <button
-            onClick={() => setMode("single")}
-            disabled={isCreating}
-            className={cn(
-              "flex-1 px-4 py-3 text-sm font-medium transition-all duration-200",
-              mode === "single"
-                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
-                : "text-slate-500 hover:text-slate-700 hover:bg-white/30 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30",
-              "disabled:opacity-50",
-            )}
-          >
-            单聊
-          </button>
-          <button
-            onClick={() => setMode("group")}
-            disabled={isCreating}
-            className={cn(
-              "flex-1 px-4 py-3 text-sm font-medium transition-all duration-200",
-              mode === "group"
-                ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-300"
-                : "text-slate-500 hover:text-slate-700 hover:bg-white/30 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700/30",
-              "disabled:opacity-50",
-            )}
-          >
-            群聊
-          </button>
+        <div className="flex border-b border-white/40 dark:border-white/10">
+          {(["single", "group"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              disabled={isCreating}
+              className={cn(
+                "flex-1 px-4 py-3 text-sm font-medium transition-all",
+                mode === m
+                  ? "border-b-2 border-sky-500 text-sky-600 dark:text-sky-400"
+                  : "text-slate-500 hover:bg-white/30 dark:text-slate-400 dark:hover:bg-white/5",
+                "disabled:opacity-50",
+              )}
+            >
+              {m === "single" ? "单聊" : "群聊"}
+            </button>
+          ))}
         </div>
 
-        {/* 搜索框（单聊模式）或过滤框（群聊模式） */}
+        {/* 搜索框 */}
         <div className="p-4">
           <div className="relative">
-            <svg
-              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
+            <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
@@ -291,10 +248,7 @@ export function NewChatModal({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isGroupMode ? "搜索联系人" : "搜索用户名或昵称"}
               disabled={isCreating}
-              className={cn(
-                "lg-input w-full py-2 pl-10 pr-4 text-sm",
-                "disabled:opacity-50",
-              )}
+              className={cn("lg-input w-full py-2 pl-10 pr-4 text-sm", "disabled:opacity-50")}
               autoFocus
             />
           </div>
@@ -304,36 +258,15 @@ export function NewChatModal({
         <div className="max-h-72 overflow-y-auto px-2">
           {isLoading ? (
             <div className="flex items-center justify-center p-8">
-              <svg className="h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
+              <svg className="h-5 w-5 animate-spin text-slate-400" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
               </svg>
             </div>
           ) : displayList.length === 0 ? (
             <div className="flex flex-col items-center p-8 text-center">
-              <svg
-                className="mb-3 h-12 w-12 text-slate-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                />
+              <svg className="mb-3 h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {isGroupMode
@@ -354,89 +287,44 @@ export function NewChatModal({
                     key={user.username}
                     onClick={() => !isCreating && toggleUser(user.username)}
                     className={cn(
-                      "flex cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 transition-all duration-200",
-                      "hover:border-white/40 hover:bg-white/45 hover:shadow-sm dark:hover:border-slate-200/10 dark:hover:bg-slate-700/55",
-                      isCreating && "opacity-50 cursor-not-allowed",
+                      "flex cursor-pointer items-center gap-3 rounded-xl border border-transparent p-3 transition-all",
+                      "hover:border-white/40 dark:hover:border-white/10",
+                      isCreating && "cursor-not-allowed opacity-50",
                     )}
                   >
-                    {/* 复选框（仅群聊模式） */}
+                    {/* 复选框（群聊模式） */}
                     {isGroupMode && (
                       <div
                         className={cn(
                           "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
-                          isSelected
-                            ? "border-sky-500 bg-sky-500"
-                            : "border-slate-300 dark:border-slate-500",
+                          isSelected ? "border-sky-500 bg-sky-500" : "border-slate-300 dark:border-slate-500",
                         )}
                       >
                         {isSelected && (
-                          <svg
-                            className="h-3 w-3 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
+                          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                           </svg>
                         )}
                       </div>
                     )}
 
                     {/* 头像 */}
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-[0_10px_16px_-10px_rgba(2,132,199,0.9)]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-sm font-semibold text-white shadow-lg">
                       {(user.nickname || user.username).charAt(0).toUpperCase()}
                     </div>
 
                     {/* 用户信息 */}
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-slate-900 dark:text-white">
                         {user.nickname || user.username}
                       </p>
-                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                        @{user.username}
-                      </p>
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">@{user.username}</p>
                     </div>
 
                     {/* 单聊模式箭头 */}
                     {!isGroupMode && (
-                      <svg
-                        className="h-5 w-5 text-slate-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                    )}
-
-                    {/* 群聊模式加载中 */}
-                    {isGroupMode && isCreating && isSelected && (
-                      <svg
-                        className="h-5 w-5 animate-spin text-sky-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
+                      <svg className="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
                     )}
                   </div>
@@ -446,19 +334,16 @@ export function NewChatModal({
           )}
         </div>
 
-        {/* 群名输入（仅群聊模式） */}
+        {/* 群名输入 */}
         {isGroupMode && (
-          <div className="border-t border-white/40 p-4 dark:border-slate-200/10">
+          <div className="border-t border-white/40 p-4 dark:border-white/10">
             <input
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="输入群名"
               disabled={isCreating}
-              className={cn(
-                "lg-input w-full px-4 py-2 text-sm",
-                "disabled:opacity-50",
-              )}
+              className={cn("lg-input w-full px-4 py-2 text-sm", "disabled:opacity-50")}
             />
           </div>
         )}
@@ -470,30 +355,24 @@ export function NewChatModal({
           </div>
         )}
 
-        {/* 底部操作按钮 */}
-        <div className="flex border-t border-white/40 p-4 dark:border-slate-200/10">
+        {/* 底部操作 */}
+        <div className="flex border-t border-white/40 p-4 dark:border-white/10">
           <button
             onClick={handleClose}
             disabled={isCreating}
-            className={cn(
-              "lg-btn-secondary rounded-xl px-4 py-2 text-sm",
-              "disabled:opacity-50",
-            )}
+            className={cn("lg-btn-secondary px-4 py-2 text-sm", "disabled:opacity-50")}
           >
             取消
           </button>
           {isGroupMode && (
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-3">
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 已选 {selectedUsers.length} 人
               </span>
               <button
                 onClick={handleCreateGroup}
                 disabled={isCreating || selectedUsers.length < 2}
-                className={cn(
-                  "lg-btn-primary rounded-xl px-4 py-2 text-sm",
-                  "disabled:opacity-50",
-                )}
+                className={cn("lg-btn-primary px-4 py-2 text-sm", "disabled:opacity-50")}
               >
                 创建
               </button>

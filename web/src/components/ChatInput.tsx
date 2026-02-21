@@ -9,8 +9,7 @@ interface ChatInputProps {
 
 /**
  * 聊天输入框组件
- * Liquid Glass 设计风格
- * 支持多行输入、自动高度调整
+ * Liquid Glass T1 级实现
  */
 export function ChatInput({
   disabled = false,
@@ -20,14 +19,12 @@ export function ChatInput({
   const [value, setValue] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 自动调整高度
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
     textarea.style.height = "auto";
     const scrollHeight = textarea.scrollHeight;
-    const newHeight = Math.min(scrollHeight, 120); // 最大高度 120px
+    const newHeight = Math.min(scrollHeight, 120);
     textarea.style.height = `${newHeight}px`;
   }, [value]);
 
@@ -35,18 +32,14 @@ export function ChatInput({
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
-
     onSend(trimmed);
     setValue("");
-
-    // 重置高度
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter 发送，Shift + Enter 换行
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
@@ -54,7 +47,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t border-white/35 px-3 py-3 dark:border-slate-200/10 md:px-4">
+    <div className="border-t border-slate-300/65 px-3 py-3 dark:border-slate-700/45 md:px-4">
       <form onSubmit={handleSubmit} className="flex items-end gap-2">
         {/* 附件按钮 */}
         <button
