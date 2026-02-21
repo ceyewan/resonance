@@ -19,8 +19,8 @@
 
 ## 受影响范围
 
-- `internal/model`: 数据模型
-- `internal/repo`: 数据访问层
+- `model`: 数据模型
+- `repo`: 数据访问层
 - `logic/service`: 业务逻辑层
 - `api/proto`: API 定义
 

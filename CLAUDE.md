@@ -107,7 +107,7 @@ cat genesis/connector/redis.go
 
 # 查看项目中的使用示例
 cat logic/logic.go         # 资源初始化
-cat internal/repo/repo.go    # 业务接口定义
+cat repo/repo.go           # 业务接口定义
 ```
 
 ### 初始化模式（显式依赖注入）
@@ -133,9 +133,8 @@ resonance/
 ├── api/                   # Protobuf 协议定义
 │   ├── proto/             # .proto 原文件
 │   └── gen/               # 生成代码 (勿修改)
-├── internal/                # 公共 SDK
-│   ├── model/             # 数据模型 (User/Session/Message...)
-│   └── repo/              # 仓储接口 (业务层抽象)
+├── model/                 # 数据模型 (User/Session/Message...)
+├── repo/                  # 仓储接口 (业务层抽象)
 ├── logic/                 # Logic 服务
 │   ├── config/            # 配置加载
 │   ├── server/            # gRPC 服务器封装
@@ -162,7 +161,7 @@ resonance/
 ### 1. 面向业务接口，隐藏基础组件
 
 ```go
-// ✅ 业务接口 - internal/repo/repo.go
+// ✅ 业务接口 - repo/repo.go
 type UserRepo interface {
     CreateUser(ctx context.Context, user *model.User) error
     GetUserByUsername(ctx context.Context, username string) (*model.User, error)

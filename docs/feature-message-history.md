@@ -20,7 +20,7 @@
 ## 受影响范围
 
 - `api/proto`: API 定义
-- `internal/repo`: 数据库查询
+- `repo`: 数据库查询
 - `logic/service`: 业务逻辑
 
 ## 根因分析
@@ -107,7 +107,7 @@ func (s *ChatService) GetMessages(ctx context.Context, req *GetMessagesRequest) 
 ### 4. 数据库查询
 
 ```go
-// internal/repo/message.go
+// repo/message.go
 func (r *messageRepo) GetMessages(ctx context.Context, sessionID string, seqID int64, limit int, ascending bool) ([]*model.MessageContent, error) {
     gormDB := r.db.DB(ctx)
 

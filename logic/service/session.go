@@ -12,8 +12,8 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
-	"github.com/ceyewan/resonance/internal/model"
-	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

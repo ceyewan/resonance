@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

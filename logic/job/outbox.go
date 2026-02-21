@@ -7,8 +7,8 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
-	"github.com/ceyewan/resonance/internal/model"
-	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/logic/config"
 )
 

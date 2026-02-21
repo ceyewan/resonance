@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/model"
 )
 
 // RouterRepo 定义了路由表（用户与网关实例映射）的数据访问接口，通常由 Redis 实现

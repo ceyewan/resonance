@@ -13,7 +13,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/model"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -215,14 +215,7 @@ func autoMigrateTables(ctx context.Context) error {
 	}
 
 	gormDB := globalDB.DB(ctx)
-	if err := gormDB.AutoMigrate(
-		&model.User{},
-		&model.Session{},
-		&model.SessionMember{},
-		&model.MessageContent{},
-		&model.Inbox{},
-		&model.MessageOutbox{},
-	); err != nil {
+	if err := gormDB.AutoMigrate(model.AllModels()...); err != nil {
 		return fmt.Errorf("auto migrate failed: %w", err)
 	}
 	return nil

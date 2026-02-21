@@ -7,8 +7,8 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/internal/model"
-	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
@@ -173,7 +173,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 }
 
 // joinDefaultRoom 让新用户自动加入 Resonance Room 默认群聊
-// session_id='0' 是在 schema.sql 中预创建的系统级群聊
+// session_id='0' 是通过 `go run main.go -module init` 预创建的系统级群聊
 func (s *AuthService) joinDefaultRoom(ctx context.Context, username string) error {
 	const defaultSessionID = "0" // Resonance Room 的固定 session_id
 

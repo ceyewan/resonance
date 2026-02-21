@@ -1,6 +1,6 @@
 # Repository
 
-`internal/repo` 提供 Resonance 的仓储接口与默认实现。
+`repo` 提供 Resonance 的仓储接口与默认实现。
 
 - `UserRepo` / `SessionRepo` / `MessageRepo`：基于 PostgreSQL
 - `RouterRepo`：基于 Redis
@@ -8,7 +8,7 @@
 ## 文件结构
 
 ```text
-internal/repo/
+repo/
 ├── repo.go           # 接口定义
 ├── user.go           # UserRepo 实现
 ├── session.go        # SessionRepo 实现
@@ -61,7 +61,7 @@ routerRepo, _ := repo.NewRouterRepo(redisConn)
 运行方式：
 
 ```bash
-go test ./internal/repo/... -v
+go test ./repo/... -v
 ```
 
 说明：

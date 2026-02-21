@@ -6,7 +6,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/internal/model"
+	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
 )
 

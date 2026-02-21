@@ -5,8 +5,8 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/internal/model"
-	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 )
 
 // PresenceService 处理网关状态同步相关的请求

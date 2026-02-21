@@ -9,8 +9,8 @@ import (
 	"github.com/ceyewan/genesis/mq"
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
-	"github.com/ceyewan/resonance/internal/model"
-	"github.com/ceyewan/resonance/internal/repo"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/logic/observability"
 	"google.golang.org/protobuf/proto"
 )
