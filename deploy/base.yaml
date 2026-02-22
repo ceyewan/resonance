@@ -21,6 +21,8 @@ services:
       - etcd-data:/etcd-data
     networks:
       - resonance-net
+    ports:
+      - "2379:2379"
     deploy:
       resources:
         limits:
@@ -52,6 +54,8 @@ services:
       - postgres-data:/var/lib/postgresql/data
     networks:
       - resonance-net
+    ports:
+      - "5432:5432"
     deploy:
       resources:
         limits:
@@ -87,6 +91,8 @@ services:
       - redis-data:/data
     networks:
       - resonance-net
+    ports:
+      - "6379:6379"
     deploy:
       resources:
         limits:
@@ -119,6 +125,9 @@ services:
       - nats-data:/data
     networks:
       - resonance-net
+    ports:
+      - "4222:4222"
+      - "8222:8222"
     deploy:
       resources:
         limits:
