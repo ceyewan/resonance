@@ -29,7 +29,6 @@ interface AuthState {
   // 认证操作
   setAuth: (user: User, token: string) => void;
   logout: () => void;
-  reset: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -82,17 +81,8 @@ export const useAuthStore = create<AuthState>()(
           error: null,
         }),
 
-      // 登出：清除所有认证状态
+      // 登出：清除所有状态（包括临时状态如 isLoading）
       logout: () =>
-        set({
-          user: null,
-          accessToken: null,
-          isAuthenticated: false,
-          error: null,
-        }),
-
-      // 重置所有状态
-      reset: () =>
         set({
           user: null,
           accessToken: null,

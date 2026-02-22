@@ -1,7 +1,7 @@
 import { cn } from "@/lib/cn";
 import { getAvatarColor, getAvatarInitial } from "@/lib/avatar";
+import { formatTimestamp } from "@/lib/time";
 import type { ChatMessage } from "@/stores/message";
-import { TIME_FORMAT } from "@/constants";
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -22,11 +22,6 @@ export function MessageBubble({
   senderName,
   senderAvatarUrl,
 }: MessageBubbleProps) {
-  const formatTime = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) * 1000);
-    return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
-  };
-
   const avatarColor = getAvatarColor(senderName || "");
 
   const renderStatusIcon = () => {
@@ -174,7 +169,7 @@ export function MessageBubble({
             isOwn ? "text-sky-600 dark:text-sky-300" : "text-slate-400 dark:text-slate-500",
           )}
         >
-          <span>{formatTime(message.timestamp)}</span>
+          <span>{formatTimestamp(message.timestamp)}</span>
           {isOwn && renderStatusIcon()}
         </div>
       </div>

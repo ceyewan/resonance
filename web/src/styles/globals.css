@@ -32,10 +32,6 @@
     --lg-highlight-weak-opacity: 0.2;
     --lg-shadow-color: 15 23 42;
     --lg-shadow-opacity: 0.15;
-
-    /* === 兼容旧版 === */
-    --tg-accent: var(--lg-sky-500);
-    --tg-accent-strong: var(--lg-sky-600);
     --app-height: 100vh;
   }
 
@@ -398,15 +394,6 @@
     color: rgba(255, 255, 255, 0.98);
   }
 
-  .lg-session-item-active .lg-session-title {
-    color: rgba(255, 255, 255, 0.98);
-    text-shadow: 0 1px 1px rgba(2, 6, 23, 0.2);
-  }
-
-  .lg-session-item-active .lg-session-meta {
-    color: rgba(240, 249, 255, 0.95);
-  }
-
   /* === 模态框样式 === */
 
   .lg-modal-overlay {
@@ -505,20 +492,6 @@
 
   .lg-pulse-glow {
     animation: lg-pulse-glow 2s ease-in-out infinite;
-  }
-
-  /* === 兼容性别名 === */
-  .tg-glass {
-    @apply lg-glass;
-  }
-  .tg-glass-strong {
-    @apply lg-glass-strong;
-  }
-  .tg-accent-btn {
-    @apply lg-btn-primary;
-  }
-  .tg-input {
-    @apply lg-input;
   }
 }
 

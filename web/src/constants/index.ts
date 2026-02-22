@@ -109,32 +109,6 @@ export const UI_CONFIG = {
   INPUT_MAX_HEIGHT: 120,
 } as const;
 
-// ==================== 时间格式 ====================
-/**
- * 时间格式化选项
- */
-export const TIME_FORMAT = {
-  /** 消息时间戳格式 */
-  MESSAGE_TIME: {
-    hour: "2-digit",
-    minute: "2-digit",
-  } as const,
-
-  /** 消息完整日期时间格式 */
-  MESSAGE_DATETIME: {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  } as const,
-
-  /** 会话列表时间格式 */
-  SESSION_TIME: {
-    month: "short",
-    day: "numeric",
-  } as const,
-} as const;
-
 // ==================== 错误消息 ====================
 export const ERROR_MESSAGES = {
   NETWORK_ERROR: "网络连接失败，请检查网络设置",

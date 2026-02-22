@@ -1,7 +1,8 @@
 import { cn } from "@/lib/cn";
 import { getAvatarColor, getAvatarInitial } from "@/lib/avatar";
+import { formatSessionTime } from "@/lib/time";
 import type { SessionInfo } from "@/stores/session";
-import { TIME_FORMAT, DEFAULTS } from "@/constants";
+import { DEFAULTS } from "@/constants";
 
 interface SessionItemProps {
   session: SessionInfo;
@@ -15,18 +16,6 @@ interface SessionItemProps {
  */
 export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
   const displayName = session.name || DEFAULTS.GROUP_NAME;
-
-  const formatTime = (timestamp?: bigint) => {
-    if (!timestamp) return "";
-    const date = new Date(Number(timestamp) / 1000000);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-
-    if (isToday) {
-      return date.toLocaleTimeString("zh-CN", TIME_FORMAT.MESSAGE_TIME as any);
-    }
-    return date.toLocaleDateString("zh-CN", TIME_FORMAT.SESSION_TIME as any);
-  };
 
   const formatLastMessage = (content?: string, type?: string) => {
     if (!content) return "暂无消息";
@@ -87,7 +76,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         <div className="flex items-center justify-between">
           <h3
             className={cn(
-              "lg-session-title truncate text-sm font-semibold transition-colors",
+              "truncate text-sm font-semibold transition-colors",
               isActive ? "text-white" : "text-slate-900 dark:text-slate-100",
             )}
           >
@@ -97,11 +86,11 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
             {session.lastMessage?.timestamp !== undefined && (
               <span
                 className={cn(
-                  "lg-session-meta text-xs transition-colors",
+                  "text-xs transition-colors",
                   isActive ? "text-white/90" : "text-slate-500 dark:text-slate-400",
                 )}
               >
-                {formatTime(session.lastMessage.timestamp)}
+                {formatSessionTime(session.lastMessage.timestamp)}
               </span>
             )}
             {session.unreadCount > 0 && (
@@ -120,7 +109,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
         </div>
         <p
           className={cn(
-            "lg-session-meta mt-0.5 truncate text-sm transition-colors",
+            "mt-0.5 truncate text-sm transition-colors",
             isActive ? "text-white/85" : "text-slate-500 dark:text-slate-400",
           )}
         >
