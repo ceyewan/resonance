@@ -61,9 +61,9 @@ func (c *Client) CreateSession(ctx context.Context, req *logicv1.CreateSessionRe
 	return c.sessionSvc().CreateSession(ctx, req)
 }
 
-// GetRecentMessages 获取历史消息
-func (c *Client) GetRecentMessages(ctx context.Context, req *logicv1.GetRecentMessagesRequest) (*logicv1.GetRecentMessagesResponse, error) {
-	return c.sessionSvc().GetRecentMessages(ctx, req)
+// GetHistoryMessages 获取历史消息
+func (c *Client) GetHistoryMessages(ctx context.Context, req *logicv1.GetHistoryMessagesRequest) (*logicv1.GetHistoryMessagesResponse, error) {
+	return c.sessionSvc().GetHistoryMessages(ctx, req)
 }
 
 // GetContactList 获取联系人列表
@@ -83,6 +83,11 @@ func (c *Client) SearchUser(ctx context.Context, query string) (*logicv1.SearchU
 // UpdateReadPosition 更新会话已读位置
 func (c *Client) UpdateReadPosition(ctx context.Context, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
 	return c.sessionSvc().UpdateReadPosition(ctx, req)
+}
+
+// PullInboxDelta 按游标增量拉取用户消息
+func (c *Client) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
+	return c.sessionSvc().PullInboxDelta(ctx, req)
 }
 
 // ==================== PresenceService 接口 ====================

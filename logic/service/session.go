@@ -333,9 +333,9 @@ func (s *SessionService) buildSystemMessageContent(ctx context.Context, req *log
 	return fmt.Sprintf("%s 创建了群聊「%s」", creatorNickname, req.Name)
 }
 
-// GetRecentMessages 实现 SessionService.GetRecentMessages
-func (s *SessionService) GetRecentMessages(ctx context.Context, req *logicv1.GetRecentMessagesRequest) (*logicv1.GetRecentMessagesResponse, error) {
-	s.logger.Info("get recent messages",
+// GetHistoryMessages 实现 SessionService.GetHistoryMessages
+func (s *SessionService) GetHistoryMessages(ctx context.Context, req *logicv1.GetHistoryMessagesRequest) (*logicv1.GetHistoryMessagesResponse, error) {
+	s.logger.Info("get history messages",
 		clog.String("session_id", req.SessionId),
 		clog.Int64("limit", req.Limit))
 
@@ -350,8 +350,8 @@ func (s *SessionService) GetRecentMessages(ctx context.Context, req *logicv1.Get
 	// 获取历史消息
 	messages, err := s.messageRepo.GetHistoryMessages(ctx, req.SessionId, req.BeforeSeq, limit)
 	if err != nil {
-		s.logger.Error("failed to get recent messages", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to get recent messages")
+		s.logger.Error("failed to get history messages", clog.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to get history messages")
 	}
 
 	// 转换为 PushMessage 格式
@@ -369,7 +369,7 @@ func (s *SessionService) GetRecentMessages(ctx context.Context, req *logicv1.Get
 		})
 	}
 
-	return &logicv1.GetRecentMessagesResponse{
+	return &logicv1.GetHistoryMessagesResponse{
 		Messages: pushMessages,
 	}, nil
 }
@@ -465,5 +465,54 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 
 	return &logicv1.UpdateReadPositionResponse{
 		UnreadCount: unread,
+	}, nil
+}
+
+// PullInboxDelta 实现 SessionService.PullInboxDelta
+func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
+	s.logger.Info("pull inbox delta",
+		clog.String("username", req.Username),
+		clog.Int64("cursor_id", req.CursorId),
+		clog.Int64("limit", req.Limit))
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	items, err := s.messageRepo.GetInboxDelta(ctx, req.Username, req.CursorId, limit)
+	if err != nil {
+		s.logger.Error("failed to get inbox delta", clog.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to get inbox delta")
+	}
+
+	events := make([]*logicv1.InboxEvent, 0, len(items))
+	nextCursorID := req.CursorId
+	for _, item := range items {
+		events = append(events, &logicv1.InboxEvent{
+			InboxId: item.InboxID,
+			Message: &gatewayv1.PushMessage{
+				MsgId:        item.MsgID,
+				SeqId:        item.SeqID,
+				SessionId:    item.SessionID,
+				FromUsername: item.SenderUsername,
+				ToUsername:   req.Username,
+				Content:      item.Content,
+				Type:         item.MsgType,
+				Timestamp:    item.CreatedAt.Unix(),
+			},
+		})
+		if item.InboxID > nextCursorID {
+			nextCursorID = item.InboxID
+		}
+	}
+
+	return &logicv1.PullInboxDeltaResponse{
+		Events:       events,
+		NextCursorId: nextCursorID,
+		HasMore:      len(items) == limit,
 	}, nil
 }

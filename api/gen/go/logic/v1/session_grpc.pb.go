@@ -21,10 +21,11 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_GetSessionList_FullMethodName     = "/resonance.logic.v1.SessionService/GetSessionList"
 	SessionService_CreateSession_FullMethodName      = "/resonance.logic.v1.SessionService/CreateSession"
-	SessionService_GetRecentMessages_FullMethodName  = "/resonance.logic.v1.SessionService/GetRecentMessages"
+	SessionService_GetHistoryMessages_FullMethodName = "/resonance.logic.v1.SessionService/GetHistoryMessages"
 	SessionService_GetContactList_FullMethodName     = "/resonance.logic.v1.SessionService/GetContactList"
 	SessionService_SearchUser_FullMethodName         = "/resonance.logic.v1.SessionService/SearchUser"
 	SessionService_UpdateReadPosition_FullMethodName = "/resonance.logic.v1.SessionService/UpdateReadPosition"
+	SessionService_PullInboxDelta_FullMethodName     = "/resonance.logic.v1.SessionService/PullInboxDelta"
 )
 
 // SessionServiceClient is the client API for SessionService service.
@@ -37,14 +38,16 @@ type SessionServiceClient interface {
 	GetSessionList(ctx context.Context, in *GetSessionListRequest, opts ...grpc.CallOption) (*GetSessionListResponse, error)
 	// CreateSession 创建会话（单聊或群聊）
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
-	// GetRecentMessages 拉取会话的历史消息（登录同步或翻页）
-	GetRecentMessages(ctx context.Context, in *GetRecentMessagesRequest, opts ...grpc.CallOption) (*GetRecentMessagesResponse, error)
+	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
+	GetHistoryMessages(ctx context.Context, in *GetHistoryMessagesRequest, opts ...grpc.CallOption) (*GetHistoryMessagesResponse, error)
 	// GetContactList 获取联系人列表（即与当前用户有过单聊往来的用户）
 	GetContactList(ctx context.Context, in *GetContactListRequest, opts ...grpc.CallOption) (*GetContactListResponse, error)
 	// SearchUser 搜索用户（用于发起新聊天）
 	SearchUser(ctx context.Context, in *SearchUserRequest, opts ...grpc.CallOption) (*SearchUserResponse, error)
 	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(ctx context.Context, in *UpdateReadPositionRequest, opts ...grpc.CallOption) (*UpdateReadPositionResponse, error)
+	// PullInboxDelta 按用户游标增量拉取消息（断线补偿/刷新同步）
+	PullInboxDelta(ctx context.Context, in *PullInboxDeltaRequest, opts ...grpc.CallOption) (*PullInboxDeltaResponse, error)
 }
 
 type sessionServiceClient struct {
@@ -75,10 +78,10 @@ func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSess
 	return out, nil
 }
 
-func (c *sessionServiceClient) GetRecentMessages(ctx context.Context, in *GetRecentMessagesRequest, opts ...grpc.CallOption) (*GetRecentMessagesResponse, error) {
+func (c *sessionServiceClient) GetHistoryMessages(ctx context.Context, in *GetHistoryMessagesRequest, opts ...grpc.CallOption) (*GetHistoryMessagesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetRecentMessagesResponse)
-	err := c.cc.Invoke(ctx, SessionService_GetRecentMessages_FullMethodName, in, out, cOpts...)
+	out := new(GetHistoryMessagesResponse)
+	err := c.cc.Invoke(ctx, SessionService_GetHistoryMessages_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +118,16 @@ func (c *sessionServiceClient) UpdateReadPosition(ctx context.Context, in *Updat
 	return out, nil
 }
 
+func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, in *PullInboxDeltaRequest, opts ...grpc.CallOption) (*PullInboxDeltaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PullInboxDeltaResponse)
+	err := c.cc.Invoke(ctx, SessionService_PullInboxDelta_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
@@ -125,14 +138,16 @@ type SessionServiceServer interface {
 	GetSessionList(context.Context, *GetSessionListRequest) (*GetSessionListResponse, error)
 	// CreateSession 创建会话（单聊或群聊）
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
-	// GetRecentMessages 拉取会话的历史消息（登录同步或翻页）
-	GetRecentMessages(context.Context, *GetRecentMessagesRequest) (*GetRecentMessagesResponse, error)
+	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
+	GetHistoryMessages(context.Context, *GetHistoryMessagesRequest) (*GetHistoryMessagesResponse, error)
 	// GetContactList 获取联系人列表（即与当前用户有过单聊往来的用户）
 	GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error)
 	// SearchUser 搜索用户（用于发起新聊天）
 	SearchUser(context.Context, *SearchUserRequest) (*SearchUserResponse, error)
 	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(context.Context, *UpdateReadPositionRequest) (*UpdateReadPositionResponse, error)
+	// PullInboxDelta 按用户游标增量拉取消息（断线补偿/刷新同步）
+	PullInboxDelta(context.Context, *PullInboxDeltaRequest) (*PullInboxDeltaResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
 
@@ -149,8 +164,8 @@ func (UnimplementedSessionServiceServer) GetSessionList(context.Context, *GetSes
 func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
 }
-func (UnimplementedSessionServiceServer) GetRecentMessages(context.Context, *GetRecentMessagesRequest) (*GetRecentMessagesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetRecentMessages not implemented")
+func (UnimplementedSessionServiceServer) GetHistoryMessages(context.Context, *GetHistoryMessagesRequest) (*GetHistoryMessagesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHistoryMessages not implemented")
 }
 func (UnimplementedSessionServiceServer) GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetContactList not implemented")
@@ -160,6 +175,9 @@ func (UnimplementedSessionServiceServer) SearchUser(context.Context, *SearchUser
 }
 func (UnimplementedSessionServiceServer) UpdateReadPosition(context.Context, *UpdateReadPositionRequest) (*UpdateReadPositionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateReadPosition not implemented")
+}
+func (UnimplementedSessionServiceServer) PullInboxDelta(context.Context, *PullInboxDeltaRequest) (*PullInboxDeltaResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PullInboxDelta not implemented")
 }
 func (UnimplementedSessionServiceServer) mustEmbedUnimplementedSessionServiceServer() {}
 func (UnimplementedSessionServiceServer) testEmbeddedByValue()                        {}
@@ -218,20 +236,20 @@ func _SessionService_CreateSession_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SessionService_GetRecentMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetRecentMessagesRequest)
+func _SessionService_GetHistoryMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHistoryMessagesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SessionServiceServer).GetRecentMessages(ctx, in)
+		return srv.(SessionServiceServer).GetHistoryMessages(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SessionService_GetRecentMessages_FullMethodName,
+		FullMethod: SessionService_GetHistoryMessages_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SessionServiceServer).GetRecentMessages(ctx, req.(*GetRecentMessagesRequest))
+		return srv.(SessionServiceServer).GetHistoryMessages(ctx, req.(*GetHistoryMessagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -290,6 +308,24 @@ func _SessionService_UpdateReadPosition_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionService_PullInboxDelta_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PullInboxDeltaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).PullInboxDelta(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_PullInboxDelta_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).PullInboxDelta(ctx, req.(*PullInboxDeltaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionService_ServiceDesc is the grpc.ServiceDesc for SessionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -306,8 +342,8 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SessionService_CreateSession_Handler,
 		},
 		{
-			MethodName: "GetRecentMessages",
-			Handler:    _SessionService_GetRecentMessages_Handler,
+			MethodName: "GetHistoryMessages",
+			Handler:    _SessionService_GetHistoryMessages_Handler,
 		},
 		{
 			MethodName: "GetContactList",
@@ -320,6 +356,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateReadPosition",
 			Handler:    _SessionService_UpdateReadPosition_Handler,
+		},
+		{
+			MethodName: "PullInboxDelta",
+			Handler:    _SessionService_PullInboxDelta_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

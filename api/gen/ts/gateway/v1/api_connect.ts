@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateSessionRequest, CreateSessionResponse, GetContactListRequest, GetContactListResponse, GetRecentMessagesRequest, GetRecentMessagesResponse, GetSessionListRequest, GetSessionListResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, RegisterRequest, RegisterResponse, SearchUserRequest, SearchUserResponse, UpdateReadPositionRequest, UpdateReadPositionResponse } from "./api_pb.js";
+import { CreateSessionRequest, CreateSessionResponse, GetContactListRequest, GetContactListResponse, GetHistoryMessagesRequest, GetHistoryMessagesResponse, GetSessionListRequest, GetSessionListResponse, LoginRequest, LoginResponse, LogoutRequest, LogoutResponse, PullInboxDeltaRequest, PullInboxDeltaResponse, RegisterRequest, RegisterResponse, SearchUserRequest, SearchUserResponse, UpdateReadPositionRequest, UpdateReadPositionResponse } from "./api_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -37,7 +37,7 @@ export const AuthService = {
       kind: MethodKind.Unary,
     },
     /**
-     * Logout 使当前令牌失效
+     * Logout 前端主动登出（当前实现为 no-op，依赖客户端删除本地 token）
      *
      * @generated from rpc resonance.gateway.v1.AuthService.Logout
      */
@@ -81,14 +81,14 @@ export const SessionService = {
       kind: MethodKind.Unary,
     },
     /**
-     * GetRecentMessages 拉取最近历史消息
+     * GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
      *
-     * @generated from rpc resonance.gateway.v1.SessionService.GetRecentMessages
+     * @generated from rpc resonance.gateway.v1.SessionService.GetHistoryMessages
      */
-    getRecentMessages: {
-      name: "GetRecentMessages",
-      I: GetRecentMessagesRequest,
-      O: GetRecentMessagesResponse,
+    getHistoryMessages: {
+      name: "GetHistoryMessages",
+      I: GetHistoryMessagesRequest,
+      O: GetHistoryMessagesResponse,
       kind: MethodKind.Unary,
     },
     /**
@@ -122,6 +122,17 @@ export const SessionService = {
       name: "UpdateReadPosition",
       I: UpdateReadPositionRequest,
       O: UpdateReadPositionResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * PullInboxDelta 按用户游标增量拉取消息
+     *
+     * @generated from rpc resonance.gateway.v1.SessionService.PullInboxDelta
+     */
+    pullInboxDelta: {
+      name: "PullInboxDelta",
+      I: PullInboxDeltaRequest,
+      O: PullInboxDeltaResponse,
       kind: MethodKind.Unary,
     },
   }

@@ -47,9 +47,9 @@ const (
 	// SessionServiceCreateSessionProcedure is the fully-qualified name of the SessionService's
 	// CreateSession RPC.
 	SessionServiceCreateSessionProcedure = "/resonance.gateway.v1.SessionService/CreateSession"
-	// SessionServiceGetRecentMessagesProcedure is the fully-qualified name of the SessionService's
-	// GetRecentMessages RPC.
-	SessionServiceGetRecentMessagesProcedure = "/resonance.gateway.v1.SessionService/GetRecentMessages"
+	// SessionServiceGetHistoryMessagesProcedure is the fully-qualified name of the SessionService's
+	// GetHistoryMessages RPC.
+	SessionServiceGetHistoryMessagesProcedure = "/resonance.gateway.v1.SessionService/GetHistoryMessages"
 	// SessionServiceGetContactListProcedure is the fully-qualified name of the SessionService's
 	// GetContactList RPC.
 	SessionServiceGetContactListProcedure = "/resonance.gateway.v1.SessionService/GetContactList"
@@ -59,6 +59,9 @@ const (
 	// SessionServiceUpdateReadPositionProcedure is the fully-qualified name of the SessionService's
 	// UpdateReadPosition RPC.
 	SessionServiceUpdateReadPositionProcedure = "/resonance.gateway.v1.SessionService/UpdateReadPosition"
+	// SessionServicePullInboxDeltaProcedure is the fully-qualified name of the SessionService's
+	// PullInboxDelta RPC.
+	SessionServicePullInboxDeltaProcedure = "/resonance.gateway.v1.SessionService/PullInboxDelta"
 )
 
 // AuthServiceClient is a client for the resonance.gateway.v1.AuthService service.
@@ -67,7 +70,7 @@ type AuthServiceClient interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	// Register 创建一个新的用户账户
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
-	// Logout 使当前令牌失效
+	// Logout 前端主动登出（当前实现为 no-op，依赖客户端删除本地 token）
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 }
 
@@ -131,7 +134,7 @@ type AuthServiceHandler interface {
 	Login(context.Context, *connect.Request[v1.LoginRequest]) (*connect.Response[v1.LoginResponse], error)
 	// Register 创建一个新的用户账户
 	Register(context.Context, *connect.Request[v1.RegisterRequest]) (*connect.Response[v1.RegisterResponse], error)
-	// Logout 使当前令牌失效
+	// Logout 前端主动登出（当前实现为 no-op，依赖客户端删除本地 token）
 	Logout(context.Context, *connect.Request[v1.LogoutRequest]) (*connect.Response[v1.LogoutResponse], error)
 }
 
@@ -195,14 +198,16 @@ type SessionServiceClient interface {
 	GetSessionList(context.Context, *connect.Request[v1.GetSessionListRequest]) (*connect.Response[v1.GetSessionListResponse], error)
 	// CreateSession 创建会话
 	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
-	// GetRecentMessages 拉取最近历史消息
-	GetRecentMessages(context.Context, *connect.Request[v1.GetRecentMessagesRequest]) (*connect.Response[v1.GetRecentMessagesResponse], error)
+	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
+	GetHistoryMessages(context.Context, *connect.Request[v1.GetHistoryMessagesRequest]) (*connect.Response[v1.GetHistoryMessagesResponse], error)
 	// GetContactList 获取联系人列表
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	// SearchUser 搜索用户
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
 	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error)
+	// PullInboxDelta 按用户游标增量拉取消息
+	PullInboxDelta(context.Context, *connect.Request[v1.PullInboxDeltaRequest]) (*connect.Response[v1.PullInboxDeltaResponse], error)
 }
 
 // NewSessionServiceClient constructs a client for the resonance.gateway.v1.SessionService service.
@@ -228,10 +233,10 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
 			connect.WithClientOptions(opts...),
 		),
-		getRecentMessages: connect.NewClient[v1.GetRecentMessagesRequest, v1.GetRecentMessagesResponse](
+		getHistoryMessages: connect.NewClient[v1.GetHistoryMessagesRequest, v1.GetHistoryMessagesResponse](
 			httpClient,
-			baseURL+SessionServiceGetRecentMessagesProcedure,
-			connect.WithSchema(sessionServiceMethods.ByName("GetRecentMessages")),
+			baseURL+SessionServiceGetHistoryMessagesProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("GetHistoryMessages")),
 			connect.WithClientOptions(opts...),
 		),
 		getContactList: connect.NewClient[v1.GetContactListRequest, v1.GetContactListResponse](
@@ -252,6 +257,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(sessionServiceMethods.ByName("UpdateReadPosition")),
 			connect.WithClientOptions(opts...),
 		),
+		pullInboxDelta: connect.NewClient[v1.PullInboxDeltaRequest, v1.PullInboxDeltaResponse](
+			httpClient,
+			baseURL+SessionServicePullInboxDeltaProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("PullInboxDelta")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -259,10 +270,11 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type sessionServiceClient struct {
 	getSessionList     *connect.Client[v1.GetSessionListRequest, v1.GetSessionListResponse]
 	createSession      *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
-	getRecentMessages  *connect.Client[v1.GetRecentMessagesRequest, v1.GetRecentMessagesResponse]
+	getHistoryMessages *connect.Client[v1.GetHistoryMessagesRequest, v1.GetHistoryMessagesResponse]
 	getContactList     *connect.Client[v1.GetContactListRequest, v1.GetContactListResponse]
 	searchUser         *connect.Client[v1.SearchUserRequest, v1.SearchUserResponse]
 	updateReadPosition *connect.Client[v1.UpdateReadPositionRequest, v1.UpdateReadPositionResponse]
+	pullInboxDelta     *connect.Client[v1.PullInboxDeltaRequest, v1.PullInboxDeltaResponse]
 }
 
 // GetSessionList calls resonance.gateway.v1.SessionService.GetSessionList.
@@ -275,9 +287,9 @@ func (c *sessionServiceClient) CreateSession(ctx context.Context, req *connect.R
 	return c.createSession.CallUnary(ctx, req)
 }
 
-// GetRecentMessages calls resonance.gateway.v1.SessionService.GetRecentMessages.
-func (c *sessionServiceClient) GetRecentMessages(ctx context.Context, req *connect.Request[v1.GetRecentMessagesRequest]) (*connect.Response[v1.GetRecentMessagesResponse], error) {
-	return c.getRecentMessages.CallUnary(ctx, req)
+// GetHistoryMessages calls resonance.gateway.v1.SessionService.GetHistoryMessages.
+func (c *sessionServiceClient) GetHistoryMessages(ctx context.Context, req *connect.Request[v1.GetHistoryMessagesRequest]) (*connect.Response[v1.GetHistoryMessagesResponse], error) {
+	return c.getHistoryMessages.CallUnary(ctx, req)
 }
 
 // GetContactList calls resonance.gateway.v1.SessionService.GetContactList.
@@ -295,20 +307,27 @@ func (c *sessionServiceClient) UpdateReadPosition(ctx context.Context, req *conn
 	return c.updateReadPosition.CallUnary(ctx, req)
 }
 
+// PullInboxDelta calls resonance.gateway.v1.SessionService.PullInboxDelta.
+func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, req *connect.Request[v1.PullInboxDeltaRequest]) (*connect.Response[v1.PullInboxDeltaResponse], error) {
+	return c.pullInboxDelta.CallUnary(ctx, req)
+}
+
 // SessionServiceHandler is an implementation of the resonance.gateway.v1.SessionService service.
 type SessionServiceHandler interface {
 	// GetSessionList 获取用户的会话列表
 	GetSessionList(context.Context, *connect.Request[v1.GetSessionListRequest]) (*connect.Response[v1.GetSessionListResponse], error)
 	// CreateSession 创建会话
 	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
-	// GetRecentMessages 拉取最近历史消息
-	GetRecentMessages(context.Context, *connect.Request[v1.GetRecentMessagesRequest]) (*connect.Response[v1.GetRecentMessagesResponse], error)
+	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
+	GetHistoryMessages(context.Context, *connect.Request[v1.GetHistoryMessagesRequest]) (*connect.Response[v1.GetHistoryMessagesResponse], error)
 	// GetContactList 获取联系人列表
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	// SearchUser 搜索用户
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
 	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error)
+	// PullInboxDelta 按用户游标增量拉取消息
+	PullInboxDelta(context.Context, *connect.Request[v1.PullInboxDeltaRequest]) (*connect.Response[v1.PullInboxDeltaResponse], error)
 }
 
 // NewSessionServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -330,10 +349,10 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
 		connect.WithHandlerOptions(opts...),
 	)
-	sessionServiceGetRecentMessagesHandler := connect.NewUnaryHandler(
-		SessionServiceGetRecentMessagesProcedure,
-		svc.GetRecentMessages,
-		connect.WithSchema(sessionServiceMethods.ByName("GetRecentMessages")),
+	sessionServiceGetHistoryMessagesHandler := connect.NewUnaryHandler(
+		SessionServiceGetHistoryMessagesProcedure,
+		svc.GetHistoryMessages,
+		connect.WithSchema(sessionServiceMethods.ByName("GetHistoryMessages")),
 		connect.WithHandlerOptions(opts...),
 	)
 	sessionServiceGetContactListHandler := connect.NewUnaryHandler(
@@ -354,20 +373,28 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		connect.WithSchema(sessionServiceMethods.ByName("UpdateReadPosition")),
 		connect.WithHandlerOptions(opts...),
 	)
+	sessionServicePullInboxDeltaHandler := connect.NewUnaryHandler(
+		SessionServicePullInboxDeltaProcedure,
+		svc.PullInboxDelta,
+		connect.WithSchema(sessionServiceMethods.ByName("PullInboxDelta")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/resonance.gateway.v1.SessionService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SessionServiceGetSessionListProcedure:
 			sessionServiceGetSessionListHandler.ServeHTTP(w, r)
 		case SessionServiceCreateSessionProcedure:
 			sessionServiceCreateSessionHandler.ServeHTTP(w, r)
-		case SessionServiceGetRecentMessagesProcedure:
-			sessionServiceGetRecentMessagesHandler.ServeHTTP(w, r)
+		case SessionServiceGetHistoryMessagesProcedure:
+			sessionServiceGetHistoryMessagesHandler.ServeHTTP(w, r)
 		case SessionServiceGetContactListProcedure:
 			sessionServiceGetContactListHandler.ServeHTTP(w, r)
 		case SessionServiceSearchUserProcedure:
 			sessionServiceSearchUserHandler.ServeHTTP(w, r)
 		case SessionServiceUpdateReadPositionProcedure:
 			sessionServiceUpdateReadPositionHandler.ServeHTTP(w, r)
+		case SessionServicePullInboxDeltaProcedure:
+			sessionServicePullInboxDeltaHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -385,8 +412,8 @@ func (UnimplementedSessionServiceHandler) CreateSession(context.Context, *connec
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.CreateSession is not implemented"))
 }
 
-func (UnimplementedSessionServiceHandler) GetRecentMessages(context.Context, *connect.Request[v1.GetRecentMessagesRequest]) (*connect.Response[v1.GetRecentMessagesResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.GetRecentMessages is not implemented"))
+func (UnimplementedSessionServiceHandler) GetHistoryMessages(context.Context, *connect.Request[v1.GetHistoryMessagesRequest]) (*connect.Response[v1.GetHistoryMessagesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.GetHistoryMessages is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error) {
@@ -399,4 +426,8 @@ func (UnimplementedSessionServiceHandler) SearchUser(context.Context, *connect.R
 
 func (UnimplementedSessionServiceHandler) UpdateReadPosition(context.Context, *connect.Request[v1.UpdateReadPositionRequest]) (*connect.Response[v1.UpdateReadPositionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.UpdateReadPosition is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) PullInboxDelta(context.Context, *connect.Request[v1.PullInboxDeltaRequest]) (*connect.Response[v1.PullInboxDeltaResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.PullInboxDelta is not implemented"))
 }

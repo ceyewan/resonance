@@ -7,6 +7,18 @@ import (
 	"github.com/ceyewan/resonance/model"
 )
 
+// InboxDeltaItem 表示基于 inbox 游标拉取到的增量消息
+type InboxDeltaItem struct {
+	InboxID        int64
+	MsgID          int64
+	SeqID          int64
+	SessionID      string
+	SenderUsername string
+	Content        string
+	MsgType        string
+	CreatedAt      time.Time
+}
+
 // RouterRepo 定义了路由表（用户与网关实例映射）的数据访问接口，通常由 Redis 实现
 type RouterRepo interface {
 	// SetUserGateway 设置用户的网关映射关系
@@ -76,14 +88,16 @@ type MessageRepo interface {
 	SaveMessage(ctx context.Context, msg *model.MessageContent) error
 	// SaveInbox 批量写入信箱 (写扩散)
 	SaveInbox(ctx context.Context, inboxes []*model.Inbox) error
-	// GetHistoryMessages 拉取历史消息
-	GetHistoryMessages(ctx context.Context, sessionID string, startSeq int64, limit int) ([]*model.MessageContent, error)
+	// GetHistoryMessages 拉取历史消息（beforeSeq=0 表示最近一页，否则拉取 seq_id < beforeSeq）
+	GetHistoryMessages(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error)
 	// GetLastMessage 获取会话的最后一条消息
 	GetLastMessage(ctx context.Context, sessionID string) (*model.MessageContent, error)
 	// GetLastMessagesBatch 批量获取会话的最后一条消息（避免 N+1 查询）
 	GetLastMessagesBatch(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
 	// GetUnreadMessages 获取用户未读消息 (从小群信箱)
 	GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error)
+	// GetInboxDelta 按游标拉取用户增量消息
+	GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*InboxDeltaItem, error)
 
 	// SaveMessageWithOutbox 事务内保存消息并记录本地消息表
 	SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error

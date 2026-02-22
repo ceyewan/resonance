@@ -239,18 +239,20 @@ func TestMessageRepo_GetHistoryMessages(t *testing.T) {
 		messages, err := repo.GetHistoryMessages(ctx, sessionID, 0, 5)
 		require.NoError(t, err)
 		assert.Len(t, messages, 5)
+		assert.Equal(t, int64(16), messages[0].SeqID)
+		assert.Equal(t, int64(20), messages[4].SeqID)
 	})
 
-	t.Run("从指定序列号开始拉取", func(t *testing.T) {
+	t.Run("从 beforeSeq 向前拉取历史", func(t *testing.T) {
 		messages, err := repo.GetHistoryMessages(ctx, sessionID, 11, 10)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(messages), 10)
-		// 验证第一条消息的序列号
-		assert.Equal(t, int64(11), messages[0].SeqID)
+		assert.Len(t, messages, 10)
+		assert.Equal(t, int64(1), messages[0].SeqID)
+		assert.Equal(t, int64(10), messages[9].SeqID)
 	})
 
 	t.Run("按序列号升序排列", func(t *testing.T) {
-		messages, err := repo.GetHistoryMessages(ctx, sessionID, 1, 10)
+		messages, err := repo.GetHistoryMessages(ctx, sessionID, 19, 10)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(messages), 2)
 
@@ -258,6 +260,12 @@ func TestMessageRepo_GetHistoryMessages(t *testing.T) {
 		for i := 1; i < len(messages); i++ {
 			assert.Greater(t, messages[i].SeqID, messages[i-1].SeqID)
 		}
+	})
+
+	t.Run("beforeSeq 为最小值时返回空", func(t *testing.T) {
+		messages, err := repo.GetHistoryMessages(ctx, sessionID, 1, 10)
+		require.NoError(t, err)
+		assert.Empty(t, messages)
 	})
 
 	t.Run("获取不存在会话的历史消息应返回空列表", func(t *testing.T) {
@@ -435,6 +443,97 @@ func TestMessageRepo_GetUnreadMessages(t *testing.T) {
 			assert.GreaterOrEqual(t, unread[i-1].CreatedAt, unread[i].CreatedAt)
 		}
 	})
+}
+
+func TestMessageRepo_SaveInbox_Idempotent(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+
+	repo, err := NewMessageRepo(database, WithMessageRepoLogger(getTestLogger(t)))
+	require.NoError(t, err)
+	defer repo.Close()
+
+	ctx := context.Background()
+	msgID := time.Now().UnixNano()
+
+	// 先写入消息体，保证后续联表可用
+	err = repo.SaveMessage(ctx, &model.MessageContent{
+		MsgID:          msgID,
+		SessionID:      "idem_session",
+		SenderUsername: "alice",
+		SeqID:          1,
+		Content:        "idempotent message",
+		MsgType:        "text",
+	})
+	require.NoError(t, err)
+
+	inbox := &model.Inbox{
+		OwnerUsername: "bob",
+		SessionID:     "idem_session",
+		MsgID:         msgID,
+		SeqID:         1,
+		IsRead:        0,
+	}
+
+	// 重复写两次，不应报错
+	err = repo.SaveInbox(ctx, []*model.Inbox{inbox})
+	require.NoError(t, err)
+	err = repo.SaveInbox(ctx, []*model.Inbox{inbox})
+	require.NoError(t, err)
+
+	// 验证只存在一条增量记录
+	delta, err := repo.GetInboxDelta(ctx, "bob", 0, 10)
+	require.NoError(t, err)
+	require.Len(t, delta, 1)
+	assert.Equal(t, "idempotent message", delta[0].Content)
+}
+
+func TestMessageRepo_GetInboxDelta(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+
+	repo, err := NewMessageRepo(database, WithMessageRepoLogger(getTestLogger(t)))
+	require.NoError(t, err)
+	defer repo.Close()
+
+	ctx := context.Background()
+	username := "delta_user"
+	sessionID := "delta_session"
+
+	// 写入 3 条消息 + inbox 记录
+	for i := 1; i <= 3; i++ {
+		msgID := time.Now().UnixNano() + int64(i)
+		err = repo.SaveMessage(ctx, &model.MessageContent{
+			MsgID:          msgID,
+			SessionID:      sessionID,
+			SenderUsername: "alice",
+			SeqID:          int64(i),
+			Content:        fmt.Sprintf("delta-%d", i),
+			MsgType:        "text",
+		})
+		require.NoError(t, err)
+
+		err = repo.SaveInbox(ctx, []*model.Inbox{{
+			OwnerUsername: username,
+			SessionID:     sessionID,
+			MsgID:         msgID,
+			SeqID:         int64(i),
+			IsRead:        0,
+		}})
+		require.NoError(t, err)
+	}
+
+	firstPage, err := repo.GetInboxDelta(ctx, username, 0, 2)
+	require.NoError(t, err)
+	require.Len(t, firstPage, 2)
+	assert.Less(t, firstPage[0].InboxID, firstPage[1].InboxID)
+	assert.Equal(t, "delta-1", firstPage[0].Content)
+	assert.Equal(t, "delta-2", firstPage[1].Content)
+
+	secondPage, err := repo.GetInboxDelta(ctx, username, firstPage[1].InboxID, 2)
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	assert.Equal(t, "delta-3", secondPage[0].Content)
 }
 
 func TestMessageRepo_CompleteLifecycle(t *testing.T) {
