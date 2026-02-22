@@ -19,7 +19,7 @@ export const transport = createConnectTransport({
     (next) => async (req) => {
       const token = useAuthStore.getState().accessToken;
       if (token) {
-        req.header.set("Authorization", token);
+        req.header.set("Authorization", `Bearer ${token}`);
       }
       return await next(req);
     },

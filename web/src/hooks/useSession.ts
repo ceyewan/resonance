@@ -77,17 +77,18 @@ export function useSession(): UseSessionReturn {
 
     try {
       const currentUsername = user?.username;
-      if (!currentUsername) {
-        throw new Error("unauthorized: missing username");
-      }
-
-      const { hasLocalSnapshot } = await hydrateStoresFromLocal(currentUsername);
+      const localState = currentUsername
+        ? await hydrateStoresFromLocal(currentUsername)
+        : { hasLocalSnapshot: false };
+      const { hasLocalSnapshot } = localState;
 
       if (!hasLocalSnapshot) {
         const response = await sessionClient.getSessionList({});
         const convertedSessions = response.sessions.map(convertSessionInfo);
         setSessions(convertedSessions);
-        await saveSessions(currentUsername, convertedSessions);
+        if (currentUsername) {
+          await saveSessions(currentUsername, convertedSessions);
+        }
 
         // 如果没有当前选中的会话，自动选中第一个
         if (convertedSessions.length > 0 && !getCurrentSession()) {
