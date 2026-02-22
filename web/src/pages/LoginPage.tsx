@@ -10,20 +10,94 @@ export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [validationErrors, setValidationErrors] = useState<{
+    username?: string;
+    password?: string;
+    nickname?: string;
+  }>({});
+
   const { login, register, isLoading, error, clearError } = useAuth();
+
+  // 验证用户名（英文、数字、符号，3-20个字符）
+  const validateUsername = useCallback((value: string): string | undefined => {
+    if (!value) return "用户名不能为空";
+    if (value.length < 3) return "用户名至少需要3个字符";
+    if (value.length > 20) return "用户名不能超过20个字符";
+    if (!/^[a-zA-Z0-9_\-@.]+$/.test(value)) {
+      return "用户名只能包含英文字母、数字和符号(_-@.)";
+    }
+    return undefined;
+  }, []);
+
+  // 验证昵称（中文、英文、数字，1-20个字符）
+  const validateNickname = useCallback((value: string): string | undefined => {
+    if (!value) return "昵称不能为空";
+    if (value.length > 20) return "昵称不能超过20个字符";
+    return undefined;
+  }, []);
+
+  // 验证密码（至少6位，包含大小写、数字、符号）
+  const validatePassword = useCallback((value: string): string | undefined => {
+    if (!value) return "密码不能为空";
+    if (value.length < 6) return "密码至少需要6个字符";
+    if (value.length > 50) return "密码不能超过50个字符";
+    // 至少包含大写、小写、数字、符号中的三种
+    const hasUpperCase = /[A-Z]/.test(value);
+    const hasLowerCase = /[a-z]/.test(value);
+    const hasNumber = /[0-9]/.test(value);
+    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(value);
+    const types = [hasUpperCase, hasLowerCase, hasNumber, hasSymbol].filter(Boolean).length;
+    if (types < 3) {
+      return "密码需包含大写、小写、数字、符号中的至少三种";
+    }
+    return undefined;
+  }, []);
+
+  // 实时验证输入
+  const handleUsernameChange = useCallback((value: string) => {
+    setUsername(value);
+    if (!isLogin) {
+      setValidationErrors((prev) => ({ ...prev, username: validateUsername(value) }));
+    }
+    if (error) clearError();
+  }, [isLogin, error, clearError, validateUsername]);
+
+  const handleNicknameChange = useCallback((value: string) => {
+    setNickname(value);
+    setValidationErrors((prev) => ({ ...prev, nickname: validateNickname(value) }));
+    if (error) clearError();
+  }, [error, clearError, validateNickname]);
+
+  const handlePasswordChange = useCallback((value: string) => {
+    setPassword(value);
+    setValidationErrors((prev) => ({ ...prev, password: validatePassword(value) }));
+    if (error) clearError();
+  }, [error, clearError, validatePassword]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password.trim()) return;
+
+    // 验证所有字段
+    const errors: { username?: string; password?: string; nickname?: string } = {};
+    errors.username = validateUsername(username);
+    errors.password = validatePassword(password);
+    if (!isLogin) {
+      errors.nickname = validateNickname(nickname);
+    }
+
+    setValidationErrors(errors);
+
+    // 检查是否有错误
+    if (Object.values(errors).some(Boolean)) return;
 
     try {
       if (isLogin) {
         await login(username, password);
       } else {
-        await register(username, password);
+        await register(username, password, nickname);
       }
     } catch (err) {
-      // 错误已经在 useAuth 中处理
       console.error(isLogin ? "Login failed:" : "Register failed:", err);
     }
   };
@@ -32,12 +106,16 @@ export default function LoginPage() {
   const handleToggleMode = useCallback(() => {
     setIsLogin((prev) => !prev);
     clearError();
+    setValidationErrors({});
   }, [clearError]);
 
-  // 输入时清除错误
-  const handleInputChange = useCallback(() => {
-    if (error) clearError();
-  }, [error, clearError]);
+  // 检查是否可以提交
+  const canSubmit = (() => {
+    if (!username.trim() || !password.trim()) return false;
+    if (!isLogin && !nickname.trim()) return false;
+    if (Object.values(validationErrors).some(Boolean)) return false;
+    return true;
+  })();
 
   return (
     <div className="relative flex h-full items-center justify-center px-4 py-10">
@@ -67,7 +145,7 @@ export default function LoginPage() {
         </div>
 
         {/* 表单 */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* 用户名输入 */}
           <div>
             <label
@@ -80,19 +158,49 @@ export default function LoginPage() {
               id="username"
               type="text"
               value={username}
-              onChange={(e) => {
-                setUsername(e.target.value);
-                handleInputChange();
-              }}
-              placeholder="请输入用户名"
+              onChange={(e) => handleUsernameChange(e.target.value)}
+              placeholder="英文、数字、符号（3-20位）"
               disabled={isLoading}
               autoComplete="username"
               className={cn(
                 "lg-input w-full",
+                validationErrors.username && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
+            {validationErrors.username && (
+              <p className="mt-1 text-xs text-red-500">{validationErrors.username}</p>
+            )}
           </div>
+
+          {/* 昵称输入（仅注册时显示） */}
+          {!isLogin && (
+            <div>
+              <label
+                htmlFor="nickname"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200"
+              >
+                昵称
+              </label>
+              <input
+                id="nickname"
+                type="text"
+                value={nickname}
+                onChange={(e) => handleNicknameChange(e.target.value)}
+                placeholder="中文、英文、数字（1-20位）"
+                disabled={isLoading}
+                autoComplete="nickname"
+                className={cn(
+                  "lg-input w-full",
+                  validationErrors.nickname && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
+                  "disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+              />
+              {validationErrors.nickname && (
+                <p className="mt-1 text-xs text-red-500">{validationErrors.nickname}</p>
+              )}
+            </div>
+          )}
 
           {/* 密码输入 */}
           <div>
@@ -106,18 +214,19 @@ export default function LoginPage() {
               id="password"
               type="password"
               value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                handleInputChange();
-              }}
-              placeholder="请输入密码"
+              onChange={(e) => handlePasswordChange(e.target.value)}
+              placeholder="至少6位，含大小写、数字、符号"
               disabled={isLoading}
               autoComplete={isLogin ? "current-password" : "new-password"}
               className={cn(
                 "lg-input w-full",
+                validationErrors.password && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
+            {validationErrors.password && (
+              <p className="mt-1 text-xs text-red-500">{validationErrors.password}</p>
+            )}
           </div>
 
           {/* 错误提示 */}
@@ -137,7 +246,7 @@ export default function LoginPage() {
           {/* 提交按钮 */}
           <button
             type="submit"
-            disabled={isLoading || !username.trim() || !password.trim()}
+            disabled={isLoading || !canSubmit}
             className={cn(
               "lg-btn-primary w-full",
               "focus:outline-none focus:ring-2 focus:ring-sky-400/40 focus:ring-offset-2 focus:ring-offset-transparent",
