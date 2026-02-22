@@ -1,6 +1,6 @@
 # Resonance Web - AI 开发助手指引
 
-此文件用于指导 AI 开发助手在 Resonance Web 前端项目中的工作方式，作用类似于项目根目录的 `CLAUDE.md`。
+此文件用于指导 AI 开发助手在 Resonance Web 前端项目中的工作方式。
 
 **语言**: 全程使用中文交流
 
@@ -13,7 +13,7 @@
 **核心能力**:
 
 - 深入理解 React 18 特性：Hooks、并发模式
-- 精通 TypeScript 类型系统
+- 精通 TypeScript 类型系统（避免使用 `as any`）
 - 熟悉 IM 应用前端架构：实时通信、状态同步、消息渲染
 - 了解 ConnectRPC 和 Protobuf 在 Web 端的使用
 
@@ -30,7 +30,6 @@
 | 构建    | Vite         | 5.4+               |
 | 状态    | Zustand      | 4.5+               |
 | 样式    | Tailwind CSS | 3.4+               |
-| UI 组件 | Radix UI     | 1.x                |
 | API     | ConnectRPC   | 1.4+               |
 | 协议    | Protobuf     | @bufbuild/protobuf |
 
@@ -41,25 +40,44 @@
 ```
 web/
 ├── src/
-│   ├── api/                 # API 通信层
-│   │   └── client.ts        # ConnectRPC 客户端（带认证拦截器）
-│   ├── gen/                 # Protobuf 生成代码（软链接 → ../api/gen/ts）
-│   ├── hooks/               # 自定义 Hooks
-│   │   ├── useAuth.ts       # 认证 Hook
-│   │   └── useWebSocket.ts  # WebSocket Hook（心跳/重连）
-│   ├── lib/                 # 工具库
-│   │   └── cn.ts            # className 合并工具
-│   ├── pages/               # 页面组件
-│   │   ├── LoginPage.tsx    # 登录/注册页
-│   │   └── ChatPage.tsx     # 聊天主界面
-│   ├── stores/              # Zustand 状态管理
-│   │   ├── auth.ts          # 认证状态（持久化）
-│   │   ├── session.ts       # 会话状态
-│   │   └── message.ts       # 消息状态
-│   ├── styles/              # 全局样式
-│   │   └── globals.css      # Tailwind + 设计 tokens
-│   ├── App.tsx              # 应用入口
-│   └── main.tsx             # React 挂载
+│   ├── api/                     # API 通信层
+│   │   └── client.ts            # ConnectRPC 客户端（带认证拦截器）
+│   ├── components/              # React 组件
+│   │   ├── Chat/                # 聊天相关组件
+│   │   │   ├── ChatHeader.tsx    # 顶部导航栏
+│   │   │   ├── ChatArea.tsx     # 聊天区域
+│   │   │   └── SessionSidebar.tsx # 会话侧边栏
+│   │   ├── ChatInput.tsx        # 消息输入框
+│   │   ├── ConnectionStatus.tsx # 连接状态指示器
+│   │   ├── ErrorBoundary.tsx    # 错误边界
+│   │   ├── MessageBubble.tsx    # 消息气泡
+│   │   ├── NewChatModal.tsx     # 新建聊天弹窗
+│   │   └── SessionItem.tsx      # 会话列表项
+│   ├── config/                  # 运行时配置
+│   │   └── runtime.ts           # 动态配置加载
+│   ├── constants/               # 常量定义
+│   │   └── index.ts             # 消息类型、错误信息等
+│   ├── gen/                     # Protobuf 生成代码（软链接 → ../api/gen/ts）
+│   ├── hooks/                   # 自定义 Hooks
+│   │   ├── useAuth.ts           # 认证 Hook
+│   │   ├── useSession.ts        # 会话管理 Hook
+│   │   ├── useWebSocket.ts      # WebSocket Hook（心跳/重连）
+│   │   └── useWsMessageHandler.ts # WebSocket 消息处理
+│   ├── lib/                     # 工具库
+│   │   ├── avatar.ts            # 头像颜色生成
+│   │   ├── cn.ts                # className 合并工具
+│   │   └── time.ts              # 时间格式化工具
+│   ├── pages/                   # 页面组件
+│   │   ├── ChatPage.tsx         # 聊天主界面
+│   │   └── LoginPage.tsx        # 登录/注册页
+│   ├── stores/                  # Zustand 状态管理
+│   │   ├── auth.ts              # 认证状态（持久化）
+│   │   ├── session.ts           # 会话状态
+│   │   └── message.ts           # 消息状态
+│   ├── styles/                  # 全局样式
+│   │   └── globals.css          # Tailwind + Liquid Glass 设计 tokens
+│   ├── App.tsx                  # 应用入口
+│   └── main.tsx                 # React 挂载
 ```
 
 ---
@@ -84,7 +102,7 @@ web/
 └─────────────────┘         └─────────────────┘
 ```
 
-- **ConnectRPC (HTTP)**: 登录、注册、获取会话列表等 RESTful API
+- **ConnectRPC (HTTP)**: 登录、注册、获取会话列表等 API
 - **WebSocket (Protobuf)**: 实时消息推送，二进制格式
 
 ### API 调用（ConnectRPC）
@@ -129,12 +147,19 @@ export function useWebSocket({ token, onMessage }: UseWebSocketOptions) {
 ### 认证状态 (`stores/auth.ts`)
 
 ```typescript
+interface User {
+  username: string;
+  nickname?: string;
+  avatarUrl?: string;
+}
+
 interface AuthState {
-    user: User | null;
-    accessToken: string | null;
-    isAuthenticated: boolean;
-    isLoading: boolean;
-    error: string | null;
+  user: User | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  // Actions: setUser, setAccessToken, setAuth, logout
 }
 ```
 
@@ -145,13 +170,20 @@ interface AuthState {
 
 ```typescript
 interface SessionInfo {
-    sessionId: string;
-    userName: string;
-    userAvatar?: string;
-    isGroup: boolean;
-    unreadCount: number;
-    lastMessage?: string;
-    lastMessageTime?: number;
+  sessionId: string;
+  name: string;
+  type: 1 | 2; // 1-单聊, 2-群聊
+  avatarUrl?: string;
+  unreadCount: number;
+  lastReadSeq: number;
+  maxSeqId: number;
+  lastMessage?: {
+    msgId: bigint;
+    seqId: bigint;
+    content: string;
+    type: string;
+    timestamp: bigint;
+  };
 }
 ```
 
@@ -159,14 +191,14 @@ interface SessionInfo {
 
 ```typescript
 interface ChatMessage {
-    msgId: string;
-    sessionId: string;
-    senderName: string;
-    content: string;
-    type: "text" | "image" | "file" | "system";
-    timestamp: number;
-    status: "sending" | "sent" | "failed";
-    isOwn: boolean;
+  msgId: string;
+  sessionId: string;
+  fromUsername: string;
+  content: string;
+  msgType: "text" | "image" | "file" | "audio" | "video" | "system";
+  timestamp: bigint;
+  status: "sending" | "sent" | "failed";
+  isOwn: boolean;
 }
 ```
 
@@ -176,7 +208,7 @@ interface ChatMessage {
 
 ### 设计语言：Liquid Glass
 
-本项目采用 **Apple Liquid Glass** 设计语言（WWDC 2025），结合 Telegram 的布局结构，创造现代、流畅的 IM 界面体验。
+本项目采用 **Liquid Glass** 设计语言，结合 Telegram 的布局结构。
 
 **核心特征**：
 - **光学玻璃效果**：多层透明、模糊、饱和度增强
@@ -184,16 +216,12 @@ interface ChatMessage {
 - **深度层次**：通过玻璃叠加创造空间感
 - **明暗双主题**：完整支持明暗模式切换
 
-详细设计规范请参阅：[LIQUID_GLASS_DESIGN.md](./LIQUID_GLASS_DESIGN.md)
-
-### 布局结构（参考 Telegram）
-
 ### 布局结构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        顶部导航栏                            │
-│  [汉堡菜单]  Resonance        [搜索]  [更多]                │
+│  [Logo]  Resonance  [状态]              [用户]  [登出]      │
 ├──────────────┬──────────────────────────────────────────────┤
 │              │                                              │
 │   会话列表   │              聊天区域                         │
@@ -208,20 +236,10 @@ interface ChatMessage {
 │              │  └─────────────────────────────────────────┘│
 │              │                                              │
 │              │  ┌─────────────────────────────────────────┐│
-│              │  │ [+附件] [输入消息...]        [发送]     ││
+│              │  │ [输入消息...]                   [发送]  ││
 │              │  └─────────────────────────────────────────┘│
 └──────────────┴──────────────────────────────────────────────┘
 ```
-
-### 关键设计元素
-
-| 元素         | 描述                           | Liquid Glass 实现                    |
-| ------------ | ------------------------------ | ------------------------------------- |
-| **侧边栏**   | 左侧固定宽度会话列表，支持滚动 | `lg-glass-1` 背景，圆角 16px          |
-| **消息气泡** | 圆角气泡，己方/对方样式区分    | `lg-bubble-own` / `lg-bubble-other`  |
-| **头像**     | 圆形头像，支持 fallback 首字母 | 40px，带内阴影高光                    |
-| **未读数**   | 徽章显示，群组高亮             | `lg-badge` 类，脉冲动画可选           |
-| **输入区**   | 底部固定，多行支持             | `lg-input` 类，focus 时外发光效果     |
 
 ### CSS 类命名规范
 
@@ -229,24 +247,13 @@ interface ChatMessage {
 
 | 类名前缀 | 用途           | 示例                  |
 | -------- | -------------- | --------------------- |
-| `lg-glass-*` | 玻璃背景层级   | `lg-glass-1/2/3`      |
+| `lg-glass` | 基础玻璃背景   | `lg-glass`            |
+| `lg-glass-strong` | 强玻璃效果 | `lg-glass-strong`     |
 | `lg-btn-*`   | 按钮样式       | `lg-btn-primary`      |
 | `lg-input`    | 输入框样式     | `lg-input`            |
 | `lg-bubble-*` | 消息气泡       | `lg-bubble-own`       |
 | `lg-modal-*`  | 模态框         | `lg-modal-content`    |
-| `lg-glow-*`   | 光晕效果       | `lg-glow-border`      |
 | `lg-animate-*`| 动画效果       | `lg-animate-in`       |
-
-### 兼容性别名
-
-保留 `tg-*` 类作为别名（向后兼容）：
-
-```css
-.tg-glass { @apply lg-glass-2; }
-.tg-glass-strong { @apply lg-glass-3; }
-.tg-accent-btn { @apply lg-btn-primary; }
-.tg-input { @apply lg-input; }
-```
 
 ---
 
@@ -256,10 +263,10 @@ interface ChatMessage {
 
 | 类型       | 规范                | 示例              |
 | ---------- | ------------------- | ----------------- |
-| 组件文件   | PascalCase          | `MessageList.tsx` |
+| 组件文件   | PascalCase          | `MessageBubble.tsx` |
 | Hook 文件  | camelCase，use 前缀 | `useAuth.ts`      |
 | Store 文件 | camelCase           | `auth.ts`         |
-| 工具文件   | camelCase           | `utils.ts`        |
+| 工具文件   | camelCase           | `time.ts`         |
 
 ### 组件模板
 
@@ -278,20 +285,19 @@ export function ComponentName({ prop }: Props) {
 ### Hook 模板
 
 ```typescript
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useAuthStore } from "@/stores/auth";
 
 export function useCustomHook(param: string) {
     const { accessToken } = useAuthStore();
     const [data, setData] = useState<DataType | null>(null);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
 
     const refresh = useCallback(async () => {
         // 刷新逻辑
     }, [accessToken]);
 
-    return { data, loading, error, refresh };
+    return { data, loading, refresh };
 }
 ```
 
@@ -371,11 +377,26 @@ JSON.stringify({ msgId: message.msgId });
 JSON.stringify({ msgId: message.msgId.toString() });
 ```
 
-### 2. 生成代码不可修改
+### 2. 类型安全
 
-`src/gen/` 目录由 `make gen` 生成，**不要手动修改**。如需扩展类型，在 `src/types/` 中定义。
+**避免使用 `as any`**，使用正确的类型定义：
 
-### 3. 环境变量
+```typescript
+// ❌ 错误
+const format = TIME_FORMAT.MESSAGE_TIME as any;
+
+// ✅ 正确
+const format: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+};
+```
+
+### 3. 生成代码不可修改
+
+`src/gen/` 目录由 `make gen` 生成，**不要手动修改**。如需扩展类型，在 `src/types/` 或 `src/lib/` 中定义。
+
+### 4. 环境变量
 
 必须以 `VITE_` 开头：
 
@@ -386,6 +407,22 @@ const wsUrl = import.meta.env.VITE_WS_BASE_URL;
 
 // ❌ 错误
 const apiUrl = import.meta.env.API_BASE_URL;
+```
+
+### 5. 消息预览更新
+
+发送/接收消息后，必须调用 `updateLastMessage` 更新会话列表的消息预览：
+
+```typescript
+// 发送消息时，乐观更新会话预览
+const mockPushMessage = {
+  msgId: BigInt(pendingMessage.msgId),
+  seqId: pendingMessage.seqId,
+  content: pendingMessage.content,
+  type: pendingMessage.msgType,
+  timestamp: pendingMessage.timestamp,
+};
+updateLastMessage(currentSession.sessionId, mockPushMessage as any);
 ```
 
 ---
@@ -412,5 +449,5 @@ feat(web): 实现消息列表虚拟滚动
 ## 相关文档
 
 - [README.md](./README.md) - 项目概述和快速开始
-- [../README.md](../README.md) - 后端文档
+- [../README.md](../README.md) - 项目整体文档
 - [../CLAUDE.md](../CLAUDE.md) - 后端开发规范

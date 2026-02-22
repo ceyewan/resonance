@@ -1,12 +1,12 @@
 # Resonance Web
 
-Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，融合 **Telegram 布局** 与 **Apple Liquid Glass 设计语言**。
+Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，融合 **Telegram 布局** 与 **Liquid Glass 设计语言**。
 
 ## 概述
 
 Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP)** 和 **WebSocket (Protobuf)** 与 Gateway 服务通信。
 
-**设计目标**：打造现代、流畅的即时通讯体验，采用 Apple Liquid Glass 设计语言（WWDC 2025），创造具有光学玻璃质感和流动交互的界面。
+**设计目标**：打造现代、流畅的即时通讯体验，采用 Liquid Glass 设计语言，创造具有光学玻璃质感和流动交互的界面。
 
 ---
 
@@ -19,7 +19,7 @@ Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP
 | 构建     | Vite         | 5.4+  | 开发服务器与打包    |
 | 状态     | Zustand      | 4.5+  | 轻量状态管理        |
 | 样式     | Tailwind CSS | 3.4+  | 原子化 CSS          |
-| 设计语言 | Liquid Glass | -     | Apple 液态玻璃风格  |
+| 设计语言 | Liquid Glass | -     | 液态玻璃风格        |
 | API      | ConnectRPC   | 1.4+  | 类型安全的 RPC 调用 |
 | 实时通信 | WebSocket    | -     | Protobuf 消息推送   |
 
@@ -30,55 +30,60 @@ Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP
 ```
 web/
 ├── src/
-│   ├── api/                 # API 通信层
-│   │   └── client.ts        # ConnectRPC 客户端（带认证拦截器）
-│   ├── gen/                 # Protobuf 生成代码（软链接 → ../api/gen/ts）
-│   ├── hooks/               # 自定义 Hooks
-│   │   ├── useAuth.ts       # 认证 Hook
-│   │   └── useWebSocket.ts  # WebSocket Hook（心跳/重连）
-│   ├── lib/                 # 工具库
-│   │   └── cn.ts            # className 合并工具
-│   ├── pages/               # 页面组件
-│   │   ├── LoginPage.tsx    # 登录/注册页
-│   │   └── ChatPage.tsx     # 聊天主界面
-│   ├── stores/              # Zustand 状态管理
-│   │   ├── auth.ts          # 认证状态（持久化）
-│   │   ├── session.ts       # 会话状态
-│   │   └── message.ts       # 消息状态
-│   ├── styles/              # 全局样式
-│   │   └── globals.css      # Tailwind + 设计 tokens
-│   ├── App.tsx              # 应用入口
-│   └── main.tsx             # React 挂载
-├── .env.local               # 环境变量（本地，不提交）
+│   ├── api/                     # API 通信层
+│   │   └── client.ts            # ConnectRPC 客户端（带认证拦截器）
+│   ├── components/              # React 组件
+│   │   ├── Chat/                # 聊天相关组件（ChatHeader, ChatArea, SessionSidebar）
+│   │   ├── ChatInput.tsx        # 消息输入框
+│   │   ├── ConnectionStatus.tsx # 连接状态指示器
+│   │   ├── ErrorBoundary.tsx    # 错误边界
+│   │   ├── MessageBubble.tsx    # 消息气泡
+│   │   ├── NewChatModal.tsx     # 新建聊天弹窗
+│   │   └── SessionItem.tsx      # 会话列表项
+│   ├── config/                  # 运行时配置
+│   │   └── runtime.ts           # 动态配置加载
+│   ├── constants/               # 常量定义
+│   │   └── index.ts             # 消息类型、错误信息等
+│   ├── gen/                     # Protobuf 生成代码（软链接 → ../api/gen/ts）
+│   ├── hooks/                   # 自定义 Hooks
+│   │   ├── useAuth.ts           # 认证 Hook
+│   │   ├── useSession.ts        # 会话管理 Hook
+│   │   ├── useWebSocket.ts      # WebSocket Hook（心跳/重连）
+│   │   └── useWsMessageHandler.ts # WebSocket 消息处理
+│   ├── lib/                     # 工具库
+│   │   ├── avatar.ts            # 头像颜色生成
+│   │   ├── cn.ts                # className 合并工具
+│   │   └── time.ts              # 时间格式化工具
+│   ├── pages/                   # 页面组件
+│   │   ├── ChatPage.tsx         # 聊天主界面
+│   │   └── LoginPage.tsx        # 登录/注册页
+│   ├── stores/                  # Zustand 状态管理
+│   │   ├── auth.ts              # 认证状态（持久化）
+│   │   ├── session.ts           # 会话状态
+│   │   └── message.ts           # 消息状态
+│   ├── styles/                  # 全局样式
+│   │   └── globals.css          # Tailwind + Liquid Glass 设计 tokens
+│   ├── App.tsx                  # 应用入口
+│   └── main.tsx                 # React 挂载
 ├── package.json
-├── vite.config.ts           # Vite 配置（代理 → Gateway）
-├── tailwind.config.ts       # Tailwind 配置
-├── AGENTS.md                # AI 助手开发指引（类似 CLAUDE.md）
-└── README.md                # 本文档
+├── vite.config.ts               # Vite 配置（代理 → Gateway）
+├── tailwind.config.ts           # Tailwind 配置
+├── tsconfig.json                # TypeScript 配置
+├── README.md                    # 本文档
+└── CLAUDE.md                    # AI 开发助手指引
 ```
 
 ---
 
-## 配置速查（每个文件一句话）
+## 配置速查
 
 | 文件 | 一句话职责 |
-| --- | --- |
-| `package.json` | 定义前端依赖与脚本入口（`dev/build/lint/type-check`）。 |
-| `vite.config.ts` | 控制开发服务器与构建行为（别名 `@`、`src/gen` 软链解析、打包告警策略）。 |
-| `tsconfig.json` | 定义业务代码的 TypeScript 编译规则（严格模式、路径别名、React JSX）。 |
-| `tsconfig.node.json` | 给 Node 侧配置文件（主要是 `vite.config.ts`）提供独立 TS 类型环境。 |
+| --- | ---|
+| `package.json` | 定义前端依赖与脚本入口（`dev/build/type-check`）。 |
+| `vite.config.ts` | 控制开发服务器与构建行为（别名 `@`、`src/gen` 软链解析）。 |
+| `tsconfig.json` | 定义业务代码的 TypeScript 编译规则（严格模式、路径别名）。 |
 | `tailwind.config.ts` | 定义 Tailwind 扫描范围、暗色模式策略与主题扩展。 |
-| `postcss.config.js` | 把 Tailwind 和 Autoprefixer 挂进 CSS 构建管道。 |
-| `eslint.config.js` | 定义 TS/TSX 的静态检查规则与忽略目录。 |
-| `index.html` | 声明浏览器入口 HTML（`#root` 挂载点与基础 meta）。 |
-| `src/styles/globals.css` | 放全局样式与设计 token（Liquid Glass 玻璃效果类）。 |
-| `.gitignore` | 约束前端目录下不入库文件（`node_modules`、`dist`、缓存文件等）。 |
-
-## 目录清理说明
-
-- 可随时删除（构建会再生成）：`dist/`、`*.tsbuildinfo`、`vite.config.js`、`vite.config.d.ts`
-- 一般不入库：`node_modules/`
-- 业务源码与配置（`src/`、`package.json`、`vite.config.ts` 等）应保留
+| `.gitignore` | 约束前端目录下不入库文件（`node_modules`、`dist` 等）。 |
 
 ---
 
@@ -104,20 +109,13 @@ VITE_WS_BASE_URL=ws://localhost:8080/ws
 ```
 
 生产（容器）模式支持运行时配置，无需重建前端包：
-
 - `RESONANCE_WEB_API_BASE_URL`：覆盖 API 地址
 - `RESONANCE_WEB_WS_BASE_URL`：覆盖 WebSocket 地址
-
-WebServer 会在 `/runtime-config.js` 动态下发这两个值。
 
 ### 3. 确保协议代码已生成
 
 ```bash
-# 确保软链接存在
-cd src
-ln -s ../../api/gen/ts gen
-
-# 或从项目根目录执行
+# 从项目根目录执行
 cd .. && make gen
 ```
 
@@ -138,7 +136,6 @@ npm run dev          # 开发服务器（5173 端口）
 npm run build        # 生产构建
 npm run preview      # 预览构建产物
 npm run type-check   # TypeScript 类型检查
-npm run lint         # ESLint 检查
 ```
 
 ---
@@ -161,26 +158,119 @@ npm run lint         # ESLint 检查
 └─────────────────┘         └─────────────────┘
 ```
 
-- **ConnectRPC**: 用于登录、注册、获取会话列表等 RESTful API
-- **WebSocket**: 用于实时消息推送，Protobuf 二进制格式
+- **ConnectRPC**: 登录、注册、获取会话列表等 API
+- **WebSocket**: 实时消息推送，Protobuf 二进制格式
 
 ---
 
-## 页面说明
+## 组件架构
 
-### LoginPage (`pages/LoginPage.tsx`)
+### 页面级组件
 
-- 登录/注册模式切换
-- 表单验证
-- 错误提示
-- 调用 `useAuth` hook 处理认证
+| 组件 | 路径 | 职责 |
+| ---- | ---- | ---- |
+| LoginPage | `pages/LoginPage.tsx` | 登录/注册 |
+| ChatPage | `pages/ChatPage.tsx` | 聊天主界面 |
 
-### ChatPage (`pages/ChatPage.tsx`)
+### 聊天组件（`components/Chat/`）
 
-- 左侧会话列表（可切换）
-- 右侧聊天区域（消息展示 + 输入框）
-- 连接状态显示
-- 乐观更新消息发送
+| 组件 | 职责 |
+| ---- | ---- |
+| ChatHeader | 顶部导航栏（Logo、用户信息、登出） |
+| ChatArea | 聊天区域（消息列表 + 输入框） |
+| SessionSidebar | 会话侧边栏（会话列表 + 新建按钮） |
+
+### 通用组件
+
+| 组件 | 职责 |
+| ---- | ---- |
+| ChatInput | 消息输入框（支持多行、发送） |
+| ConnectionStatus | 连接状态指示器（已连接/连接中/断开） |
+| ErrorBoundary | 错误边界（捕获子组件错误） |
+| MessageBubble | 消息气泡（支持不同消息类型） |
+| NewChatModal | 新建聊天弹窗 |
+| SessionItem | 会话列表项（显示头像、名称、最后消息） |
+
+---
+
+## 状态管理
+
+### AuthStore (`stores/auth.ts`)
+
+```typescript
+interface User {
+  username: string;
+  nickname?: string;
+  avatarUrl?: string;
+}
+
+interface AuthState {
+  user: User | null;
+  accessToken: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+```
+
+### SessionStore (`stores/session.ts`)
+
+```typescript
+interface SessionInfo {
+  sessionId: string;
+  name: string;
+  type: 1 | 2; // 1-单聊, 2-群聊
+  avatarUrl?: string;
+  unreadCount: number;
+  lastReadSeq: number;
+  maxSeqId: number;
+  lastMessage?: {
+    msgId: bigint;
+    seqId: bigint;
+    content: string;
+    type: string;
+    timestamp: bigint;
+  };
+}
+```
+
+### MessageStore (`stores/message.ts`)
+
+```typescript
+interface ChatMessage {
+  msgId: string;
+  sessionId: string;
+  fromUsername: string;
+  content: string;
+  msgType: "text" | "image" | "file" | "audio" | "video" | "system";
+  timestamp: bigint;
+  status: "sending" | "sent" | "failed";
+  isOwn: boolean;
+}
+```
+
+---
+
+## 样式系统
+
+### Liquid Glass CSS 类
+
+| 类名 | 用途 |
+| ---- | ---- |
+| `lg-glass` | 基础玻璃效果（一级模糊） |
+| `lg-glass-strong` | 强玻璃效果（二级模糊） |
+| `lg-btn-primary` | 主按钮样式 |
+| `lg-btn-secondary` | 次按钮样式 |
+| `lg-input` | 输入框样式 |
+| `lg-bubble-own` | 己方消息气泡 |
+| `lg-bubble-other` | 对方消息气泡 |
+| `lg-bubble-system` | 系统消息气泡 |
+| `lg-session-item` | 会话列表项 |
+| `lg-session-item-active` | 激活的会话列表项 |
+| `lg-modal-overlay` | 模态框遮罩 |
+| `lg-modal-content` | 模态框内容 |
+| `lg-status-badge` | 状态徽章 |
+| `lg-animate-in` | 入场动画 |
 
 ---
 
@@ -194,15 +284,12 @@ npm run lint         # ESLint 检查
 - [ ] 群组管理
 - [ ] 搜索功能
 - [ ] 消息已读状态（双勾）
-- [ ] 在线状态指示器
-- [ ] 暗色主题切换（UI 已支持，需添加切换按钮）
+- [ ] 暗色主题切换按钮
 - [ ] 消息表情反应
-- [ ] 消息转发
-- [ ] 跳转到未读消息
 
 ---
 
 ## 相关文档
 
-- [AGENTS.md](./AGENTS.md) - AI 开发助手指引（详细开发规范、技术实现）
+- [CLAUDE.md](./CLAUDE.md) - AI 开发助手指引
 - [../README.md](../README.md) - 项目整体文档
