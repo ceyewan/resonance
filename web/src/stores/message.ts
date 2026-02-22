@@ -59,6 +59,12 @@ interface MessageState {
 
 function sortBySeq(messages: ChatMessage[]): ChatMessage[] {
   return [...messages].sort((a, b) => {
+    // 待发送临时消息（seq=0）固定放到末尾，避免被排序到顶部“看不见”。
+    const aPending = a.status === "sending" && a.seqId === 0n;
+    const bPending = b.status === "sending" && b.seqId === 0n;
+    if (aPending && !bPending) return 1;
+    if (!aPending && bPending) return -1;
+
     if (a.seqId < b.seqId) return -1;
     if (a.seqId > b.seqId) return 1;
     return 0;
@@ -200,11 +206,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     set((state) => {
       const newMessages = { ...state.messages };
       for (const sessionId in newMessages) {
-        newMessages[sessionId] = newMessages[sessionId].map((msg) =>
+        newMessages[sessionId] = sortBySeq(newMessages[sessionId].map((msg) =>
           msg.msgId === tempId
             ? { ...msg, msgId: realMsgId, seqId, status: MESSAGE_STATUS.SENT }
             : msg,
-        );
+        ));
       }
       return { messages: newMessages };
     }),
