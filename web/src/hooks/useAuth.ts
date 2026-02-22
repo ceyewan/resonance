@@ -124,7 +124,7 @@ export function useAuth(): UseAuthReturn {
     setIsLoading(true);
 
     try {
-      // 调用登出 API（通知服务器使 token 失效）
+      // 调用登出 API（当前后端为 no-op，仅用于语义对齐）
       // 即使 API 调用失败，本地状态也会清除
       await authClient.logout({});
     } catch (err) {

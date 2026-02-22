@@ -9,6 +9,7 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // MessageRepoOption 配置 MessageRepo 的选项
@@ -110,7 +111,8 @@ func (r *messageRepo) SaveInbox(ctx context.Context, inboxes []*model.Inbox) err
 
 	// 使用事务批量写入
 	err := r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
-		if err := tx.Create(&inboxes).Error; err != nil {
+		// 幂等写入：唯一键冲突（owner_username, session_id, seq_id）时忽略
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&inboxes).Error; err != nil {
 			return fmt.Errorf("failed to save inboxes: %w", err)
 		}
 		return nil
@@ -128,7 +130,11 @@ func (r *messageRepo) SaveInbox(ctx context.Context, inboxes []*model.Inbox) err
 }
 
 // GetHistoryMessages 拉取历史消息
-func (r *messageRepo) GetHistoryMessages(ctx context.Context, sessionID string, startSeq int64, limit int) ([]*model.MessageContent, error) {
+// 语义：
+//   - beforeSeq == 0: 拉取该会话“最近”的 limit 条消息
+//   - beforeSeq > 0: 拉取 seq_id < beforeSeq 的历史消息
+// 返回顺序统一为 seq_id 升序，方便前端直接渲染。
+func (r *messageRepo) GetHistoryMessages(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("session_id cannot be empty")
 	}
@@ -142,21 +148,25 @@ func (r *messageRepo) GetHistoryMessages(ctx context.Context, sessionID string, 
 	var messages []*model.MessageContent
 	gormDB := r.db.DB(ctx)
 
-	query := gormDB.Where("session_id = ?", sessionID).
-		Order("seq_id ASC") // 按序列号升序
-
-	// 如果指定了起始序列号，则从该位置开始查询
-	if startSeq > 0 {
-		query = query.Where("seq_id >= ?", startSeq)
+	query := gormDB.Where("session_id = ?", sessionID)
+	if beforeSeq > 0 {
+		query = query.Where("seq_id < ?", beforeSeq)
 	}
+
+	// 为了高效拿“最近 limit 条”，先倒序取，再在内存反转为升序输出。
+	query = query.Order("seq_id DESC")
 
 	if err := query.Limit(limit).Find(&messages).Error; err != nil {
 		r.logger.Error("拉取历史消息失败",
 			clog.String("session_id", sessionID),
-			clog.Int64("start_seq", startSeq),
+			clog.Int64("before_seq", beforeSeq),
 			clog.Int("limit", limit),
 			clog.Error(err))
 		return nil, fmt.Errorf("failed to get history messages: %w", err)
+	}
+
+	for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
+		messages[i], messages[j] = messages[j], messages[i]
 	}
 
 	return messages, nil
@@ -241,6 +251,72 @@ func (r *messageRepo) GetUnreadMessages(ctx context.Context, username string, li
 	}
 
 	return inboxes, nil
+}
+
+// GetInboxDelta 按游标拉取用户增量消息
+func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*InboxDeltaItem, error) {
+	if username == "" {
+		return nil, fmt.Errorf("username cannot be empty")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	type inboxRow struct {
+		InboxID        int64
+		MsgID          int64
+		SeqID          int64
+		SessionID      string
+		SenderUsername string
+		Content        string
+		MsgType        string
+		CreatedAt      time.Time
+	}
+
+	rows := make([]*inboxRow, 0)
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Table("t_inbox i").
+		Select(`
+			i.id AS inbox_id,
+			m.msg_id AS msg_id,
+			m.seq_id AS seq_id,
+			m.session_id AS session_id,
+			m.sender_username AS sender_username,
+			m.content AS content,
+			m.msg_type AS msg_type,
+			m.created_at AS created_at
+		`).
+		Joins("INNER JOIN t_message_content m ON m.msg_id = i.msg_id").
+		Where("i.owner_username = ? AND i.id > ?", username, cursorID).
+		Order("i.id ASC").
+		Limit(limit).
+		Scan(&rows).Error; err != nil {
+		r.logger.Error("拉取 inbox 增量失败",
+			clog.String("username", username),
+			clog.Int64("cursor_id", cursorID),
+			clog.Int("limit", limit),
+			clog.Error(err))
+		return nil, fmt.Errorf("failed to get inbox delta: %w", err)
+	}
+
+	items := make([]*InboxDeltaItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, &InboxDeltaItem{
+			InboxID:        row.InboxID,
+			MsgID:          row.MsgID,
+			SeqID:          row.SeqID,
+			SessionID:      row.SessionID,
+			SenderUsername: row.SenderUsername,
+			Content:        row.Content,
+			MsgType:        row.MsgType,
+			CreatedAt:      row.CreatedAt,
+		})
+	}
+
+	return items, nil
 }
 
 // SaveMessageWithOutbox 事务内保存消息并记录本地消息表

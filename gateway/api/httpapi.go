@@ -97,12 +97,13 @@ func (h *HTTPHandler) Register(
 	return connect.NewResponse(resp), nil
 }
 
-// Logout 实现 AuthService.Logout（公开接口，但通常需要 token）
+// Logout 实现 AuthService.Logout
+// 当前语义为 no-op：服务端不维护 token 黑名单，登出依赖前端清理本地 token。
 func (h *HTTPHandler) Logout(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.LogoutRequest],
 ) (*connect.Response[gatewayv1.LogoutResponse], error) {
-	h.logger.Info("logout request")
+	h.logger.Info("logout request (no-op, client should clear local token)")
 
 	resp := &gatewayv1.LogoutResponse{
 		Success: true,
@@ -180,28 +181,30 @@ func (h *HTTPHandler) CreateSession(
 	return connect.NewResponse(resp), nil
 }
 
-// GetRecentMessages 实现 SessionService.GetRecentMessages
-func (h *HTTPHandler) GetRecentMessages(
+// GetHistoryMessages 实现 SessionService.GetHistoryMessages
+func (h *HTTPHandler) GetHistoryMessages(
 	ctx context.Context,
-	req *connect.Request[gatewayv1.GetRecentMessagesRequest],
-) (*connect.Response[gatewayv1.GetRecentMessagesResponse], error) {
-	if _, err := h.getUsernameFromContext(ctx); err != nil {
+	req *connect.Request[gatewayv1.GetHistoryMessagesRequest],
+) (*connect.Response[gatewayv1.GetHistoryMessagesResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	logicReq := &logicv1.GetRecentMessagesRequest{
+	logicReq := &logicv1.GetHistoryMessagesRequest{
+		Username:  username,
 		SessionId: req.Msg.SessionId,
 		Limit:     req.Msg.Limit,
 		BeforeSeq: req.Msg.BeforeSeq,
 	}
 
-	logicResp, err := h.logicClient.GetRecentMessages(ctx, logicReq)
+	logicResp, err := h.logicClient.GetHistoryMessages(ctx, logicReq)
 	if err != nil {
-		h.logger.Error("get recent messages failed", clog.Error(err))
+		h.logger.Error("get history messages failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	resp := &gatewayv1.GetRecentMessagesResponse{
+	resp := &gatewayv1.GetHistoryMessagesResponse{
 		Messages: logicResp.Messages,
 	}
 
@@ -298,4 +301,41 @@ func (h *HTTPHandler) UpdateReadPosition(
 	}
 
 	return connect.NewResponse(resp), nil
+}
+
+// PullInboxDelta 实现 SessionService.PullInboxDelta
+func (h *HTTPHandler) PullInboxDelta(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.PullInboxDeltaRequest],
+) (*connect.Response[gatewayv1.PullInboxDeltaResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.PullInboxDeltaRequest{
+		Username: username,
+		CursorId: req.Msg.CursorId,
+		Limit:    req.Msg.Limit,
+	}
+
+	logicResp, err := h.logicClient.PullInboxDelta(ctx, logicReq)
+	if err != nil {
+		h.logger.Error("pull inbox delta failed", clog.Error(err))
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+
+	events := make([]*gatewayv1.InboxEvent, 0, len(logicResp.Events))
+	for _, evt := range logicResp.Events {
+		events = append(events, &gatewayv1.InboxEvent{
+			InboxId: evt.InboxId,
+			Message: evt.Message,
+		})
+	}
+
+	return connect.NewResponse(&gatewayv1.PullInboxDeltaResponse{
+		Events:       events,
+		NextCursorId: logicResp.NextCursorId,
+		HasMore:      logicResp.HasMore,
+	}), nil
 }

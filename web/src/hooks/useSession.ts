@@ -7,6 +7,8 @@ import type { SessionInfo as ProtoSessionInfo } from "@/gen/gateway/v1/api_pb";
 import type { PushMessage } from "@/gen/gateway/v1/packet_pb";
 import { ERROR_MESSAGES, UI_CONFIG } from "@/constants";
 import type { SessionInfo } from "@/stores/session";
+import { saveMessages, saveSessions } from "@/localdb/repository";
+import { hydrateStoresFromLocal, syncInboxDelta } from "@/sync/inboxSync";
 
 interface UseSessionReturn {
   // 状态
@@ -17,7 +19,7 @@ interface UseSessionReturn {
 
   // 操作
   loadSessions: () => Promise<void>;
-  loadRecentMessages: (sessionId: string, limit?: number, beforeSeq?: bigint) => Promise<void>;
+  loadHistoryMessages: (sessionId: string, limit?: number, beforeSeq?: bigint) => Promise<void>;
   selectSession: (sessionId: string | null) => void;
   clearError: () => void;
 }
@@ -74,14 +76,35 @@ export function useSession(): UseSessionReturn {
     setError(null);
 
     try {
-      const response = await sessionClient.getSessionList({});
+      const currentUsername = user?.username;
+      const localState = currentUsername
+        ? await hydrateStoresFromLocal(currentUsername)
+        : { hasLocalSnapshot: false };
+      const { hasLocalSnapshot } = localState;
 
-      const convertedSessions = response.sessions.map(convertSessionInfo);
-      setSessions(convertedSessions);
+      if (!hasLocalSnapshot) {
+        const response = await sessionClient.getSessionList({});
+        const convertedSessions = response.sessions.map(convertSessionInfo);
+        setSessions(convertedSessions);
+        if (currentUsername) {
+          await saveSessions(currentUsername, convertedSessions);
+        }
 
-      // 如果没有当前选中的会话，自动选中第一个
-      if (convertedSessions.length > 0 && !getCurrentSession()) {
-        setCurrentSessionId(convertedSessions[0].sessionId);
+        // 如果没有当前选中的会话，自动选中第一个
+        if (convertedSessions.length > 0 && !getCurrentSession()) {
+          setCurrentSessionId(convertedSessions[0].sessionId);
+        }
+      } else if (!getCurrentSession()) {
+        const localSessions = useSessionStore.getState().sessions;
+        if (localSessions.length > 0) {
+          setCurrentSessionId(localSessions[0].sessionId);
+        }
+      }
+
+      if (user?.username) {
+        syncInboxDelta(user.username).catch((err) => {
+          console.error("[useSession] Failed to sync inbox delta:", err);
+        });
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : ERROR_MESSAGES.SESSION_LOAD_FAILED;
@@ -91,13 +114,13 @@ export function useSession(): UseSessionReturn {
       setIsLoadingState(false);
       setIsLoading(false);
     }
-  }, [setSessions, setCurrentSessionId, setIsLoading, setError, setError, getCurrentSession]);
+  }, [setSessions, setCurrentSessionId, setIsLoading, setError, getCurrentSession, user?.username]);
 
   // 加载历史消息
-  const loadRecentMessages = useCallback(
+  const loadHistoryMessages = useCallback(
     async (sessionId: string, limit: number = UI_CONFIG.MESSAGES_PAGE_SIZE, beforeSeq?: bigint) => {
       try {
-        const response = await sessionClient.getRecentMessages({
+        const response = await sessionClient.getHistoryMessages({
           sessionId,
           limit: BigInt(limit),
           beforeSeq: beforeSeq || BigInt(0),
@@ -113,6 +136,9 @@ export function useSession(): UseSessionReturn {
           prependMessages(sessionId, messages);
         } else {
           setMessages(sessionId, messages);
+        }
+        if (user?.username) {
+          await saveMessages(user.username, messages);
         }
       } catch (err) {
         console.error("[useSession] Failed to load recent messages:", err);
@@ -134,12 +160,12 @@ export function useSession(): UseSessionReturn {
 
         // 如果该会话还没有消息，加载历史消息
         if (getSessionMessages(sessionId).length === 0) {
-          loadRecentMessages(sessionId).catch(console.error);
+          loadHistoryMessages(sessionId).catch(console.error);
         }
       }
       setCurrentSessionId(sessionId);
     },
-    [setCurrentSessionId, sessions, markAsRead, getSessionMessages, loadRecentMessages],
+    [setCurrentSessionId, sessions, markAsRead, getSessionMessages, loadHistoryMessages],
   );
 
   const clearLocalError = useCallback(() => {
@@ -153,7 +179,7 @@ export function useSession(): UseSessionReturn {
     isLoading,
     error,
     loadSessions,
-    loadRecentMessages,
+    loadHistoryMessages,
     selectSession,
     clearError: clearLocalError,
   };
@@ -164,7 +190,7 @@ export function useSession(): UseSessionReturn {
  * 用于在会话详情页使用
  */
 export function useCurrentSession() {
-  const { currentSession, loadRecentMessages } = useSession();
+  const { currentSession, loadHistoryMessages } = useSession();
   const { getSessionMessages, isLoading } = useMessageStore();
 
   const messages = currentSession ? getSessionMessages(currentSession.sessionId) : [];
@@ -176,9 +202,9 @@ export function useCurrentSession() {
       const oldestMessage = messages[0];
       const beforeSeq = oldestMessage ? oldestMessage.seqId : undefined;
 
-      await loadRecentMessages(currentSession.sessionId, limit, beforeSeq);
+      await loadHistoryMessages(currentSession.sessionId, limit, beforeSeq);
     },
-    [currentSession, loadRecentMessages, messages],
+    [currentSession, loadHistoryMessages, messages],
   );
 
   return {

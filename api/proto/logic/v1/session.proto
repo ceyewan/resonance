@@ -14,8 +14,8 @@ service SessionService {
   // CreateSession 创建会话（单聊或群聊）
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
 
-  // GetRecentMessages 拉取会话的历史消息（登录同步或翻页）
-  rpc GetRecentMessages(GetRecentMessagesRequest) returns (GetRecentMessagesResponse);
+  // GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
+  rpc GetHistoryMessages(GetHistoryMessagesRequest) returns (GetHistoryMessagesResponse);
 
   // GetContactList 获取联系人列表（即与当前用户有过单聊往来的用户）
   rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
@@ -25,6 +25,9 @@ service SessionService {
 
   // UpdateReadPosition 更新会话已读位置
   rpc UpdateReadPosition(UpdateReadPositionRequest) returns (UpdateReadPositionResponse);
+
+  // PullInboxDelta 按用户游标增量拉取消息（断线补偿/刷新同步）
+  rpc PullInboxDelta(PullInboxDeltaRequest) returns (PullInboxDeltaResponse);
 }
 
 message UpdateReadPositionRequest {
@@ -66,13 +69,14 @@ message CreateSessionResponse {
   string session_id = 1;
 }
 
-message GetRecentMessagesRequest {
-  string session_id = 1;
-  int64 limit = 2;
-  int64 before_seq = 3; // 用于翻页，如果是登录拉取可传 0
+message GetHistoryMessagesRequest {
+  string username = 1;
+  string session_id = 2;
+  int64 limit = 3;
+  int64 before_seq = 4; // 0=拉最近一页；>0=拉取 seq_id < before_seq 的历史
 }
 
-message GetRecentMessagesResponse {
+message GetHistoryMessagesResponse {
   repeated resonance.gateway.v1.PushMessage messages = 1;
 }
 
@@ -96,4 +100,21 @@ message SearchUserRequest {
 
 message SearchUserResponse {
   repeated ContactInfo users = 1;
+}
+
+message PullInboxDeltaRequest {
+  string username = 1;
+  int64 cursor_id = 2;
+  int64 limit = 3;
+}
+
+message InboxEvent {
+  int64 inbox_id = 1;
+  resonance.gateway.v1.PushMessage message = 2;
+}
+
+message PullInboxDeltaResponse {
+  repeated InboxEvent events = 1;
+  int64 next_cursor_id = 2;
+  bool has_more = 3;
 }

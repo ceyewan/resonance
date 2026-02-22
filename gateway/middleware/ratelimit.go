@@ -164,7 +164,7 @@ var PredefinedRateLimits = struct {
 			Rate:  10, // 创建会话
 			Burst: 20,
 		},
-		"/gateway.v1.SessionService/GetRecentMessages": {
+		"/gateway.v1.SessionService/GetHistoryMessages": {
 			Rate:  100, // 获取历史消息
 			Burst: 200,
 		},

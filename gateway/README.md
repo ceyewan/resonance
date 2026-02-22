@@ -129,18 +129,20 @@ status_batcher:
 
 ## 🔌 接口说明
 
-### 1. RESTful API (HTTP)
+### 1. ConnectRPC API (HTTP)
 
 **端口**：`http_port` (默认 `8080`)
 
-| 端点                       | 方法 | 说明         |
-| -------------------------- | ---- | ------------ |
-| `/api/v1/auth/login`       | POST | 用户登录     |
-| `/api/v1/auth/register`    | POST | 用户注册     |
-| `/api/v1/session/list`     | GET  | 获取会话列表 |
-| `/api/v1/session/create`   | POST | 创建会话     |
-| `/api/v1/session/messages` | GET  | 获取历史消息 |
-| `/api/v1/session/search`   | GET  | 搜索用户     |
+| 端点（Connect 路径）                                      | 方法 | 说明                         |
+| ---------------------------------------------------------- | ---- | ---------------------------- |
+| `/resonance.gateway.v1.AuthService/Login`                 | POST | 用户登录                     |
+| `/resonance.gateway.v1.AuthService/Register`              | POST | 用户注册                     |
+| `/resonance.gateway.v1.AuthService/Logout`                | POST | 用户登出（当前实现为 no-op） |
+| `/resonance.gateway.v1.SessionService/GetSessionList`     | POST | 获取会话列表                 |
+| `/resonance.gateway.v1.SessionService/CreateSession`      | POST | 创建会话                     |
+| `/resonance.gateway.v1.SessionService/GetHistoryMessages`  | POST | 获取历史消息                 |
+| `/resonance.gateway.v1.SessionService/PullInboxDelta`     | POST | 按游标增量拉取消息           |
+| `/resonance.gateway.v1.SessionService/SearchUser`         | POST | 搜索用户                     |
 
 ### 2. WebSocket 接口
 

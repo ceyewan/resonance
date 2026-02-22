@@ -3,6 +3,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useWsMessageHandler } from "@/hooks/useWsMessageHandler";
 import { WsPacket } from "@/gen/gateway/v1/packet_pb";
+import { syncInboxDelta } from "@/sync/inboxSync";
 import LoginPage from "@/pages/LoginPage";
 import ChatPage from "@/pages/ChatPage";
 
@@ -15,7 +16,7 @@ import ChatPage from "@/pages/ChatPage";
  * - 连接状态传递给子组件
  */
 function App() {
-  const { isAuthenticated, accessToken } = useAuthStore();
+  const { isAuthenticated, accessToken, user } = useAuthStore();
 
   // 使用 ref 保存 send 函数的引用，供消息处理器使用
   const sendRef = useRef<((packet: WsPacket) => void) | null>(null);
@@ -28,6 +29,13 @@ function App() {
   // WebSocket 连接（只在登录后激活）
   const { isConnected, isConnecting, send } = useWebSocket({
     token: accessToken ?? undefined,
+    onOpen: () => {
+      if (user?.username) {
+        syncInboxDelta(user.username).catch((err) => {
+          console.error("[App] Failed to sync inbox delta on ws open:", err);
+        });
+      }
+    },
     onMessage: handleMessage,
   });
 

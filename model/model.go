@@ -96,8 +96,8 @@ type MessageContent struct {
 //   - idx_owner_read：查询某用户的未读消息 / 计算未读数
 //     典型查询: WHERE owner_username = ? AND is_read = 0
 type Inbox struct {
-	ID            int64  `gorm:"primaryKey;column:id;autoIncrement"`
-	OwnerUsername string `gorm:"column:owner_username;type:varchar(64);not null;uniqueIndex:uniq_owner_sess_seq,priority:1;index:idx_owner_read,priority:1"`
+	ID            int64  `gorm:"primaryKey;column:id;autoIncrement;index:idx_owner_id,priority:2"`
+	OwnerUsername string `gorm:"column:owner_username;type:varchar(64);not null;uniqueIndex:uniq_owner_sess_seq,priority:1;index:idx_owner_read,priority:1;index:idx_owner_id,priority:1"`
 	SessionID     string `gorm:"column:session_id;type:varchar(64);not null;uniqueIndex:uniq_owner_sess_seq,priority:2"`
 	MsgID         int64  `gorm:"column:msg_id;type:bigint;not null"`
 	SeqID         int64  `gorm:"column:seq_id;type:bigint;not null;uniqueIndex:uniq_owner_sess_seq,priority:3"`
