@@ -40,11 +40,17 @@ export function useWsMessageHandler({ getSend }: UseWsMessageHandlerOptions) {
       const username = user?.username || "";
       const shouldCompensate = shouldTriggerGapCompensation(push);
 
-      void applyIncomingPush(push, username).then(() => {
-        if (shouldCompensate && username) {
-          void syncInboxDelta(username);
-        }
-      });
+      void applyIncomingPush(push, username)
+        .then(() => {
+          if (shouldCompensate && username) {
+            void syncInboxDelta(username).catch((err) => {
+              console.error("[WsMessageHandler] Failed to run compensation sync:", err);
+            });
+          }
+        })
+        .catch((err) => {
+          console.error("[WsMessageHandler] Failed to apply incoming push:", err);
+        });
 
       // 立即发送 Ack 确认（推送消息回执）
       const send = getSend();

@@ -11,7 +11,13 @@ import {
   setInboxCursor,
 } from "@/localdb/repository";
 
-let syncInFlight: Promise<void> | null = null;
+const syncInFlight = new Map<string, Promise<void>>();
+const syncRetryState = new Map<string, { failures: number; nextAllowedAt: number }>();
+const BASE_RETRY_DELAY_MS = 1000;
+const MAX_RETRY_DELAY_MS = 30000;
+interface ApplyIncomingOptions {
+  suppressReadReceipt?: boolean;
+}
 
 function buildSessionFromPush(push: PushMessage, currentUsername: string): SessionInfo {
   const fallbackName = push.fromUsername === currentUsername ? push.sessionId : push.fromUsername;
@@ -47,8 +53,10 @@ export function shouldTriggerGapCompensation(push: PushMessage): boolean {
   return incomingSeq > expectedNext;
 }
 
-export async function hydrateStoresFromLocal(): Promise<{ hasLocalSnapshot: boolean; cursor: bigint }> {
-  const { sessions, messagesBySession, cursor } = await hydrateLocalSnapshot();
+export async function hydrateStoresFromLocal(
+  currentUsername: string,
+): Promise<{ hasLocalSnapshot: boolean; cursor: bigint }> {
+  const { sessions, messagesBySession, cursor } = await hydrateLocalSnapshot(currentUsername);
 
   const sessionState = useSessionStore.getState();
   const messageState = useMessageStore.getState();
@@ -70,25 +78,29 @@ export async function hydrateStoresFromLocal(): Promise<{ hasLocalSnapshot: bool
   };
 }
 
-export async function applyIncomingPush(push: PushMessage, currentUsername: string): Promise<void> {
+export async function applyIncomingPush(
+  push: PushMessage,
+  currentUsername: string,
+  options: ApplyIncomingOptions = {},
+): Promise<void> {
   const sessionStore = useSessionStore.getState();
   const messageStore = useMessageStore.getState();
 
   const chatMessage = pushMessageToChatMessage(push, currentUsername);
   messageStore.addMessage(chatMessage);
-  await saveMessage(chatMessage);
+  await saveMessage(currentUsername, chatMessage);
 
   const existingSession = sessionStore.getSessionById(chatMessage.sessionId);
   if (!existingSession) {
     const newSession = buildSessionFromPush(push, currentUsername);
     sessionStore.upsertSession(newSession);
-    await saveSession(newSession);
+    await saveSession(currentUsername, newSession);
   } else {
     sessionStore.updateLastMessage(chatMessage.sessionId, push);
 
     const updated = sessionStore.getSessionById(chatMessage.sessionId);
     if (updated) {
-      await saveSession(updated);
+      await saveSession(currentUsername, updated);
     }
   }
 
@@ -102,59 +114,105 @@ export async function applyIncomingPush(push: PushMessage, currentUsername: stri
     sessionStore.updateSession(chatMessage.sessionId, { unreadCount: newUnread });
     const unreadUpdated = sessionStore.getSessionById(chatMessage.sessionId);
     if (unreadUpdated) {
-      await saveSession(unreadUpdated);
+      await saveSession(currentUsername, unreadUpdated);
     }
   } else if (chatMessage.sessionId === sessionStore.currentSessionId && !chatMessage.isOwn) {
-    await sessionStore.markAsRead(chatMessage.sessionId, Number(chatMessage.seqId));
-    const readUpdated = sessionStore.getSessionById(chatMessage.sessionId);
-    if (readUpdated) {
-      await saveSession(readUpdated);
+    if (options.suppressReadReceipt) {
+      sessionStore.updateSession(chatMessage.sessionId, {
+        lastReadSeq: Number(chatMessage.seqId),
+        unreadCount: Math.max(0, latestSession.maxSeqId - Number(chatMessage.seqId)),
+      });
+      const readUpdated = sessionStore.getSessionById(chatMessage.sessionId);
+      if (readUpdated) {
+        await saveSession(currentUsername, readUpdated);
+      }
+    } else {
+      await sessionStore.markAsRead(chatMessage.sessionId, Number(chatMessage.seqId));
+      const readUpdated = sessionStore.getSessionById(chatMessage.sessionId);
+      if (readUpdated) {
+        await saveSession(currentUsername, readUpdated);
+      }
     }
   }
 }
 
 export async function syncInboxDelta(currentUsername: string, pageSize: number = 200): Promise<void> {
-  if (syncInFlight) {
-    return syncInFlight;
+  const retry = syncRetryState.get(currentUsername);
+  if (retry && Date.now() < retry.nextAllowedAt) {
+    return;
   }
 
-  syncInFlight = (async () => {
-  let cursor = await getInboxCursor();
+  const existing = syncInFlight.get(currentUsername);
+  if (existing) {
+    return existing;
+  }
 
-  for (;;) {
-    const resp = await sessionClient.pullInboxDelta({
-      cursorId: cursor,
-      limit: BigInt(pageSize),
-    });
+  const running = (async () => {
+    let cursor = await getInboxCursor(currentUsername);
+    const pendingReadReceipts = new Map<string, number>();
 
-    if (resp.events.length === 0) {
-      break;
-    }
+    for (;;) {
+      const resp = await sessionClient.pullInboxDelta({
+        cursorId: cursor,
+        limit: BigInt(pageSize),
+      });
 
-    for (const event of resp.events) {
-      if (!event.message) continue;
-      await applyIncomingPush(event.message, currentUsername);
+      if (resp.events.length === 0) {
+        break;
+      }
 
-      const inboxID = BigInt(event.inboxId);
-      if (inboxID > cursor) {
-        cursor = inboxID;
+      for (const event of resp.events) {
+        if (!event.message) continue;
+        await applyIncomingPush(event.message, currentUsername, { suppressReadReceipt: true });
+
+        const currentSessionId = useSessionStore.getState().currentSessionId;
+        if (event.message.sessionId === currentSessionId && event.message.fromUsername !== currentUsername) {
+          const seq = Number(event.message.seqId);
+          const existingSeq = pendingReadReceipts.get(event.message.sessionId) ?? 0;
+          pendingReadReceipts.set(event.message.sessionId, Math.max(existingSeq, seq));
+        }
+
+        const inboxID = BigInt(event.inboxId);
+        if (inboxID > cursor) {
+          cursor = inboxID;
+        }
+      }
+
+      const sessionSnapshots = useSessionStore.getState().sessions;
+      await saveSessions(currentUsername, sessionSnapshots);
+
+      await setInboxCursor(currentUsername, cursor);
+
+      if (!resp.hasMore) {
+        break;
       }
     }
 
-    const sessionSnapshots = useSessionStore.getState().sessions;
-    await saveSessions(sessionSnapshots);
-
-    await setInboxCursor(cursor);
-
-    if (!resp.hasMore) {
-      break;
+    if (pendingReadReceipts.size > 0) {
+      const sessionStore = useSessionStore.getState();
+      for (const [sessionID, seq] of pendingReadReceipts) {
+        await sessionStore.markAsRead(sessionID, seq);
+      }
+      await saveSessions(currentUsername, sessionStore.sessions);
     }
-  }
   })();
+  syncInFlight.set(currentUsername, running);
 
   try {
-    await syncInFlight;
+    await running;
+    syncRetryState.delete(currentUsername);
+  } catch (err) {
+    const prevFailures = syncRetryState.get(currentUsername)?.failures ?? 0;
+    const failures = prevFailures + 1;
+    const delay = Math.min(BASE_RETRY_DELAY_MS * 2 ** (failures - 1), MAX_RETRY_DELAY_MS);
+    syncRetryState.set(currentUsername, {
+      failures,
+      nextAllowedAt: Date.now() + delay,
+    });
+    throw err;
   } finally {
-    syncInFlight = null;
+    if (syncInFlight.get(currentUsername) === running) {
+      syncInFlight.delete(currentUsername);
+    }
   }
 }

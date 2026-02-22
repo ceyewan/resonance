@@ -57,6 +57,14 @@ interface MessageState {
   reset: () => void;
 }
 
+function sortBySeq(messages: ChatMessage[]): ChatMessage[] {
+  return [...messages].sort((a, b) => {
+    if (a.seqId < b.seqId) return -1;
+    if (a.seqId > b.seqId) return 1;
+    return 0;
+  });
+}
+
 export const useMessageStore = create<MessageState>((set, get) => ({
   // 初始状态
   messages: {},
@@ -97,54 +105,58 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const existing = state.messages[sessionId] || [];
 
       // 检查是否已存在（根据 msgId 或 seqId）
-      const exists = existing.find((m) => m.msgId === message.msgId || m.seqId === message.seqId);
-      if (exists) {
-        // 更新现有消息
-        return {
-          messages: {
-            ...state.messages,
-            [sessionId]: existing.map((m) =>
-              m.msgId === message.msgId || m.seqId === message.seqId ? { ...m, ...message } : m,
-            ),
-          },
-        };
-      }
+	      const exists = existing.find((m) => m.msgId === message.msgId || m.seqId === message.seqId);
+	      if (exists) {
+	        // 更新现有消息
+	        return {
+	          messages: {
+	            ...state.messages,
+	            [sessionId]: sortBySeq(existing.map((m) =>
+	              m.msgId === message.msgId || m.seqId === message.seqId ? { ...m, ...message } : m,
+	            )),
+	          },
+	        };
+	      }
 
-      return {
-        messages: {
-          ...state.messages,
-          [sessionId]: [...existing, message],
-        },
-      };
-    }),
+	      return {
+	        messages: {
+	          ...state.messages,
+	          [sessionId]: sortBySeq([...existing, message]),
+	        },
+	      };
+	    }),
 
   addMessages: (sessionId, newMessages) =>
     set((state) => {
       const existing = state.messages[sessionId] || [];
       // 去重并追加
-      const existingIds = new Set(existing.map((m) => m.msgId));
-      const uniqueNewMessages = newMessages.filter((m) => !existingIds.has(m.msgId));
-      return {
-        messages: {
-          ...state.messages,
-          [sessionId]: [...existing, ...uniqueNewMessages],
-        },
-      };
-    }),
+	      const existingIDs = new Set(existing.map((m) => `${m.msgId}:${m.seqId.toString()}`));
+	      const uniqueNewMessages = newMessages.filter(
+	        (m) => !existingIDs.has(`${m.msgId}:${m.seqId.toString()}`),
+	      );
+	      return {
+	        messages: {
+	          ...state.messages,
+	          [sessionId]: sortBySeq([...existing, ...uniqueNewMessages]),
+	        },
+	      };
+	    }),
 
   prependMessages: (sessionId, newMessages) =>
     set((state) => {
       const existing = state.messages[sessionId] || [];
       // 去重并前置（用于加载历史消息）
-      const existingIds = new Set(existing.map((m) => m.msgId));
-      const uniqueNewMessages = newMessages.filter((m) => !existingIds.has(m.msgId));
-      return {
-        messages: {
-          ...state.messages,
-          [sessionId]: [...uniqueNewMessages, ...existing],
-        },
-      };
-    }),
+	      const existingIDs = new Set(existing.map((m) => `${m.msgId}:${m.seqId.toString()}`));
+	      const uniqueNewMessages = newMessages.filter(
+	        (m) => !existingIDs.has(`${m.msgId}:${m.seqId.toString()}`),
+	      );
+	      return {
+	        messages: {
+	          ...state.messages,
+	          [sessionId]: sortBySeq([...uniqueNewMessages, ...existing]),
+	        },
+	      };
+	    }),
 
   updateMessage: (msgId, updates) =>
     set((state) => {

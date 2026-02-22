@@ -76,13 +76,18 @@ export function useSession(): UseSessionReturn {
     setError(null);
 
     try {
-      const { hasLocalSnapshot } = await hydrateStoresFromLocal();
+      const currentUsername = user?.username;
+      if (!currentUsername) {
+        throw new Error("unauthorized: missing username");
+      }
+
+      const { hasLocalSnapshot } = await hydrateStoresFromLocal(currentUsername);
 
       if (!hasLocalSnapshot) {
         const response = await sessionClient.getSessionList({});
         const convertedSessions = response.sessions.map(convertSessionInfo);
         setSessions(convertedSessions);
-        await saveSessions(convertedSessions);
+        await saveSessions(currentUsername, convertedSessions);
 
         // 如果没有当前选中的会话，自动选中第一个
         if (convertedSessions.length > 0 && !getCurrentSession()) {
@@ -131,7 +136,9 @@ export function useSession(): UseSessionReturn {
         } else {
           setMessages(sessionId, messages);
         }
-        await saveMessages(messages);
+        if (user?.username) {
+          await saveMessages(user.username, messages);
+        }
       } catch (err) {
         console.error("[useSession] Failed to load recent messages:", err);
         throw err;

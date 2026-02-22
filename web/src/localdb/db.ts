@@ -7,6 +7,7 @@ export interface DBSyncState {
 }
 
 export interface DBSession {
+  ownerUsername: string;
   sessionId: string;
   name: string;
   type: number;
@@ -25,7 +26,8 @@ export interface DBSession {
 }
 
 export interface DBMessage {
-  key: string; // `${sessionId}:${seqId}`
+  key: string; // `${ownerUsername}:${sessionId}:${seqId}`
+  ownerUsername: string;
   sessionId: string;
   seqId: string;
   msgId: string;
@@ -39,7 +41,7 @@ export interface DBMessage {
 }
 
 class ResonanceDB extends Dexie {
-  sessions!: Table<DBSession, string>;
+  sessions!: Table<DBSession, [string, string]>;
   messages!: Table<DBMessage, string>;
   syncState!: Table<DBSyncState, string>;
 
@@ -49,6 +51,12 @@ class ResonanceDB extends Dexie {
     this.version(1).stores({
       sessions: "&sessionId, updatedAt, maxSeqId",
       messages: "&key, sessionId, timestamp, msgId",
+      syncState: "&key, updatedAt",
+    });
+
+    this.version(2).stores({
+      sessions: "&[ownerUsername+sessionId], ownerUsername, updatedAt, maxSeqId",
+      messages: "&key, ownerUsername, [ownerUsername+sessionId], sessionId, timestamp, msgId",
       syncState: "&key, updatedAt",
     });
   }

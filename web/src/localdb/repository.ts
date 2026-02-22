@@ -2,8 +2,9 @@ import { db, SYNC_KEYS, type DBMessage, type DBSession } from "@/localdb/db";
 import type { ChatMessage } from "@/stores/message";
 import type { SessionInfo } from "@/stores/session";
 
-function toDBSession(session: SessionInfo): DBSession {
+function toDBSession(ownerUsername: string, session: SessionInfo): DBSession {
   return {
+    ownerUsername,
     sessionId: session.sessionId,
     name: session.name,
     type: Number(session.type),
@@ -45,10 +46,11 @@ function fromDBSession(item: DBSession): SessionInfo {
   };
 }
 
-function toDBMessage(message: ChatMessage): DBMessage {
+function toDBMessage(ownerUsername: string, message: ChatMessage): DBMessage {
   const seq = message.seqId.toString();
   return {
-    key: `${message.sessionId}:${seq}`,
+    key: `${ownerUsername}:${message.sessionId}:${seq}`,
+    ownerUsername,
     sessionId: message.sessionId,
     seqId: seq,
     msgId: message.msgId,
@@ -77,33 +79,38 @@ function fromDBMessage(item: DBMessage): ChatMessage {
   };
 }
 
-export async function saveSessions(sessions: SessionInfo[]): Promise<void> {
+function getInboxCursorKey(username: string): string {
+  return `${SYNC_KEYS.INBOX_CURSOR}:${username}`;
+}
+
+export async function saveSessions(username: string, sessions: SessionInfo[]): Promise<void> {
   if (sessions.length === 0) return;
-  const rows = sessions.map(toDBSession);
+  const rows = sessions.map((item) => toDBSession(username, item));
   await db.sessions.bulkPut(rows);
 }
 
-export async function saveSession(session: SessionInfo): Promise<void> {
-  await db.sessions.put(toDBSession(session));
+export async function saveSession(username: string, session: SessionInfo): Promise<void> {
+  await db.sessions.put(toDBSession(username, session));
 }
 
-export async function loadSessions(): Promise<SessionInfo[]> {
-  const rows = await db.sessions.orderBy("updatedAt").reverse().toArray();
+export async function loadSessions(username: string): Promise<SessionInfo[]> {
+  const rows = await db.sessions.where("ownerUsername").equals(username).sortBy("updatedAt");
+  rows.reverse();
   return rows.map(fromDBSession);
 }
 
-export async function saveMessages(messages: ChatMessage[]): Promise<void> {
+export async function saveMessages(username: string, messages: ChatMessage[]): Promise<void> {
   if (messages.length === 0) return;
-  const rows = messages.map(toDBMessage);
+  const rows = messages.map((item) => toDBMessage(username, item));
   await db.messages.bulkPut(rows);
 }
 
-export async function saveMessage(message: ChatMessage): Promise<void> {
-  await db.messages.put(toDBMessage(message));
+export async function saveMessage(username: string, message: ChatMessage): Promise<void> {
+  await db.messages.put(toDBMessage(username, message));
 }
 
-export async function loadAllMessagesGrouped(): Promise<Record<string, ChatMessage[]>> {
-  const rows = await db.messages.toArray();
+export async function loadAllMessagesGrouped(username: string): Promise<Record<string, ChatMessage[]>> {
+  const rows = await db.messages.where("ownerUsername").equals(username).toArray();
   const grouped: Record<string, ChatMessage[]> = {};
 
   for (const row of rows) {
@@ -125,8 +132,11 @@ export async function loadAllMessagesGrouped(): Promise<Record<string, ChatMessa
   return grouped;
 }
 
-export async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
-  const rows = await db.messages.where("sessionId").equals(sessionId).toArray();
+export async function loadSessionMessages(username: string, sessionId: string): Promise<ChatMessage[]> {
+  const rows = await db.messages
+    .where("[ownerUsername+sessionId]")
+    .equals([username, sessionId])
+    .toArray();
   const messages = rows.map(fromDBMessage);
   messages.sort((a, b) => {
     if (a.seqId < b.seqId) return -1;
@@ -136,33 +146,38 @@ export async function loadSessionMessages(sessionId: string): Promise<ChatMessag
   return messages;
 }
 
-export async function getInboxCursor(): Promise<bigint> {
-  const item = await db.syncState.get(SYNC_KEYS.INBOX_CURSOR);
+export async function getInboxCursor(username: string): Promise<bigint> {
+  const item = await db.syncState.get(getInboxCursorKey(username));
   if (!item) return 0n;
   try {
     return BigInt(item.value);
-  } catch {
+  } catch (error) {
+    console.warn("[localdb] invalid inbox cursor, fallback to 0", {
+      username,
+      value: item.value,
+      error,
+    });
     return 0n;
   }
 }
 
-export async function setInboxCursor(cursor: bigint): Promise<void> {
+export async function setInboxCursor(username: string, cursor: bigint): Promise<void> {
   await db.syncState.put({
-    key: SYNC_KEYS.INBOX_CURSOR,
+    key: getInboxCursorKey(username),
     value: cursor.toString(),
     updatedAt: Date.now(),
   });
 }
 
-export async function hydrateLocalSnapshot(): Promise<{
+export async function hydrateLocalSnapshot(username: string): Promise<{
   sessions: SessionInfo[];
   messagesBySession: Record<string, ChatMessage[]>;
   cursor: bigint;
 }> {
   const [sessions, messagesBySession, cursor] = await Promise.all([
-    loadSessions(),
-    loadAllMessagesGrouped(),
-    getInboxCursor(),
+    loadSessions(username),
+    loadAllMessagesGrouped(username),
+    getInboxCursor(username),
   ]);
 
   return { sessions, messagesBySession, cursor };

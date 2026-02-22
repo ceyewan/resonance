@@ -336,8 +336,13 @@ func (s *SessionService) buildSystemMessageContent(ctx context.Context, req *log
 // GetHistoryMessages 实现 SessionService.GetHistoryMessages
 func (s *SessionService) GetHistoryMessages(ctx context.Context, req *logicv1.GetHistoryMessagesRequest) (*logicv1.GetHistoryMessagesResponse, error) {
 	s.logger.Info("get history messages",
+		clog.String("username", req.Username),
 		clog.String("session_id", req.SessionId),
 		clog.Int64("limit", req.Limit))
+
+	if req.Username == "" || req.SessionId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "username and session_id are required")
+	}
 
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -345,6 +350,18 @@ func (s *SessionService) GetHistoryMessages(ctx context.Context, req *logicv1.Ge
 	}
 	if limit > 100 {
 		limit = 100
+	}
+
+	// 先校验会话成员关系，避免越权读取他人会话消息。
+	if _, err := s.sessionRepo.GetUserSession(ctx, req.Username, req.SessionId); err != nil {
+		s.logger.Warn("history access denied",
+			clog.String("username", req.Username),
+			clog.String("session_id", req.SessionId),
+			clog.Error(err))
+		if strings.Contains(err.Error(), "not found") {
+			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
+		}
+		return nil, status.Errorf(codes.Internal, "failed to verify session permission")
 	}
 
 	// 获取历史消息

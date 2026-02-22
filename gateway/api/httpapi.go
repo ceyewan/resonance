@@ -186,11 +186,13 @@ func (h *HTTPHandler) GetHistoryMessages(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.GetHistoryMessagesRequest],
 ) (*connect.Response[gatewayv1.GetHistoryMessagesResponse], error) {
-	if _, err := h.getUsernameFromContext(ctx); err != nil {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
 		return nil, err
 	}
 
 	logicReq := &logicv1.GetHistoryMessagesRequest{
+		Username:  username,
 		SessionId: req.Msg.SessionId,
 		Limit:     req.Msg.Limit,
 		BeforeSeq: req.Msg.BeforeSeq,

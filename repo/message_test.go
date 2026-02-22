@@ -263,7 +263,18 @@ func TestMessageRepo_GetHistoryMessages(t *testing.T) {
 	})
 
 	t.Run("beforeSeq 为最小值时返回空", func(t *testing.T) {
-		messages, err := repo.GetHistoryMessages(ctx, sessionID, 1, 10)
+		allMessages, err := repo.GetHistoryMessages(ctx, sessionID, 0, 1000)
+		require.NoError(t, err)
+		require.NotEmpty(t, allMessages)
+
+		minSeq := allMessages[0].SeqID
+		for i := 1; i < len(allMessages); i++ {
+			if allMessages[i].SeqID < minSeq {
+				minSeq = allMessages[i].SeqID
+			}
+		}
+
+		messages, err := repo.GetHistoryMessages(ctx, sessionID, minSeq, 10)
 		require.NoError(t, err)
 		assert.Empty(t, messages)
 	})
