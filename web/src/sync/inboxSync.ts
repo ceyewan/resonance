@@ -118,9 +118,10 @@ export async function applyIncomingPush(
     }
   } else if (chatMessage.sessionId === sessionStore.currentSessionId && !chatMessage.isOwn) {
     if (options.suppressReadReceipt) {
+      // 补偿阶段不提前推进 lastReadSeq，避免在存在 gap 时错误地“越过缺口”。
+      // 已读位点统一在 pendingReadReceipts 合并后通过 markAsRead 上报并落库。
       sessionStore.updateSession(chatMessage.sessionId, {
-        lastReadSeq: Number(chatMessage.seqId),
-        unreadCount: Math.max(0, latestSession.maxSeqId - Number(chatMessage.seqId)),
+        unreadCount: 0,
       });
       const readUpdated = sessionStore.getSessionById(chatMessage.sessionId);
       if (readUpdated) {
