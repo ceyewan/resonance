@@ -323,3 +323,12 @@ pkg/
 - **`logicclient/` vs `client/logic/`**:选扁平化,因为 Gateway 除了 Logic 目前无其它外部 gRPC 依赖。未来若加 AI Service,再加 `aiclient/` 平铺即可。
 - **`pushserver/` vs `server/push/`**:选扁平化,与 `logicclient/` 对仗;`server/` 目录已经被 HTTP/gRPC 骨架占用,避免歧义。
 - **`pkg/event/`**:跨服务共享的 "ChatEvent 纯函数工具"。严格无状态、无依赖注入,只做类型转换。未来如果 event 本身需要构建逻辑(builder 模式等),放 `logic/event/` 而非 `pkg/event/`。
+
+---
+
+## 8. 落地记录(进行中)
+
+- **2026-04-17 / Task-first**
+  - 已完成 Step 5:`task/dispatcher/helpers.go` 重命名为 `task/dispatcher/inbox.go`。
+  - 已完成 Step 1 的 Task 侧落地:新增 `pkg/event/conv.go`,并将 `task/dispatcher/inbox.go` 的 `eventTypeFromChatEvent` 替换为 `event.EventTypeFromChatEvent`。
+  - 当前偏差:Step 1 的 Logic 侧引用切换(例如 `parseMessageType`/`formatMessageType`/`buildMessageEventFromModel`)尚未执行,待下一轮继续。

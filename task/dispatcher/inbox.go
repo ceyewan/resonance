@@ -3,6 +3,7 @@ package dispatcher
 import (
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/pkg/event"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -16,7 +17,7 @@ func buildInboxesForEvent(ev *commonv1.ChatEvent, targets []string) ([]*model.In
 		return nil, err
 	}
 
-	eventType := eventTypeFromChatEvent(ev)
+	eventType := event.EventTypeFromChatEvent(ev)
 	items := make([]*model.Inbox, 0, len(targets))
 	for _, username := range targets {
 		items = append(items, &model.Inbox{
@@ -29,21 +30,4 @@ func buildInboxesForEvent(ev *commonv1.ChatEvent, targets []string) ([]*model.In
 		})
 	}
 	return items, nil
-}
-
-func eventTypeFromChatEvent(ev *commonv1.ChatEvent) int {
-	switch ev.GetPayload().(type) {
-	case *commonv1.ChatEvent_Message:
-		return model.InboxEventTypeMessage
-	case *commonv1.ChatEvent_Recall:
-		return model.InboxEventTypeMessageRecall
-	case *commonv1.ChatEvent_Edit:
-		return model.InboxEventTypeMessageEdit
-	case *commonv1.ChatEvent_ReadReceipt:
-		return model.InboxEventTypeReadReceipt
-	case *commonv1.ChatEvent_SessionUpdate:
-		return model.InboxEventTypeSessionUpdate
-	default:
-		return 0
-	}
 }
