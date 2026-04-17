@@ -38,8 +38,7 @@ type Config struct {
 	GatewayPusherCount int    `mapstructure:"gateway_pusher_count"` // 每个 Gateway 的并发推送协程数
 
 	// 消费者配置
-	StorageConsumer ConsumerConfig `mapstructure:"storage_consumer"` // 存储任务消费者
-	PushConsumer    ConsumerConfig `mapstructure:"push_consumer"`    // 推送任务消费者
+	Consumer ConsumerConfig `mapstructure:"consumer"` // 单消费者：先存储后推送
 
 	// 可观测性配置
 	Observability struct {
@@ -118,23 +117,20 @@ func Load() (*Config, error) {
 	}
 
 	// 设置默认值
-	if cfg.StorageConsumer.WorkerCount <= 0 {
-		cfg.StorageConsumer.WorkerCount = 20
+	if cfg.Consumer.WorkerCount <= 0 {
+		cfg.Consumer.WorkerCount = 20
 	}
-	if cfg.StorageConsumer.QueueGroup == "" {
-		cfg.StorageConsumer.QueueGroup = "resonance_group_storage"
+	if cfg.Consumer.QueueGroup == "" {
+		cfg.Consumer.QueueGroup = "resonance_group_chat_event"
 	}
-	if cfg.PushConsumer.WorkerCount <= 0 {
-		cfg.PushConsumer.WorkerCount = 50
+	if cfg.Consumer.MaxRetry <= 0 {
+		cfg.Consumer.MaxRetry = 3
 	}
-	if cfg.PushConsumer.QueueGroup == "" {
-		cfg.PushConsumer.QueueGroup = "resonance_group_push"
+	if cfg.Consumer.RetryInterval <= 0 {
+		cfg.Consumer.RetryInterval = 5
 	}
-	// 继承 Topic 配置如果未设置（通常两个组订阅同一个 Topic）
-	if cfg.StorageConsumer.Topic == "" && cfg.PushConsumer.Topic != "" {
-		cfg.StorageConsumer.Topic = cfg.PushConsumer.Topic
-	} else if cfg.PushConsumer.Topic == "" && cfg.StorageConsumer.Topic != "" {
-		cfg.PushConsumer.Topic = cfg.StorageConsumer.Topic
+	if cfg.Consumer.Topic == "" {
+		cfg.Consumer.Topic = "resonance.chat.event.v1"
 	}
 
 	// 在 debug 模式下，打印最终生效的配置

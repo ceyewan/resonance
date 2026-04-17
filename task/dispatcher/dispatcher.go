@@ -5,8 +5,8 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
-	logicservice "github.com/ceyewan/resonance/logic/service"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
@@ -35,49 +35,72 @@ func NewDispatcher(
 	}
 }
 
-// DispatchStorage 处理存储任务（写扩散）
-func (d *Dispatcher) DispatchStorage(ctx context.Context, mqEvent *mqv1.MQEvent) error {
+// Handle 单入口处理：先存储，后推送。
+// 存储失败返回 error 触发 Consumer NAK 重试；推送失败只记录日志与指标，不影响 ACK。
+func (d *Dispatcher) Handle(ctx context.Context, mqEvent *mqv1.MQEvent) error {
 	ev := mqEvent.GetEvent()
-	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.storage",
-		attribute.Int64("event_id", ev.GetEventId()),
-		attribute.String("session_id", ev.GetSessionId()),
-	)
-	defer endSpan()
-
-	inboxes := logicservice.BuildInboxItems(ev, mqEvent.TargetUsernames)
-	if len(inboxes) == 0 {
+	if ev == nil {
+		d.logger.Warn("skip empty mq event")
 		return nil
 	}
-	if err := d.messageRepo.SaveInboxBatch(ctx, inboxes); err != nil {
-		return err
-	}
-	return nil
-}
 
-// DispatchPush 处理推送任务（在线推送）
-func (d *Dispatcher) DispatchPush(ctx context.Context, mqEvent *mqv1.MQEvent) error {
-	ev := mqEvent.GetEvent()
-	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.push",
+	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.handle",
 		attribute.Int64("event_id", ev.GetEventId()),
 		attribute.String("session_id", ev.GetSessionId()),
 		attribute.String("from_username", ev.GetFromUsername()),
 	)
 	defer endSpan()
 
-	usernames := make([]string, 0, len(mqEvent.TargetUsernames))
-	for _, u := range mqEvent.TargetUsernames {
+	switch ev.GetPayload().(type) {
+	case *commonv1.ChatEvent_Message:
+		if err := d.handleMessage(ctx, ev, mqEvent.TargetUsernames); err != nil {
+			return err
+		}
+	case *commonv1.ChatEvent_Recall:
+		if err := d.handleRecall(ctx, ev, mqEvent.TargetUsernames); err != nil {
+			return err
+		}
+	case *commonv1.ChatEvent_Edit:
+		if err := d.handleEdit(ctx, ev, mqEvent.TargetUsernames); err != nil {
+			return err
+		}
+	case *commonv1.ChatEvent_ReadReceipt:
+		if err := d.handleReadReceipt(ctx, ev, mqEvent.TargetUsernames); err != nil {
+			return err
+		}
+	case *commonv1.ChatEvent_SessionUpdate:
+		if err := d.handleSessionUpdate(ctx, ev, mqEvent.TargetUsernames); err != nil {
+			return err
+		}
+	default:
+		// 避免未知 payload 导致反复 NAK。
+		d.logger.Warn("skip unsupported payload",
+			clog.Int64("event_id", ev.GetEventId()))
+		return nil
+	}
+
+	d.pushToOnlineUsers(ctx, ev, mqEvent.TargetUsernames)
+	return nil
+}
+
+func (d *Dispatcher) pushToOnlineUsers(ctx context.Context, ev *commonv1.ChatEvent, targets []string) {
+	usernames := make([]string, 0, len(targets))
+	for _, u := range targets {
 		if u == ev.GetFromUsername() {
 			continue
 		}
 		usernames = append(usernames, u)
 	}
 	if len(usernames) == 0 {
-		return nil
+		return
 	}
 
 	routers, err := d.routerRepo.BatchGetUsersGateway(ctx, usernames)
 	if err != nil {
-		return err
+		d.logger.Warn("failed to query online routes",
+			clog.Int64("event_id", ev.GetEventId()),
+			clog.Error(err))
+		return
 	}
 
 	gatewayGroups := make(map[string][]string)
@@ -94,6 +117,10 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, mqEvent *mqv1.MQEvent) er
 		client, err := d.pusherMgr.GetClient(gatewayID)
 		if err != nil {
 			failedCount += len(users)
+			observability.RecordPushEnqueueFailed(ctx,
+				metrics.L("gateway_id", gatewayID),
+				metrics.L("reason", "client_not_found"),
+			)
 			continue
 		}
 
@@ -120,6 +147,4 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, mqEvent *mqv1.MQEvent) er
 		clog.Int("total_targets", len(usernames)),
 		clog.Int("enqueued_targets", successCount),
 		clog.Int("failed_targets", failedCount))
-
-	return nil
 }

@@ -233,6 +233,12 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 
 **目标**:消除 Push/Storage 时序问题,MQ 消费负载 ×2 问题。
 
+**当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+- `task` 已从双消费者收敛为单消费者（`consumer` 配置）
+- `task/dispatcher` 已改为单入口 `Handle`，按 payload 分 handler
+- 处理语义已收口：存储失败返回 error 触发 NAK；推送失败只记日志/指标，不 NAK
+- Topic 已统一到 `resonance.chat.event.v1`
+
 ### 6.1 任务
 
 1. **配置**:`task/config/config.go` 合并 `StorageConsumer` + `PushConsumer` 为单一 `Consumer` 配置,只保留一个 queue_group。
