@@ -12,11 +12,12 @@ import (
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	"github.com/ceyewan/resonance/logic/internal/mqpublish"
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 // SessionService 会话服务
@@ -113,7 +114,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 	for _, sess := range sessions {
 		var lastEvent *commonv1.ChatEvent
 		if msg, ok := msgMap[sess.SessionID]; ok {
-			lastEvent = buildMessageEventFromModel(sess.SessionID, msg)
+			lastEvent = event.BuildMessageEventFromModel(sess.SessionID, msg)
 		} else {
 			lastEvent = &commonv1.ChatEvent{
 				SeqId:     sess.MaxSeqID,
@@ -235,7 +236,7 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		SenderUsername: "system",
 		SeqID:          seqID,
 		Content:        content,
-		MsgType:        formatMessageType(commonv1.MessageType_MESSAGE_TYPE_SYSTEM),
+		MsgType:        event.FormatMessageType(commonv1.MessageType_MESSAGE_TYPE_SYSTEM),
 	}
 
 	chatEvent := &commonv1.ChatEvent{
@@ -266,11 +267,11 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		TargetUsernames: targets,
 	}
 
-	result, err := PublishMessageToMQ(ctx, s.messageRepo, event, msgContent, s.logger)
+	result, err := mqpublish.PublishMessageToMQ(ctx, s.messageRepo, event, msgContent)
 	if err != nil {
 		return fmt.Errorf("publish message to mq: %w", err)
 	}
-	PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
+	mqpublish.PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
 	return nil
 }
 
@@ -284,94 +285,6 @@ func (s *SessionService) buildSystemMessageContent(ctx context.Context, creatorU
 		return fmt.Sprintf("%s 开始了与你的对话", creatorNickname)
 	}
 	return fmt.Sprintf("%s 创建了群聊「%s」", creatorNickname, req.Name)
-}
-
-// GetHistoryEvents 实现 SessionService.GetHistoryEvents
-func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error) {
-	username, err := MustUsernameFromCtx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if req.SessionId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "session_id is required")
-	}
-
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	if _, err := s.sessionRepo.GetUserSession(ctx, username, req.SessionId); err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
-		}
-		return nil, status.Errorf(codes.Internal, "failed to verify session permission")
-	}
-
-	messages, err := s.messageRepo.GetHistoryMessages(ctx, req.SessionId, req.BeforeSeq, limit)
-	if err != nil {
-		s.logger.Error("failed to get history messages", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to get history messages")
-	}
-
-	events := make([]*commonv1.ChatEvent, 0, len(messages))
-	for _, msg := range messages {
-		events = append(events, buildMessageEventFromModel(req.SessionId, msg))
-	}
-	return &logicv1.GetHistoryEventsResponse{Events: events}, nil
-}
-
-// GetContactList 实现 SessionService.GetContactList
-func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetContactListRequest) (*logicv1.GetContactListResponse, error) {
-	username, err := MustUsernameFromCtx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	contacts, err := s.sessionRepo.GetContactList(ctx, username)
-	if err != nil {
-		s.logger.Error("failed to get contacts", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to get contacts")
-	}
-
-	contactInfos := make([]*commonv1.ContactInfo, 0, len(contacts))
-	for _, c := range contacts {
-		contactInfos = append(contactInfos, &commonv1.ContactInfo{
-			Username:  c.Username,
-			Nickname:  c.Nickname,
-			AvatarUrl: c.Avatar,
-		})
-	}
-
-	return &logicv1.GetContactListResponse{Contacts: contactInfos}, nil
-}
-
-// SearchUser 实现 SessionService.SearchUser
-func (s *SessionService) SearchUser(ctx context.Context, req *logicv1.SearchUserRequest) (*logicv1.SearchUserResponse, error) {
-	if _, err := MustUsernameFromCtx(ctx); err != nil {
-		return nil, err
-	}
-
-	users, err := s.userRepo.SearchUsers(ctx, req.Query)
-	if err != nil {
-		s.logger.Error("failed to search users", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to search users")
-	}
-
-	contacts := make([]*commonv1.ContactInfo, len(users))
-	for i, u := range users {
-		contacts[i] = &commonv1.ContactInfo{
-			Username:  u.Username,
-			Nickname:  u.Nickname,
-			AvatarUrl: u.Avatar,
-		}
-	}
-
-	return &logicv1.SearchUserResponse{Users: contacts}, nil
 }
 
 func generateSingleChatID(user1, user2 string) string {
@@ -412,65 +325,4 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 	}
 
 	return &logicv1.UpdateReadPositionResponse{UnreadCount: unread}, nil
-}
-
-// PullInboxDelta 实现 SessionService.PullInboxDelta
-func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
-	username, err := MustUsernameFromCtx(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	limit := int(req.Limit)
-	if limit <= 0 {
-		limit = 100
-	}
-	if limit > 500 {
-		limit = 500
-	}
-
-	items, err := s.messageRepo.GetInboxDelta(ctx, username, req.CursorId, limit)
-	if err != nil {
-		s.logger.Error("failed to get inbox delta", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to get inbox delta")
-	}
-
-	events := make([]*commonv1.InboxEvent, 0, len(items))
-	nextCursorID := req.CursorId
-	for _, item := range items {
-		chatEvent := &commonv1.ChatEvent{}
-		if err := proto.Unmarshal(item.Payload, chatEvent); err != nil {
-			s.logger.Error("failed to unmarshal inbox payload", clog.Int64("inbox_id", item.ID), clog.Error(err))
-			return nil, status.Errorf(codes.Internal, "failed to decode inbox payload")
-		}
-		events = append(events, &commonv1.InboxEvent{
-			InboxId: item.ID,
-			Event:   chatEvent,
-		})
-		if item.ID > nextCursorID {
-			nextCursorID = item.ID
-		}
-	}
-
-	return &logicv1.PullInboxDeltaResponse{
-		Events:       events,
-		NextCursorId: nextCursorID,
-		HasMore:      len(items) == limit,
-	}, nil
-}
-
-func buildMessageEventFromModel(sessionID string, msg *model.MessageContent) *commonv1.ChatEvent {
-	return &commonv1.ChatEvent{
-		EventId:      msg.EventID,
-		SeqId:        msg.SeqID,
-		SessionId:    sessionID,
-		FromUsername: msg.SenderUsername,
-		TimestampMs:  msg.CreatedAt.UnixMilli(),
-		Payload: &commonv1.ChatEvent_Message{
-			Message: &commonv1.Message{
-				Type:    parseMessageType(msg.MsgType),
-				Content: msg.Content,
-			},
-		},
-	}
 }

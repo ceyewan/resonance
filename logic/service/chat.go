@@ -10,7 +10,9 @@ import (
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	"github.com/ceyewan/resonance/logic/internal/mqpublish"
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -115,7 +117,7 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		SenderUsername: username,
 		SeqID:          seqID,
 		Content:        msgPayload.Content,
-		MsgType:        formatMessageType(msgPayload.Type),
+		MsgType:        event.FormatMessageType(msgPayload.Type),
 		ReplyToEventID: msgPayload.ReplyToEventId,
 		ClientMsgID:    msgPayload.ClientMsgId,
 	}
@@ -137,14 +139,14 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	}
 
 	// 发布消息到 MQ 并保存到 Outbox
-	result, err := PublishMessageToMQ(ctx, s.messageRepo, event, msgContent, s.logger)
+	result, err := mqpublish.PublishMessageToMQ(ctx, s.messageRepo, event, msgContent)
 	if err != nil {
 		s.logger.Error("failed to publish message to mq", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to save message")
 	}
 
 	// 立即尝试发布到 MQ (Look-aside 优化)
-	PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
+	mqpublish.PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
 
 	s.logger.Info("message processed successfully",
 		clog.Int64("event_id", eventID),
