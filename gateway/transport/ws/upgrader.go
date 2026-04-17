@@ -5,16 +5,14 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/resonance/gateway/config"
-	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/middleware"
-	"github.com/ceyewan/resonance/gateway/protocol"
 	"github.com/gorilla/websocket"
 )
 
 // Upgrader 处理 WebSocket 连接握手
 type Upgrader struct {
 	logger     clog.Logger
-	connMgr    *connection.Manager
+	connMgr    *Manager
 	dispatcher *Dispatcher
 	upgrader   *websocket.Upgrader
 	config     config.WSConfig
@@ -23,7 +21,7 @@ type Upgrader struct {
 // NewUpgrader 创建 WebSocket 升级器
 func NewUpgrader(
 	logger clog.Logger,
-	connMgr *connection.Manager,
+	connMgr *Manager,
 	dispatcher *Dispatcher,
 	cfg config.WSConfig,
 ) *Upgrader {
@@ -70,7 +68,7 @@ func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 封装协议处理器 (使用分发器)
-	protoHandler := protocol.NewDefaultHandler(
+	protoHandler := NewDefaultHandler(
 		h.logger,
 		h.dispatcher.HandlePulse,
 		h.dispatcher.HandleChat,
@@ -78,7 +76,7 @@ func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	)
 
 	// 创建连接对象
-	conn := connection.NewConn(
+	conn := NewConn(
 		username,
 		traceID,
 		wsConn,

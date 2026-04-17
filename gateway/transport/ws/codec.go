@@ -1,4 +1,4 @@
-package protocol
+package ws
 
 import (
 	"context"

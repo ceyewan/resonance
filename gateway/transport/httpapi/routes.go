@@ -1,4 +1,4 @@
-package api
+package httpapi
 
 import (
 	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"

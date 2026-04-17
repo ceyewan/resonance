@@ -1,4 +1,4 @@
-package connection
+package ws
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/middleware"
-	"github.com/ceyewan/resonance/gateway/protocol"
 	"github.com/gorilla/websocket"
 )
 
@@ -20,7 +19,7 @@ type Conn struct {
 	conn       *websocket.Conn
 	send       chan *gatewayv1.WsPacket
 	logger     clog.Logger
-	handler    protocol.Handler
+	handler    Handler
 	ctx        context.Context
 	cancel     context.CancelFunc
 	closeOnce  sync.Once
@@ -38,7 +37,7 @@ func NewConn(
 	traceID string,
 	conn *websocket.Conn,
 	logger clog.Logger,
-	handler protocol.Handler,
+	handler Handler,
 	maxMessageSize int64,
 	pingInterval time.Duration,
 	pongTimeout time.Duration,
@@ -64,17 +63,17 @@ func NewConn(
 	}
 }
 
-// Username 实现 protocol.Connection 接口
+// Username 实现 ws.Connection 接口
 func (c *Conn) Username() string {
 	return c.username
 }
 
-// RemoteAddr 实现 protocol.Connection 接口
+// RemoteAddr 实现 ws.Connection 接口
 func (c *Conn) RemoteAddr() string {
 	return c.remoteAddr
 }
 
-// Send 实现 protocol.Connection 接口
+// Send 实现 ws.Connection 接口
 func (c *Conn) Send(packet *gatewayv1.WsPacket) error {
 	select {
 	case c.send <- packet:
@@ -86,7 +85,7 @@ func (c *Conn) Send(packet *gatewayv1.WsPacket) error {
 	}
 }
 
-// Close 实现 protocol.Connection 接口
+// Close 实现 ws.Connection 接口
 func (c *Conn) Close() error {
 	c.closeOnce.Do(func() {
 		c.cancel()
@@ -125,7 +124,7 @@ func (c *Conn) readPump() {
 		}
 
 		// 解码消息
-		packet, err := protocol.DecodePacket(message)
+		packet, err := DecodePacket(message)
 		if err != nil {
 			c.logger.Error("failed to decode packet",
 				clog.String("username", c.username),
@@ -159,7 +158,7 @@ func (c *Conn) writePump() {
 			}
 
 			// 编码消息
-			data, err := protocol.EncodePacket(packet)
+			data, err := EncodePacket(packet)
 			if err != nil {
 				c.logger.Error("failed to encode packet",
 					clog.String("username", c.username),

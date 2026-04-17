@@ -7,7 +7,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/resonance/gateway/observability"
-	"github.com/ceyewan/resonance/gateway/push"
+	"github.com/ceyewan/resonance/gateway/pushserver"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -17,13 +17,13 @@ import (
 // GRPCServer gRPC 服务包装器
 type GRPCServer struct {
 	logger      clog.Logger
-	pushService *push.Service
+	pushService *pushserver.Service
 	server      *grpc.Server
 	addr        string
 }
 
 // NewGRPCServer 创建 gRPC 服务
-func NewGRPCServer(addr string, logger clog.Logger, pushService *push.Service) *GRPCServer {
+func NewGRPCServer(addr string, logger clog.Logger, pushService *pushserver.Service) *GRPCServer {
 	return &GRPCServer{
 		addr:        addr,
 		logger:      logger,

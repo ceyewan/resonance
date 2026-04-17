@@ -10,14 +10,13 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
-	"github.com/ceyewan/resonance/gateway/api"
-	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/config"
-	"github.com/ceyewan/resonance/gateway/connection"
+	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/ceyewan/resonance/gateway/observability"
-	"github.com/ceyewan/resonance/gateway/push"
+	"github.com/ceyewan/resonance/gateway/pushserver"
 	"github.com/ceyewan/resonance/gateway/server"
-	"github.com/ceyewan/resonance/gateway/ws"
+	"github.com/ceyewan/resonance/gateway/transport/httpapi"
+	"github.com/ceyewan/resonance/gateway/transport/ws"
 	"github.com/ceyewan/resonance/pkg/health"
 )
 
@@ -50,8 +49,8 @@ type Gateway struct {
 type resources struct {
 	redisConn   connector.RedisConnector
 	etcdConn    connector.EtcdConnector
-	logicClient *client.Client
-	connMgr     *connection.Manager
+	logicClient *logicclient.Client
+	connMgr     *ws.Manager
 }
 
 // New 创建 Gateway 实例
@@ -198,23 +197,23 @@ func (g *Gateway) initLogicDependencies() error {
 		return fmt.Errorf("gatewayID not initialized")
 	}
 
-	logicClient, err := client.NewClient(g.config.GetLogicServiceName(), g.gatewayID, g.logger, g.registry)
+	logicClient, err := logicclient.NewClient(g.config.GetLogicServiceName(), g.gatewayID, g.logger, g.registry)
 	if err != nil {
 		return fmt.Errorf("logic client init: %w", err)
 	}
 
 	// 创建并设置 StatusBatcher（状态批量同步器）
-	statusBatcher := client.NewStatusBatcher(
+	statusBatcher := logicclient.NewStatusBatcher(
 		logicClient.PresenceSvc(),
 		g.gatewayID,
 		g.logger,
-		client.WithBatchSize(g.config.StatusBatcher.GetBatchSize()),
-		client.WithFlushInterval(g.config.StatusBatcher.GetFlushInterval()),
+		logicclient.WithBatchSize(g.config.StatusBatcher.GetBatchSize()),
+		logicclient.WithFlushInterval(g.config.StatusBatcher.GetFlushInterval()),
 	)
 	logicClient.SetStatusBatcher(statusBatcher)
 
-	presence := connection.NewPresenceCallback(logicClient, g.logger)
-	connMgr := connection.NewManager(g.logger, nil, presence.OnUserOnline, presence.OnUserOffline)
+	presence := ws.NewPresenceCallback(logicClient, g.logger)
+	connMgr := ws.NewManager(g.logger, nil, presence.OnUserOnline, presence.OnUserOffline)
 
 	g.resources.logicClient = logicClient
 	g.resources.connMgr = connMgr
@@ -233,11 +232,11 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	limiter, _ := ratelimit.New(&ratelimit.Config{
 		Driver: ratelimit.DriverStandalone,
 	}, ratelimit.WithLogger(g.logger))
-	middlewares := api.NewMiddlewares(g.logger, limiter, idGen)
-	apiHandler := api.NewHTTPHandler(g.resources.logicClient, g.logger)
+	middlewares := httpapi.NewMiddlewares(g.logger, limiter, idGen)
+	apiHandler := httpapi.NewHTTPHandler(g.resources.logicClient, g.logger)
 
 	// Push Service
-	pushService := push.NewService(g.resources.connMgr, g.logger)
+	pushService := pushserver.NewService(g.resources.connMgr, g.logger)
 
 	// Servers
 	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares, wsHandler, g.healthProbe)

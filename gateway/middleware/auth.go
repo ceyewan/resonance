@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/resonance/gateway/client"
+	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,12 +17,12 @@ const (
 
 // AuthConfig 认证中间件配置
 type AuthConfig struct {
-	logicClient *client.Client
+	logicClient *logicclient.Client
 	logger      clog.Logger
 }
 
 // NewAuthConfig 创建认证配置
-func NewAuthConfig(logicClient *client.Client, logger clog.Logger) *AuthConfig {
+func NewAuthConfig(logicClient *logicclient.Client, logger clog.Logger) *AuthConfig {
 	return &AuthConfig{
 		logicClient: logicClient,
 		logger:      logger,

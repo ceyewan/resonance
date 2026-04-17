@@ -1,4 +1,4 @@
-package push
+package pushserver
 
 import (
 	"context"
@@ -6,19 +6,19 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/gateway/connection"
 	"github.com/ceyewan/resonance/gateway/observability"
+	"github.com/ceyewan/resonance/gateway/transport/ws"
 	"google.golang.org/grpc"
 )
 
 // Service 实现 PushService，接收 Task 服务的推送请求
 type Service struct {
 	gatewayv1.UnimplementedPushServiceServer
-	connMgr *connection.Manager
+	connMgr *ws.Manager
 	logger  clog.Logger
 }
 
-func NewService(connMgr *connection.Manager, logger clog.Logger) *Service {
+func NewService(connMgr *ws.Manager, logger clog.Logger) *Service {
 	return &Service{connMgr: connMgr, logger: logger}
 }
 

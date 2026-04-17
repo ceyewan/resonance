@@ -30,34 +30,37 @@ logic/
 ├── logic.go                    # 生命周期管理、组件组装
 ├── config/
 │   └── config.go
-├── server/
-│   ├── grpc.go                 # gRPC Server + 拦截器(日志/恢复/鉴权)
-│   └── interceptor_auth.go     # ★新增:从 metadata 解出 x-username 放 context
-├── service/
-│   ├── interfaces.go           # Service 接口定义
-│   ├── auth.go                 # AuthService
-│   ├── session.go              # SessionService
-│   ├── chat.go                 # ChatService.SendEvent(统一事件入口)
-│   ├── chat_handler.go         # ★新增:按 event payload 类型分派处理
-│   ├── presence.go             # PresenceService
-│   └── helpers.go              # 工具函数(PublishToMQ / BuildChatEvent 等)
-├── event/                      # ★新增:ChatEvent 构建与处理模块(Phase 5 落地,当前可先用 doc.go 占位)
-│   ├── builder.go              # 从 SendEventRequest 构建 ChatEvent
-│   ├── persister.go            # 持久化(写主表 + 写 Outbox)
-│   └── handler_*.go            # 不同 payload 类型的处理器
-├── job/
-│   └── outbox.go               # Outbox 补偿 Worker
 ├── observability/
 │   ├── observability.go
 │   └── config.go
+├── server/
+│   ├── grpc.go                 # gRPC Server + 拦截器(日志/恢复/鉴权)
+│   └── interceptor_auth.go
+├── service/
+│   ├── interfaces.go           # Service 接口定义
+│   ├── auth.go                 # AuthService
+│   ├── session.go              # Session 核心流程(GetSessionList/CreateSession/UpdateReadPosition)
+│   ├── history.go              # GetHistoryEvents
+│   ├── contact.go              # GetContactList/SearchUser
+│   ├── inbox.go                # PullInboxDelta
+│   ├── chat.go                 # ChatService.SendEvent(统一事件入口)
+│   ├── presence.go             # PresenceService
+│   └── context.go              # username context helper
+├── internal/
+│   └── mqpublish/
+│       └── publish.go          # MQ 发布 + Outbox 写入辅助
+├── event/
+│   └── doc.go                  # Phase 5 占位
+├── job/
+│   └── outbox.go               # Outbox 补偿 Worker
 └── README.md
 ```
 
 **关键变化**:
-- 新增 `event/` 目录,承载 ChatEvent 相关的核心业务逻辑。
-- `service/chat.go` 从"处理消息"升级为"处理所有客户端发起的事件"。
-- `server/interceptor_auth.go` 统一把身份从 metadata 抽出,service 层从 context 拿。
-- **当前实现状态**:在 Phase 5 正式接通前,`SendEvent` 仍只处理 `Message` payload;`Recall/Edit` 的 proto 与 Task handler 属于预留态。
+- `service/session.go` 已拆薄，History/Contact/Inbox 分拆为独立文件。
+- `service/helpers.go` 已迁移到 `internal/mqpublish/publish.go`，避免 service 杂糅工具函数。
+- `event/` 当前仅 `doc.go` 占位，Phase 5 再承载 ChatEvent Builder/Handler 实体实现。
+- `ChatService.SendEvent` 当前仍只处理 `Message` payload;`Recall/Edit` 仍是预留态。
 
 ### 1.3 核心模块职责
 
@@ -200,13 +203,6 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 gateway/
 ├── gateway.go
 ├── config/
-├── server/
-│   ├── http.go                 # ConnectRPC Server
-│   └── grpc.go                 # gRPC Server(PushService)
-├── api/                        # ConnectRPC handlers
-│   ├── auth.go
-│   ├── session.go              # Session/History/Inbox/Read/Contact
-│   └── routes.go
 ├── middleware/
 │   ├── auth.go                 # JWT 解析,把 username 塞 context
 │   ├── cors.go
@@ -214,20 +210,30 @@ gateway/
 │   ├── recovery.go
 │   ├── trace.go
 │   └── ratelimit.go
-├── ws/
-│   ├── upgrader.go
-│   └── dispatcher.go           # ★重构:按 WsPacket oneof 分派,不只是 Chat/Pulse/Ack
-├── connection/                 # 不变
-├── push/
-│   ├── service.go              # ★重构:PushEvent + PushStream 两个 RPC
-│   └── stream_buffer.go        # ★新增:流式 chunk 的短暂缓存与下发
-├── protocol/
-│   └── codec.go
-├── client/
+├── observability/
+├── server/
+│   ├── http.go                 # ConnectRPC Server
+│   └── grpc.go                 # gRPC Server(PushService)
+├── transport/
+│   ├── httpapi/                # ConnectRPC handlers
+│   │   ├── handler.go
+│   │   ├── routes.go
+│   │   ├── errors.go
+│   │   └── factory.go
+│   └── ws/
+│       ├── upgrader.go
+│       ├── dispatcher.go
+│       ├── codec.go
+│       ├── conn.go
+│       ├── manager.go
+│       └── presence.go
+├── logicclient/
 │   ├── client.go
 │   ├── services.go             # 调用 Logic 的封装,自动注入 x-username metadata
-│   └── batcher.go
-├── observability/
+│   ├── batcher.go
+│   └── config.go
+├── pushserver/
+│   └── service.go
 └── README.md
 ```
 
@@ -240,7 +246,7 @@ gateway/
 func JWTAuth(authenticator auth.Authenticator) gin.HandlerFunc
 ```
 
-#### `client/services.go`
+#### `logicclient/services.go`
 
 **关键**:所有调用 Logic 的地方,必须通过这里封装,保证 `x-username` metadata 被注入。
 
@@ -253,7 +259,7 @@ func (c *LogicClient) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 }
 ```
 
-#### `ws/dispatcher.go`(重构)
+#### `transport/ws/dispatcher.go`(重构)
 
 旧:只处理 Chat / Pulse / Ack。新:按 `WsPacket.payload` oneof 分派:
 
@@ -273,11 +279,11 @@ func (d *Dispatcher) Handle(ctx context.Context, conn *Conn, pkt *gatewayv1.WsPa
 }
 ```
 
-#### `push/service.go`(重构)
+#### `pushserver/service.go`(重构)
 
 ```go
 type PushService struct {
-    connMgr   *connection.Manager
+    connMgr   *ws.Manager
     streamBuf *StreamBuffer
 }
 
@@ -328,6 +334,7 @@ task/
 │   └── consumer.go             # 通用 MQ Consumer,注入 handler(保持)
 ├── dispatcher/
 │   ├── dispatcher.go           # ★重构:单入口 handler,按 payload 分派
+│   ├── inbox.go                # Inbox 构建辅助(替代 helpers.go)
 │   ├── handler_message.go      # 处理 Message 事件
 │   ├── handler_recall.go       # 处理 Recall 事件
 │   ├── handler_edit.go

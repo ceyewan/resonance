@@ -1,4 +1,4 @@
-package api
+package httpapi
 
 import (
 	"context"
@@ -7,20 +7,20 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/gateway/client"
+	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/ceyewan/resonance/gateway/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // HTTPHandler 实现 Gateway 的 HTTP API
 type HTTPHandler struct {
-	logicClient *client.Client
+	logicClient *logicclient.Client
 	logger      clog.Logger
 	authConfig  *middleware.AuthConfig
 }
 
 // NewHTTPHandler 创建 API Handler
-func NewHTTPHandler(logicClient *client.Client, logger clog.Logger) *HTTPHandler {
+func NewHTTPHandler(logicClient *logicclient.Client, logger clog.Logger) *HTTPHandler {
 	return &HTTPHandler{
 		logicClient: logicClient,
 		logger:      logger,

@@ -331,4 +331,13 @@ pkg/
 - **2026-04-17 / Task-first**
   - 已完成 Step 5:`task/dispatcher/helpers.go` 重命名为 `task/dispatcher/inbox.go`。
   - 已完成 Step 1 的 Task 侧落地:新增 `pkg/event/conv.go`,并将 `task/dispatcher/inbox.go` 的 `eventTypeFromChatEvent` 替换为 `event.EventTypeFromChatEvent`。
-  - 当前偏差:Step 1 的 Logic 侧引用切换(例如 `parseMessageType`/`formatMessageType`/`buildMessageEventFromModel`)尚未执行,待下一轮继续。
+  - 已完成 Step 1 的 Logic 侧引用切换:`logic/service/chat.go`、`logic/service/session.go`、`logic/service/helpers.go` 均已改为使用 `pkg/event`。
+  - 已完成 Step 2:新增 `logic/service/history.go`、`logic/service/contact.go`、`logic/service/inbox.go`,并将对应 RPC 方法从 `session.go` 拆出。
+  - 已完成 Step 3:新增 `logic/internal/mqpublish/publish.go`,并将 `logic/service/chat.go`、`logic/service/session.go` 的 MQ 发布逻辑切换到 `mqpublish` 包,`logic/service/helpers.go` 已删除。
+  - 已完成 Step 4:新增 `logic/event/doc.go` 占位包,用于 Phase 5 ChatEvent 处理层。
+  - 已完成 Step 6:`gateway/protocol/codec.go`、`gateway/connection/{conn,manager,callback}.go` 已迁入 `gateway/ws/` 并统一为 `ws` 包(`codec.go`、`conn.go`、`manager.go`、`presence.go`)。
+  - 已完成 Step 7:`gateway/api` 已迁入 `gateway/transport/httpapi`，`gateway/ws` 已迁入 `gateway/transport/ws`，并完成 `httpapi.go -> handler.go`、`middleware.go -> factory.go`。
+  - 已完成 Step 8:`gateway/client` 已重命名为 `gateway/logicclient`、`gateway/push` 已重命名为 `gateway/pushserver`，并同步 package 名(`logicclient`/`pushserver`)与全仓 import。
+  - 已完成 Step 9:`docs/architecture/03-services.md` 的 Logic/Gateway/Task 目录树与命名已同步到当前代码组织。
+  - 当前状态:Step 1~9 已全部完成。
+  - 备注:`logic/service/session.go` 当前为 328 行,尚未达到验收标准中的 `<250` 目标。

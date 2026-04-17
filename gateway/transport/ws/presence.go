@@ -1,21 +1,21 @@
-package connection
+package ws
 
 import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/resonance/gateway/client"
+	"github.com/ceyewan/resonance/gateway/logicclient"
 )
 
 // PresenceCallback 上下线回调函数
 type PresenceCallback struct {
-	logicClient *client.Client
+	logicClient *logicclient.Client
 	logger      clog.Logger
 }
 
 // NewPresenceCallback 创建上下线回调
 // 用于在用户上线/下线时通知 Logic 服务
-func NewPresenceCallback(logicClient *client.Client, logger clog.Logger) *PresenceCallback {
+func NewPresenceCallback(logicClient *logicclient.Client, logger clog.Logger) *PresenceCallback {
 	return &PresenceCallback{
 		logicClient: logicClient,
 		logger:      logger,
