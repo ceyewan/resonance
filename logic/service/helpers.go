@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -58,7 +57,7 @@ func PublishMessageToMQ(
 
 	// 4. 创建 Outbox 记录
 	outbox := &model.MessageOutbox{
-		MsgID:         msgContent.MsgID,
+		EventID:       msgContent.EventID,
 		Topic:         topic,
 		Payload:       eventData,
 		Status:        model.OutboxStatusPending,
@@ -77,36 +76,81 @@ func PublishMessageToMQ(
 	}, nil
 }
 
-func parseMessageType(raw string) commonv1.MessageType {
-	switch strings.ToLower(raw) {
-	case "text":
+func parseMessageType(raw int) commonv1.MessageType {
+	switch raw {
+	case int(commonv1.MessageType_MESSAGE_TYPE_TEXT):
 		return commonv1.MessageType_MESSAGE_TYPE_TEXT
-	case "image":
+	case int(commonv1.MessageType_MESSAGE_TYPE_IMAGE):
 		return commonv1.MessageType_MESSAGE_TYPE_IMAGE
-	case "file":
+	case int(commonv1.MessageType_MESSAGE_TYPE_FILE):
 		return commonv1.MessageType_MESSAGE_TYPE_FILE
-	case "system":
+	case int(commonv1.MessageType_MESSAGE_TYPE_SYSTEM):
 		return commonv1.MessageType_MESSAGE_TYPE_SYSTEM
+	case int(commonv1.MessageType_MESSAGE_TYPE_AI_STREAM):
+		return commonv1.MessageType_MESSAGE_TYPE_AI_STREAM
 	default:
 		return commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
 	}
 }
 
-func formatMessageType(t commonv1.MessageType) string {
+func formatMessageType(t commonv1.MessageType) int {
 	switch t {
 	case commonv1.MessageType_MESSAGE_TYPE_TEXT:
-		return "text"
+		return int(commonv1.MessageType_MESSAGE_TYPE_TEXT)
 	case commonv1.MessageType_MESSAGE_TYPE_IMAGE:
-		return "image"
+		return int(commonv1.MessageType_MESSAGE_TYPE_IMAGE)
 	case commonv1.MessageType_MESSAGE_TYPE_FILE:
-		return "file"
+		return int(commonv1.MessageType_MESSAGE_TYPE_FILE)
 	case commonv1.MessageType_MESSAGE_TYPE_SYSTEM:
-		return "system"
+		return int(commonv1.MessageType_MESSAGE_TYPE_SYSTEM)
 	case commonv1.MessageType_MESSAGE_TYPE_AI_STREAM:
-		return "ai_stream"
+		return int(commonv1.MessageType_MESSAGE_TYPE_AI_STREAM)
 	default:
-		return "text"
+		return int(commonv1.MessageType_MESSAGE_TYPE_TEXT)
 	}
+}
+
+func eventTypeFromChatEvent(ev *commonv1.ChatEvent) int {
+	switch ev.GetPayload().(type) {
+	case *commonv1.ChatEvent_Message:
+		return model.InboxEventTypeMessage
+	case *commonv1.ChatEvent_Recall:
+		return model.InboxEventTypeMessageRecall
+	case *commonv1.ChatEvent_Edit:
+		return model.InboxEventTypeMessageEdit
+	case *commonv1.ChatEvent_ReadReceipt:
+		return model.InboxEventTypeReadReceipt
+	case *commonv1.ChatEvent_SessionUpdate:
+		return model.InboxEventTypeSessionUpdate
+	default:
+		return 0
+	}
+}
+
+// BuildInboxItems 构建 Inbox 写扩散记录，供 Task 和补偿流程复用。
+func BuildInboxItems(ev *commonv1.ChatEvent, targets []string) []*model.Inbox {
+	if ev == nil || len(targets) == 0 {
+		return nil
+	}
+
+	payload, err := proto.Marshal(ev)
+	if err != nil {
+		return nil
+	}
+
+	eventType := eventTypeFromChatEvent(ev)
+	items := make([]*model.Inbox, 0, len(targets))
+	for _, username := range targets {
+		items = append(items, &model.Inbox{
+			OwnerUsername: username,
+			SessionID:     ev.GetSessionId(),
+			SeqID:         ev.GetSeqId(),
+			EventID:       ev.GetEventId(),
+			EventType:     eventType,
+			Payload:       payload,
+		})
+	}
+	return items
 }
 
 // PublishMessageToMQAsync 异步发布消息到 MQ (Look-aside 优化)

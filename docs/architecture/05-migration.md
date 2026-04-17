@@ -160,6 +160,12 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 
 **目标**:`t_inbox` 重构为事件流;`t_message_content` 加字段;`t_session` 加字段。
 
+**当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+- `model` 已切换到 `event_id/event_type/payload` 结构，移除 `Inbox.is_read/msg_id`
+- `MessageRepo` 已完成接口升级：`SaveMessageContent/SaveInboxBatch/GetInboxDelta([]*model.Inbox)/GetUnreadCount`
+- `logic/service/session.go` 的 `PullInboxDelta` 已改为反序列化 `t_inbox.payload` 返回 `ChatEvent`
+- `task/dispatcher` 已改为写入 `Inbox.payload`（`BuildInboxItems` 复用）
+
 ### 5.1 策略选择
 
 根据项目当前用户量选:

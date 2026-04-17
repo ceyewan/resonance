@@ -16,6 +16,7 @@ import (
 	"github.com/ceyewan/resonance/repo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // SessionService 会话服务
@@ -229,12 +230,12 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 	timestampMs := time.Now().UnixMilli()
 
 	msgContent := &model.MessageContent{
-		MsgID:          eventID,
+		EventID:        eventID,
 		SessionID:      sessionID,
 		SenderUsername: "system",
 		SeqID:          seqID,
 		Content:        content,
-		MsgType:        "system",
+		MsgType:        formatMessageType(commonv1.MessageType_MESSAGE_TYPE_SYSTEM),
 	}
 
 	chatEvent := &commonv1.ChatEvent{
@@ -402,9 +403,12 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil
 	}
 
-	unread := session.MaxSeqID - req.SeqId
-	if unread < 0 {
-		unread = 0
+	unread, err := s.messageRepo.GetUnreadCount(ctx, username, req.SessionId)
+	if err != nil {
+		unread = session.MaxSeqID - req.SeqId
+		if unread < 0 {
+			unread = 0
+		}
 	}
 
 	return &logicv1.UpdateReadPositionResponse{UnreadCount: unread}, nil
@@ -434,12 +438,17 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 	events := make([]*logicv1.InboxEvent, 0, len(items))
 	nextCursorID := req.CursorId
 	for _, item := range items {
+		chatEvent := &commonv1.ChatEvent{}
+		if err := proto.Unmarshal(item.Payload, chatEvent); err != nil {
+			s.logger.Error("failed to unmarshal inbox payload", clog.Int64("inbox_id", item.ID), clog.Error(err))
+			return nil, status.Errorf(codes.Internal, "failed to decode inbox payload")
+		}
 		events = append(events, &logicv1.InboxEvent{
-			InboxId: item.InboxID,
-			Event:   buildMessageEventFromInboxItem(item),
+			InboxId: item.ID,
+			Event:   chatEvent,
 		})
-		if item.InboxID > nextCursorID {
-			nextCursorID = item.InboxID
+		if item.ID > nextCursorID {
+			nextCursorID = item.ID
 		}
 	}
 
@@ -452,7 +461,7 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 
 func buildMessageEventFromModel(sessionID string, msg *model.MessageContent) *commonv1.ChatEvent {
 	return &commonv1.ChatEvent{
-		EventId:      msg.MsgID,
+		EventId:      msg.EventID,
 		SeqId:        msg.SeqID,
 		SessionId:    sessionID,
 		FromUsername: msg.SenderUsername,
@@ -461,22 +470,6 @@ func buildMessageEventFromModel(sessionID string, msg *model.MessageContent) *co
 			Message: &commonv1.Message{
 				Type:    parseMessageType(msg.MsgType),
 				Content: msg.Content,
-			},
-		},
-	}
-}
-
-func buildMessageEventFromInboxItem(item *repo.InboxDeltaItem) *commonv1.ChatEvent {
-	return &commonv1.ChatEvent{
-		EventId:      item.MsgID,
-		SeqId:        item.SeqID,
-		SessionId:    item.SessionID,
-		FromUsername: item.SenderUsername,
-		TimestampMs:  item.CreatedAt.UnixMilli(),
-		Payload: &commonv1.ChatEvent_Message{
-			Message: &commonv1.Message{
-				Type:    parseMessageType(item.MsgType),
-				Content: item.Content,
 			},
 		},
 	}

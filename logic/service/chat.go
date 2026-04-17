@@ -110,12 +110,14 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 
 	// 保存消息到数据库
 	msgContent := &model.MessageContent{
-		MsgID:          eventID,
+		EventID:        eventID,
 		SessionID:      req.SessionId,
 		SenderUsername: username,
 		SeqID:          seqID,
 		Content:        msgPayload.Content,
 		MsgType:        formatMessageType(msgPayload.Type),
+		ReplyToEventID: msgPayload.ReplyToEventId,
+		ClientMsgID:    msgPayload.ClientMsgId,
 	}
 
 	// 准备 MQ 事件

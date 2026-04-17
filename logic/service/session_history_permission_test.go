@@ -9,7 +9,6 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/model"
-	"github.com/ceyewan/resonance/repo"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -62,7 +61,12 @@ type testMessageRepo struct {
 func (r *testMessageRepo) SaveMessage(ctx context.Context, msg *model.MessageContent) error {
 	return nil
 }
-func (r *testMessageRepo) SaveInbox(ctx context.Context, inboxes []*model.Inbox) error { return nil }
+func (r *testMessageRepo) SaveMessageContent(ctx context.Context, msg *model.MessageContent) error {
+	return nil
+}
+func (r *testMessageRepo) SaveInboxBatch(ctx context.Context, inboxes []*model.Inbox) error {
+	return nil
+}
 func (r *testMessageRepo) GetHistoryMessages(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error) {
 	r.historyCalled = true
 	return nil, nil
@@ -73,11 +77,17 @@ func (r *testMessageRepo) GetLastMessage(ctx context.Context, sessionID string) 
 func (r *testMessageRepo) GetLastMessagesBatch(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error) {
 	return nil, nil
 }
-func (r *testMessageRepo) GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error) {
+func (r *testMessageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error) {
 	return nil, nil
 }
-func (r *testMessageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*repo.InboxDeltaItem, error) {
-	return nil, nil
+func (r *testMessageRepo) GetUnreadCount(ctx context.Context, username, sessionID string) (int64, error) {
+	return 0, nil
+}
+func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
+	return nil
+}
+func (r *testMessageRepo) UpdateMessageContent(ctx context.Context, eventID int64, newContent string, at time.Time) error {
+	return nil
 }
 func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
 	return nil

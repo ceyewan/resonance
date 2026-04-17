@@ -9,8 +9,8 @@
 | `User` | `t_user` | 用户账户信息 |
 | `Session` | `t_session` | 会话（单聊/群聊） |
 | `SessionMember` | `t_session_member` | 会话成员关系 |
-| `MessageContent` | `t_message_content` | 消息内容 |
-| `Inbox` | `t_inbox` | 用户信箱（写扩散） |
+| `MessageContent` | `t_message_content` | 消息内容（event_id 主键，含撤回/编辑字段） |
+| `Inbox` | `t_inbox` | 用户事件流信箱（event_type + payload） |
 | `MessageOutbox` | `t_message_outbox` | 本地消息表（可靠投递） |
 | `Router` | Redis | 用户与网关映射 |
 
@@ -52,4 +52,3 @@ session := &model.Session{
 - **单一职责**：每个模型对应一个数据表或缓存结构
 - **GORM 标签**：使用 GORM 标签定义数据库映射
 - **业务语义**：字段名称直接反映业务含义，避免过度抽象
-

@@ -6,7 +6,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
-	"github.com/ceyewan/resonance/model"
+	logicservice "github.com/ceyewan/resonance/logic/service"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
@@ -44,20 +44,11 @@ func (d *Dispatcher) DispatchStorage(ctx context.Context, mqEvent *mqv1.MQEvent)
 	)
 	defer endSpan()
 
-	inboxes := make([]*model.Inbox, 0, len(mqEvent.TargetUsernames))
-	for _, username := range mqEvent.TargetUsernames {
-		inboxes = append(inboxes, &model.Inbox{
-			OwnerUsername: username,
-			SessionID:     ev.GetSessionId(),
-			MsgID:         ev.GetEventId(),
-			SeqID:         ev.GetSeqId(),
-			IsRead:        0,
-		})
-	}
+	inboxes := logicservice.BuildInboxItems(ev, mqEvent.TargetUsernames)
 	if len(inboxes) == 0 {
 		return nil
 	}
-	if err := d.messageRepo.SaveInbox(ctx, inboxes); err != nil {
+	if err := d.messageRepo.SaveInboxBatch(ctx, inboxes); err != nil {
 		return err
 	}
 	return nil
