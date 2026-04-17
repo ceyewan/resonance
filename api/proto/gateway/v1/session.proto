@@ -4,16 +4,12 @@ package resonance.gateway.v1;
 
 import "common/v1/event.proto";
 import "common/v1/session.proto";
-import "common/v1/types.proto";
+import "common/v1/view.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
 
-service AuthService {
-  rpc Login(LoginRequest) returns (LoginResponse);
-  rpc Register(RegisterRequest) returns (RegisterResponse);
-  rpc Logout(LogoutRequest) returns (LogoutResponse);
-}
-
+// SessionService 对外会话与历史接口（Web -> Gateway，ConnectRPC/HTTP）
+// DTO 统一使用 common.v1 的视图类型，避免与 logic/v1 镜像复制
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
@@ -24,47 +20,10 @@ service SessionService {
   rpc PullInboxDelta(PullInboxDeltaRequest) returns (PullInboxDeltaResponse);
 }
 
-message LoginRequest {
-  string username = 1;
-  string password = 2;
-}
-
-message LoginResponse {
-  string access_token = 1;
-  resonance.common.v1.User user = 2;
-}
-
-message RegisterRequest {
-  string username = 1;
-  string password = 2;
-  string nickname = 3;
-}
-
-message RegisterResponse {
-  string access_token = 1;
-  resonance.common.v1.User user = 2;
-}
-
-message LogoutRequest {}
-
-message LogoutResponse {
-  bool success = 1;
-}
-
 message GetSessionListRequest {}
 
-message SessionInfo {
-  string session_id = 1;
-  string name = 2;
-  resonance.common.v1.SessionType type = 3;
-  string avatar_url = 4;
-  int64 unread_count = 5;
-  int64 last_read_seq = 6;
-  resonance.common.v1.ChatEvent last_event = 7;
-}
-
 message GetSessionListResponse {
-  repeated SessionInfo sessions = 1;
+  repeated resonance.common.v1.SessionInfo sessions = 1;
 }
 
 message CreateSessionRequest {
@@ -89,14 +48,8 @@ message GetHistoryEventsResponse {
 
 message GetContactListRequest {}
 
-message ContactInfo {
-  string username = 1;
-  string nickname = 2;
-  string avatar_url = 3;
-}
-
 message GetContactListResponse {
-  repeated ContactInfo contacts = 1;
+  repeated resonance.common.v1.ContactInfo contacts = 1;
 }
 
 message SearchUserRequest {
@@ -104,7 +57,7 @@ message SearchUserRequest {
 }
 
 message SearchUserResponse {
-  repeated ContactInfo users = 1;
+  repeated resonance.common.v1.ContactInfo users = 1;
 }
 
 message UpdateReadPositionRequest {
@@ -121,13 +74,8 @@ message PullInboxDeltaRequest {
   int64 limit = 2;
 }
 
-message InboxEvent {
-  int64 inbox_id = 1;
-  resonance.common.v1.ChatEvent event = 2;
-}
-
 message PullInboxDeltaResponse {
-  repeated InboxEvent events = 1;
+  repeated resonance.common.v1.InboxEvent events = 1;
   int64 next_cursor_id = 2;
   bool has_more = 3;
 }

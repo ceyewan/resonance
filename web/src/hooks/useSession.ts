@@ -3,7 +3,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useSessionStore } from "@/stores/session";
 import { useMessageStore, pushMessageToChatMessage } from "@/stores/message";
 import { sessionClient } from "@/api/client";
-import type { SessionInfo as ProtoSessionInfo } from "@/gen/gateway/v1/api_pb";
+import type { SessionInfo as ProtoSessionInfo } from "@/gen/common/v1/view_pb";
 import type { PushMessage } from "@/gen/gateway/v1/packet_pb";
 import { ERROR_MESSAGES, UI_CONFIG } from "@/constants";
 import type { SessionInfo } from "@/stores/session";

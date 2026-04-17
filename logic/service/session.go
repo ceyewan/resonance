@@ -69,7 +69,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 	}
 
 	if len(sessions) == 0 {
-		return &logicv1.GetSessionListResponse{Sessions: []*logicv1.SessionInfo{}}, nil
+		return &logicv1.GetSessionListResponse{Sessions: []*commonv1.SessionInfo{}}, nil
 	}
 
 	sessionIDs := make([]string, len(sessions))
@@ -109,7 +109,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		}
 	}
 
-	sessionInfos := make([]*logicv1.SessionInfo, 0, len(sessions))
+	sessionInfos := make([]*commonv1.SessionInfo, 0, len(sessions))
 	for _, sess := range sessions {
 		var lastEvent *commonv1.ChatEvent
 		if msg, ok := msgMap[sess.SessionID]; ok {
@@ -149,7 +149,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 			}
 		}
 
-		sessionInfos = append(sessionInfos, &logicv1.SessionInfo{
+		sessionInfos = append(sessionInfos, &commonv1.SessionInfo{
 			SessionId:   sess.SessionID,
 			Name:        sessionName,
 			Type:        commonv1.SessionType(sess.Type),
@@ -338,9 +338,9 @@ func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetCon
 		return nil, status.Errorf(codes.Internal, "failed to get contacts")
 	}
 
-	contactInfos := make([]*logicv1.ContactInfo, 0, len(contacts))
+	contactInfos := make([]*commonv1.ContactInfo, 0, len(contacts))
 	for _, c := range contacts {
-		contactInfos = append(contactInfos, &logicv1.ContactInfo{
+		contactInfos = append(contactInfos, &commonv1.ContactInfo{
 			Username:  c.Username,
 			Nickname:  c.Nickname,
 			AvatarUrl: c.Avatar,
@@ -362,9 +362,9 @@ func (s *SessionService) SearchUser(ctx context.Context, req *logicv1.SearchUser
 		return nil, status.Errorf(codes.Internal, "failed to search users")
 	}
 
-	contacts := make([]*logicv1.ContactInfo, len(users))
+	contacts := make([]*commonv1.ContactInfo, len(users))
 	for i, u := range users {
-		contacts[i] = &logicv1.ContactInfo{
+		contacts[i] = &commonv1.ContactInfo{
 			Username:  u.Username,
 			Nickname:  u.Nickname,
 			AvatarUrl: u.Avatar,
@@ -403,7 +403,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil
 	}
 
-	unread, err := s.messageRepo.GetUnreadCount(ctx, username, req.SessionId)
+	unread, err := s.messageRepo.GetUnreadMessageCount(ctx, username, req.SessionId)
 	if err != nil {
 		unread = session.MaxSeqID - req.SeqId
 		if unread < 0 {
@@ -435,7 +435,7 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 		return nil, status.Errorf(codes.Internal, "failed to get inbox delta")
 	}
 
-	events := make([]*logicv1.InboxEvent, 0, len(items))
+	events := make([]*commonv1.InboxEvent, 0, len(items))
 	nextCursorID := req.CursorId
 	for _, item := range items {
 		chatEvent := &commonv1.ChatEvent{}
@@ -443,7 +443,7 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 			s.logger.Error("failed to unmarshal inbox payload", clog.Int64("inbox_id", item.ID), clog.Error(err))
 			return nil, status.Errorf(codes.Internal, "failed to decode inbox payload")
 		}
-		events = append(events, &logicv1.InboxEvent{
+		events = append(events, &commonv1.InboxEvent{
 			InboxId: item.ID,
 			Event:   chatEvent,
 		})

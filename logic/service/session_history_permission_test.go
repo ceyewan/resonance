@@ -80,7 +80,7 @@ func (r *testMessageRepo) GetLastMessagesBatch(ctx context.Context, sessionIDs [
 func (r *testMessageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error) {
 	return nil, nil
 }
-func (r *testMessageRepo) GetUnreadCount(ctx context.Context, username, sessionID string) (int64, error) {
+func (r *testMessageRepo) GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error) {
 	return 0, nil
 }
 func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {

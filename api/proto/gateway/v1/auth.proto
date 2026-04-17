@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+import "common/v1/types.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
+
+// AuthService 对外鉴权接口（Web -> Gateway，ConnectRPC/HTTP）
+service AuthService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  string nickname = 3;
+}
+
+message RegisterResponse {
+  string access_token = 1;
+  resonance.common.v1.User user = 2;
+}
+
+// LogoutRequest 身份走 Authorization Header，body 不需要
+message LogoutRequest {}
+
+message LogoutResponse {
+  bool success = 1;
+}

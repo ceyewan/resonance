@@ -4,9 +4,13 @@ package resonance.logic.v1;
 
 import "common/v1/event.proto";
 import "common/v1/session.proto";
+import "common/v1/view.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
+// SessionService 内部会话接口（Gateway -> Logic，gRPC）
+// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
@@ -19,18 +23,8 @@ service SessionService {
 
 message GetSessionListRequest {}
 
-message SessionInfo {
-  string session_id = 1;
-  string name = 2;
-  resonance.common.v1.SessionType type = 3;
-  string avatar_url = 4;
-  int64 unread_count = 5;
-  int64 last_read_seq = 6;
-  resonance.common.v1.ChatEvent last_event = 7;
-}
-
 message GetSessionListResponse {
-  repeated SessionInfo sessions = 1;
+  repeated resonance.common.v1.SessionInfo sessions = 1;
 }
 
 message CreateSessionRequest {
@@ -55,14 +49,8 @@ message GetHistoryEventsResponse {
 
 message GetContactListRequest {}
 
-message ContactInfo {
-  string username = 1;
-  string nickname = 2;
-  string avatar_url = 3;
-}
-
 message GetContactListResponse {
-  repeated ContactInfo contacts = 1;
+  repeated resonance.common.v1.ContactInfo contacts = 1;
 }
 
 message SearchUserRequest {
@@ -70,7 +58,7 @@ message SearchUserRequest {
 }
 
 message SearchUserResponse {
-  repeated ContactInfo users = 1;
+  repeated resonance.common.v1.ContactInfo users = 1;
 }
 
 message UpdateReadPositionRequest {
@@ -87,13 +75,8 @@ message PullInboxDeltaRequest {
   int64 limit = 2;
 }
 
-message InboxEvent {
-  int64 inbox_id = 1;
-  resonance.common.v1.ChatEvent event = 2;
-}
-
 message PullInboxDeltaResponse {
-  repeated InboxEvent events = 1;
+  repeated resonance.common.v1.InboxEvent events = 1;
   int64 next_cursor_id = 2;
   bool has_more = 3;
 }

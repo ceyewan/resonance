@@ -31,6 +31,10 @@ const (
 // SessionServiceClient is the client API for SessionService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// SessionService 内部会话接口（Gateway -> Logic，gRPC）
+// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 type SessionServiceClient interface {
 	GetSessionList(ctx context.Context, in *GetSessionListRequest, opts ...grpc.CallOption) (*GetSessionListResponse, error)
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
@@ -122,6 +126,10 @@ func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, in *PullInbox
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
+//
+// SessionService 内部会话接口（Gateway -> Logic，gRPC）
+// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 type SessionServiceServer interface {
 	GetSessionList(context.Context, *GetSessionListRequest) (*GetSessionListResponse, error)
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)

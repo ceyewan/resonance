@@ -131,21 +131,8 @@ func (h *HTTPHandler) GetSessionList(
 		return nil, toConnectError(err)
 	}
 
-	sessions := make([]*gatewayv1.SessionInfo, len(logicResp.Sessions))
-	for i, s := range logicResp.Sessions {
-		sessions[i] = &gatewayv1.SessionInfo{
-			SessionId:   s.SessionId,
-			Name:        s.Name,
-			Type:        s.Type,
-			AvatarUrl:   s.AvatarUrl,
-			UnreadCount: s.UnreadCount,
-			LastReadSeq: s.LastReadSeq,
-			LastEvent:   s.LastEvent,
-		}
-	}
-
 	resp := &gatewayv1.GetSessionListResponse{
-		Sessions: sessions,
+		Sessions: logicResp.Sessions,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -225,17 +212,8 @@ func (h *HTTPHandler) GetContactList(
 		return nil, toConnectError(err)
 	}
 
-	contacts := make([]*gatewayv1.ContactInfo, len(logicResp.Contacts))
-	for i, c := range logicResp.Contacts {
-		contacts[i] = &gatewayv1.ContactInfo{
-			Username:  c.Username,
-			Nickname:  c.Nickname,
-			AvatarUrl: c.AvatarUrl,
-		}
-	}
-
 	resp := &gatewayv1.GetContactListResponse{
-		Contacts: contacts,
+		Contacts: logicResp.Contacts,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -257,17 +235,8 @@ func (h *HTTPHandler) SearchUser(
 		return nil, toConnectError(err)
 	}
 
-	users := make([]*gatewayv1.ContactInfo, len(logicResp.Users))
-	for i, u := range logicResp.Users {
-		users[i] = &gatewayv1.ContactInfo{
-			Username:  u.Username,
-			Nickname:  u.Nickname,
-			AvatarUrl: u.AvatarUrl,
-		}
-	}
-
 	resp := &gatewayv1.SearchUserResponse{
-		Users: users,
+		Users: logicResp.Users,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -322,16 +291,8 @@ func (h *HTTPHandler) PullInboxDelta(
 		return nil, toConnectError(err)
 	}
 
-	events := make([]*gatewayv1.InboxEvent, 0, len(logicResp.Events))
-	for _, evt := range logicResp.Events {
-		events = append(events, &gatewayv1.InboxEvent{
-			InboxId: evt.InboxId,
-			Event:   evt.Event,
-		})
-	}
-
 	return connect.NewResponse(&gatewayv1.PullInboxDeltaResponse{
-		Events:       events,
+		Events:       logicResp.Events,
 		NextCursorId: logicResp.NextCursorId,
 		HasMore:      logicResp.HasMore,
 	}), nil

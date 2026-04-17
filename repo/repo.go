@@ -84,8 +84,9 @@ type MessageRepo interface {
 	GetLastMessagesBatch(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
 	// GetInboxDelta 按游标拉取用户增量消息
 	GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error)
-	// GetUnreadCount 获取用户在会话内的未读数
-	GetUnreadCount(ctx context.Context, username, sessionID string) (int64, error)
+	// GetUnreadMessageCount 获取用户在会话内的未读"消息"数
+	// 只统计 event_type = InboxEventTypeMessage 的事件，Recall/Edit/ReadReceipt/SessionUpdate 均不计入角标
+	GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error)
 	// MarkMessageRecalled 按 event_id 标记撤回
 	MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error
 	// UpdateMessageContent 按 event_id 更新消息内容

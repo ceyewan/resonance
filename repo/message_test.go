@@ -64,7 +64,7 @@ func TestMessageRepo_SaveInboxBatch_AndGetInboxDelta(t *testing.T) {
 	require.Equal(t, payload, got[0].Payload)
 }
 
-func TestMessageRepo_GetUnreadCount(t *testing.T) {
+func TestMessageRepo_GetUnreadMessageCount(t *testing.T) {
 	repo, ctx := newTestMessageRepo(t)
 
 	database := setupTestDB(t)
@@ -72,7 +72,7 @@ func TestMessageRepo_GetUnreadCount(t *testing.T) {
 	require.NoError(t, gormDB.Create(&model.Session{
 		SessionID: "s_1",
 		Type:      1,
-		MaxSeqID:  3,
+		MaxSeqID:  5,
 	}).Error)
 	require.NoError(t, gormDB.Create(&model.SessionMember{
 		SessionID:   "s_1",
@@ -81,34 +81,19 @@ func TestMessageRepo_GetUnreadCount(t *testing.T) {
 	}).Error)
 
 	err := repo.SaveInboxBatch(ctx, []*model.Inbox{
-		{
-			OwnerUsername: "bob",
-			SessionID:     "s_1",
-			SeqID:         1,
-			EventID:       1001,
-			EventType:     model.InboxEventTypeMessage,
-			Payload:       []byte{0x01},
-		},
-		{
-			OwnerUsername: "bob",
-			SessionID:     "s_1",
-			SeqID:         2,
-			EventID:       1002,
-			EventType:     model.InboxEventTypeMessage,
-			Payload:       []byte{0x02},
-		},
-		{
-			OwnerUsername: "bob",
-			SessionID:     "s_1",
-			SeqID:         3,
-			EventID:       1003,
-			EventType:     model.InboxEventTypeMessage,
-			Payload:       []byte{0x03},
-		},
+		// seq=1 已读位之前，无论类型都不该计入
+		{OwnerUsername: "bob", SessionID: "s_1", SeqID: 1, EventID: 1001, EventType: model.InboxEventTypeMessage, Payload: []byte{0x01}},
+		// seq=2,3 两条消息：应计入
+		{OwnerUsername: "bob", SessionID: "s_1", SeqID: 2, EventID: 1002, EventType: model.InboxEventTypeMessage, Payload: []byte{0x02}},
+		{OwnerUsername: "bob", SessionID: "s_1", SeqID: 3, EventID: 1003, EventType: model.InboxEventTypeMessage, Payload: []byte{0x03}},
+		// seq=4 撤回事件：同步进 Inbox，但不计入角标
+		{OwnerUsername: "bob", SessionID: "s_1", SeqID: 4, EventID: 1004, EventType: model.InboxEventTypeMessageRecall, Payload: []byte{0x04}},
+		// seq=5 已读回执：同步进 Inbox，但不计入角标
+		{OwnerUsername: "bob", SessionID: "s_1", SeqID: 5, EventID: 1005, EventType: model.InboxEventTypeReadReceipt, Payload: []byte{0x05}},
 	})
 	require.NoError(t, err)
 
-	count, err := repo.GetUnreadCount(ctx, "bob", "s_1")
+	count, err := repo.GetUnreadMessageCount(ctx, "bob", "s_1")
 	require.NoError(t, err)
-	require.Equal(t, int64(2), count)
+	require.Equal(t, int64(2), count, "未读角标只统计 event_type = Message 的事件")
 }

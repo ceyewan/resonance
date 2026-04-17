@@ -254,8 +254,10 @@ func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursor
 	return items, nil
 }
 
-// GetUnreadCount 获取用户在会话内的未读数
-func (r *messageRepo) GetUnreadCount(ctx context.Context, username, sessionID string) (int64, error) {
+// GetUnreadMessageCount 获取用户在会话内的未读"消息"数
+// 只统计 event_type = InboxEventTypeMessage 的事件：Recall/Edit/ReadReceipt/SessionUpdate
+// 属于同步事件流，进入 Inbox 但不计入未读角标，避免撤回/已读回执等污染 badge。
+func (r *messageRepo) GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error) {
 	if username == "" || sessionID == "" {
 		return 0, fmt.Errorf("username and session_id cannot be empty")
 	}
@@ -274,7 +276,8 @@ func (r *messageRepo) GetUnreadCount(ctx context.Context, username, sessionID st
 
 	var count int64
 	if err := gormDB.Model(&model.Inbox{}).
-		Where("owner_username = ? AND session_id = ? AND seq_id > ?", username, sessionID, sess.LastReadSeq).
+		Where("owner_username = ? AND session_id = ? AND seq_id > ? AND event_type = ?",
+			username, sessionID, sess.LastReadSeq, model.InboxEventTypeMessage).
 		Count(&count).Error; err != nil {
 		return 0, fmt.Errorf("failed to count unread inbox: %w", err)
 	}

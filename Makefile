@@ -31,8 +31,8 @@ help: ## 显示帮助信息
 gen: ## 生成 protobuf 代码
 	@echo "🔧 生成 protobuf 代码..."
 	@cd api && buf generate --template buf.gen.go.yaml
-	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
-	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
+	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ 代码生成完成"
 
 tidy: ## 整理 Go 依赖

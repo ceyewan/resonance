@@ -5,7 +5,6 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message as Message$1, proto3, protoInt64 } from "@bufbuild/protobuf";
-import { SessionMeta } from "./session_pb.js";
 
 /**
  * @generated from enum resonance.common.v1.MessageType
@@ -52,6 +51,10 @@ proto3.util.setEnumType(MessageType, "resonance.common.v1.MessageType", [
 ]);
 
 /**
+ * Message 是 ChatEvent 的一种 payload，只承载消息本体字段
+ * 注意：不要塞会话元信息 / 目标用户列表 / 渲染快照等非消息语义
+ * 若需要消息快照化上下文，另建 MessageEnvelope / MessageRenderMeta
+ *
  * @generated from message resonance.common.v1.Message
  */
 export class Message extends Message$1<Message> {
@@ -66,29 +69,19 @@ export class Message extends Message$1<Message> {
   content = "";
 
   /**
-   * @generated from field: string to_username = 3;
-   */
-  toUsername = "";
-
-  /**
-   * @generated from field: int64 reply_to_event_id = 4;
+   * @generated from field: int64 reply_to_event_id = 3;
    */
   replyToEventId = protoInt64.zero;
 
   /**
-   * @generated from field: string client_msg_id = 5;
+   * @generated from field: string client_msg_id = 4;
    */
   clientMsgId = "";
 
   /**
-   * @generated from field: repeated string mentioned_usernames = 6;
+   * @generated from field: repeated string mentioned_usernames = 5;
    */
   mentionedUsernames: string[] = [];
-
-  /**
-   * @generated from field: resonance.common.v1.SessionMeta session_meta = 10;
-   */
-  sessionMeta?: SessionMeta;
 
   constructor(data?: PartialMessage<Message>) {
     super();
@@ -100,11 +93,9 @@ export class Message extends Message$1<Message> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "type", kind: "enum", T: proto3.getEnumType(MessageType) },
     { no: 2, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "to_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "reply_to_event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 5, name: "client_msg_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "mentioned_usernames", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 10, name: "session_meta", kind: "message", T: SessionMeta },
+    { no: 3, name: "reply_to_event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "client_msg_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "mentioned_usernames", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Message {
