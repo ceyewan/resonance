@@ -9,7 +9,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
@@ -24,10 +24,10 @@ type SessionService struct {
 	sessionRepo  repo.SessionRepo
 	messageRepo  repo.MessageRepo
 	userRepo     repo.UserRepo
-	sessionIDGen idgen.Generator // 用于生成 SessionID
-	msgIDGen     idgen.Generator // 用于生成消息 ID
-	sequencer    idgen.Sequencer // 用于生成会话 SeqID
-	mqClient     mq.MQ           // 用于发送系统消息
+	sessionIDGen idgen.Generator
+	msgIDGen     idgen.Generator
+	sequencer    idgen.Sequencer
+	mqClient     mq.MQ
 	logger       clog.Logger
 }
 
@@ -56,47 +56,44 @@ func NewSessionService(
 
 // GetSessionList 实现 SessionService.GetSessionList
 func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSessionListRequest) (*logicv1.GetSessionListResponse, error) {
-	s.logger.Info("get session list", clog.String("username", req.Username))
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// 获取用户的所有会话
-	sessions, err := s.sessionRepo.GetUserSessionList(ctx, req.Username)
+	sessions, err := s.sessionRepo.GetUserSessionList(ctx, username)
 	if err != nil {
 		s.logger.Error("failed to get user sessions", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get user sessions")
 	}
 
 	if len(sessions) == 0 {
-		return &logicv1.GetSessionListResponse{
-			Sessions: []*logicv1.SessionInfo{},
-		}, nil
+		return &logicv1.GetSessionListResponse{Sessions: []*logicv1.SessionInfo{}}, nil
 	}
 
-	// 批量查询最后一条消息（避免 N+1 查询）
 	sessionIDs := make([]string, len(sessions))
 	for i, sess := range sessions {
 		sessionIDs[i] = sess.SessionID
 	}
 	lastMessages, _ := s.messageRepo.GetLastMessagesBatch(ctx, sessionIDs)
-	msgMap := make(map[string]*model.MessageContent)
+	msgMap := make(map[string]*model.MessageContent, len(lastMessages))
 	for _, msg := range lastMessages {
 		msgMap[msg.SessionID] = msg
 	}
 
-	// 批量查询用户会话信息（避免 N+1 查询）
-	userSessions, _ := s.sessionRepo.GetUserSessionsBatch(ctx, req.Username, sessionIDs)
-	userSessMap := make(map[string]*model.SessionMember)
+	userSessions, _ := s.sessionRepo.GetUserSessionsBatch(ctx, username, sessionIDs)
+	userSessMap := make(map[string]*model.SessionMember, len(userSessions))
 	for _, us := range userSessions {
 		userSessMap[us.SessionID] = us
 	}
 
-	// 提取单聊中的对方用户名，批量查询用户信息
 	otherUsernames := make([]string, 0)
 	for _, sess := range sessions {
-		if sess.Type == 1 && sess.Name == "" {
+		if sess.Type == int(commonv1.SessionType_SESSION_TYPE_DIRECT) && sess.Name == "" {
 			parts := strings.Split(sess.SessionID, ":")
 			if len(parts) == 3 {
 				otherUser := parts[1]
-				if otherUser == req.Username {
+				if otherUser == username {
 					otherUser = parts[2]
 				}
 				otherUsernames = append(otherUsernames, otherUser)
@@ -111,43 +108,38 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		}
 	}
 
-	// 转换为 SessionInfo
 	sessionInfos := make([]*logicv1.SessionInfo, 0, len(sessions))
 	for _, sess := range sessions {
-		// 获取最后一条消息
-		lastMsg := &gatewayv1.PushMessage{
-			MsgId:        0,
-			SeqId:        sess.MaxSeqID,
-			SessionId:    sess.SessionID,
-			FromUsername: "",
-			ToUsername:   "",
-			Content:      "",
-			Type:         "",
-			Timestamp:    0,
-		}
-
+		var lastEvent *commonv1.ChatEvent
 		if msg, ok := msgMap[sess.SessionID]; ok {
-			lastMsg.SeqId = msg.SeqID
-			lastMsg.Content = msg.Content
-			lastMsg.Type = msg.MsgType
-			lastMsg.Timestamp = msg.CreatedAt.Unix()
-			lastMsg.FromUsername = msg.SenderUsername
+			lastEvent = buildMessageEventFromModel(sess.SessionID, msg)
+		} else {
+			lastEvent = &commonv1.ChatEvent{
+				SeqId:     sess.MaxSeqID,
+				SessionId: sess.SessionID,
+				Payload: &commonv1.ChatEvent_Message{
+					Message: &commonv1.Message{
+						Type:    commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED,
+						Content: "",
+					},
+				},
+			}
 		}
 
-		// 获取用户会话信息（包含未读数）
 		userSess := userSessMap[sess.SessionID]
 		unread := int64(0)
+		lastReadSeq := int64(0)
 		if userSess != nil {
 			unread = sess.MaxSeqID - userSess.LastReadSeq
+			lastReadSeq = userSess.LastReadSeq
 		}
 
-		// 单聊会话名称处理：如果没有设置名称，使用对方用户的昵称
 		sessionName := sess.Name
-		if sess.Type == 1 && sessionName == "" {
+		if sess.Type == int(commonv1.SessionType_SESSION_TYPE_DIRECT) && sessionName == "" {
 			parts := strings.Split(sess.SessionID, ":")
 			if len(parts) == 3 {
 				otherUser := parts[1]
-				if otherUser == req.Username {
+				if otherUser == username {
 					otherUser = parts[2]
 				}
 				if user, ok := userMap[otherUser]; ok {
@@ -156,112 +148,88 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 			}
 		}
 
-		lastReadSeq := int64(0)
-		if userSess != nil {
-			lastReadSeq = userSess.LastReadSeq
-		}
-
 		sessionInfos = append(sessionInfos, &logicv1.SessionInfo{
 			SessionId:   sess.SessionID,
 			Name:        sessionName,
-			Type:        int32(sess.Type),
+			Type:        commonv1.SessionType(sess.Type),
 			AvatarUrl:   "",
 			UnreadCount: unread,
 			LastReadSeq: lastReadSeq,
-			LastMessage: lastMsg,
+			LastEvent:   lastEvent,
 		})
 	}
 
-	return &logicv1.GetSessionListResponse{
-		Sessions: sessionInfos,
-	}, nil
+	return &logicv1.GetSessionListResponse{Sessions: sessionInfos}, nil
 }
 
 // CreateSession 实现 SessionService.CreateSession
 func (s *SessionService) CreateSession(ctx context.Context, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error) {
-	s.logger.Info("create session",
-		clog.String("creator", req.CreatorUsername),
-		clog.Int("type", int(req.Type)))
+	creatorUsername, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// 生成 session_id (对于单聊，使用两个用户名排序后的组合)
 	sessionID := ""
-	if req.Type == 1 {
-		// 单聊：使用两个用户名组合
+	if req.Type == commonv1.SessionType_SESSION_TYPE_DIRECT {
 		if len(req.Members) != 1 {
 			return nil, status.Errorf(codes.InvalidArgument, "single chat must have exactly one member")
 		}
-		sessionID = generateSingleChatID(req.CreatorUsername, req.Members[0])
+		sessionID = generateSingleChatID(creatorUsername, req.Members[0])
 	} else {
-		// 群聊：生成 UUID 或使用 ID 生成器
 		sessionID = s.generateGroupChatID()
 	}
 
-	// 创建会话
 	session := &model.Session{
 		SessionID:     sessionID,
 		Type:          int(req.Type),
 		Name:          req.Name,
-		OwnerUsername: req.CreatorUsername,
+		OwnerUsername: creatorUsername,
 		MaxSeqID:      0,
 	}
-
 	if err := s.sessionRepo.CreateSession(ctx, session); err != nil {
 		s.logger.Error("failed to create session", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to create session")
 	}
 
-	// 添加创建者作为成员
-	if err := s.sessionRepo.AddMember(ctx, &model.SessionMember{
+	_ = s.sessionRepo.AddMember(ctx, &model.SessionMember{
 		SessionID: sessionID,
-		Username:  req.CreatorUsername,
-		Role:      1, // 创建者是管理员
-	}); err != nil {
-		s.logger.Error("failed to add creator to session", clog.Error(err))
-	}
+		Username:  creatorUsername,
+		Role:      1,
+	})
 
-	// 添加其他成员
 	for _, member := range req.Members {
-		if member != req.CreatorUsername {
-			if err := s.sessionRepo.AddMember(ctx, &model.SessionMember{
-				SessionID: sessionID,
-				Username:  member,
-				Role:      0, // 普通成员
-			}); err != nil {
-				s.logger.Error("failed to add member to session", clog.Error(err), clog.String("member", member))
-			}
+		if member == creatorUsername {
+			continue
 		}
+		_ = s.sessionRepo.AddMember(ctx, &model.SessionMember{
+			SessionID: sessionID,
+			Username:  member,
+			Role:      0,
+		})
 	}
 
-	// 发送系统消息通知所有成员
-	if err := s.sendSessionCreatedSystemMessage(ctx, sessionID, req); err != nil {
+	if err := s.sendSessionCreatedSystemMessage(ctx, sessionID, creatorUsername, req); err != nil {
 		s.logger.Error("failed to send system message", clog.Error(err))
-		// 系统消息发送失败不影响会话创建
 	}
 
-	return &logicv1.CreateSessionResponse{
-		SessionId: sessionID,
-	}, nil
+	return &logicv1.CreateSessionResponse{SessionId: sessionID}, nil
 }
 
-// sendSessionCreatedSystemMessage 发送会话创建的系统消息
-func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, sessionID string, req *logicv1.CreateSessionRequest) error {
-	// 构建系统消息内容
-	content := s.buildSystemMessageContent(ctx, req)
+func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, sessionID, creatorUsername string, req *logicv1.CreateSessionRequest) error {
+	content := s.buildSystemMessageContent(ctx, creatorUsername, req)
 	if content == "" {
 		return nil
 	}
 
-	// 生成消息 ID 和 SeqID
-	msgID := s.msgIDGen.Next()
+	eventID := s.msgIDGen.Next()
 	seqID, err := s.sequencer.Next(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("generate seq id: %w", err)
 	}
-	timestamp := time.Now().Unix()
+	timestampMs := time.Now().UnixMilli()
 
-	// 保存消息到数据库
 	msgContent := &model.MessageContent{
-		MsgID:          msgID,
+		MsgID:          eventID,
 		SessionID:      sessionID,
 		SenderUsername: "system",
 		SeqID:          seqID,
@@ -269,79 +237,63 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		MsgType:        "system",
 	}
 
-	// 收集所有接收者
-	toUsernames := make([]string, 0, len(req.Members))
-	for _, member := range req.Members {
-		if member != req.CreatorUsername {
-			toUsernames = append(toUsernames, member)
-		}
-	}
-
-	// 准备 MQ 事件
-	sessionName := req.Name
-	if req.Type == 1 && sessionName == "" {
-		if user, err := s.userRepo.GetUserByUsername(ctx, req.CreatorUsername); err == nil {
-			sessionName = user.Nickname
-		} else {
-			sessionName = req.CreatorUsername
-		}
-	}
-
-	event := &mqv1.PushEvent{
-		MsgId:        msgID,
+	chatEvent := &commonv1.ChatEvent{
+		EventId:      eventID,
 		SeqId:        seqID,
 		SessionId:    sessionID,
 		FromUsername: "system",
-		Content:      content,
-		Type:         "system",
-		Timestamp:    timestamp,
-		SessionName:  sessionName,
-		SessionType:  int32(req.Type),
+		TimestampMs:  timestampMs,
+		Payload: &commonv1.ChatEvent_Message{
+			Message: &commonv1.Message{
+				Type:    commonv1.MessageType_MESSAGE_TYPE_SYSTEM,
+				Content: content,
+			},
+		},
 	}
 
-	// 发布消息到 MQ 并保存到 Outbox
+	seen := map[string]struct{}{creatorUsername: {}}
+	targets := []string{creatorUsername}
+	for _, m := range req.Members {
+		if _, ok := seen[m]; ok {
+			continue
+		}
+		seen[m] = struct{}{}
+		targets = append(targets, m)
+	}
+	event := &mqv1.MQEvent{
+		Event:           chatEvent,
+		TargetUsernames: targets,
+	}
+
 	result, err := PublishMessageToMQ(ctx, s.messageRepo, event, msgContent, s.logger)
 	if err != nil {
 		return fmt.Errorf("publish message to mq: %w", err)
 	}
-
-	// 立即尝试发布到 MQ (Look-aside 优化)
 	PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
-
-	s.logger.Info("system message sent",
-		clog.Int64("msg_id", msgID),
-		clog.Int64("seq_id", seqID),
-		clog.String("session_id", sessionID),
-		clog.Int("recipients", len(toUsernames)))
-
 	return nil
 }
 
-// buildSystemMessageContent 构建系统消息内容
-func (s *SessionService) buildSystemMessageContent(ctx context.Context, req *logicv1.CreateSessionRequest) string {
-	// 获取创建者昵称
-	creatorNickname := req.CreatorUsername
-	if user, err := s.userRepo.GetUserByUsername(ctx, req.CreatorUsername); err == nil {
+func (s *SessionService) buildSystemMessageContent(ctx context.Context, creatorUsername string, req *logicv1.CreateSessionRequest) string {
+	creatorNickname := creatorUsername
+	if user, err := s.userRepo.GetUserByUsername(ctx, creatorUsername); err == nil {
 		creatorNickname = user.Nickname
 	}
 
-	if req.Type == 1 {
-		// 单聊：对方收到 "xxx 开始了与你的对话"
+	if req.Type == commonv1.SessionType_SESSION_TYPE_DIRECT {
 		return fmt.Sprintf("%s 开始了与你的对话", creatorNickname)
 	}
-	// 群聊：所有人收到 "xxx 创建了群聊「群名」"
 	return fmt.Sprintf("%s 创建了群聊「%s」", creatorNickname, req.Name)
 }
 
-// GetHistoryMessages 实现 SessionService.GetHistoryMessages
-func (s *SessionService) GetHistoryMessages(ctx context.Context, req *logicv1.GetHistoryMessagesRequest) (*logicv1.GetHistoryMessagesResponse, error) {
-	s.logger.Info("get history messages",
-		clog.String("username", req.Username),
-		clog.String("session_id", req.SessionId),
-		clog.Int64("limit", req.Limit))
+// GetHistoryEvents 实现 SessionService.GetHistoryEvents
+func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error) {
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	if req.Username == "" || req.SessionId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "username and session_id are required")
+	if req.SessionId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "session_id is required")
 	}
 
 	limit := int(req.Limit)
@@ -352,51 +304,34 @@ func (s *SessionService) GetHistoryMessages(ctx context.Context, req *logicv1.Ge
 		limit = 100
 	}
 
-	// 先校验会话成员关系，避免越权读取他人会话消息。
-	if _, err := s.sessionRepo.GetUserSession(ctx, req.Username, req.SessionId); err != nil {
-		s.logger.Warn("history access denied",
-			clog.String("username", req.Username),
-			clog.String("session_id", req.SessionId),
-			clog.Error(err))
+	if _, err := s.sessionRepo.GetUserSession(ctx, username, req.SessionId); err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to verify session permission")
 	}
 
-	// 获取历史消息
 	messages, err := s.messageRepo.GetHistoryMessages(ctx, req.SessionId, req.BeforeSeq, limit)
 	if err != nil {
 		s.logger.Error("failed to get history messages", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get history messages")
 	}
 
-	// 转换为 PushMessage 格式
-	pushMessages := make([]*gatewayv1.PushMessage, 0, len(messages))
+	events := make([]*commonv1.ChatEvent, 0, len(messages))
 	for _, msg := range messages {
-		pushMessages = append(pushMessages, &gatewayv1.PushMessage{
-			MsgId:        msg.MsgID,
-			SeqId:        msg.SeqID,
-			SessionId:    req.SessionId,
-			FromUsername: msg.SenderUsername,
-			ToUsername:   "",
-			Content:      msg.Content,
-			Type:         msg.MsgType,
-			Timestamp:    msg.CreatedAt.Unix(),
-		})
+		events = append(events, buildMessageEventFromModel(req.SessionId, msg))
 	}
-
-	return &logicv1.GetHistoryMessagesResponse{
-		Messages: pushMessages,
-	}, nil
+	return &logicv1.GetHistoryEventsResponse{Events: events}, nil
 }
 
 // GetContactList 实现 SessionService.GetContactList
 func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetContactListRequest) (*logicv1.GetContactListResponse, error) {
-	s.logger.Info("get contact list", clog.String("username", req.Username))
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// 获取联系人列表
-	contacts, err := s.sessionRepo.GetContactList(ctx, req.Username)
+	contacts, err := s.sessionRepo.GetContactList(ctx, username)
 	if err != nil {
 		s.logger.Error("failed to get contacts", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get contacts")
@@ -411,23 +346,21 @@ func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetCon
 		})
 	}
 
-	return &logicv1.GetContactListResponse{
-		Contacts: contactInfos,
-	}, nil
+	return &logicv1.GetContactListResponse{Contacts: contactInfos}, nil
 }
 
 // SearchUser 实现 SessionService.SearchUser
 func (s *SessionService) SearchUser(ctx context.Context, req *logicv1.SearchUserRequest) (*logicv1.SearchUserResponse, error) {
-	s.logger.Info("search user", clog.String("query", req.Query))
+	if _, err := usernameFromContext(ctx); err != nil {
+		return nil, err
+	}
 
-	// 搜索用户
 	users, err := s.userRepo.SearchUsers(ctx, req.Query)
 	if err != nil {
 		s.logger.Error("failed to search users", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to search users")
 	}
 
-	// 转换为 ContactInfo
 	contacts := make([]*logicv1.ContactInfo, len(users))
 	for i, u := range users {
 		contacts[i] = &logicv1.ContactInfo{
@@ -437,12 +370,9 @@ func (s *SessionService) SearchUser(ctx context.Context, req *logicv1.SearchUser
 		}
 	}
 
-	return &logicv1.SearchUserResponse{
-		Users: contacts,
-	}, nil
+	return &logicv1.SearchUserResponse{Users: contacts}, nil
 }
 
-// generateSingleChatID 生成单聊会话 ID
 func generateSingleChatID(user1, user2 string) string {
 	if user1 < user2 {
 		return "single:" + user1 + ":" + user2
@@ -450,29 +380,26 @@ func generateSingleChatID(user1, user2 string) string {
 	return "single:" + user2 + ":" + user1
 }
 
-// generateGroupChatID 生成群聊会话 ID
 func (s *SessionService) generateGroupChatID() string {
 	return fmt.Sprintf("group:%d", s.sessionIDGen.Next())
 }
 
 // UpdateReadPosition 实现 SessionService.UpdateReadPosition
 func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
-	s.logger.Info("update read position",
-		clog.String("session_id", req.SessionId),
-		clog.String("username", req.Username),
-		clog.Int64("seq_id", req.SeqId))
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
-	// 更新已读位置
-	if err := s.sessionRepo.UpdateLastReadSeq(ctx, req.SessionId, req.Username, req.SeqId); err != nil {
+	if err := s.sessionRepo.UpdateLastReadSeq(ctx, req.SessionId, username, req.SeqId); err != nil {
 		s.logger.Error("failed to update read position", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to update read position")
 	}
 
-	// 获取当前会话最新 seq_id 以计算未读数
 	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to get session", clog.Error(err))
-		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil // 降级处理
+		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil
 	}
 
 	unread := session.MaxSeqID - req.SeqId
@@ -480,17 +407,15 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 		unread = 0
 	}
 
-	return &logicv1.UpdateReadPositionResponse{
-		UnreadCount: unread,
-	}, nil
+	return &logicv1.UpdateReadPositionResponse{UnreadCount: unread}, nil
 }
 
 // PullInboxDelta 实现 SessionService.PullInboxDelta
 func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
-	s.logger.Info("pull inbox delta",
-		clog.String("username", req.Username),
-		clog.Int64("cursor_id", req.CursorId),
-		clog.Int64("limit", req.Limit))
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -500,7 +425,7 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 		limit = 500
 	}
 
-	items, err := s.messageRepo.GetInboxDelta(ctx, req.Username, req.CursorId, limit)
+	items, err := s.messageRepo.GetInboxDelta(ctx, username, req.CursorId, limit)
 	if err != nil {
 		s.logger.Error("failed to get inbox delta", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get inbox delta")
@@ -511,16 +436,7 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 	for _, item := range items {
 		events = append(events, &logicv1.InboxEvent{
 			InboxId: item.InboxID,
-			Message: &gatewayv1.PushMessage{
-				MsgId:        item.MsgID,
-				SeqId:        item.SeqID,
-				SessionId:    item.SessionID,
-				FromUsername: item.SenderUsername,
-				ToUsername:   req.Username,
-				Content:      item.Content,
-				Type:         item.MsgType,
-				Timestamp:    item.CreatedAt.Unix(),
-			},
+			Event:   buildMessageEventFromInboxItem(item),
 		})
 		if item.InboxID > nextCursorID {
 			nextCursorID = item.InboxID
@@ -532,4 +448,36 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 		NextCursorId: nextCursorID,
 		HasMore:      len(items) == limit,
 	}, nil
+}
+
+func buildMessageEventFromModel(sessionID string, msg *model.MessageContent) *commonv1.ChatEvent {
+	return &commonv1.ChatEvent{
+		EventId:      msg.MsgID,
+		SeqId:        msg.SeqID,
+		SessionId:    sessionID,
+		FromUsername: msg.SenderUsername,
+		TimestampMs:  msg.CreatedAt.UnixMilli(),
+		Payload: &commonv1.ChatEvent_Message{
+			Message: &commonv1.Message{
+				Type:    parseMessageType(msg.MsgType),
+				Content: msg.Content,
+			},
+		},
+	}
+}
+
+func buildMessageEventFromInboxItem(item *repo.InboxDeltaItem) *commonv1.ChatEvent {
+	return &commonv1.ChatEvent{
+		EventId:      item.MsgID,
+		SeqId:        item.SeqID,
+		SessionId:    item.SessionID,
+		FromUsername: item.SenderUsername,
+		TimestampMs:  item.CreatedAt.UnixMilli(),
+		Payload: &commonv1.ChatEvent_Message{
+			Message: &commonv1.Message{
+				Type:    parseMessageType(item.MsgType),
+				Content: item.Content,
+			},
+		},
+	}
 }

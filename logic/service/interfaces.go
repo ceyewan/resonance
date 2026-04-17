@@ -19,7 +19,7 @@ type AuthServiceInterface interface {
 type SessionServiceInterface interface {
 	GetSessionList(ctx context.Context, req *logicv1.GetSessionListRequest) (*logicv1.GetSessionListResponse, error)
 	CreateSession(ctx context.Context, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error)
-	GetHistoryMessages(ctx context.Context, req *logicv1.GetHistoryMessagesRequest) (*logicv1.GetHistoryMessagesResponse, error)
+	GetHistoryEvents(ctx context.Context, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error)
 	GetContactList(ctx context.Context, req *logicv1.GetContactListRequest) (*logicv1.GetContactListResponse, error)
 	SearchUser(ctx context.Context, req *logicv1.SearchUserRequest) (*logicv1.SearchUserResponse, error)
 	PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error)
@@ -28,7 +28,7 @@ type SessionServiceInterface interface {
 // ChatServiceInterface 聊天服务接口
 // 用于提高可测试性和可维护性，允许 mock 实现
 type ChatServiceInterface interface {
-	SendMessage(ctx context.Context, req *logicv1.SendMessageRequest) (*logicv1.SendMessageResponse, error)
+	SendEvent(ctx context.Context, req *logicv1.SendEventRequest) (*logicv1.SendEventResponse, error)
 }
 
 // PresenceServiceInterface 在线状态服务接口

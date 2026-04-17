@@ -2,10 +2,8 @@ package ws
 
 import (
 	"context"
-	"time"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/genesis/xerrors"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/client"
 	"github.com/ceyewan/resonance/gateway/protocol"
@@ -33,29 +31,17 @@ func (d *Dispatcher) HandlePulse(ctx context.Context, conn protocol.Connection) 
 
 // HandleChat 处理聊天消息
 func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, seq string, chat *gatewayv1.ChatRequest) error {
-	// 填充发送者
-	if chat.FromUsername == "" {
-		chat.FromUsername = conn.Username()
-	}
-	// 填充时间戳
-	if chat.Timestamp == 0 {
-		chat.Timestamp = time.Now().Unix()
-	}
-
 	// 调用 Logic 服务处理消息
-	resp, err := d.logicClient.SendMessage(ctx, chat)
-	var ackErr string
-	var msgID, seqID int64
+	resp, err := d.logicClient.SendEvent(ctx, conn.Username(), chat)
+	var eventID, seqID int64
 	if err != nil {
-		ackErr = err.Error()
 	} else if resp != nil {
-		msgID = resp.GetMsgId()
+		eventID = resp.GetEventId()
 		seqID = resp.GetSeqId()
-		ackErr = resp.GetError()
 	}
 
 	// 发送确认给客户端，包含服务端生成的 ID
-	ackPacket := protocol.CreateAckPacket(seq, msgID, seqID, chat.SessionId, ackErr)
+	ackPacket := protocol.CreateAckPacket(seq, eventID, seqID, chat.SessionId)
 	if err := conn.Send(ackPacket); err != nil {
 		d.logger.Error("failed to send ack", clog.Error(err))
 		return err
@@ -63,9 +49,6 @@ func (d *Dispatcher) HandleChat(ctx context.Context, conn protocol.Connection, s
 
 	if err != nil {
 		return err
-	}
-	if ackErr != "" {
-		return xerrors.New(ackErr)
 	}
 	return nil
 }

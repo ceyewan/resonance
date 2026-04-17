@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ceyewan/genesis/clog"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -60,10 +61,10 @@ func (h *DefaultHandler) HandlePacket(ctx context.Context, conn Connection, pack
 		}
 		return nil
 
-	case *gatewayv1.WsPacket_Chat:
+	case *gatewayv1.WsPacket_ChatRequest:
 		// 聊天消息
 		if h.onChat != nil {
-			return h.onChat(ctx, conn, packet.GetSeq(), payload.Chat)
+			return h.onChat(ctx, conn, packet.GetClientSeq(), payload.ChatRequest)
 		}
 		return nil
 
@@ -96,7 +97,7 @@ func DecodePacket(data []byte) (*gatewayv1.WsPacket, error) {
 // CreatePulseResponse 创建心跳响应
 func CreatePulseResponse(seq string) *gatewayv1.WsPacket {
 	return &gatewayv1.WsPacket{
-		Seq: seq,
+		ClientSeq: seq,
 		Payload: &gatewayv1.WsPacket_Pulse{
 			Pulse: &gatewayv1.Pulse{},
 		},
@@ -104,26 +105,25 @@ func CreatePulseResponse(seq string) *gatewayv1.WsPacket {
 }
 
 // CreatePushPacket 创建推送消息包
-func CreatePushPacket(seq string, msg *gatewayv1.PushMessage) *gatewayv1.WsPacket {
+func CreatePushPacket(seq string, msg *commonv1.ChatEvent) *gatewayv1.WsPacket {
 	return &gatewayv1.WsPacket{
-		Seq: seq,
-		Payload: &gatewayv1.WsPacket_Push{
-			Push: msg,
+		ClientSeq: seq,
+		Payload: &gatewayv1.WsPacket_Event{
+			Event: msg,
 		},
 	}
 }
 
 // CreateAckPacket 创建确认消息包
-func CreateAckPacket(refSeq string, msgID int64, seqID int64, sessionID string, errMsg string) *gatewayv1.WsPacket {
+func CreateAckPacket(refSeq string, eventID int64, seqID int64, sessionID string) *gatewayv1.WsPacket {
 	return &gatewayv1.WsPacket{
-		Seq: refSeq,
+		ClientSeq: refSeq,
 		Payload: &gatewayv1.WsPacket_Ack{
 			Ack: &gatewayv1.Ack{
-				RefSeq:    refSeq,
-				MsgId:     msgID,
-				SeqId:     seqID,
-				SessionId: sessionID,
-				Error:     errMsg,
+				RefClientSeq: refSeq,
+				EventId:      eventID,
+				SeqId:        seqID,
+				SessionId:    sessionID,
 			},
 		},
 	}

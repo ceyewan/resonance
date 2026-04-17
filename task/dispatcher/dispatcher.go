@@ -5,7 +5,6 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
-	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
@@ -16,23 +15,19 @@ import (
 
 // Dispatcher 消息分发器
 type Dispatcher struct {
-	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo     // Storage consumer uses this
-	routerRepo  repo.RouterRepo      // Push consumer uses this
-	pusherMgr   pusher.PusherManager // Push consumer uses this (接口类型)
+	messageRepo repo.MessageRepo
+	routerRepo  repo.RouterRepo
+	pusherMgr   pusher.PusherManager
 	logger      clog.Logger
 }
 
-// NewDispatcher 创建消息分发器
 func NewDispatcher(
-	sessionRepo repo.SessionRepo,
 	messageRepo repo.MessageRepo,
 	routerRepo repo.RouterRepo,
 	pusherMgr pusher.PusherManager,
 	logger clog.Logger,
 ) *Dispatcher {
 	return &Dispatcher{
-		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		routerRepo:  routerRepo,
 		pusherMgr:   pusherMgr,
@@ -41,149 +36,82 @@ func NewDispatcher(
 }
 
 // DispatchStorage 处理存储任务（写扩散）
-func (d *Dispatcher) DispatchStorage(ctx context.Context, event *mqv1.PushEvent) error {
-	// 创建子 Span 用于存储操作
+func (d *Dispatcher) DispatchStorage(ctx context.Context, mqEvent *mqv1.MQEvent) error {
+	ev := mqEvent.GetEvent()
 	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.storage",
-		attribute.Int64("msg_id", event.MsgId),
-		attribute.String("session_id", event.SessionId),
+		attribute.Int64("event_id", ev.GetEventId()),
+		attribute.String("session_id", ev.GetSessionId()),
 	)
 	defer endSpan()
 
-	d.logger.Debug("dispatching storage task",
-		clog.Int64("msg_id", event.MsgId),
-		clog.String("session_id", event.SessionId))
-
-	// 1. 获取会话成员列表
-	members, err := d.sessionRepo.GetMembers(ctx, event.SessionId)
-	if err != nil {
-		d.logger.Error("failed to get session members", clog.Error(err))
-		return err
-	}
-
-	// 2. 执行写扩散 (Inbox)
-	inboxes := make([]*model.Inbox, 0, len(members))
-	for _, m := range members {
-		// 发送者也需要在自己的信箱看到消息
+	inboxes := make([]*model.Inbox, 0, len(mqEvent.TargetUsernames))
+	for _, username := range mqEvent.TargetUsernames {
 		inboxes = append(inboxes, &model.Inbox{
-			OwnerUsername: m.Username,
-			SessionID:     event.SessionId,
-			MsgID:         event.MsgId,
-			SeqID:         event.SeqId,
+			OwnerUsername: username,
+			SessionID:     ev.GetSessionId(),
+			MsgID:         ev.GetEventId(),
+			SeqID:         ev.GetSeqId(),
 			IsRead:        0,
 		})
 	}
-
-	if err := d.messageRepo.SaveInbox(ctx, inboxes); err != nil {
-		d.logger.Error("failed to save inboxes", clog.Error(err))
-		return err // 存储失败需要重试
+	if len(inboxes) == 0 {
+		return nil
 	}
-
-	d.logger.Debug("storage task completed",
-		clog.Int64("msg_id", event.MsgId),
-		clog.Int("inbox_count", len(inboxes)))
-
+	if err := d.messageRepo.SaveInbox(ctx, inboxes); err != nil {
+		return err
+	}
 	return nil
 }
 
 // DispatchPush 处理推送任务（在线推送）
-// 将消息投递到对应 Gateway 的推送队列，由 GatewayClient 的 loop 异步执行
-func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) error {
-	// 创建子 Span 用于推送操作
+func (d *Dispatcher) DispatchPush(ctx context.Context, mqEvent *mqv1.MQEvent) error {
+	ev := mqEvent.GetEvent()
 	ctx, endSpan := observability.StartSpan(ctx, "dispatcher.push",
-		attribute.Int64("msg_id", event.MsgId),
-		attribute.String("session_id", event.SessionId),
-		attribute.String("from_username", event.FromUsername),
+		attribute.Int64("event_id", ev.GetEventId()),
+		attribute.String("session_id", ev.GetSessionId()),
+		attribute.String("from_username", ev.GetFromUsername()),
 	)
 	defer endSpan()
 
-	d.logger.Debug("dispatching push task",
-		clog.Int64("msg_id", event.MsgId),
-		clog.String("session_id", event.SessionId))
-
-	// 1. 获取会话成员列表
-	members, err := d.sessionRepo.GetMembers(ctx, event.SessionId)
-	if err != nil {
-		d.logger.Error("failed to get session members", clog.Error(err))
-		return err
-	}
-
-	// 2. 提取需要在线推送的用户名列表
-	usernames := make([]string, 0, len(members))
-	for _, m := range members {
-		// 跳过发送者自己，发送者不需要在线推送（因为他是消息源）
-		if m.Username == event.FromUsername {
+	usernames := make([]string, 0, len(mqEvent.TargetUsernames))
+	for _, u := range mqEvent.TargetUsernames {
+		if u == ev.GetFromUsername() {
 			continue
 		}
-		usernames = append(usernames, m.Username)
+		usernames = append(usernames, u)
 	}
-
 	if len(usernames) == 0 {
-		d.logger.Debug("no target users to push", clog.Int64("msg_id", event.MsgId))
 		return nil
 	}
 
-	// 3. 批量获取用户网关路由
 	routers, err := d.routerRepo.BatchGetUsersGateway(ctx, usernames)
 	if err != nil {
-		d.logger.Error("failed to batch get user gateways", clog.Error(err))
-		return err // Redis 错误可以选择重试
+		return err
 	}
 
-	// 4. 按 GatewayID 分组
-	gatewayGroups := make(map[string][]string) // gatewayID -> []username
+	gatewayGroups := make(map[string][]string)
 	for _, router := range routers {
 		if router == nil {
-			continue // 用户离线或无路由
+			continue
 		}
 		gatewayGroups[router.GatewayID] = append(gatewayGroups[router.GatewayID], router.Username)
 	}
 
-	// 5. 构造推送消息
-	pushMsg := &gatewayv1.PushMessage{
-		MsgId:        event.MsgId,
-		SeqId:        event.SeqId,
-		SessionId:    event.SessionId,
-		FromUsername: event.FromUsername,
-		Content:      event.Content,
-		Type:         event.Type,
-		Timestamp:    event.Timestamp,
-	}
-
-	// 携带会话元数据（用于前端自动创建会话）
-	if event.SessionName != "" || event.SessionType != 0 {
-		pushMsg.SessionMeta = &gatewayv1.SessionMeta{
-			Name: event.SessionName,
-			Type: event.SessionType,
-		}
-	}
-
-	// 6. 投递到各 Gateway 的推送队列
 	successCount := 0
 	failedCount := 0
 	for gatewayID, users := range gatewayGroups {
-		// 获取 Pusher Client
 		client, err := d.pusherMgr.GetClient(gatewayID)
 		if err != nil {
-			d.logger.Warn("gateway client not found",
-				clog.String("gateway_id", gatewayID),
-				clog.Int("user_count", len(users)))
 			failedCount += len(users)
 			continue
 		}
 
-		// 投递任务到队列（非阻塞）
 		task := &pusher.PushTask{
 			ToUsernames: users,
-			Message:     pushMsg,
+			Event:       ev,
 		}
-
 		if err := client.Enqueue(task); err != nil {
-			d.logger.Error("failed to enqueue push task",
-				clog.String("gateway_id", gatewayID),
-				clog.Int("user_count", len(users)),
-				clog.Error(err))
 			failedCount += len(users)
-			// 记录入队失败指标
 			observability.RecordPushEnqueueFailed(ctx,
 				metrics.L("gateway_id", gatewayID),
 				metrics.L("reason", "queue_full"),
@@ -192,20 +120,12 @@ func (d *Dispatcher) DispatchPush(ctx context.Context, event *mqv1.PushEvent) er
 		}
 
 		successCount += len(users)
-		// 记录入队成功指标
 		observability.RecordPushEnqueue(ctx, metrics.L("gateway_id", gatewayID))
-
-		// 记录队列深度指标
 		observability.SetGatewayQueueDepth(ctx, gatewayID, client.QueueSize())
-
-		d.logger.Debug("enqueued push task",
-			clog.String("gateway_id", gatewayID),
-			clog.Int("user_count", len(users)),
-			clog.Int("queue_size", client.QueueSize()))
 	}
 
 	d.logger.Debug("push task enqueued",
-		clog.Int64("msg_id", event.MsgId),
+		clog.Int64("event_id", ev.GetEventId()),
 		clog.Int("total_targets", len(usernames)),
 		clog.Int("enqueued_targets", successCount),
 		clog.Int("failed_targets", failedCount))

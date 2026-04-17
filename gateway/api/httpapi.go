@@ -140,7 +140,7 @@ func (h *HTTPHandler) GetSessionList(
 			AvatarUrl:   s.AvatarUrl,
 			UnreadCount: s.UnreadCount,
 			LastReadSeq: s.LastReadSeq,
-			LastMessage: s.LastMessage,
+			LastEvent:   s.LastEvent,
 		}
 	}
 
@@ -162,13 +162,12 @@ func (h *HTTPHandler) CreateSession(
 	}
 
 	logicReq := &logicv1.CreateSessionRequest{
-		CreatorUsername: username,
-		Members:         req.Msg.Members,
-		Name:            req.Msg.Name,
-		Type:            req.Msg.Type,
+		Members: req.Msg.Members,
+		Name:    req.Msg.Name,
+		Type:    req.Msg.Type,
 	}
 
-	logicResp, err := h.logicClient.CreateSession(ctx, logicReq)
+	logicResp, err := h.logicClient.CreateSession(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("create session failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -181,31 +180,30 @@ func (h *HTTPHandler) CreateSession(
 	return connect.NewResponse(resp), nil
 }
 
-// GetHistoryMessages 实现 SessionService.GetHistoryMessages
-func (h *HTTPHandler) GetHistoryMessages(
+// GetHistoryEvents 实现 SessionService.GetHistoryEvents
+func (h *HTTPHandler) GetHistoryEvents(
 	ctx context.Context,
-	req *connect.Request[gatewayv1.GetHistoryMessagesRequest],
-) (*connect.Response[gatewayv1.GetHistoryMessagesResponse], error) {
+	req *connect.Request[gatewayv1.GetHistoryEventsRequest],
+) (*connect.Response[gatewayv1.GetHistoryEventsResponse], error) {
 	username, err := h.getUsernameFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	logicReq := &logicv1.GetHistoryMessagesRequest{
-		Username:  username,
+	logicReq := &logicv1.GetHistoryEventsRequest{
 		SessionId: req.Msg.SessionId,
 		Limit:     req.Msg.Limit,
 		BeforeSeq: req.Msg.BeforeSeq,
 	}
 
-	logicResp, err := h.logicClient.GetHistoryMessages(ctx, logicReq)
+	logicResp, err := h.logicClient.GetHistoryEvents(ctx, username, logicReq)
 	if err != nil {
-		h.logger.Error("get history messages failed", clog.Error(err))
+		h.logger.Error("get history events failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 
-	resp := &gatewayv1.GetHistoryMessagesResponse{
-		Messages: logicResp.Messages,
+	resp := &gatewayv1.GetHistoryEventsResponse{
+		Events: logicResp.Events,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -248,11 +246,12 @@ func (h *HTTPHandler) SearchUser(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.SearchUserRequest],
 ) (*connect.Response[gatewayv1.SearchUserResponse], error) {
-	if _, err := h.getUsernameFromContext(ctx); err != nil {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	logicResp, err := h.logicClient.SearchUser(ctx, req.Msg.Query)
+	logicResp, err := h.logicClient.SearchUser(ctx, username, req.Msg.Query)
 	if err != nil {
 		h.logger.Error("search user failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -287,10 +286,9 @@ func (h *HTTPHandler) UpdateReadPosition(
 	logicReq := &logicv1.UpdateReadPositionRequest{
 		SessionId: req.Msg.SessionId,
 		SeqId:     req.Msg.SeqId,
-		Username:  username,
 	}
 
-	logicResp, err := h.logicClient.UpdateReadPosition(ctx, logicReq)
+	logicResp, err := h.logicClient.UpdateReadPosition(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("update read position failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -314,12 +312,11 @@ func (h *HTTPHandler) PullInboxDelta(
 	}
 
 	logicReq := &logicv1.PullInboxDeltaRequest{
-		Username: username,
 		CursorId: req.Msg.CursorId,
 		Limit:    req.Msg.Limit,
 	}
 
-	logicResp, err := h.logicClient.PullInboxDelta(ctx, logicReq)
+	logicResp, err := h.logicClient.PullInboxDelta(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("pull inbox delta failed", clog.Error(err))
 		return nil, connect.NewError(connect.CodeInternal, err)
@@ -329,7 +326,7 @@ func (h *HTTPHandler) PullInboxDelta(
 	for _, evt := range logicResp.Events {
 		events = append(events, &gatewayv1.InboxEvent{
 			InboxId: evt.InboxId,
-			Message: evt.Message,
+			Event:   evt.Event,
 		})
 	}
 

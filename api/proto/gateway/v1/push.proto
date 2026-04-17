@@ -2,24 +2,37 @@ syntax = "proto3";
 
 package resonance.gateway.v1;
 
+import "common/v1/event.proto";
 import "gateway/v1/packet.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
 
-// PushService 处理从 Task 推送消息到网关的请求
 service PushService {
-  // Push 一元 RPC 推送单条消息到网关
-  // Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
-  rpc Push(PushRequest) returns (PushResponse);
+  rpc PushEvent(PushEventRequest) returns (PushEventResponse);
+  rpc PushStream(PushStreamRequest) returns (PushStreamResponse);
 }
 
-message PushRequest {
-  repeated string to_usernames = 1; // 目标用户列表
-  PushMessage message = 2; // 推送消息
+message PushEventRequest {
+  repeated string to_usernames = 1;
+  resonance.common.v1.ChatEvent event = 2;
 }
 
-message PushResponse {
-  int64 msg_id = 1; // 对应消息ID
-  string error = 2; // 错误信息
-  repeated string failed_usernames = 3; // 推送失败的用户列表
+message PushEventResponse {
+  int64 event_id = 1;
+  repeated string failed_usernames = 2;
+}
+
+message PushStreamRequest {
+  repeated string to_usernames = 1;
+
+  oneof payload {
+    StreamBegin stream_begin = 10;
+    StreamChunk stream_chunk = 11;
+    StreamEnd stream_end = 12;
+    TypingSignal typing = 13;
+  }
+}
+
+message PushStreamResponse {
+  repeated string failed_usernames = 1;
 }

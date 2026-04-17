@@ -114,7 +114,6 @@ func (t *Task) initComponents() error {
 
 	// 5. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(
-		res.sessionRepo,
 		res.messageRepo,
 		res.routerRepo,
 		t.pusherMgr,

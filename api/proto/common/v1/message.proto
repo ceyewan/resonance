@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package resonance.common.v1;
+
+import "common/v1/session.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TEXT = 1;
+  MESSAGE_TYPE_IMAGE = 2;
+  MESSAGE_TYPE_FILE = 3;
+  MESSAGE_TYPE_SYSTEM = 4;
+  MESSAGE_TYPE_AI_STREAM = 5;
+}
+
+message Message {
+  MessageType type = 1;
+  string content = 2;
+  string to_username = 3;
+  int64 reply_to_event_id = 4;
+  string client_msg_id = 5;
+  repeated string mentioned_usernames = 6;
+  SessionMeta session_meta = 10;
+}

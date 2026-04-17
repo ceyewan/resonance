@@ -2,56 +2,31 @@ syntax = "proto3";
 
 package resonance.logic.v1;
 
-import "gateway/v1/packet.proto";
+import "common/v1/event.proto";
+import "common/v1/session.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
-// SessionService 处理会话管理相关的请求
 service SessionService {
-  // GetSessionList 获取用户的会话列表（包含每个会话的最新一条消息）
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
-
-  // CreateSession 创建会话（单聊或群聊）
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
-
-  // GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
-  rpc GetHistoryMessages(GetHistoryMessagesRequest) returns (GetHistoryMessagesResponse);
-
-  // GetContactList 获取联系人列表（即与当前用户有过单聊往来的用户）
+  rpc GetHistoryEvents(GetHistoryEventsRequest) returns (GetHistoryEventsResponse);
   rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
-
-  // SearchUser 搜索用户（用于发起新聊天）
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
-
-  // UpdateReadPosition 更新会话已读位置
   rpc UpdateReadPosition(UpdateReadPositionRequest) returns (UpdateReadPositionResponse);
-
-  // PullInboxDelta 按用户游标增量拉取消息（断线补偿/刷新同步）
   rpc PullInboxDelta(PullInboxDeltaRequest) returns (PullInboxDeltaResponse);
 }
 
-message UpdateReadPositionRequest {
-  string session_id = 1;
-  int64 seq_id = 2; // 用户当前读到的最新一条消息的 seq_id
-  string username = 3; // 操作用户
-}
-
-message UpdateReadPositionResponse {
-  int64 unread_count = 1; // 更新后的未读数（理论上应为0，或者是 max_seq - new_read_seq）
-}
-
-message GetSessionListRequest {
-  string username = 1;
-}
+message GetSessionListRequest {}
 
 message SessionInfo {
   string session_id = 1;
-  string name = 2; // 单聊通常是对方昵称，群聊是群名
-  int32 type = 3; // 1-单聊, 2-群聊
+  string name = 2;
+  resonance.common.v1.SessionType type = 3;
   string avatar_url = 4;
   int64 unread_count = 5;
   int64 last_read_seq = 6;
-  resonance.gateway.v1.PushMessage last_message = 7; // 最新一条消息
+  resonance.common.v1.ChatEvent last_event = 7;
 }
 
 message GetSessionListResponse {
@@ -59,30 +34,26 @@ message GetSessionListResponse {
 }
 
 message CreateSessionRequest {
-  string creator_username = 1;
-  repeated string members = 2; // 对于单聊，长度为1；群聊则为多个
-  string name = 3; // 仅群聊有效
-  int32 type = 4; // 1-单聊, 2-群聊
+  repeated string members = 1;
+  string name = 2;
+  resonance.common.v1.SessionType type = 3;
 }
 
 message CreateSessionResponse {
   string session_id = 1;
 }
 
-message GetHistoryMessagesRequest {
-  string username = 1;
-  string session_id = 2;
-  int64 limit = 3;
-  int64 before_seq = 4; // 0=拉最近一页；>0=拉取 seq_id < before_seq 的历史
+message GetHistoryEventsRequest {
+  string session_id = 1;
+  int64 limit = 2;
+  int64 before_seq = 3;
 }
 
-message GetHistoryMessagesResponse {
-  repeated resonance.gateway.v1.PushMessage messages = 1;
+message GetHistoryEventsResponse {
+  repeated resonance.common.v1.ChatEvent events = 1;
 }
 
-message GetContactListRequest {
-  string username = 1;
-}
+message GetContactListRequest {}
 
 message ContactInfo {
   string username = 1;
@@ -95,22 +66,30 @@ message GetContactListResponse {
 }
 
 message SearchUserRequest {
-  string query = 1; // username or nickname
+  string query = 1;
 }
 
 message SearchUserResponse {
   repeated ContactInfo users = 1;
 }
 
+message UpdateReadPositionRequest {
+  string session_id = 1;
+  int64 seq_id = 2;
+}
+
+message UpdateReadPositionResponse {
+  int64 unread_count = 1;
+}
+
 message PullInboxDeltaRequest {
-  string username = 1;
-  int64 cursor_id = 2;
-  int64 limit = 3;
+  int64 cursor_id = 1;
+  int64 limit = 2;
 }
 
 message InboxEvent {
   int64 inbox_id = 1;
-  resonance.gateway.v1.PushMessage message = 2;
+  resonance.common.v1.ChatEvent event = 2;
 }
 
 message PullInboxDeltaResponse {

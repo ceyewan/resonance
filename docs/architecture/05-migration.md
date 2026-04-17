@@ -43,6 +43,11 @@
 
 **目标**:引入 `common/v1/ChatEvent`,消除四处重复的消息定义。**不改业务逻辑**,只改协议和序列化。
 
+**当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+- 已新增 `common/v1/{session,message,event}.proto`
+- 已完成 `gateway/logic/mq` 协议重写与代码生成
+- 已完成 Gateway/Logic/Task 的服务端适配（前端暂未迁移）
+
 ### 3.1 任务拆分
 
 1. **新增 `api/proto/common/v1/` 的 4 个文件**

@@ -27,14 +27,9 @@ const (
 // AuthServiceClient is the client API for AuthService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// AuthService 处理用户认证相关的请求
 type AuthServiceClient interface {
-	// Login 验证用户身份并返回令牌
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
-	// Register 创建一个新的用户账户
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
-	// Logout 前端主动登出（当前实现为 no-op，依赖客户端删除本地 token）
 	Logout(ctx context.Context, in *LogoutRequest, opts ...grpc.CallOption) (*LogoutResponse, error)
 }
 
@@ -79,14 +74,9 @@ func (c *authServiceClient) Logout(ctx context.Context, in *LogoutRequest, opts 
 // AuthServiceServer is the server API for AuthService service.
 // All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
-//
-// AuthService 处理用户认证相关的请求
 type AuthServiceServer interface {
-	// Login 验证用户身份并返回令牌
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
-	// Register 创建一个新的用户账户
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
-	// Logout 前端主动登出（当前实现为 no-op，依赖客户端删除本地 token）
 	Logout(context.Context, *LogoutRequest) (*LogoutResponse, error)
 	mustEmbedUnimplementedAuthServiceServer()
 }
@@ -209,7 +199,7 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 const (
 	SessionService_GetSessionList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetSessionList"
 	SessionService_CreateSession_FullMethodName      = "/resonance.gateway.v1.SessionService/CreateSession"
-	SessionService_GetHistoryMessages_FullMethodName = "/resonance.gateway.v1.SessionService/GetHistoryMessages"
+	SessionService_GetHistoryEvents_FullMethodName   = "/resonance.gateway.v1.SessionService/GetHistoryEvents"
 	SessionService_GetContactList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetContactList"
 	SessionService_SearchUser_FullMethodName         = "/resonance.gateway.v1.SessionService/SearchUser"
 	SessionService_UpdateReadPosition_FullMethodName = "/resonance.gateway.v1.SessionService/UpdateReadPosition"
@@ -219,22 +209,13 @@ const (
 // SessionServiceClient is the client API for SessionService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// SessionService 处理网关层转发的会话请求
 type SessionServiceClient interface {
-	// GetSessionList 获取用户的会话列表
 	GetSessionList(ctx context.Context, in *GetSessionListRequest, opts ...grpc.CallOption) (*GetSessionListResponse, error)
-	// CreateSession 创建会话
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
-	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
-	GetHistoryMessages(ctx context.Context, in *GetHistoryMessagesRequest, opts ...grpc.CallOption) (*GetHistoryMessagesResponse, error)
-	// GetContactList 获取联系人列表
+	GetHistoryEvents(ctx context.Context, in *GetHistoryEventsRequest, opts ...grpc.CallOption) (*GetHistoryEventsResponse, error)
 	GetContactList(ctx context.Context, in *GetContactListRequest, opts ...grpc.CallOption) (*GetContactListResponse, error)
-	// SearchUser 搜索用户
 	SearchUser(ctx context.Context, in *SearchUserRequest, opts ...grpc.CallOption) (*SearchUserResponse, error)
-	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(ctx context.Context, in *UpdateReadPositionRequest, opts ...grpc.CallOption) (*UpdateReadPositionResponse, error)
-	// PullInboxDelta 按用户游标增量拉取消息
 	PullInboxDelta(ctx context.Context, in *PullInboxDeltaRequest, opts ...grpc.CallOption) (*PullInboxDeltaResponse, error)
 }
 
@@ -266,10 +247,10 @@ func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSess
 	return out, nil
 }
 
-func (c *sessionServiceClient) GetHistoryMessages(ctx context.Context, in *GetHistoryMessagesRequest, opts ...grpc.CallOption) (*GetHistoryMessagesResponse, error) {
+func (c *sessionServiceClient) GetHistoryEvents(ctx context.Context, in *GetHistoryEventsRequest, opts ...grpc.CallOption) (*GetHistoryEventsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(GetHistoryMessagesResponse)
-	err := c.cc.Invoke(ctx, SessionService_GetHistoryMessages_FullMethodName, in, out, cOpts...)
+	out := new(GetHistoryEventsResponse)
+	err := c.cc.Invoke(ctx, SessionService_GetHistoryEvents_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -319,22 +300,13 @@ func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, in *PullInbox
 // SessionServiceServer is the server API for SessionService service.
 // All implementations must embed UnimplementedSessionServiceServer
 // for forward compatibility.
-//
-// SessionService 处理网关层转发的会话请求
 type SessionServiceServer interface {
-	// GetSessionList 获取用户的会话列表
 	GetSessionList(context.Context, *GetSessionListRequest) (*GetSessionListResponse, error)
-	// CreateSession 创建会话
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
-	// GetHistoryMessages 拉取会话历史消息（before_seq=0 拉最近一页）
-	GetHistoryMessages(context.Context, *GetHistoryMessagesRequest) (*GetHistoryMessagesResponse, error)
-	// GetContactList 获取联系人列表
+	GetHistoryEvents(context.Context, *GetHistoryEventsRequest) (*GetHistoryEventsResponse, error)
 	GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error)
-	// SearchUser 搜索用户
 	SearchUser(context.Context, *SearchUserRequest) (*SearchUserResponse, error)
-	// UpdateReadPosition 更新会话已读位置
 	UpdateReadPosition(context.Context, *UpdateReadPositionRequest) (*UpdateReadPositionResponse, error)
-	// PullInboxDelta 按用户游标增量拉取消息
 	PullInboxDelta(context.Context, *PullInboxDeltaRequest) (*PullInboxDeltaResponse, error)
 	mustEmbedUnimplementedSessionServiceServer()
 }
@@ -352,8 +324,8 @@ func (UnimplementedSessionServiceServer) GetSessionList(context.Context, *GetSes
 func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
 }
-func (UnimplementedSessionServiceServer) GetHistoryMessages(context.Context, *GetHistoryMessagesRequest) (*GetHistoryMessagesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetHistoryMessages not implemented")
+func (UnimplementedSessionServiceServer) GetHistoryEvents(context.Context, *GetHistoryEventsRequest) (*GetHistoryEventsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHistoryEvents not implemented")
 }
 func (UnimplementedSessionServiceServer) GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetContactList not implemented")
@@ -424,20 +396,20 @@ func _SessionService_CreateSession_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SessionService_GetHistoryMessages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetHistoryMessagesRequest)
+func _SessionService_GetHistoryEvents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHistoryEventsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SessionServiceServer).GetHistoryMessages(ctx, in)
+		return srv.(SessionServiceServer).GetHistoryEvents(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: SessionService_GetHistoryMessages_FullMethodName,
+		FullMethod: SessionService_GetHistoryEvents_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SessionServiceServer).GetHistoryMessages(ctx, req.(*GetHistoryMessagesRequest))
+		return srv.(SessionServiceServer).GetHistoryEvents(ctx, req.(*GetHistoryEventsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -530,8 +502,8 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SessionService_CreateSession_Handler,
 		},
 		{
-			MethodName: "GetHistoryMessages",
-			Handler:    _SessionService_GetHistoryMessages_Handler,
+			MethodName: "GetHistoryEvents",
+			Handler:    _SessionService_GetHistoryEvents_Handler,
 		},
 		{
 			MethodName: "GetContactList",

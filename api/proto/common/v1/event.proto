@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package resonance.common.v1;
+
+import "common/v1/message.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
+
+message ChatEvent {
+  int64 event_id = 1;
+  int64 seq_id = 2;
+  string session_id = 3;
+  string from_username = 4;
+  int64 timestamp_ms = 5;
+
+  oneof payload {
+    Message message = 10;
+    MessageRecall recall = 11;
+    MessageEdit edit = 12;
+    ReadReceipt read_receipt = 13;
+    SessionUpdate session_update = 14;
+  }
+}
+
+message MessageRecall {
+  int64 target_event_id = 1;
+}
+
+message MessageEdit {
+  int64 target_event_id = 1;
+  string new_content = 2;
+}
+
+message ReadReceipt {
+  int64 read_upto_seq_id = 1;
+}
+
+message SessionUpdate {
+  SessionUpdateKind kind = 1;
+  string new_name = 2;
+  string new_avatar_url = 3;
+  repeated string affected_members = 4;
+}
+
+enum SessionUpdateKind {
+  SESSION_UPDATE_KIND_UNSPECIFIED = 0;
+  SESSION_UPDATE_KIND_NAME = 1;
+  SESSION_UPDATE_KIND_AVATAR = 2;
+  SESSION_UPDATE_KIND_MEMBER_ADD = 3;
+  SESSION_UPDATE_KIND_MEMBER_KICK = 4;
+}

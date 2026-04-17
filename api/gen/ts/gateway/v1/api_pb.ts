@@ -6,7 +6,8 @@
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
 import { User } from "../../common/v1/types_pb.js";
-import { PushMessage } from "./packet_pb.js";
+import { SessionType } from "../../common/v1/session_pb.js";
+import { ChatEvent } from "../../common/v1/event_pb.js";
 
 /**
  * @generated from message resonance.gateway.v1.LoginRequest
@@ -190,13 +191,6 @@ export class RegisterResponse extends Message<RegisterResponse> {
  * @generated from message resonance.gateway.v1.LogoutRequest
  */
 export class LogoutRequest extends Message<LogoutRequest> {
-  /**
-   * 兼容字段：当前服务端不使用该字段，鉴权由网关中间件处理
-   *
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
   constructor(data?: PartialMessage<LogoutRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -205,7 +199,6 @@ export class LogoutRequest extends Message<LogoutRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.LogoutRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): LogoutRequest {
@@ -266,11 +259,6 @@ export class LogoutResponse extends Message<LogoutResponse> {
  * @generated from message resonance.gateway.v1.GetSessionListRequest
  */
 export class GetSessionListRequest extends Message<GetSessionListRequest> {
-  /**
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
   constructor(data?: PartialMessage<GetSessionListRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -279,7 +267,6 @@ export class GetSessionListRequest extends Message<GetSessionListRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetSessionListRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetSessionListRequest {
@@ -314,9 +301,9 @@ export class SessionInfo extends Message<SessionInfo> {
   name = "";
 
   /**
-   * @generated from field: int32 type = 3;
+   * @generated from field: resonance.common.v1.SessionType type = 3;
    */
-  type = 0;
+  type = SessionType.UNSPECIFIED;
 
   /**
    * @generated from field: string avatar_url = 4;
@@ -334,9 +321,9 @@ export class SessionInfo extends Message<SessionInfo> {
   lastReadSeq = protoInt64.zero;
 
   /**
-   * @generated from field: resonance.gateway.v1.PushMessage last_message = 7;
+   * @generated from field: resonance.common.v1.ChatEvent last_event = 7;
    */
-  lastMessage?: PushMessage;
+  lastEvent?: ChatEvent;
 
   constructor(data?: PartialMessage<SessionInfo>) {
     super();
@@ -348,11 +335,11 @@ export class SessionInfo extends Message<SessionInfo> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "type", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "type", kind: "enum", T: proto3.getEnumType(SessionType) },
     { no: 4, name: "avatar_url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 5, name: "unread_count", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
     { no: 6, name: "last_read_seq", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 7, name: "last_message", kind: "message", T: PushMessage },
+    { no: 7, name: "last_event", kind: "message", T: ChatEvent },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SessionInfo {
@@ -414,24 +401,19 @@ export class GetSessionListResponse extends Message<GetSessionListResponse> {
  */
 export class CreateSessionRequest extends Message<CreateSessionRequest> {
   /**
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
-  /**
-   * @generated from field: repeated string members = 2;
+   * @generated from field: repeated string members = 1;
    */
   members: string[] = [];
 
   /**
-   * @generated from field: string name = 3;
+   * @generated from field: string name = 2;
    */
   name = "";
 
   /**
-   * @generated from field: int32 type = 4;
+   * @generated from field: resonance.common.v1.SessionType type = 3;
    */
-  type = 0;
+  type = SessionType.UNSPECIFIED;
 
   constructor(data?: PartialMessage<CreateSessionRequest>) {
     super();
@@ -441,10 +423,9 @@ export class CreateSessionRequest extends Message<CreateSessionRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.CreateSessionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "members", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
-    { no: 3, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "type", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 1, name: "members", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "type", kind: "enum", T: proto3.getEnumType(SessionType) },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): CreateSessionRequest {
@@ -502,98 +483,88 @@ export class CreateSessionResponse extends Message<CreateSessionResponse> {
 }
 
 /**
- * @generated from message resonance.gateway.v1.GetHistoryMessagesRequest
+ * @generated from message resonance.gateway.v1.GetHistoryEventsRequest
  */
-export class GetHistoryMessagesRequest extends Message<GetHistoryMessagesRequest> {
+export class GetHistoryEventsRequest extends Message<GetHistoryEventsRequest> {
   /**
-   * 兼容字段：当前服务端不使用该字段，鉴权由网关中间件处理
-   *
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
-  /**
-   * @generated from field: string session_id = 2;
+   * @generated from field: string session_id = 1;
    */
   sessionId = "";
 
   /**
-   * @generated from field: int64 limit = 3;
+   * @generated from field: int64 limit = 2;
    */
   limit = protoInt64.zero;
 
   /**
-   * 0=拉最近一页；>0=拉取 seq_id < before_seq 的历史
-   *
-   * @generated from field: int64 before_seq = 4;
+   * @generated from field: int64 before_seq = 3;
    */
   beforeSeq = protoInt64.zero;
 
-  constructor(data?: PartialMessage<GetHistoryMessagesRequest>) {
+  constructor(data?: PartialMessage<GetHistoryEventsRequest>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "resonance.gateway.v1.GetHistoryMessagesRequest";
+  static readonly typeName = "resonance.gateway.v1.GetHistoryEventsRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "limit", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 4, name: "before_seq", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "limit", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "before_seq", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetHistoryMessagesRequest {
-    return new GetHistoryMessagesRequest().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetHistoryEventsRequest {
+    return new GetHistoryEventsRequest().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetHistoryMessagesRequest {
-    return new GetHistoryMessagesRequest().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetHistoryEventsRequest {
+    return new GetHistoryEventsRequest().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetHistoryMessagesRequest {
-    return new GetHistoryMessagesRequest().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetHistoryEventsRequest {
+    return new GetHistoryEventsRequest().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetHistoryMessagesRequest | PlainMessage<GetHistoryMessagesRequest> | undefined, b: GetHistoryMessagesRequest | PlainMessage<GetHistoryMessagesRequest> | undefined): boolean {
-    return proto3.util.equals(GetHistoryMessagesRequest, a, b);
+  static equals(a: GetHistoryEventsRequest | PlainMessage<GetHistoryEventsRequest> | undefined, b: GetHistoryEventsRequest | PlainMessage<GetHistoryEventsRequest> | undefined): boolean {
+    return proto3.util.equals(GetHistoryEventsRequest, a, b);
   }
 }
 
 /**
- * @generated from message resonance.gateway.v1.GetHistoryMessagesResponse
+ * @generated from message resonance.gateway.v1.GetHistoryEventsResponse
  */
-export class GetHistoryMessagesResponse extends Message<GetHistoryMessagesResponse> {
+export class GetHistoryEventsResponse extends Message<GetHistoryEventsResponse> {
   /**
-   * @generated from field: repeated resonance.gateway.v1.PushMessage messages = 1;
+   * @generated from field: repeated resonance.common.v1.ChatEvent events = 1;
    */
-  messages: PushMessage[] = [];
+  events: ChatEvent[] = [];
 
-  constructor(data?: PartialMessage<GetHistoryMessagesResponse>) {
+  constructor(data?: PartialMessage<GetHistoryEventsResponse>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "resonance.gateway.v1.GetHistoryMessagesResponse";
+  static readonly typeName = "resonance.gateway.v1.GetHistoryEventsResponse";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "messages", kind: "message", T: PushMessage, repeated: true },
+    { no: 1, name: "events", kind: "message", T: ChatEvent, repeated: true },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetHistoryMessagesResponse {
-    return new GetHistoryMessagesResponse().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetHistoryEventsResponse {
+    return new GetHistoryEventsResponse().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetHistoryMessagesResponse {
-    return new GetHistoryMessagesResponse().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): GetHistoryEventsResponse {
+    return new GetHistoryEventsResponse().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetHistoryMessagesResponse {
-    return new GetHistoryMessagesResponse().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): GetHistoryEventsResponse {
+    return new GetHistoryEventsResponse().fromJsonString(jsonString, options);
   }
 
-  static equals(a: GetHistoryMessagesResponse | PlainMessage<GetHistoryMessagesResponse> | undefined, b: GetHistoryMessagesResponse | PlainMessage<GetHistoryMessagesResponse> | undefined): boolean {
-    return proto3.util.equals(GetHistoryMessagesResponse, a, b);
+  static equals(a: GetHistoryEventsResponse | PlainMessage<GetHistoryEventsResponse> | undefined, b: GetHistoryEventsResponse | PlainMessage<GetHistoryEventsResponse> | undefined): boolean {
+    return proto3.util.equals(GetHistoryEventsResponse, a, b);
   }
 }
 
@@ -601,11 +572,6 @@ export class GetHistoryMessagesResponse extends Message<GetHistoryMessagesRespon
  * @generated from message resonance.gateway.v1.GetContactListRequest
  */
 export class GetContactListRequest extends Message<GetContactListRequest> {
-  /**
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
   constructor(data?: PartialMessage<GetContactListRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -614,7 +580,6 @@ export class GetContactListRequest extends Message<GetContactListRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.GetContactListRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): GetContactListRequest {
@@ -725,12 +690,7 @@ export class GetContactListResponse extends Message<GetContactListResponse> {
  */
 export class SearchUserRequest extends Message<SearchUserRequest> {
   /**
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
-  /**
-   * @generated from field: string query = 2;
+   * @generated from field: string query = 1;
    */
   query = "";
 
@@ -742,8 +702,7 @@ export class SearchUserRequest extends Message<SearchUserRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.SearchUserRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "query", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchUserRequest {
@@ -805,17 +764,12 @@ export class SearchUserResponse extends Message<SearchUserResponse> {
  */
 export class UpdateReadPositionRequest extends Message<UpdateReadPositionRequest> {
   /**
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
-  /**
-   * @generated from field: string session_id = 2;
+   * @generated from field: string session_id = 1;
    */
   sessionId = "";
 
   /**
-   * @generated from field: int64 seq_id = 3;
+   * @generated from field: int64 seq_id = 2;
    */
   seqId = protoInt64.zero;
 
@@ -827,9 +781,8 @@ export class UpdateReadPositionRequest extends Message<UpdateReadPositionRequest
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.UpdateReadPositionRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 3, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): UpdateReadPositionRequest {
@@ -891,19 +844,12 @@ export class UpdateReadPositionResponse extends Message<UpdateReadPositionRespon
  */
 export class PullInboxDeltaRequest extends Message<PullInboxDeltaRequest> {
   /**
-   * 兼容字段：当前服务端不使用该字段，鉴权由网关中间件处理
-   *
-   * @generated from field: string access_token = 1;
-   */
-  accessToken = "";
-
-  /**
-   * @generated from field: int64 cursor_id = 2;
+   * @generated from field: int64 cursor_id = 1;
    */
   cursorId = protoInt64.zero;
 
   /**
-   * @generated from field: int64 limit = 3;
+   * @generated from field: int64 limit = 2;
    */
   limit = protoInt64.zero;
 
@@ -915,9 +861,8 @@ export class PullInboxDeltaRequest extends Message<PullInboxDeltaRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.PullInboxDeltaRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "access_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "cursor_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 3, name: "limit", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 1, name: "cursor_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "limit", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PullInboxDeltaRequest {
@@ -947,9 +892,9 @@ export class InboxEvent extends Message<InboxEvent> {
   inboxId = protoInt64.zero;
 
   /**
-   * @generated from field: resonance.gateway.v1.PushMessage message = 2;
+   * @generated from field: resonance.common.v1.ChatEvent event = 2;
    */
-  message?: PushMessage;
+  event?: ChatEvent;
 
   constructor(data?: PartialMessage<InboxEvent>) {
     super();
@@ -960,7 +905,7 @@ export class InboxEvent extends Message<InboxEvent> {
   static readonly typeName = "resonance.gateway.v1.InboxEvent";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "inbox_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 2, name: "message", kind: "message", T: PushMessage },
+    { no: 2, name: "event", kind: "message", T: ChatEvent },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): InboxEvent {

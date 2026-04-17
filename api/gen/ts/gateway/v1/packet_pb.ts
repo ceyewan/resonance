@@ -5,57 +5,107 @@
 
 import type { BinaryReadOptions, FieldList, JsonReadOptions, JsonValue, PartialMessage, PlainMessage } from "@bufbuild/protobuf";
 import { Message, proto3, protoInt64 } from "@bufbuild/protobuf";
+import { ChatEvent } from "../../common/v1/event_pb.js";
+import { Message as Message$1 } from "../../common/v1/message_pb.js";
 
 /**
- * WsPacket 是所有 WebSocket 消息的封装
- *
+ * @generated from enum resonance.gateway.v1.StreamFinishReason
+ */
+export enum StreamFinishReason {
+  /**
+   * @generated from enum value: STREAM_FINISH_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: STREAM_FINISH_REASON_STOP = 1;
+   */
+  STOP = 1,
+
+  /**
+   * @generated from enum value: STREAM_FINISH_REASON_LENGTH = 2;
+   */
+  LENGTH = 2,
+
+  /**
+   * @generated from enum value: STREAM_FINISH_REASON_TOOL_CALL = 3;
+   */
+  TOOL_CALL = 3,
+
+  /**
+   * @generated from enum value: STREAM_FINISH_REASON_ERROR = 4;
+   */
+  ERROR = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(StreamFinishReason)
+proto3.util.setEnumType(StreamFinishReason, "resonance.gateway.v1.StreamFinishReason", [
+  { no: 0, name: "STREAM_FINISH_REASON_UNSPECIFIED" },
+  { no: 1, name: "STREAM_FINISH_REASON_STOP" },
+  { no: 2, name: "STREAM_FINISH_REASON_LENGTH" },
+  { no: 3, name: "STREAM_FINISH_REASON_TOOL_CALL" },
+  { no: 4, name: "STREAM_FINISH_REASON_ERROR" },
+]);
+
+/**
  * @generated from message resonance.gateway.v1.WsPacket
  */
 export class WsPacket extends Message<WsPacket> {
   /**
-   * 用于确认的序列号（可选）
-   *
-   * @generated from field: string seq = 1;
+   * @generated from field: string client_seq = 1;
    */
-  seq = "";
+  clientSeq = "";
 
   /**
-   * 消息负载
-   *
    * @generated from oneof resonance.gateway.v1.WsPacket.payload
    */
   payload: {
     /**
-     * 心跳
-     *
      * @generated from field: resonance.gateway.v1.Pulse pulse = 10;
      */
     value: Pulse;
     case: "pulse";
   } | {
     /**
-     * 来自客户端的聊天消息
-     *
-     * @generated from field: resonance.gateway.v1.ChatRequest chat = 11;
-     */
-    value: ChatRequest;
-    case: "chat";
-  } | {
-    /**
-     * 推送给客户端的消息
-     *
-     * @generated from field: resonance.gateway.v1.PushMessage push = 12;
-     */
-    value: PushMessage;
-    case: "push";
-  } | {
-    /**
-     * 确认
-     *
-     * @generated from field: resonance.gateway.v1.Ack ack = 13;
+     * @generated from field: resonance.gateway.v1.Ack ack = 11;
      */
     value: Ack;
     case: "ack";
+  } | {
+    /**
+     * @generated from field: resonance.gateway.v1.ChatRequest chat_request = 20;
+     */
+    value: ChatRequest;
+    case: "chatRequest";
+  } | {
+    /**
+     * @generated from field: resonance.common.v1.ChatEvent event = 30;
+     */
+    value: ChatEvent;
+    case: "event";
+  } | {
+    /**
+     * @generated from field: resonance.gateway.v1.StreamBegin stream_begin = 40;
+     */
+    value: StreamBegin;
+    case: "streamBegin";
+  } | {
+    /**
+     * @generated from field: resonance.gateway.v1.StreamChunk stream_chunk = 41;
+     */
+    value: StreamChunk;
+    case: "streamChunk";
+  } | {
+    /**
+     * @generated from field: resonance.gateway.v1.StreamEnd stream_end = 42;
+     */
+    value: StreamEnd;
+    case: "streamEnd";
+  } | {
+    /**
+     * @generated from field: resonance.gateway.v1.TypingSignal typing = 43;
+     */
+    value: TypingSignal;
+    case: "typing";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<WsPacket>) {
@@ -66,11 +116,15 @@ export class WsPacket extends Message<WsPacket> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.WsPacket";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "seq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 1, name: "client_seq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
     { no: 10, name: "pulse", kind: "message", T: Pulse, oneof: "payload" },
-    { no: 11, name: "chat", kind: "message", T: ChatRequest, oneof: "payload" },
-    { no: 12, name: "push", kind: "message", T: PushMessage, oneof: "payload" },
-    { no: 13, name: "ack", kind: "message", T: Ack, oneof: "payload" },
+    { no: 11, name: "ack", kind: "message", T: Ack, oneof: "payload" },
+    { no: 20, name: "chat_request", kind: "message", T: ChatRequest, oneof: "payload" },
+    { no: 30, name: "event", kind: "message", T: ChatEvent, oneof: "payload" },
+    { no: 40, name: "stream_begin", kind: "message", T: StreamBegin, oneof: "payload" },
+    { no: 41, name: "stream_chunk", kind: "message", T: StreamChunk, oneof: "payload" },
+    { no: 42, name: "stream_end", kind: "message", T: StreamEnd, oneof: "payload" },
+    { no: 43, name: "typing", kind: "message", T: TypingSignal, oneof: "payload" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): WsPacket {
@@ -91,8 +145,6 @@ export class WsPacket extends Message<WsPacket> {
 }
 
 /**
- * Pulse 是心跳信号
- *
  * @generated from message resonance.gateway.v1.Pulse
  */
 export class Pulse extends Message<Pulse> {
@@ -124,55 +176,73 @@ export class Pulse extends Message<Pulse> {
 }
 
 /**
- * ChatRequest 是用户发送的消息
- * 字段编号与 PushMessage 保持一致，方便转换
- *
+ * @generated from message resonance.gateway.v1.Ack
+ */
+export class Ack extends Message<Ack> {
+  /**
+   * @generated from field: string ref_client_seq = 1;
+   */
+  refClientSeq = "";
+
+  /**
+   * @generated from field: int64 event_id = 2;
+   */
+  eventId = protoInt64.zero;
+
+  /**
+   * @generated from field: int64 seq_id = 3;
+   */
+  seqId = protoInt64.zero;
+
+  /**
+   * @generated from field: string session_id = 4;
+   */
+  sessionId = "";
+
+  constructor(data?: PartialMessage<Ack>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "resonance.gateway.v1.Ack";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "ref_client_seq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 3, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 4, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ack {
+    return new Ack().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Ack {
+    return new Ack().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Ack {
+    return new Ack().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: Ack | PlainMessage<Ack> | undefined, b: Ack | PlainMessage<Ack> | undefined): boolean {
+    return proto3.util.equals(Ack, a, b);
+  }
+}
+
+/**
  * @generated from message resonance.gateway.v1.ChatRequest
  */
 export class ChatRequest extends Message<ChatRequest> {
   /**
-   * 1, 2 预留给 id, seq (客户端发送时通常没有)
-   *
-   * 会话ID
-   *
-   * @generated from field: string session_id = 3;
+   * @generated from field: string session_id = 1;
    */
   sessionId = "";
 
   /**
-   * 发送者 (客户端可不填，由网关填充)
-   *
-   * @generated from field: string from_username = 4;
+   * @generated from field: resonance.common.v1.Message message = 2;
    */
-  fromUsername = "";
-
-  /**
-   * 目标用户 (私聊时可能需要)
-   *
-   * @generated from field: string to_username = 5;
-   */
-  toUsername = "";
-
-  /**
-   * 内容
-   *
-   * @generated from field: string content = 6;
-   */
-  content = "";
-
-  /**
-   * 类型
-   *
-   * @generated from field: string type = 7;
-   */
-  type = "";
-
-  /**
-   * timestamp 可选字段，可由网关填充
-   *
-   * @generated from field: int64 timestamp = 8;
-   */
-  timestamp = protoInt64.zero;
+  message?: Message$1;
 
   constructor(data?: PartialMessage<ChatRequest>) {
     super();
@@ -182,12 +252,8 @@ export class ChatRequest extends Message<ChatRequest> {
   static readonly runtime: typeof proto3 = proto3;
   static readonly typeName = "resonance.gateway.v1.ChatRequest";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 3, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "to_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "message", kind: "message", T: Message$1 },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ChatRequest {
@@ -208,230 +274,192 @@ export class ChatRequest extends Message<ChatRequest> {
 }
 
 /**
- * SessionMeta 是会话元数据
- * 用于在推送消息时携带会话信息，避免前端额外查询
- *
- * @generated from message resonance.gateway.v1.SessionMeta
+ * @generated from message resonance.gateway.v1.StreamBegin
  */
-export class SessionMeta extends Message<SessionMeta> {
+export class StreamBegin extends Message<StreamBegin> {
   /**
-   * 会话名称
-   *
-   * @generated from field: string name = 1;
+   * @generated from field: int64 parent_event_id = 1;
    */
-  name = "";
+  parentEventId = protoInt64.zero;
 
   /**
-   * 会话类型：1=单聊, 2=群聊
-   *
-   * @generated from field: int32 type = 2;
+   * @generated from field: string session_id = 2;
    */
-  type = 0;
+  sessionId = "";
 
-  constructor(data?: PartialMessage<SessionMeta>) {
+  /**
+   * @generated from field: string from_username = 3;
+   */
+  fromUsername = "";
+
+  constructor(data?: PartialMessage<StreamBegin>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "resonance.gateway.v1.SessionMeta";
+  static readonly typeName = "resonance.gateway.v1.StreamBegin";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "type", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 1, name: "parent_event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SessionMeta {
-    return new SessionMeta().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StreamBegin {
+    return new StreamBegin().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): SessionMeta {
-    return new SessionMeta().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StreamBegin {
+    return new StreamBegin().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): SessionMeta {
-    return new SessionMeta().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StreamBegin {
+    return new StreamBegin().fromJsonString(jsonString, options);
   }
 
-  static equals(a: SessionMeta | PlainMessage<SessionMeta> | undefined, b: SessionMeta | PlainMessage<SessionMeta> | undefined): boolean {
-    return proto3.util.equals(SessionMeta, a, b);
+  static equals(a: StreamBegin | PlainMessage<StreamBegin> | undefined, b: StreamBegin | PlainMessage<StreamBegin> | undefined): boolean {
+    return proto3.util.equals(StreamBegin, a, b);
   }
 }
 
 /**
- * PushMessage 是推送给用户的消息
- *
- * @generated from message resonance.gateway.v1.PushMessage
+ * @generated from message resonance.gateway.v1.StreamChunk
  */
-export class PushMessage extends Message<PushMessage> {
+export class StreamChunk extends Message<StreamChunk> {
   /**
-   * 全局唯一物理ID (Snowflake)
-   *
-   * @generated from field: int64 msg_id = 1;
+   * @generated from field: int64 parent_event_id = 1;
    */
-  msgId = protoInt64.zero;
+  parentEventId = protoInt64.zero;
 
   /**
-   * 会话内逻辑时钟
-   *
-   * @generated from field: int64 seq_id = 2;
+   * @generated from field: int32 sequence = 2;
    */
-  seqId = protoInt64.zero;
+  sequence = 0;
 
   /**
-   * 会话ID
-   *
-   * @generated from field: string session_id = 3;
+   * @generated from field: string delta = 3;
+   */
+  delta = "";
+
+  constructor(data?: PartialMessage<StreamChunk>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "resonance.gateway.v1.StreamChunk";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "parent_event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "sequence", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 3, name: "delta", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StreamChunk {
+    return new StreamChunk().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StreamChunk {
+    return new StreamChunk().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StreamChunk {
+    return new StreamChunk().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StreamChunk | PlainMessage<StreamChunk> | undefined, b: StreamChunk | PlainMessage<StreamChunk> | undefined): boolean {
+    return proto3.util.equals(StreamChunk, a, b);
+  }
+}
+
+/**
+ * @generated from message resonance.gateway.v1.StreamEnd
+ */
+export class StreamEnd extends Message<StreamEnd> {
+  /**
+   * @generated from field: int64 parent_event_id = 1;
+   */
+  parentEventId = protoInt64.zero;
+
+  /**
+   * @generated from field: resonance.gateway.v1.StreamFinishReason reason = 2;
+   */
+  reason = StreamFinishReason.UNSPECIFIED;
+
+  constructor(data?: PartialMessage<StreamEnd>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "resonance.gateway.v1.StreamEnd";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "parent_event_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
+    { no: 2, name: "reason", kind: "enum", T: proto3.getEnumType(StreamFinishReason) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): StreamEnd {
+    return new StreamEnd().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): StreamEnd {
+    return new StreamEnd().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): StreamEnd {
+    return new StreamEnd().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: StreamEnd | PlainMessage<StreamEnd> | undefined, b: StreamEnd | PlainMessage<StreamEnd> | undefined): boolean {
+    return proto3.util.equals(StreamEnd, a, b);
+  }
+}
+
+/**
+ * @generated from message resonance.gateway.v1.TypingSignal
+ */
+export class TypingSignal extends Message<TypingSignal> {
+  /**
+   * @generated from field: string session_id = 1;
    */
   sessionId = "";
 
   /**
-   * 发送者
-   *
-   * @generated from field: string from_username = 4;
+   * @generated from field: string from_username = 2;
    */
   fromUsername = "";
 
   /**
-   * 接收者/目标用户
-   *
-   * @generated from field: string to_username = 5;
+   * @generated from field: bool is_typing = 3;
    */
-  toUsername = "";
+  isTyping = false;
 
-  /**
-   * 内容
-   *
-   * @generated from field: string content = 6;
-   */
-  content = "";
-
-  /**
-   * 类型
-   *
-   * @generated from field: string type = 7;
-   */
-  type = "";
-
-  /**
-   * 时间戳
-   *
-   * @generated from field: int64 timestamp = 8;
-   */
-  timestamp = protoInt64.zero;
-
-  /**
-   * 会话元数据（首次推送时携带）
-   *
-   * @generated from field: resonance.gateway.v1.SessionMeta session_meta = 10;
-   */
-  sessionMeta?: SessionMeta;
-
-  constructor(data?: PartialMessage<PushMessage>) {
+  constructor(data?: PartialMessage<TypingSignal>) {
     super();
     proto3.util.initPartial(data, this);
   }
 
   static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "resonance.gateway.v1.PushMessage";
+  static readonly typeName = "resonance.gateway.v1.TypingSignal";
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "msg_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 2, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 3, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 4, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "to_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 6, name: "content", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 7, name: "type", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 8, name: "timestamp", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 10, name: "session_meta", kind: "message", T: SessionMeta },
+    { no: 1, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "from_username", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "is_typing", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
   ]);
 
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): PushMessage {
-    return new PushMessage().fromBinary(bytes, options);
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): TypingSignal {
+    return new TypingSignal().fromBinary(bytes, options);
   }
 
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): PushMessage {
-    return new PushMessage().fromJson(jsonValue, options);
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): TypingSignal {
+    return new TypingSignal().fromJson(jsonValue, options);
   }
 
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): PushMessage {
-    return new PushMessage().fromJsonString(jsonString, options);
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): TypingSignal {
+    return new TypingSignal().fromJsonString(jsonString, options);
   }
 
-  static equals(a: PushMessage | PlainMessage<PushMessage> | undefined, b: PushMessage | PlainMessage<PushMessage> | undefined): boolean {
-    return proto3.util.equals(PushMessage, a, b);
-  }
-}
-
-/**
- * Ack 是可靠交付的确认
- *
- * @generated from message resonance.gateway.v1.Ack
- */
-export class Ack extends Message<Ack> {
-  /**
-   * 引用的序列号（客户端生成的临时 ID）
-   *
-   * @generated from field: string ref_seq = 1;
-   */
-  refSeq = "";
-
-  /**
-   * 服务端生成的消息 ID
-   *
-   * @generated from field: int64 msg_id = 2;
-   */
-  msgId = protoInt64.zero;
-
-  /**
-   * 会话内的序列 ID
-   *
-   * @generated from field: int64 seq_id = 3;
-   */
-  seqId = protoInt64.zero;
-
-  /**
-   * 所属会话
-   *
-   * @generated from field: string session_id = 4;
-   */
-  sessionId = "";
-
-  /**
-   * 失败原因（为空表示成功）
-   *
-   * @generated from field: string error = 5;
-   */
-  error = "";
-
-  constructor(data?: PartialMessage<Ack>) {
-    super();
-    proto3.util.initPartial(data, this);
-  }
-
-  static readonly runtime: typeof proto3 = proto3;
-  static readonly typeName = "resonance.gateway.v1.Ack";
-  static readonly fields: FieldList = proto3.util.newFieldList(() => [
-    { no: 1, name: "ref_seq", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 2, name: "msg_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 3, name: "seq_id", kind: "scalar", T: 3 /* ScalarType.INT64 */ },
-    { no: 4, name: "session_id", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-    { no: 5, name: "error", kind: "scalar", T: 9 /* ScalarType.STRING */ },
-  ]);
-
-  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): Ack {
-    return new Ack().fromBinary(bytes, options);
-  }
-
-  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): Ack {
-    return new Ack().fromJson(jsonValue, options);
-  }
-
-  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): Ack {
-    return new Ack().fromJsonString(jsonString, options);
-  }
-
-  static equals(a: Ack | PlainMessage<Ack> | undefined, b: Ack | PlainMessage<Ack> | undefined): boolean {
-    return proto3.util.equals(Ack, a, b);
+  static equals(a: TypingSignal | PlainMessage<TypingSignal> | undefined, b: TypingSignal | PlainMessage<TypingSignal> | undefined): boolean {
+    return proto3.util.equals(TypingSignal, a, b);
   }
 }
 

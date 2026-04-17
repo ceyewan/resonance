@@ -19,18 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ChatService_SendMessage_FullMethodName = "/resonance.logic.v1.ChatService/SendMessage"
+	ChatService_SendEvent_FullMethodName = "/resonance.logic.v1.ChatService/SendEvent"
 )
 
 // ChatServiceClient is the client API for ChatService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
 type ChatServiceClient interface {
-	// SendMessage 处理来自网关的上行消息 (Unary 调用)
-	// Gateway 发送消息，Logic 返回处理结果（Response 即为 ACK）
-	SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error)
+	SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error)
 }
 
 type chatServiceClient struct {
@@ -41,10 +37,10 @@ func NewChatServiceClient(cc grpc.ClientConnInterface) ChatServiceClient {
 	return &chatServiceClient{cc}
 }
 
-func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequest, opts ...grpc.CallOption) (*SendMessageResponse, error) {
+func (c *chatServiceClient) SendEvent(ctx context.Context, in *SendEventRequest, opts ...grpc.CallOption) (*SendEventResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SendMessageResponse)
-	err := c.cc.Invoke(ctx, ChatService_SendMessage_FullMethodName, in, out, cOpts...)
+	out := new(SendEventResponse)
+	err := c.cc.Invoke(ctx, ChatService_SendEvent_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -54,12 +50,8 @@ func (c *chatServiceClient) SendMessage(ctx context.Context, in *SendMessageRequ
 // ChatServiceServer is the server API for ChatService service.
 // All implementations must embed UnimplementedChatServiceServer
 // for forward compatibility.
-//
-// ChatService 处理聊天相关的请求，上行消息由网关转发到 Logic
 type ChatServiceServer interface {
-	// SendMessage 处理来自网关的上行消息 (Unary 调用)
-	// Gateway 发送消息，Logic 返回处理结果（Response 即为 ACK）
-	SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error)
+	SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error)
 	mustEmbedUnimplementedChatServiceServer()
 }
 
@@ -70,8 +62,8 @@ type ChatServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedChatServiceServer struct{}
 
-func (UnimplementedChatServiceServer) SendMessage(context.Context, *SendMessageRequest) (*SendMessageResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendMessage not implemented")
+func (UnimplementedChatServiceServer) SendEvent(context.Context, *SendEventRequest) (*SendEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendEvent not implemented")
 }
 func (UnimplementedChatServiceServer) mustEmbedUnimplementedChatServiceServer() {}
 func (UnimplementedChatServiceServer) testEmbeddedByValue()                     {}
@@ -94,20 +86,20 @@ func RegisterChatServiceServer(s grpc.ServiceRegistrar, srv ChatServiceServer) {
 	s.RegisterService(&ChatService_ServiceDesc, srv)
 }
 
-func _ChatService_SendMessage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendMessageRequest)
+func _ChatService_SendEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SendEventRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ChatServiceServer).SendMessage(ctx, in)
+		return srv.(ChatServiceServer).SendEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ChatService_SendMessage_FullMethodName,
+		FullMethod: ChatService_SendEvent_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ChatServiceServer).SendMessage(ctx, req.(*SendMessageRequest))
+		return srv.(ChatServiceServer).SendEvent(ctx, req.(*SendEventRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -120,8 +112,8 @@ var ChatService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ChatServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "SendMessage",
-			Handler:    _ChatService_SendMessage_Handler,
+			MethodName: "SendEvent",
+			Handler:    _ChatService_SendEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

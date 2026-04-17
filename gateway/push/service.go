@@ -18,57 +18,32 @@ type Service struct {
 	logger  clog.Logger
 }
 
-// NewService 创建推送服务
 func NewService(connMgr *connection.Manager, logger clog.Logger) *Service {
-	return &Service{
-		connMgr: connMgr,
-		logger:  logger,
-	}
+	return &Service{connMgr: connMgr, logger: logger}
 }
 
-// Push 实现 PushService.Push（一元 RPC）
-// 接收 Task 推送的消息，分发给本 Gateway 的在线用户
-func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewayv1.PushResponse, error) {
+// PushEvent 实现 PushService.PushEvent（一元 RPC）
+func (s *Service) PushEvent(ctx context.Context, req *gatewayv1.PushEventRequest) (*gatewayv1.PushEventResponse, error) {
 	startTime := time.Now()
-	message := req.Message
 	failedUsernames := make([]string, 0)
 
-	s.logger.Debug("received push request",
-		clog.Int64("msg_id", message.MsgId),
-		clog.Int("user_count", len(req.ToUsernames)))
-
-	// 1. 构造 WebSocket 包
 	packet := &gatewayv1.WsPacket{
-		Payload: &gatewayv1.WsPacket_Push{
-			Push: message,
-		},
+		Payload: &gatewayv1.WsPacket_Event{Event: req.Event},
 	}
 
-	// 2. 循环分发
 	for _, username := range req.ToUsernames {
 		conn, ok := s.connMgr.GetConnection(username)
 		if !ok {
-			// 用户不在线
 			failedUsernames = append(failedUsernames, username)
 			continue
 		}
-
-		// 发送到 WebSocket 连接
 		if err := conn.Send(packet); err != nil {
-			s.logger.Error("failed to send message to user",
-				clog.String("username", username),
-				clog.Error(err))
+			s.logger.Error("failed to send event to user", clog.String("username", username), clog.Error(err))
 			failedUsernames = append(failedUsernames, username)
 		}
 	}
 
 	successCount := len(req.ToUsernames) - len(failedUsernames)
-	s.logger.Debug("push completed",
-		clog.Int64("msg_id", message.MsgId),
-		clog.Int("success_count", successCount),
-		clog.Int("failed_count", len(failedUsernames)))
-
-	// 记录指标
 	duration := time.Since(startTime)
 	observability.RecordGRPCRequest(ctx)
 	observability.RecordGRPCRequestDuration(ctx, duration)
@@ -77,13 +52,44 @@ func (s *Service) Push(ctx context.Context, req *gatewayv1.PushRequest) (*gatewa
 		observability.RecordPushFailed(ctx, len(failedUsernames))
 	}
 
-	return &gatewayv1.PushResponse{
-		MsgId:           message.MsgId,
+	return &gatewayv1.PushEventResponse{
+		EventId:         req.Event.GetEventId(),
 		FailedUsernames: failedUsernames,
 	}, nil
 }
 
-// RegisterGRPC 注册 gRPC 服务
+// PushStream 实现 PushService.PushStream（一元 RPC）
+func (s *Service) PushStream(ctx context.Context, req *gatewayv1.PushStreamRequest) (*gatewayv1.PushStreamResponse, error) {
+	failedUsernames := make([]string, 0)
+
+	packet := &gatewayv1.WsPacket{}
+	switch p := req.Payload.(type) {
+	case *gatewayv1.PushStreamRequest_StreamBegin:
+		packet.Payload = &gatewayv1.WsPacket_StreamBegin{StreamBegin: p.StreamBegin}
+	case *gatewayv1.PushStreamRequest_StreamChunk:
+		packet.Payload = &gatewayv1.WsPacket_StreamChunk{StreamChunk: p.StreamChunk}
+	case *gatewayv1.PushStreamRequest_StreamEnd:
+		packet.Payload = &gatewayv1.WsPacket_StreamEnd{StreamEnd: p.StreamEnd}
+	case *gatewayv1.PushStreamRequest_Typing:
+		packet.Payload = &gatewayv1.WsPacket_Typing{Typing: p.Typing}
+	default:
+		return &gatewayv1.PushStreamResponse{}, nil
+	}
+
+	for _, username := range req.ToUsernames {
+		conn, ok := s.connMgr.GetConnection(username)
+		if !ok {
+			failedUsernames = append(failedUsernames, username)
+			continue
+		}
+		if err := conn.Send(packet); err != nil {
+			failedUsernames = append(failedUsernames, username)
+		}
+	}
+
+	return &gatewayv1.PushStreamResponse{FailedUsernames: failedUsernames}, nil
+}
+
 func (s *Service) RegisterGRPC(server *grpc.Server) {
 	gatewayv1.RegisterPushServiceServer(server, s)
 }

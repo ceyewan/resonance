@@ -3,15 +3,16 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
-	"github.com/ceyewan/resonance/logic/observability"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -38,7 +39,7 @@ type PublishMessageToMQResult struct {
 func PublishMessageToMQ(
 	ctx context.Context,
 	messageRepo repo.MessageRepo,
-	event *mqv1.PushEvent,
+	event *mqv1.MQEvent,
 	msgContent *model.MessageContent,
 	logger clog.Logger,
 ) (*PublishMessageToMQResult, error) {
@@ -49,7 +50,7 @@ func PublishMessageToMQ(
 	// 2. Marshal 事件
 	eventData, err := proto.Marshal(event)
 	if err != nil {
-		return nil, fmt.Errorf("marshal push event: %w", err)
+		return nil, fmt.Errorf("marshal mq event: %w", err)
 	}
 
 	// 3. 获取 Topic (从 protobuf 扩展字段)
@@ -74,6 +75,38 @@ func PublishMessageToMQ(
 		Topic:     topic,
 		EventData: eventData,
 	}, nil
+}
+
+func parseMessageType(raw string) commonv1.MessageType {
+	switch strings.ToLower(raw) {
+	case "text":
+		return commonv1.MessageType_MESSAGE_TYPE_TEXT
+	case "image":
+		return commonv1.MessageType_MESSAGE_TYPE_IMAGE
+	case "file":
+		return commonv1.MessageType_MESSAGE_TYPE_FILE
+	case "system":
+		return commonv1.MessageType_MESSAGE_TYPE_SYSTEM
+	default:
+		return commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
+	}
+}
+
+func formatMessageType(t commonv1.MessageType) string {
+	switch t {
+	case commonv1.MessageType_MESSAGE_TYPE_TEXT:
+		return "text"
+	case commonv1.MessageType_MESSAGE_TYPE_IMAGE:
+		return "image"
+	case commonv1.MessageType_MESSAGE_TYPE_FILE:
+		return "file"
+	case commonv1.MessageType_MESSAGE_TYPE_SYSTEM:
+		return "system"
+	case commonv1.MessageType_MESSAGE_TYPE_AI_STREAM:
+		return "ai_stream"
+	default:
+		return "text"
+	}
 }
 
 // PublishMessageToMQAsync 异步发布消息到 MQ (Look-aside 优化)

@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ChatService 聊天服务
@@ -42,40 +46,48 @@ func NewChatService(
 	}
 }
 
-// SendMessage 实现 ChatService.SendMessage（Unary 调用）
-func (s *ChatService) SendMessage(ctx context.Context, req *logicv1.SendMessageRequest) (*logicv1.SendMessageResponse, error) {
+// SendEvent 实现 ChatService.SendEvent（Unary 调用）
+func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventRequest) (*logicv1.SendEventResponse, error) {
+	username, err := usernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	s.logger.Debug("handling message",
-		clog.String("from", req.FromUsername),
+		clog.String("from", username),
 		clog.String("session_id", req.SessionId))
 
 	// 获取会话成员
 	members, err := s.sessionRepo.GetMembers(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to get session members", clog.Error(err))
-		return &logicv1.SendMessageResponse{
-			Error: "failed to get session members",
-		}, nil
+		return nil, err
 	}
 
 	// 检查发送者是否在会话中
 	isMember := false
+	targetUsernames := make([]string, 0, len(members))
 	for _, m := range members {
-		if m.Username == req.FromUsername {
+		targetUsernames = append(targetUsernames, m.Username)
+		if m.Username == username {
 			isMember = true
-			break
 		}
 	}
 	if !isMember {
 		s.logger.Warn("user is not session member",
-			clog.String("username", req.FromUsername),
+			clog.String("username", username),
 			clog.String("session_id", req.SessionId))
-		return &logicv1.SendMessageResponse{
-			Error: "not a session member",
-		}, nil
+		return nil, status.Errorf(codes.PermissionDenied, "not a session member")
 	}
 
-	// 生成消息 ID (Snowflake)
-	msgID := s.idGen.Next()
+	// 当前阶段仅落地 message payload
+	msgPayload := req.GetMessage()
+	if msgPayload == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "only message payload is supported in phase 1")
+	}
+
+	// 生成 event ID (Snowflake)
+	eventID := s.idGen.Next()
 
 	// Redis 计数器初始化
 	// 当 Redis 中没有 session 的 seq key 时，sequencer.Next 会从 1 开始
@@ -92,55 +104,53 @@ func (s *ChatService) SendMessage(ctx context.Context, req *logicv1.SendMessageR
 	seqID, err := s.sequencer.Next(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to generate seq id", clog.Error(err), clog.String("session_id", req.SessionId))
-		return &logicv1.SendMessageResponse{
-			MsgId: msgID,
-			Error: "server busy: failed to generate sequence",
-		}, nil
+		return nil, status.Errorf(codes.Unavailable, "server busy: failed to generate sequence")
 	}
+	timestampMs := time.Now().UnixMilli()
 
 	// 保存消息到数据库
 	msgContent := &model.MessageContent{
-		MsgID:          msgID,
+		MsgID:          eventID,
 		SessionID:      req.SessionId,
-		SenderUsername: req.FromUsername,
+		SenderUsername: username,
 		SeqID:          seqID,
-		Content:        req.Content,
-		MsgType:        req.Type,
+		Content:        msgPayload.Content,
+		MsgType:        formatMessageType(msgPayload.Type),
 	}
 
 	// 准备 MQ 事件
-	event := &mqv1.PushEvent{
-		MsgId:        msgID,
+	chatEvent := &commonv1.ChatEvent{
+		EventId:      eventID,
 		SeqId:        seqID,
 		SessionId:    req.SessionId,
-		FromUsername: req.FromUsername,
-		ToUsername:   req.ToUsername,
-		Content:      req.Content,
-		Type:         req.Type,
-		Timestamp:    req.Timestamp,
+		FromUsername: username,
+		TimestampMs:  timestampMs,
+		Payload: &commonv1.ChatEvent_Message{
+			Message: msgPayload,
+		},
+	}
+	event := &mqv1.MQEvent{
+		Event:           chatEvent,
+		TargetUsernames: targetUsernames,
 	}
 
 	// 发布消息到 MQ 并保存到 Outbox
 	result, err := PublishMessageToMQ(ctx, s.messageRepo, event, msgContent, s.logger)
 	if err != nil {
 		s.logger.Error("failed to publish message to mq", clog.Error(err))
-		return &logicv1.SendMessageResponse{
-			MsgId: msgID,
-			SeqId: seqID,
-			Error: "failed to save message",
-		}, nil
+		return nil, status.Errorf(codes.Internal, "failed to save message")
 	}
 
 	// 立即尝试发布到 MQ (Look-aside 优化)
 	PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
 
 	s.logger.Info("message processed successfully",
-		clog.Int64("msg_id", msgID),
+		clog.Int64("event_id", eventID),
 		clog.Int64("seq_id", seqID))
 
-	return &logicv1.SendMessageResponse{
-		MsgId: msgID,
-		SeqId: seqID,
-		Error: "",
+	return &logicv1.SendEventResponse{
+		EventId:     eventID,
+		SeqId:       seqID,
+		TimestampMs: timestampMs,
 	}, nil
 }

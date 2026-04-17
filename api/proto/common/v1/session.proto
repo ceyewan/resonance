@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package resonance.common.v1;
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
+
+enum SessionType {
+  SESSION_TYPE_UNSPECIFIED = 0;
+  SESSION_TYPE_DIRECT = 1;
+  SESSION_TYPE_GROUP = 2;
+  SESSION_TYPE_AI = 3;
+}
+
+message SessionMeta {
+  string name = 1;
+  SessionType type = 2;
+  string avatar_url = 3;
+}

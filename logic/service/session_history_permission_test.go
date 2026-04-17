@@ -12,6 +12,7 @@ import (
 	"github.com/ceyewan/resonance/repo"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -107,7 +108,7 @@ func (r *testUserRepo) SearchUsers(ctx context.Context, query string) ([]*model.
 func (r *testUserRepo) UpdateUser(ctx context.Context, user *model.User) error { return nil }
 func (r *testUserRepo) Close() error                                           { return nil }
 
-func TestSessionService_GetHistoryMessages_DeniedForNonMember(t *testing.T) {
+func TestSessionService_GetHistoryEvents_DeniedForNonMember(t *testing.T) {
 	sessionRepo := &testSessionRepo{
 		getUserSessionFn: func(ctx context.Context, username, sessionID string) (*model.SessionMember, error) {
 			return nil, fmt.Errorf("user session not found: username=%s, session_id=%s", username, sessionID)
@@ -118,8 +119,8 @@ func TestSessionService_GetHistoryMessages_DeniedForNonMember(t *testing.T) {
 
 	svc := NewSessionService(sessionRepo, messageRepo, &testUserRepo{}, nil, nil, nil, nil, logger)
 
-	_, err := svc.GetHistoryMessages(context.Background(), &logicv1.GetHistoryMessagesRequest{
-		Username:  "mallory",
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-username", "mallory"))
+	_, err := svc.GetHistoryEvents(ctx, &logicv1.GetHistoryEventsRequest{
 		SessionId: "s_123",
 		Limit:     20,
 	})

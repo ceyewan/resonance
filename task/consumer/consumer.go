@@ -17,7 +17,7 @@ import (
 )
 
 // HandlerFunc 消息处理函数
-type HandlerFunc func(context.Context, *mqv1.PushEvent) error
+type HandlerFunc func(context.Context, *mqv1.MQEvent) error
 
 // Consumer MQ 消费者
 type Consumer struct {
@@ -163,10 +163,10 @@ func (c *Consumer) drainJobs(workerID int) {
 func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 	start := time.Now()
 
-	// 1. 解析 PushEvent
-	event := &mqv1.PushEvent{}
+	// 1. 解析 MQEvent
+	event := &mqv1.MQEvent{}
 	if err := proto.Unmarshal(msg.Data(), event); err != nil {
-		c.logger.Error("failed to unmarshal push event",
+		c.logger.Error("failed to unmarshal mq event",
 			clog.Int("data_len", len(msg.Data())),
 			clog.Error(err))
 
@@ -194,20 +194,20 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		spanName = "consumer." + c.name + ".process"
 	}
 	ctx, endSpan := observability.StartSpan(ctx, spanName,
-		attribute.Int64("msg_id", event.MsgId),
-		attribute.String("session_id", event.SessionId),
-		attribute.String("from_username", event.FromUsername),
+		attribute.Int64("event_id", event.GetEvent().GetEventId()),
+		attribute.String("session_id", event.GetEvent().GetSessionId()),
+		attribute.String("from_username", event.GetEvent().GetFromUsername()),
 	)
 	defer endSpan()
 
-	c.logger.Debug("processing push event",
-		clog.Int64("msg_id", event.MsgId),
-		clog.String("session_id", event.SessionId))
+	c.logger.Debug("processing mq event",
+		clog.Int64("event_id", event.GetEvent().GetEventId()),
+		clog.String("session_id", event.GetEvent().GetSessionId()))
 
 	// 4. 处理消息（带重试）
 	if err := c.processWithRetry(ctx, event); err != nil {
 		c.logger.Error("failed to process push event after retries",
-			clog.Int64("msg_id", event.MsgId),
+			clog.Int64("event_id", event.GetEvent().GetEventId()),
 			clog.Error(err))
 
 		// 记录失败指标
@@ -219,8 +219,8 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 
 	// 5. 处理成功，Ack 确认
 	msg.Ack()
-	c.logger.Debug("push event processed successfully",
-		clog.Int64("msg_id", event.MsgId))
+	c.logger.Debug("mq event processed successfully",
+		clog.Int64("event_id", event.GetEvent().GetEventId()))
 
 	// 记录成功指标
 	c.recordMetrics(ctx, start, "success", nil)
@@ -229,13 +229,13 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 }
 
 // processWithRetry 带重试的处理逻辑
-func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.PushEvent) error {
+func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.MQEvent) error {
 	var lastErr error
 
 	for i := 0; i < c.config.MaxRetry; i++ {
 		if i > 0 {
-			c.logger.Warn("retrying push event",
-				clog.Int64("msg_id", event.MsgId),
+			c.logger.Warn("retrying mq event",
+				clog.Int64("event_id", event.GetEvent().GetEventId()),
 				clog.Int("attempt", i+1),
 				clog.Int("max_retry", c.config.MaxRetry))
 			time.Sleep(time.Duration(c.config.RetryInterval) * time.Second)
