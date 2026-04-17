@@ -48,7 +48,7 @@ func NewChatService(
 
 // SendEvent 实现 ChatService.SendEvent（Unary 调用）
 func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventRequest) (*logicv1.SendEventResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	members, err := s.sessionRepo.GetMembers(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to get session members", clog.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "failed to get session members")
 	}
 
 	// 检查发送者是否在会话中

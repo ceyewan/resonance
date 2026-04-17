@@ -199,13 +199,6 @@ func (b *StatusBatcher) flush() {
 		return
 	}
 
-	if resp.Error != "" {
-		b.logger.Error("sync status returned error",
-			clog.String("error", resp.Error),
-			clog.Int64("seq_id", resp.SeqId))
-		return
-	}
-
 	b.logger.Debug("status synced successfully",
 		clog.Int("online_count", len(onlineBatch)),
 		clog.Int("offline_count", len(offlineBatch)),

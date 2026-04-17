@@ -50,6 +50,7 @@ func (s *GRPCServer) Start() error {
 	s.server = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			s.recoveryUnaryInterceptor,
+			s.authUnaryInterceptor,
 			s.loggerUnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(

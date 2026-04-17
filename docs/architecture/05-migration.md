@@ -124,6 +124,13 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 
 **目标**:删除 body 里的死字段,错误用 gRPC status。
 
+**当前状态(2026-04-17)**:后端已完成收口并通过 `go test ./...`。
+- Gateway -> Logic 调用统一注入 `x-username` metadata
+- Logic 新增 auth unary interceptor,统一把 metadata username 注入 context
+- Service 层改为 `MustUsernameFromCtx` 取身份
+- Gateway API 层改为按 gRPC status code 映射 Connect error code
+- Presence 协议与实现已移除响应体 `error` 字段
+
 ### 4.1 任务
 
 1. **Gateway → Logic 注入 metadata**

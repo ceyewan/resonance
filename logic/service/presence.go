@@ -56,7 +56,6 @@ func (s *PresenceService) SyncStatus(ctx context.Context, req *logicv1.SyncStatu
 
 	return &logicv1.SyncStatusResponse{
 		SeqId: req.SeqId,
-		Error: "", // 这里简单返回空，实际可以聚合错误信息
 	}, nil
 }
 

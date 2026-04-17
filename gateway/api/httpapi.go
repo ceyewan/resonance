@@ -59,7 +59,7 @@ func (h *HTTPHandler) Login(
 	logicResp, err := h.logicClient.Login(ctx, logicReq)
 	if err != nil {
 		h.logger.Error("login failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	resp := &gatewayv1.LoginResponse{
@@ -86,7 +86,7 @@ func (h *HTTPHandler) Register(
 	logicResp, err := h.logicClient.Register(ctx, logicReq)
 	if err != nil {
 		h.logger.Error("register failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	resp := &gatewayv1.RegisterResponse{
@@ -128,7 +128,7 @@ func (h *HTTPHandler) GetSessionList(
 	logicResp, err := h.logicClient.GetSessionList(ctx, username)
 	if err != nil {
 		h.logger.Error("get session list failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	sessions := make([]*gatewayv1.SessionInfo, len(logicResp.Sessions))
@@ -170,7 +170,7 @@ func (h *HTTPHandler) CreateSession(
 	logicResp, err := h.logicClient.CreateSession(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("create session failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	resp := &gatewayv1.CreateSessionResponse{
@@ -199,7 +199,7 @@ func (h *HTTPHandler) GetHistoryEvents(
 	logicResp, err := h.logicClient.GetHistoryEvents(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("get history events failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	resp := &gatewayv1.GetHistoryEventsResponse{
@@ -222,7 +222,7 @@ func (h *HTTPHandler) GetContactList(
 	logicResp, err := h.logicClient.GetContactList(ctx, username)
 	if err != nil {
 		h.logger.Error("get contact list failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	contacts := make([]*gatewayv1.ContactInfo, len(logicResp.Contacts))
@@ -254,7 +254,7 @@ func (h *HTTPHandler) SearchUser(
 	logicResp, err := h.logicClient.SearchUser(ctx, username, req.Msg.Query)
 	if err != nil {
 		h.logger.Error("search user failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	users := make([]*gatewayv1.ContactInfo, len(logicResp.Users))
@@ -291,7 +291,7 @@ func (h *HTTPHandler) UpdateReadPosition(
 	logicResp, err := h.logicClient.UpdateReadPosition(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("update read position failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	resp := &gatewayv1.UpdateReadPositionResponse{
@@ -319,7 +319,7 @@ func (h *HTTPHandler) PullInboxDelta(
 	logicResp, err := h.logicClient.PullInboxDelta(ctx, username, logicReq)
 	if err != nil {
 		h.logger.Error("pull inbox delta failed", clog.Error(err))
-		return nil, connect.NewError(connect.CodeInternal, err)
+		return nil, toConnectError(err)
 	}
 
 	events := make([]*gatewayv1.InboxEvent, 0, len(logicResp.Events))

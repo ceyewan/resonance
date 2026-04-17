@@ -33,5 +33,4 @@ message UserOffline {
 
 message SyncStatusResponse {
   int64 seq_id = 1; // 确认的序列号
-  string error = 2; // 错误信息
 }

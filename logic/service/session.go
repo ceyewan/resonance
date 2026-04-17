@@ -56,7 +56,7 @@ func NewSessionService(
 
 // GetSessionList 实现 SessionService.GetSessionList
 func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSessionListRequest) (*logicv1.GetSessionListResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 
 // CreateSession 实现 SessionService.CreateSession
 func (s *SessionService) CreateSession(ctx context.Context, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error) {
-	creatorUsername, err := usernameFromContext(ctx)
+	creatorUsername, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func (s *SessionService) buildSystemMessageContent(ctx context.Context, creatorU
 
 // GetHistoryEvents 实现 SessionService.GetHistoryEvents
 func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetH
 
 // GetContactList 实现 SessionService.GetContactList
 func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetContactListRequest) (*logicv1.GetContactListResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -351,7 +351,7 @@ func (s *SessionService) GetContactList(ctx context.Context, req *logicv1.GetCon
 
 // SearchUser 实现 SessionService.SearchUser
 func (s *SessionService) SearchUser(ctx context.Context, req *logicv1.SearchUserRequest) (*logicv1.SearchUserResponse, error) {
-	if _, err := usernameFromContext(ctx); err != nil {
+	if _, err := MustUsernameFromCtx(ctx); err != nil {
 		return nil, err
 	}
 
@@ -386,7 +386,7 @@ func (s *SessionService) generateGroupChatID() string {
 
 // UpdateReadPosition 实现 SessionService.UpdateReadPosition
 func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +412,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 
 // PullInboxDelta 实现 SessionService.PullInboxDelta
 func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
-	username, err := usernameFromContext(ctx)
+	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
 		return nil, err
 	}
