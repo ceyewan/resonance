@@ -184,7 +184,7 @@ func (c *Config) GetLogicServiceName() string {
 }
 
 // Load 创建并加载 Gateway 配置（无参数）
-// 配置加载顺序：环境变量 > .env > gateway.{env}.yaml > gateway.yaml
+// 配置加载顺序：环境变量 > .env > gateway.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
 		Name:      "gateway",

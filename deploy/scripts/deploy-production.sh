@@ -59,12 +59,6 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# 检查运行环境
-if ! grep -Eq "^RESONANCE_ENV=prod$" .env; then
-    echo "❌ 错误：生产部署要求 RESONANCE_ENV=prod"
-    exit 1
-fi
-
 # 检查域名与敏感配置
 require_non_empty CADDY_GATEWAY_DOMAIN "CADDY_GATEWAY_DOMAIN=im-api.ceyewan.xyz"
 require_non_empty CADDY_WEB_DOMAIN "CADDY_WEB_DOMAIN=ceyewan.xyz"
@@ -79,9 +73,6 @@ if ! docker network inspect caddy >/dev/null 2>&1; then
     echo "请先安装 Caddy Docker Proxy"
     exit 1
 fi
-
-# 创建网络
-docker network create resonance-net 2>/dev/null || true
 
 # 拉取镜像
 echo "📥 拉取镜像..."

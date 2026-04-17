@@ -93,7 +93,7 @@ func (c *Config) GetHTTPAddr() string {
 }
 
 // Load 创建并加载 Task 配置（无参数）
-// 配置加载顺序：环境变量 > .env > task.{env}.yaml > task.yaml
+// 配置加载顺序：环境变量 > .env > task.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
 		Name:      "task",

@@ -219,7 +219,7 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 }
 
 // Load 创建并加载 Logic 配置（无参数）
-// 配置加载顺序：环境变量 > .env > logic.{env}.yaml > logic.yaml
+// 配置加载顺序：环境变量 > .env > logic.yaml
 func Load() (*Config, error) {
 	loader, err := config.New(&config.Config{
 		Name:      "logic",

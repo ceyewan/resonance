@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up up-prod down down-prod logs logs-prod clean
+.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up-infra down-infra logs-infra up up-prod down down-prod logs logs-prod clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -11,6 +11,7 @@
 export
 
 # Docker Compose 命令
+COMPOSE_INFRA := docker compose --env-file .env -p resonance -f deploy/base.yaml
 COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml
 COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
 
@@ -91,24 +92,25 @@ lint-web: ## 前端 ESLint 检查
 # ============================================================================
 init: ## 初始化数据库（建表 + 种子数据，幂等可重复执行）
 	@echo "🔧 初始化数据库..."
-	@RESONANCE_ENV=$(RESONANCE_ENV) go run main.go -module init
+	@go run main.go -module init
 	@echo ""
 
 # ============================================================================
 # 本地开发（直接运行，不用 Docker）
 # ============================================================================
-dev: ## 本地开发模式（需要先启动基础设施）
+dev: ## 本地开发模式（先执行 make up-infra，再直跑业务服务）
 	@echo "🚀 启动本地开发环境..."
-	@echo "⚠️  请确保已运行: make up"
+	@echo "⚠️  请先执行: make up-infra"
+	@echo "⚠️  不要先执行 make up，否则会与本地直跑端口冲突"
 	@echo ""
 	@trap 'echo ""; echo "🛑 停止所有服务..."; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID $$WEB_PID 2>/dev/null; exit 0' INT TERM; \
 	echo "📡 启动 Logic..."; \
-	RESONANCE_ENV=dev go run main.go -module logic & LOGIC_PID=$$!; \
+	go run main.go -module logic & LOGIC_PID=$$!; \
 	echo "📡 启动 Task..."; \
-	RESONANCE_ENV=dev go run main.go -module task & TASK_PID=$$!; \
+	go run main.go -module task & TASK_PID=$$!; \
 	sleep 2; \
 	echo "🌐 启动 Gateway..."; \
-	RESONANCE_ENV=dev go run main.go -module gateway & GATEWAY_PID=$$!; \
+	go run main.go -module gateway & GATEWAY_PID=$$!; \
 	sleep 2; \
 	echo "🎨 启动 Web..."; \
 	cd web && npm run dev & WEB_PID=$$!; \
@@ -124,7 +126,20 @@ dev: ## 本地开发模式（需要先启动基础设施）
 # ============================================================================
 # Docker 部署
 # ============================================================================
-up: ## 启动所有服务（Docker）- 需要在 .env 中设置 RESONANCE_ENV=prod
+up-infra: ## 启动基础设施（postgres/redis/nats/etcd）
+	@echo "🚀 启动基础设施..."
+	@$(COMPOSE_INFRA) up -d
+	@echo "✅ 基础设施已启动"
+
+down-infra: ## 停止基础设施
+	@echo "🛑 停止基础设施..."
+	@$(COMPOSE_INFRA) down
+	@echo "✅ 基础设施已停止"
+
+logs-infra: ## 查看基础设施日志
+	@$(COMPOSE_INFRA) logs -f
+
+up: ## 启动所有服务（Docker）
 	@chmod +x deploy/scripts/deploy-local.sh
 	@./deploy/scripts/deploy-local.sh
 

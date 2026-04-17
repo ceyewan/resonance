@@ -221,6 +221,8 @@ Gateway 通过握手层(HTTP Header / WS `?token=`)完成 JWT 鉴权后,已持�
 | [`03-services.md`](./03-services.md) | 三个服务的代码组织与模块职责 |
 | [`04-flows.md`](./04-flows.md) | 发消息 / 撤回 / 已读 / 离线 / AI 流式 五个核心流程 |
 | [`05-migration.md`](./05-migration.md) | 从现状到目标的分阶段改造计划 |
+| [`06-layout-refactor.md`](./06-layout-refactor.md) | 服务目录重组设计与落地记录 |
+| [`07-deployment.md`](./07-deployment.md) | 部署收敛设计:配置、Compose、Bootstrap 边界 |
 
 ---
 
