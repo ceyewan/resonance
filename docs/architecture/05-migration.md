@@ -44,13 +44,14 @@
 **目标**:引入 `common/v1/ChatEvent`,消除四处重复的消息定义。**不改业务逻辑**,只改协议和序列化。
 
 **当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
-- 已新增 `common/v1/{session,message,event}.proto`
+- 已新增 `common/v1/{session,message,event,view}.proto`
 - 已完成 `gateway/logic/mq` 协议重写与代码生成
+- 已完成 `gateway/v1` 从单一 `api.proto` 拆分为 `auth.proto` + `session.proto`
 - 已完成 Gateway/Logic/Task 的服务端适配（前端暂未迁移）
 
 ### 3.1 任务拆分
 
-1. **新增 `api/proto/common/v1/` 的 4 个文件**
+1. **新增 `api/proto/common/v1/` 的 5 个文件**
    - `session.proto`(SessionType enum + SessionMeta)
    - `message.proto`(MessageType enum + Message)
    - `event.proto`(ChatEvent 主体 + 所有 payload 类型)
@@ -61,7 +62,7 @@
    - `seq` 改名 `client_seq`
    - 流式相关 packet(StreamBegin/Chunk/End)预留定义(实现延迟到 Phase 8)
 
-3. **重写 `api/proto/gateway/v1/api.proto`**
+3. **重写 `api/proto/gateway/v1/auth.proto` + `api/proto/gateway/v1/session.proto`**
    - 删除所有 `access_token` body 字段
    - `GetHistoryMessages` 改名 `GetHistoryEvents`,返回 `ChatEvent`
    - `PullInboxDelta` 的 `InboxEvent` 改成承载 `ChatEvent`
@@ -162,9 +163,10 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 
 **当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
 - `model` 已切换到 `event_id/event_type/payload` 结构，移除 `Inbox.is_read/msg_id`
-- `MessageRepo` 已完成接口升级：`SaveMessageContent/SaveInboxBatch/GetInboxDelta([]*model.Inbox)/GetUnreadCount`
+- `MessageRepo` 已完成接口升级：`SaveMessageContent/SaveInboxBatch/GetInboxDelta([]*model.Inbox)/GetUnreadMessageCount`
 - `logic/service/session.go` 的 `PullInboxDelta` 已改为反序列化 `t_inbox.payload` 返回 `ChatEvent`
 - `task/dispatcher` 已改为写入 `Inbox.payload`（`BuildInboxItems` 复用）
+- 未读数语义已收口：只统计 `event_type = Message`
 
 ### 5.1 策略选择
 
@@ -198,7 +200,7 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
      - 新增 `UpdateMessageContent`
      - `SaveInbox` → `SaveInboxBatch`(参数改为事件)
      - `GetInboxDelta` 返回类型从 `InboxDeltaItem` 改为 `*model.Inbox`(service 层反序列化 payload)
-     - 新增 `GetUnreadCount`
+     - 新增 `GetUnreadMessageCount`
    - 把原先 Inbox 相关的 `IsRead` / `GetUnreadMessages` 删除
 
 3. **repo 实现**
@@ -257,6 +259,12 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 ## 7. Phase 5:消息撤回
 
 **目标**:验证事件驱动框架对"非消息"事件的处理。
+
+**当前预留态(2026-04-17)**:
+- `logic/v1/chat.proto` 已为 `recall/edit` 预留 oneof 分支
+- `task/dispatcher/handler_recall.go` 与 `handler_edit.go` 已收敛为只写 Inbox + 推送
+- `logic/service/chat.go` 仍只接受 `Message` payload,非 `Message` 显式返回未接通错误
+- 当前没有上游 caller 会实际发送 Recall/Edit payload,这属于有意延期到 Phase 5 的预留态
 
 ### 7.1 任务
 

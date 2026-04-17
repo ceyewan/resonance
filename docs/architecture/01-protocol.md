@@ -15,11 +15,13 @@ api/proto/
 │   ├── session.proto              # SessionMeta, SessionType (enum)
 │   ├── message.proto              # Message, MessageType (enum)
 │   ├── event.proto                # ★ ChatEvent (oneof) - 核心载体
+│   ├── view.proto                 # SessionInfo / ContactInfo / InboxEvent 视图 DTO
 │   └── options.proto              # protobuf 自定义选项(default_topic 等)
 │
 ├── gateway/v1/                    # Web ↔ Gateway 对外协议
 │   ├── packet.proto               # WsPacket(上行下行的 oneof)
-│   ├── api.proto                  # ConnectRPC: AuthService + SessionService
+│   ├── auth.proto                 # ConnectRPC: AuthService
+│   ├── session.proto              # ConnectRPC: SessionService
 │   └── push.proto                 # Task/AI → Gateway 的 gRPC(Push + StreamPush)
 │
 ├── logic/v1/                      # Gateway → Logic 的内部协议
@@ -41,6 +43,11 @@ mq/v1      ──▶ common/v1
 ```
 
 `gateway/v1` 和 `logic/v1` **互不依赖**,它们的共同基础都是 `common/v1`。
+
+**公共 DTO 分层规则**:
+- `common/v1` 放跨层稳定视图对象,例如 `SessionInfo`、`ContactInfo`、`InboxEvent`
+- `gateway/v1` / `logic/v1` 直接引用这些 DTO,不再镜像复制一份同构结构
+- 只有明确带有边界差异的 command/request 才留在各自 service proto 内
 
 ---
 
@@ -99,16 +106,19 @@ enum MessageType {
 }
 
 // Message 是 ChatEvent 里"普通消息"这一种 payload 的结构
+// 只承载消息本体字段,不再混入会话快照/目标用户等跨层展示信息
 message Message {
   MessageType type                  = 1;
   string      content               = 2;
-  string      to_username           = 3;   // 仅单聊有值,群聊为空
-  int64       reply_to_event_id     = 4;   // 引用回复,预留
-  string      client_msg_id         = 5;   // 客户端幂等 ID
-  repeated string mentioned_usernames = 6; // @提及,预留
-  SessionMeta session_meta          = 10;  // 首次推送时携带,节省前端请求
+  int64       reply_to_event_id     = 3;   // 引用回复,预留
+  string      client_msg_id         = 4;   // 客户端幂等 ID
+  repeated string mentioned_usernames = 5; // @提及,预留
 }
 ```
+
+说明:
+- `to_username` 已移除:消息归属由 `session_id + session members` 决定,不再保留旧单聊残留字段
+- `session_meta` 已移除:会话展示信息归 `SessionInfo / SessionUpdate` 或其他 envelope/view 对象承担
 
 ### 2.4 `common/v1/event.proto` — 核心载体
 
@@ -273,7 +283,7 @@ message TypingSignal {
 - 下行推送统一用 `ChatEvent`,不再有各自的 `PushMessage` 结构。
 - AI 流式的三种 packet 只在 WS 上出现,永远不进数据库。
 
-### 3.2 `gateway/v1/api.proto` — ConnectRPC(Web 调用)
+### 3.2 `gateway/v1/auth.proto` + `gateway/v1/session.proto` — ConnectRPC(Web 调用)
 
 ```protobuf
 syntax = "proto3";
@@ -282,17 +292,27 @@ package resonance.gateway.v1;
 import "common/v1/types.proto";
 import "common/v1/event.proto";
 import "common/v1/session.proto";
+import "common/v1/view.proto";
 
 option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
 
-// AuthService - 用户认证
+// auth.proto
 service AuthService {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc Register(RegisterRequest) returns (RegisterResponse);
   rpc Logout(LogoutRequest) returns (LogoutResponse);
 }
 
-// SessionService - 会话与历史
+message LoginRequest    { string username = 1; string password = 2; }
+message LoginResponse   { string access_token = 1; resonance.common.v1.User user = 2; }
+
+message RegisterRequest  { string username = 1; string password = 2; string nickname = 3; }
+message RegisterResponse { string access_token = 1; resonance.common.v1.User user = 2; }
+
+message LogoutRequest   {}    // 身份从 Authorization Header 取,body 不需要
+message LogoutResponse  { bool success = 1; }
+
+// session.proto
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
@@ -303,29 +323,8 @@ service SessionService {
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
 }
 
-// -------- Auth --------
-
-message LoginRequest    { string username = 1; string password = 2; }
-message LoginResponse   { string access_token = 1; resonance.common.v1.User user = 2; }
-
-message RegisterRequest  { string username = 1; string password = 2; string nickname = 3; }
-message RegisterResponse { string access_token = 1; resonance.common.v1.User user = 2; }
-
-message LogoutRequest   {}    // 身份从 Authorization Header 取,body 不需要
-message LogoutResponse  {}
-
-// -------- Session --------
-
-message SessionInfo {
-  string sess_id                   = 1;
-  resonance.common.v1.SessionMeta meta = 2;
-  int64  unread_count              = 3;
-  int64  last_read_seq             = 4;
-  resonance.common.v1.ChatEvent last_event = 5;  // 最新事件(可能是消息/撤回/系统)
-}
-
 message GetSessionListRequest  {}
-message GetSessionListResponse { repeated SessionInfo sessions = 1; }
+message GetSessionListResponse { repeated resonance.common.v1.SessionInfo sessions = 1; }
 
 message CreateSessionRequest {
   resonance.common.v1.SessionType type = 1;
@@ -353,12 +352,12 @@ message PullInboxDeltaRequest {
   int64 cursor_id = 1;
   int32 limit     = 2;
 }
-message InboxDeltaItem {
+message InboxEvent {
   int64 inbox_id = 1;
   resonance.common.v1.ChatEvent event = 2;
 }
 message PullInboxDeltaResponse {
-  repeated InboxDeltaItem items = 1;
+  repeated resonance.common.v1.InboxEvent events = 1;
   int64 next_cursor_id          = 2;
   bool  has_more                = 3;
 }
@@ -372,13 +371,10 @@ message UpdateReadPositionResponse {
 }
 
 message GetContactListRequest  {}
-message ContactInfo {
-  resonance.common.v1.User user = 1;
-}
-message GetContactListResponse { repeated ContactInfo contacts = 1; }
+message GetContactListResponse { repeated resonance.common.v1.ContactInfo contacts = 1; }
 
 message SearchUserRequest  { string query = 1; }
-message SearchUserResponse { repeated ContactInfo users = 1; }
+message SearchUserResponse { repeated resonance.common.v1.ContactInfo users = 1; }
 ```
 
 **关键变更**:
@@ -503,18 +499,10 @@ service SessionService {
 }
 
 // 所有 Request 都不再带 username —— 从 gRPC metadata 取
-// 以下消息体与 gateway/v1/api.proto 里对应,只是不携带 Gateway 特有字段
-
-message SessionInfo {
-  string sess_id                   = 1;
-  resonance.common.v1.SessionMeta meta = 2;
-  int64  unread_count              = 3;
-  int64  last_read_seq             = 4;
-  resonance.common.v1.ChatEvent last_event = 5;
-}
+// 以下消息体与 gateway/v1/session.proto 里对应,共用 common/v1/view.proto 中的视图 DTO
 
 message GetSessionListRequest  {}
-message GetSessionListResponse { repeated SessionInfo sessions = 1; }
+message GetSessionListResponse { repeated resonance.common.v1.SessionInfo sessions = 1; }
 
 message CreateSessionRequest {
   resonance.common.v1.SessionType type = 1;
@@ -540,12 +528,12 @@ message PullInboxDeltaRequest {
   int64 cursor_id = 1;
   int32 limit     = 2;
 }
-message InboxDeltaItem {
+message InboxEvent {
   int64 inbox_id = 1;
   resonance.common.v1.ChatEvent event = 2;
 }
 message PullInboxDeltaResponse {
-  repeated InboxDeltaItem items = 1;
+  repeated resonance.common.v1.InboxEvent events = 1;
   int64 next_cursor_id          = 2;
   bool  has_more                = 3;
 }
@@ -559,10 +547,10 @@ message UpdateReadPositionResponse {
 }
 
 message GetContactListRequest  {}
-message GetContactListResponse { repeated resonance.common.v1.User contacts = 1; }
+message GetContactListResponse { repeated resonance.common.v1.ContactInfo contacts = 1; }
 
 message SearchUserRequest  { string query = 1; }
-message SearchUserResponse { repeated resonance.common.v1.User users = 1; }
+message SearchUserResponse { repeated resonance.common.v1.ContactInfo users = 1; }
 ```
 
 ### 4.3 `logic/v1/auth.proto`

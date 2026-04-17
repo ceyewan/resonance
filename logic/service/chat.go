@@ -83,7 +83,7 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	// 当前阶段仅落地 message payload
 	msgPayload := req.GetMessage()
 	if msgPayload == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "only message payload is supported in phase 1")
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported payload: recall/edit wiring is scheduled for phase 5")
 	}
 
 	// 生成 event ID (Snowflake)

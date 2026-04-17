@@ -41,7 +41,7 @@ logic/
 │   ├── chat_handler.go         # ★新增:按 event payload 类型分派处理
 │   ├── presence.go             # PresenceService
 │   └── helpers.go              # 工具函数(PublishToMQ / BuildChatEvent 等)
-├── event/                      # ★新增:ChatEvent 构建与处理模块
+├── event/                      # ★新增:ChatEvent 构建与处理模块(Phase 5 落地,当前可先用 doc.go 占位)
 │   ├── builder.go              # 从 SendEventRequest 构建 ChatEvent
 │   ├── persister.go            # 持久化(写主表 + 写 Outbox)
 │   └── handler_*.go            # 不同 payload 类型的处理器
@@ -57,6 +57,7 @@ logic/
 - 新增 `event/` 目录,承载 ChatEvent 相关的核心业务逻辑。
 - `service/chat.go` 从"处理消息"升级为"处理所有客户端发起的事件"。
 - `server/interceptor_auth.go` 统一把身份从 metadata 抽出,service 层从 context 拿。
+- **当前实现状态**:在 Phase 5 正式接通前,`SendEvent` 仍只处理 `Message` payload;`Recall/Edit` 的 proto 与 Task handler 属于预留态。
 
 ### 1.3 核心模块职责
 
@@ -170,7 +171,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
     // 注意:失败不阻塞主流程,只记日志
 
     // 3. 返回更新后未读数
-    unread, _ := s.msgRepo.GetUnreadCount(ctx, username, req.SessionId)
+    unread, _ := s.msgRepo.GetUnreadMessageCount(ctx, username, req.SessionId)
     return &logicv1.UpdateReadPositionResponse{UnreadCount: unread}, nil
 }
 ```
@@ -308,13 +309,14 @@ func (s *PushService) PushStream(ctx context.Context, req *gatewayv1.PushStreamR
 
 **负责**:
 - 消费 MQ(NATS)
-- 按 `ChatEvent.payload` 类型**分发处理**(写 Inbox、更新主表、更新会话状态)
+- 按 `ChatEvent.payload` 类型**分发处理**:写 Inbox(写扩散)、派生状态(如未读数失效等)
 - 查询用户路由
 - 推送到对应 Gateway
 
 **不负责**:
 - 任何业务决策(权限、时间窗口等都由 Logic 保证)
 - 生成 event_id/seq_id(Logic 已分配)
+- **业务主事实变更**(message_content 写入 / recalled_at / edited_at 必须由 Logic 主事务完成)——如果 Task 里写主表,说明该逻辑放错了层
 
 ### 3.2 目录结构
 
@@ -396,16 +398,11 @@ func (d *Dispatcher) handleMessage(ctx context.Context, ev *commonv1.ChatEvent, 
 
 #### `dispatcher/handler_recall.go`
 
+主事实(`message_content.recalled_at`)已在 Logic 主事务内完成,Task 只负责写扩散 + 推送。
+
 ```go
 func (d *Dispatcher) handleRecall(ctx context.Context, ev *commonv1.ChatEvent, targets []string) error {
-    recall := ev.GetRecall()
-
-    // 1. 更新主表:标记 recalled_at
-    if err := d.msgRepo.MarkMessageRecalled(ctx, recall.TargetEventId, time.Now()); err != nil {
-        return err
-    }
-
-    // 2. 给所有成员 Inbox 写一条"撤回事件"(让客户端感知到撤回)
+    // 给所有成员 Inbox 写一条"撤回事件"(让客户端感知到撤回)
     inboxes := buildInboxesForEvent(ev, targets, EventTypeRecall)
     return d.msgRepo.SaveInboxBatch(ctx, inboxes)
 }

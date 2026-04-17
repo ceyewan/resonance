@@ -345,8 +345,8 @@ type MessageRepo interface {
 
     // ---- 已读 ----
     // (原 SessionRepo.UpdateLastReadSeq 保留)
-    // 新增:按会话计算未读数
-    GetUnreadCount(ctx context.Context, username, sessionID string) (int64, error)
+    // 新增:按会话计算未读"消息"数(只统计 event_type=Message)
+    GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error)
 }
 
 // ---- SessionRepo 无重大调整 ----

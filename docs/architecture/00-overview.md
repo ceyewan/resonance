@@ -39,7 +39,13 @@
 
 ### P4. 身份与鉴权不进业务 body
 
-`access_token` 从所有 RPC body 中移除,统一走 HTTP Header(Web → Gateway)和 gRPC metadata(Gateway → Logic)。业务 body 只留业务字段。
+**核心约束:业务 body 永远不携带身份/鉴权字段**,身份由"握手层"各自选择合适载体传递:
+
+- **HTTP / ConnectRPC**:`Authorization: Bearer <jwt>` Header(浏览器原生支持)
+- **WebSocket**:在握手层完成鉴权即可,载体可为 `Authorization` Header、`?token=` query、Cookie 或 Subprotocol——浏览器原生 WS 不能带自定义 Header,所以 `?token=` 是合法实现而非偏离
+- **Gateway → Logic**:gRPC metadata `x-username`(Gateway 已完成鉴权,Logic 只认"已认证身份",不二次验 token)
+
+业务 body 只留业务字段,`access_token`/`username` 一律剔除。
 
 ### P5. 错误处理用 gRPC 原生机制
 
@@ -81,12 +87,15 @@
 │       Logic (业务层)          │  │        Task (异步层)          │
 │  • 鉴权与业务规则             │  │  • MQ Consumer               │
 │  • 生成 ChatEvent            │  │  • Dispatcher (按 event type)│
-│  • Outbox 事务写入           │  │    ├─ 写 Inbox (写扩散)       │
-│  • 发布 MQ                    │  │    ├─ 更新主表 (撤回/编辑)    │
-│  • Outbox Worker 兜底补偿     │  │    └─ 更新会话状态 (已读)     │
-└──────┬───────────────────┬───┘  │  • Pusher (路由 → Gateway)   │
-       │ DB                │ MQ   └────────────────┬─────────────┘
-       ▼                   ▼                      ▲
+│  • 主事实落地(事务内):       │  │    ├─ 写 Inbox (写扩散)       │
+│    - message_content 写入    │  │    └─ 派生状态(未读重算等)  │
+│    - recalled_at / edited_at │  │  • Pusher (路由 → Gateway)   │
+│  • Outbox 事务写入           │  │                              │
+│  • 发布 MQ                    │  │                              │
+│  • Outbox Worker 兜底补偿     │  │                              │
+└──────┬───────────────────┬───┘  └────────────────┬─────────────┘
+       │ DB                │ MQ                   │
+       ▼                   ▼                      │
 ┌─────────────┐   ┌─────────────┐                 │
 │ PostgreSQL  │   │    NATS     │─────────────────┘
 │   + Redis   │   └─────────────┘
@@ -98,16 +107,17 @@
 | 服务 | 一句话职责 | 不负责 |
 |------|-----------|--------|
 | **Gateway** | 协议转换 + 连接管理 | 业务规则、持久化 |
-| **Logic** | 业务规则 + 事件生成 + 事务一致性 | 推送、写扩散 |
-| **Task** | 事件落地(Inbox/状态表) + 在线推送 | 业务判断、鉴权 |
+| **Logic** | 业务规则 + **主事实落地(主表 + Outbox 同事务)** | 推送、写扩散 |
+| **Task** | **写扩散(Inbox)+ 派生状态 + 在线推送** | 业务判断、主事实变更 |
 | **AI Service**(未来) | 调用大模型 + 工具 + 生成回复事件 | 会话管理、消息存储 |
 
 ### 边界规则
 
 1. **Gateway 不持有业务状态**,只做协议转换和连接管理。所有"是否允许"、"写哪里"都问 Logic。
-2. **Logic 不直接推送**,生成事件后投递到 MQ,由 Task 消费。
-3. **Task 不做业务判断**,只执行"把事件落地 + 推送到路由"。
-4. **AI Service 是特殊的 Logic 客户端**,它通过调用 Logic.SendEvent 来回复消息,不直接写库。
+2. **Logic 独占业务主事实变更**。消息写入、撤回置位、编辑更新、已读位点推进等"会改变系统主表事实的事"必须在 Logic 的**同一个事务**里完成,并在同事务内写 Outbox。**当前实现状态**:仅 `Message` payload 已接通;`Recall/Edit` 仍处于 Phase 5 预留态,见 `05-migration.md`。
+3. **Logic 不直接推送**,事件经 Outbox 投递到 MQ,由 Task 消费。
+4. **Task 只做后置落地**:把 ChatEvent 写进 Inbox(写扩散),重算会话未读数等派生状态,按路由把事件推到在线用户的 Gateway。**不做业务判定,不改主事实**——如果 Task 里写主表,说明该逻辑放错了层。
+5. **AI Service 是特殊的 Logic 客户端**,通过调用 Logic.SendEvent 回复消息,不直接写库。
 
 ---
 
@@ -143,9 +153,9 @@ oneof payload:
 
 | 功能 | 如何接入 |
 |------|----------|
-| 消息撤回 | `ChatEvent.payload = MessageRecall`,经 Outbox/MQ/Inbox 全链路,Task 侧在主表标记 `recalled_at` |
-| 消息编辑 | `ChatEvent.payload = MessageEdit`,同上 |
-| 多端已读同步 | `UpdateReadPosition` 同时写 Inbox 一条 `ReadReceipt` 事件,其他在线端通过推送感知 |
+| 消息撤回 | `ChatEvent.payload = MessageRecall`,Phase 5 接通后由 Logic 主事务内校验权限 + 标记 `recalled_at` + 写 Outbox;Task 只写 Inbox + 推送 |
+| 消息编辑 | `ChatEvent.payload = MessageEdit`,Phase 5 接通后由 Logic 主事务内校验权限 + 更新 `content`/`edited_at` + 写 Outbox;Task 只写 Inbox + 推送 |
+| 多端已读同步 | Logic 主事务内推进 `session_member.last_read_seq` + 写 `ReadReceipt` Outbox;Task 只推送给发起者的其他在线端 |
 | AI 普通聊天 | AI Service 订阅 MQ 过滤 AI 会话 → 调用模型 → `Logic.SendEvent` 作为 Bot 用户回复,走普通事件链路 |
 | AI 流式 | AI Service 分配 event_id → 连续 `StreamChunk` 直推 Gateway(不入 Inbox)→ 完成后一次 `SendEvent` 写最终消息 |
 | @ 提及 | `Message.mentioned_usernames`;`ChatEvent.payload = Mention`(可选)触发特殊提醒 |
@@ -187,11 +197,17 @@ Outbox 模式下,`message_content` 是业务主表(历史查询、引用回复),
 - `is_read` 字段迁移:已读位点统一由 `t_session_member.last_read_seq` 承担,Inbox 不再存
 - 保留 (owner_username, session_id, seq_id) 唯一约束,保留 owner_username 游标索引
 
+**未读数语义(强约定)**:
+
+- **未读数只统计 `event_type = Message` 的事件**。Recall / Edit / ReadReceipt / SessionUpdate 进 Inbox 用于增量同步,但**不计入未读数角标**。
+- repo 层的未读查询接口明确命名为 `GetUnreadMessageCount`,实现里必须按 `event_type` 过滤,避免后续多种事件类型污染 badge 显示。
+- 若未来确实需要"系统事件也触发提醒",另走独立提醒规则,不混进基础未读数。
+
 详见 `02-database.md`。
 
 ### 5.4 身份从 body 改走 metadata
 
-Gateway 已经通过 JWT 中间件解出了当前用户。往 Logic 调 gRPC 时,把 `username` 放进 metadata,Logic 侧 interceptor 解出放到 context。业务 body 只留"被操作对象"字段。
+Gateway 通过握手层(HTTP Header / WS `?token=`)完成 JWT 鉴权后,已持有可信的 `username`。往 Logic 调 gRPC 时,把 `username` 放进 metadata(`x-username`),Logic 侧 interceptor 解出放到 context。业务 body 只留"被操作对象"字段,不再携带 `access_token` 或 `username`。
 
 ---
 
