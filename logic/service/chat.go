@@ -7,6 +7,9 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
@@ -14,8 +17,6 @@ import (
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // ChatService 聊天服务
@@ -99,7 +100,12 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
 	if err == nil && session.MaxSeqID > 0 {
 		// Session 存在且有历史消息，初始化 Redis 计数器（仅当 key 不存在时）
-		s.sequencer.SetIfNotExists(ctx, req.SessionId, session.MaxSeqID)
+		if _, err := s.sequencer.SetIfNotExists(ctx, req.SessionId, session.MaxSeqID); err != nil {
+			s.logger.Warn("failed to initialize session sequence",
+				clog.String("session_id", req.SessionId),
+				clog.Int64("max_seq_id", session.MaxSeqID),
+				clog.Error(err))
+		}
 	}
 
 	// 使用 Redis 原子递增获取会话 SeqID，修复并发竞态问题

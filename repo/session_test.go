@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 func TestSessionRepo_CreateSession(t *testing.T) {
@@ -550,9 +551,9 @@ func TestSessionRepo_Concurrent(t *testing.T) {
 		const membersPerGoroutine = 5
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			worker := func(goroutineID int) {
-				for j := 0; j < membersPerGoroutine; j++ {
+				for j := range membersPerGoroutine {
 					username := fmt.Sprintf("concurrent_user_%d_%d", goroutineID, j)
 					member := &model.SessionMember{
 						SessionID: "concurrent_session",
@@ -567,7 +568,7 @@ func TestSessionRepo_Concurrent(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 

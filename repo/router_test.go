@@ -8,9 +8,10 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
-	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // TestRouterRepo_BasicOperations 测试基本的 CRUD 操作
@@ -266,11 +267,11 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 	t.Run("ConcurrentWrites", func(t *testing.T) {
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer func() { done <- true }()
 
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					username := fmt.Sprintf("user_%d_%d", id, j)
 					router := &model.Router{
 						Username:  username,
@@ -286,7 +287,7 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 	})
@@ -305,11 +306,11 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				defer func() { done <- true }()
 
-				for j := 0; j < numOperations; j++ {
+				for range numOperations {
 					router, err := routerRepo.GetUserGateway(ctx, "concurrent_test_user")
 					assert.NoError(t, err)
 					assert.NotNil(t, router)
@@ -319,7 +320,7 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 	})

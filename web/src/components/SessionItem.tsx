@@ -48,10 +48,7 @@ export function SessionItem({ session, isActive, onClick }: SessionItemProps) {
       }}
       aria-selected={isActive}
       aria-label={`会话: ${displayName}`}
-      className={cn(
-        "lg-session-item",
-        isActive && "lg-session-item-active",
-      )}
+      className={cn("lg-session-item", isActive && "lg-session-item-active")}
     >
       {/* 头像 */}
       <div

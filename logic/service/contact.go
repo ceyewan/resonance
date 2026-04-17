@@ -4,10 +4,11 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
 // GetContactList 实现 SessionService.GetContactList

@@ -6,19 +6,16 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/registry"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/gateway/observability"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/gateway/observability"
 )
 
 // Context 中 trace_id 的键（值为 "trace_id"，与 middleware.TraceIDKey 一致）
 const traceIDKey = "trace_id"
-
-// gRPC metadata 中使用标准的 W3C Trace Context traceparent header
-// 格式：version-trace-id-parent-id-flags（参考 https://www.w3.org/TR/trace-context/）
-const traceParentHeader = "traceparent"
 
 // Client 封装与 Logic 服务的 gRPC 连接
 type Client struct {
@@ -132,7 +129,7 @@ func NewClient(logicServiceName, gatewayID string, logger clog.Logger, reg regis
 // traceContextUnaryInterceptor 链路追踪拦截器（一元调用）
 // 从 Context 提取 trace_id 并注入到 gRPC metadata，同时注入 OTEL TraceContext
 func traceContextUnaryInterceptor() grpc.UnaryClientInterceptor {
-	return func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		// 优先使用 Context 中的 trace_id
 		var traceID string
 		if val := ctx.Value(traceIDKey); val != nil {

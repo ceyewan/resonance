@@ -9,6 +9,9 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
@@ -16,8 +19,6 @@ import (
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // SessionService 会话服务
@@ -318,10 +319,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 
 	unread, err := s.messageRepo.GetUnreadMessageCount(ctx, username, req.SessionId)
 	if err != nil {
-		unread = session.MaxSeqID - req.SeqId
-		if unread < 0 {
-			unread = 0
-		}
+		unread = max(session.MaxSeqID-req.SeqId, 0)
 	}
 
 	return &logicv1.UpdateReadPositionResponse{UnreadCount: unread}, nil

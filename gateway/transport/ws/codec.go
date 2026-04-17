@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/ceyewan/genesis/clog"
+	"google.golang.org/protobuf/proto"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 // Handler 处理 WebSocket 消息的接口

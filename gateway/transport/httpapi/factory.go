@@ -6,8 +6,9 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
-	"github.com/ceyewan/resonance/gateway/middleware"
 	"github.com/gin-gonic/gin"
+
+	"github.com/ceyewan/resonance/gateway/middleware"
 )
 
 // Middlewares HTTP 中间件集合

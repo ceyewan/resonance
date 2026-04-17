@@ -86,7 +86,12 @@ export function ChatArea({ currentSession, isConnected, send }: ChatAreaProps) {
     return (
       <main className="lg-glass flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl">
         <div className="flex flex-1 flex-col items-center justify-center text-slate-500 dark:text-slate-400">
-          <svg className="mb-4 h-16 w-16 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg
+            className="mb-4 h-16 w-16 opacity-60"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"

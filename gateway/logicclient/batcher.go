@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 

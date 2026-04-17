@@ -339,7 +339,7 @@ func RecordMessageReceived(ctx context.Context) {
 // RecordMessageSent 记录发送的消息
 func RecordMessageSent(ctx context.Context, count int, labels ...metrics.Label) {
 	if messagesSentTotal != nil {
-		for i := 0; i < count; i++ {
+		for range count {
 			messagesSentTotal.Inc(ctx, labels...)
 		}
 	}
@@ -359,7 +359,7 @@ func RecordPushDuration(ctx context.Context, duration time.Duration, labels ...m
 // RecordPushFailed 记录推送失败
 func RecordPushFailed(ctx context.Context, count int, labels ...metrics.Label) {
 	if pushFailed != nil {
-		for i := 0; i < count; i++ {
+		for range count {
 			pushFailed.Inc(ctx, labels...)
 		}
 	}

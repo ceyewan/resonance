@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
+
 	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/config"
@@ -269,7 +270,9 @@ func (t *Task) Close() error {
 
 	// 2. 停止消费
 	if t.consumer != nil {
-		t.consumer.Stop()
+		if err := t.consumer.Stop(); err != nil {
+			t.logger.Warn("stop consumer failed", clog.Error(err))
+		}
 	}
 
 	// 3. 关闭 Pusher (断开 Gateway 连接)

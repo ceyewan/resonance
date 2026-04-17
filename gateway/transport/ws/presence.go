@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
+
 	"github.com/ceyewan/resonance/gateway/logicclient"
 )
 

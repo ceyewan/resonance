@@ -5,12 +5,13 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
+	"go.opentelemetry.io/otel/attribute"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
-	"go.opentelemetry.io/otel/attribute"
 )
 
 // Dispatcher 消息分发器

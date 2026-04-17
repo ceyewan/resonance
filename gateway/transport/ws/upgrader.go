@@ -4,9 +4,10 @@ import (
 	"net/http"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/gorilla/websocket"
+
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/middleware"
-	"github.com/gorilla/websocket"
 )
 
 // Upgrader 处理 WebSocket 连接握手
@@ -44,14 +45,14 @@ func NewUpgrader(
 
 // HandleWebSocket 处理握手请求
 func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	username, _ := r.Context().Value(middleware.UsernameKey).(string)
+	username, _ := middleware.UsernameFromRequestContext(r.Context())
 	if username == "" {
 		h.logger.Warn("websocket connection rejected: missing username", clog.String("remote_addr", r.RemoteAddr))
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	traceID, _ := r.Context().Value(middleware.TraceIDKey).(string)
+	traceID, _ := middleware.TraceIDFromContext(r.Context())
 	if traceID == "" {
 		traceID = r.Header.Get(middleware.TraceIDHeader)
 	}

@@ -7,9 +7,10 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // MessageRepoOption 配置 MessageRepo 的选项
@@ -349,7 +350,7 @@ func (r *messageRepo) UpdateOutboxStatus(ctx context.Context, id int64, status i
 // UpdateOutboxRetry 更新本地消息表重试信息
 func (r *messageRepo) UpdateOutboxRetry(ctx context.Context, id int64, nextRetry time.Time, count int) error {
 	gormDB := r.db.DB(ctx)
-	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Updates(map[string]interface{}{
+	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Updates(map[string]any{
 		"next_retry_time": nextRetry,
 		"retry_count":     count,
 	}).Error; err != nil {

@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/gorilla/websocket"
+
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/middleware"
-	"github.com/gorilla/websocket"
 )
 
 // Conn 表示一个 WebSocket 连接
@@ -45,7 +46,7 @@ func NewConn(
 	ctx, cancel := context.WithCancel(context.Background())
 	// 将 trace_id 注入到 Context
 	if traceID != "" {
-		ctx = context.WithValue(ctx, middleware.TraceIDKey, traceID)
+		ctx = middleware.WithTraceID(ctx, traceID)
 	}
 	return &Conn{
 		username:       username,
@@ -106,9 +107,14 @@ func (c *Conn) readPump() {
 	defer c.Close()
 
 	c.conn.SetReadLimit(c.maxMessageSize)
-	c.conn.SetReadDeadline(time.Now().Add(c.pongTimeout))
+	if err := c.conn.SetReadDeadline(time.Now().Add(c.pongTimeout)); err != nil {
+		c.logger.Warn("failed to set initial read deadline", clog.String("username", c.username), clog.Error(err))
+	}
 	c.conn.SetPongHandler(func(string) error {
-		c.conn.SetReadDeadline(time.Now().Add(c.pongTimeout))
+		if err := c.conn.SetReadDeadline(time.Now().Add(c.pongTimeout)); err != nil {
+			c.logger.Warn("failed to extend read deadline", clog.String("username", c.username), clog.Error(err))
+			return err
+		}
 		return nil
 	})
 
@@ -153,7 +159,9 @@ func (c *Conn) writePump() {
 		select {
 		case packet, ok := <-c.send:
 			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err := c.conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					c.logger.Debug("failed to write close frame", clog.String("username", c.username), clog.Error(err))
+				}
 				return
 			}
 

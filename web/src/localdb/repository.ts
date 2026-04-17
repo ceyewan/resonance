@@ -109,7 +109,9 @@ export async function saveMessage(username: string, message: ChatMessage): Promi
   await db.messages.put(toDBMessage(username, message));
 }
 
-export async function loadAllMessagesGrouped(username: string): Promise<Record<string, ChatMessage[]>> {
+export async function loadAllMessagesGrouped(
+  username: string,
+): Promise<Record<string, ChatMessage[]>> {
   const rows = await db.messages.where("ownerUsername").equals(username).toArray();
   const grouped: Record<string, ChatMessage[]> = {};
 
@@ -132,7 +134,10 @@ export async function loadAllMessagesGrouped(username: string): Promise<Record<s
   return grouped;
 }
 
-export async function loadSessionMessages(username: string, sessionId: string): Promise<ChatMessage[]> {
+export async function loadSessionMessages(
+  username: string,
+  sessionId: string,
+): Promise<ChatMessage[]> {
   const rows = await db.messages
     .where("[ownerUsername+sessionId]")
     .equals([username, sessionId])

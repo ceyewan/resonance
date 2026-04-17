@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
+
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/logicclient"
 )

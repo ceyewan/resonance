@@ -13,9 +13,10 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 var (
@@ -152,7 +153,7 @@ func startRedisContainer() (string, int, error) {
 
 func connectWithRetry(fn func() error, maxAttempts int, interval time.Duration) error {
 	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		if err := fn(); err == nil {
 			return nil
 		} else {

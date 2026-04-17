@@ -38,7 +38,7 @@ func Recovery(logger clog.Logger) gin.HandlerFunc {
 }
 
 // RecoveryWithWriter 返回一个自定义响应的恢复中间件
-func RecoveryWithWriter(logger clog.Logger, customResponse func(c *gin.Context, err interface{})) gin.HandlerFunc {
+func RecoveryWithWriter(logger clog.Logger, customResponse func(c *gin.Context, err any)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
+
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
@@ -79,13 +80,11 @@ func (j *OutboxRelay) processMessagesWithWorkerPool(ctx context.Context, message
 
 	// 启动 Worker
 	for i := 0; i < j.config.GetWorkerCount() && i < len(messages); i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
+		wg.Go(func() {
 			for msg := range msgChan {
 				j.relayMessage(ctx, msg)
 			}
-		}(i)
+		})
 	}
 
 	// 发送消息到通道

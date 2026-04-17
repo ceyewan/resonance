@@ -18,6 +18,7 @@
 | 游标 | inbox.id 自增 | 不变 |
 
 **为什么移除 `is_read`**:
+
 1. 已读是"某用户在某会话里读到哪个 seq_id"的**会话维度**概念,不是消息维度。
 2. 会话有 100 条消息、用户读到第 80 条,要标记 Inbox 的 80 个 is_read=1 是无意义的 UPDATE 放大。
 3. `t_session_member.last_read_seq` 已经存在,本来就是这个事实的正确载体。
@@ -26,6 +27,7 @@
 ### 1.2 `t_message_content` 保留,增加软删除/编辑字段
 
 主表仍是"消息"专属(撤回/编辑事件不在主表,只在 Inbox)。增加字段支持撤回和编辑:
+
 - `recalled_at`:标记已撤回,历史拉取时可决定是否过滤
 - `edited_at` + `edit_count`:标记已编辑次数
 - 编辑内容**不保留历史版本**(V1 简化;未来要历史版本就加 `t_message_edit_log`)
@@ -89,6 +91,7 @@ type Session struct {
 ```
 
 说明:
+
 - `Type` 表示会话分类(单聊/群聊/AI),**语义上决定了成员数量规则**。
 - `Kind` 进一步标记**特殊行为**,为 AI 区分"普通 AI 会话"vs"带工具的 AI 会话"等预留。V1 可以不用,字段先占位。
 - `AvatarURL` 补齐群头像字段,当前协议里 SessionMeta 有 avatar_url 但表里没存。
@@ -130,6 +133,7 @@ type MessageContent struct {
 ```
 
 字段说明:
+
 - `EventID`:原 `MsgID` 改名,和 proto 对齐。全局 Snowflake。
 - `MsgType`:从 `varchar(32)` 改为 `smallint`,和 `MessageType` enum 对齐。
 - `ClientMsgID`:客户端生成的临时 ID,用于幂等去重(同一客户端重发同一消息)。
@@ -137,6 +141,7 @@ type MessageContent struct {
 - **不存编辑历史**,V1 简单处理。未来用 `t_message_edit_log` 单独存。
 
 **索引**:
+
 - PK: `event_id`
 - `idx_sess_seq`: `(session_id, seq_id)` — 会话历史拉取
 - `idx_client_msg_id`: `client_msg_id` — 客户端幂等查询(查"这个临时 ID 已经入库没")
@@ -159,9 +164,11 @@ type Inbox struct {
 ```
 
 字段说明:
+
 - `ID`:自增游标,`PullInboxDelta` 以 `id > cursor` 拉增量。
 - `(OwnerUsername, SessionID, SeqID)`:唯一约束,**防止写扩散重复**(同一事件给同一用户写两次)。
 - `EventType`:小整数分类,**用于索引和快速过滤**(比如"只拉消息,不要已读事件")。映射:
+
   ```
   1 = Message
   2 = MessageRecall
@@ -169,10 +176,12 @@ type Inbox struct {
   4 = ReadReceipt
   5 = SessionUpdate
   ```
+
 - `Payload`:序列化的 `ChatEvent`(protobuf bytes)。前端拉取后反序列化分发。
 - **`IsRead` 字段移除**:未读数通过 `t_session_member.last_read_seq` 计算。
 
 **索引**:
+
 - PK: `id`
 - `uniq_owner_sess_seq`: `(owner_username, session_id, seq_id)` 唯一,防重
 - `idx_owner_id`: `(owner_username, id)` — `PullInboxDelta` 游标扫描
@@ -277,12 +286,14 @@ CREATE INDEX idx_client_msg_id ON t_message_content(client_msg_id);
 旧 Inbox 无 payload 字段,历史数据需要通过 `event_id → t_message_content` JOIN 重构 ChatEvent。
 
 **推荐策略**:灰度迁移
+
 1. 新建 `t_inbox_v2` 带新结构,双写(旧代码写 v1,新代码写 v2)一段时间
 2. 通过脚本将 `t_inbox` 存量数据转为 `t_inbox_v2`(JOIN content 重建 payload)
 3. 读切换到 v2,验证一段时间
 4. 删除 v1,v2 改名 `t_inbox`
 
 **如果允许停机**(项目初期用户少):
+
 ```sql
 DROP TABLE t_inbox;
 -- 重新 AutoMigrate 生成新结构

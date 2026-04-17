@@ -5,10 +5,11 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"google.golang.org/grpc"
+
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/ceyewan/resonance/gateway/transport/ws"
-	"google.golang.org/grpc"
 )
 
 // Service 实现 PushService，接收 Task 服务的推送请求

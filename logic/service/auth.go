@@ -5,14 +5,15 @@ import (
 
 	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
-	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/model"
-	"github.com/ceyewan/resonance/repo"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 )
 
 // AuthService 认证服务

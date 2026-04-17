@@ -183,8 +183,8 @@ func (c *Config) GetAdvertiseEndpoint() string {
 		host = "localhost"
 	}
 
-	if strings.HasPrefix(addr, ":") {
-		port := strings.TrimPrefix(addr, ":")
+	if after, ok := strings.CutPrefix(addr, ":"); ok {
+		port := after
 		return net.JoinHostPort(host, port)
 	}
 

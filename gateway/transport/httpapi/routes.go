@@ -1,8 +1,9 @@
 package httpapi
 
 import (
-	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
 	"github.com/gin-gonic/gin"
+
+	"github.com/ceyewan/resonance/api/gen/go/gateway/v1/gatewayv1connect"
 )
 
 // RouteConfig 路由配置

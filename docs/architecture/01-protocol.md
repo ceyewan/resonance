@@ -45,6 +45,7 @@ mq/v1      ──▶ common/v1
 `gateway/v1` 和 `logic/v1` **互不依赖**,它们的共同基础都是 `common/v1`。
 
 **公共 DTO 分层规则**:
+
 - `common/v1` 放跨层稳定视图对象,例如 `SessionInfo`、`ContactInfo`、`InboxEvent`
 - `gateway/v1` / `logic/v1` 直接引用这些 DTO,不再镜像复制一份同构结构
 - 只有明确带有边界差异的 command/request 才留在各自 service proto 内
@@ -117,6 +118,7 @@ message Message {
 ```
 
 说明:
+
 - `to_username` 已移除:消息归属由 `session_id + session members` 决定,不再保留旧单聊残留字段
 - `session_meta` 已移除:会话展示信息归 `SessionInfo / SessionUpdate` 或其他 envelope/view 对象承担
 
@@ -184,6 +186,7 @@ enum SessionUpdateKind {
 ```
 
 **字段编号规则**(强约定):
+
 - `1~9`:ChatEvent 本身的通用字段,不轻易动。
 - `10~`:oneof 的分支,新增事件类型按顺序分配,已用的编号永不重用。
 
@@ -279,6 +282,7 @@ message TypingSignal {
 ```
 
 **注意点**:
+
 - `WsPacket.seq` 改名 `client_seq`,避免和 `ChatEvent.seq_id` 混淆。
 - 下行推送统一用 `ChatEvent`,不再有各自的 `PushMessage` 结构。
 - AI 流式的三种 packet 只在 WS 上出现,永远不进数据库。
@@ -378,6 +382,7 @@ message SearchUserResponse { repeated resonance.common.v1.ContactInfo users = 1;
 ```
 
 **关键变更**:
+
 - 所有请求里的 `access_token` **全部删除**。鉴权由 Gateway 的中间件从 `Authorization` Header 解析。
 - `GetHistoryMessages` 改名 `GetHistoryEvents`,返回 `ChatEvent` 而不是 `PushMessage`。
 - `PullInboxDelta` 返回的 `InboxDeltaItem` 承载 `ChatEvent`,能表达撤回/已读等事件。
@@ -472,6 +477,7 @@ message SendEventResponse {
 ```
 
 **设计说明**:
+
 - 把原 `SendMessage` 泛化为 `SendEvent`。未来撤回、编辑复用同一入口,Logic 侧在 oneof 分派。
 - **已读位点**不走 `SendEvent`,因为它不是"聊天内容",走独立的 `SessionService.UpdateReadPosition`——但 Logic 内部会把已读变化**也**打包成 `ChatEvent { ReadReceipt }` 进 Outbox,实现多端同步。
 - **身份走 metadata**,Logic 通过 interceptor 解出 `x-username` 塞 context。
@@ -614,6 +620,7 @@ message MQEvent {
 ```
 
 **Topic 命名变化**:
+
 - 旧:`resonance.push.event.v1`
 - 新:`resonance.chat.event.v1`
 
@@ -637,6 +644,7 @@ message MQEvent {
 ## 7. 生成与类型映射
 
 保持现有 `make gen` 流程。前端 TypeScript 生成代码路径不变。注意:
+
 - 所有生成的 `ChatEvent`、`Message`、`SessionType` 类型都在 `common/v1` 包下,TypeScript 侧导出到 `web/src/api/common/v1/`。
 - `oneof` 在 TypeScript 里是 `payload: { case: "message"; value: Message } | { case: "recall"; value: MessageRecall } | ...`,前端分发逻辑按 `event.payload.case` switch。
 

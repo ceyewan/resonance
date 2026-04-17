@@ -55,25 +55,34 @@ export default function LoginPage() {
   }, []);
 
   // 实时验证输入
-  const handleUsernameChange = useCallback((value: string) => {
-    setUsername(value);
-    if (!isLogin) {
-      setValidationErrors((prev) => ({ ...prev, username: validateUsername(value) }));
-    }
-    if (error) clearError();
-  }, [isLogin, error, clearError, validateUsername]);
+  const handleUsernameChange = useCallback(
+    (value: string) => {
+      setUsername(value);
+      if (!isLogin) {
+        setValidationErrors((prev) => ({ ...prev, username: validateUsername(value) }));
+      }
+      if (error) clearError();
+    },
+    [isLogin, error, clearError, validateUsername],
+  );
 
-  const handleNicknameChange = useCallback((value: string) => {
-    setNickname(value);
-    setValidationErrors((prev) => ({ ...prev, nickname: validateNickname(value) }));
-    if (error) clearError();
-  }, [error, clearError, validateNickname]);
+  const handleNicknameChange = useCallback(
+    (value: string) => {
+      setNickname(value);
+      setValidationErrors((prev) => ({ ...prev, nickname: validateNickname(value) }));
+      if (error) clearError();
+    },
+    [error, clearError, validateNickname],
+  );
 
-  const handlePasswordChange = useCallback((value: string) => {
-    setPassword(value);
-    setValidationErrors((prev) => ({ ...prev, password: validatePassword(value) }));
-    if (error) clearError();
-  }, [error, clearError, validatePassword]);
+  const handlePasswordChange = useCallback(
+    (value: string) => {
+      setPassword(value);
+      setValidationErrors((prev) => ({ ...prev, password: validatePassword(value) }));
+      if (error) clearError();
+    },
+    [error, clearError, validatePassword],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +173,8 @@ export default function LoginPage() {
               autoComplete="username"
               className={cn(
                 "lg-input w-full",
-                validationErrors.username && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
+                validationErrors.username &&
+                  "border-red-400 focus:border-red-500 focus:ring-red-500/20",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />
@@ -192,7 +202,8 @@ export default function LoginPage() {
                 autoComplete="nickname"
                 className={cn(
                   "lg-input w-full",
-                  validationErrors.nickname && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
+                  validationErrors.nickname &&
+                    "border-red-400 focus:border-red-500 focus:ring-red-500/20",
                   "disabled:cursor-not-allowed disabled:opacity-50",
                 )}
               />
@@ -220,7 +231,8 @@ export default function LoginPage() {
               autoComplete={isLogin ? "current-password" : "new-password"}
               className={cn(
                 "lg-input w-full",
-                validationErrors.password && "border-red-400 focus:border-red-500 focus:ring-red-500/20",
+                validationErrors.password &&
+                  "border-red-400 focus:border-red-500 focus:ring-red-500/20",
                 "disabled:cursor-not-allowed disabled:opacity-50",
               )}
             />

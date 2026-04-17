@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/task/observability"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // PushTask 推送任务
@@ -66,7 +67,7 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 	}
 
 	// 启动多个并发推送 loop
-	for i := 0; i < pusherCount; i++ {
+	for i := range pusherCount {
 		client.wg.Add(1)
 		go client.pushLoop(i)
 	}
@@ -165,7 +166,7 @@ func (c *GatewayClient) doPush(task *PushTask) {
 	const retryDelay = 1 * time.Second
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetry; attempt++ {
+	for attempt := range maxRetry {
 		if attempt > 0 {
 			c.logger.Warn("retrying push",
 				clog.String("gateway_id", c.id),

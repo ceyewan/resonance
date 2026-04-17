@@ -6,8 +6,9 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // SessionRepoOption 配置 SessionRepo 的选项

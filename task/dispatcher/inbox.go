@@ -1,10 +1,11 @@
 package dispatcher
 
 import (
+	"google.golang.org/protobuf/proto"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/event"
-	"google.golang.org/protobuf/proto"
 )
 
 func buildInboxesForEvent(ev *commonv1.ChatEvent, targets []string) ([]*model.Inbox, error) {

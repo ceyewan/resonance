@@ -137,12 +137,14 @@ oneof payload:
 ```
 
 **为什么这么设计**:
+
 - **一个 Inbox 一种结构**:`t_inbox.payload` 存 ChatEvent 的 bytes,前端用一个订阅通道拿到所有事件。
 - **一个推送路径**:Task → Gateway → Web 永远推送 `ChatEvent`,不关心是消息还是撤回。
 - **一个拉取接口**:`PullInboxDelta` 返回 `repeated ChatEvent`,前端按 `payload` 类型分发渲染。
 - **新功能零协议成本**:加一个事件类型只需要 oneof 加分支 + 后端处理逻辑。
 
 **不放进 ChatEvent 的东西**:
+
 - AI 流式 token(`StreamChunk`):短暂事件,走独立路径。
 - 心跳 `Pulse`、确认 `Ack`:属于连接层,不是会话事件。
 - 在线状态变更:属于用户维度,不是会话维度。

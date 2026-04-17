@@ -11,6 +11,7 @@ import (
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/registry"
+
 	"github.com/ceyewan/resonance/gateway/observability"
 )
 

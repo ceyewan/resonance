@@ -5,11 +5,12 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/ceyewan/genesis/clog"
+	"github.com/gin-gonic/gin"
+
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/ceyewan/resonance/gateway/middleware"
-	"github.com/gin-gonic/gin"
 )
 
 // HTTPHandler 实现 Gateway 的 HTTP API
@@ -35,7 +36,7 @@ func (h *HTTPHandler) RequireAuthMiddleware() gin.HandlerFunc {
 
 // getUsernameFromContext 从 Context 中获取经过中间件解析的用户名
 func (h *HTTPHandler) getUsernameFromContext(ctx context.Context) (string, error) {
-	username, ok := ctx.Value(middleware.UsernameKey).(string)
+	username, ok := middleware.UsernameFromRequestContext(ctx)
 	if !ok || username == "" {
 		return "", connect.NewError(connect.CodeUnauthenticated, middleware.ErrMissingToken)
 	}

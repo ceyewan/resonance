@@ -6,14 +6,17 @@ import (
 	"strings"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/gin-gonic/gin"
+
+	"github.com/ceyewan/resonance/gateway/logicclient"
 )
 
 const (
 	// UsernameKey 是上下文中存储用户名的键
 	UsernameKey = "username"
 )
+
+type usernameRequestCtxKey struct{}
 
 // AuthConfig 认证中间件配置
 type AuthConfig struct {
@@ -49,7 +52,7 @@ func (a *AuthConfig) RequireAuth() gin.HandlerFunc {
 		c.Set(UsernameKey, username)
 
 		// 将用户名注入 http.Request Context，以便 ConnectRPC Handler 获取
-		ctx := context.WithValue(c.Request.Context(), UsernameKey, username)
+		ctx := WithUsername(c.Request.Context(), username)
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
@@ -64,7 +67,7 @@ func (a *AuthConfig) OptionalAuth() gin.HandlerFunc {
 		if err == nil && username != "" {
 			c.Set(UsernameKey, username)
 			// 同时注入 http.Context
-			ctx := context.WithValue(c.Request.Context(), UsernameKey, username)
+			ctx := WithUsername(c.Request.Context(), username)
 			c.Request = c.Request.WithContext(ctx)
 		}
 		c.Next()
@@ -118,6 +121,15 @@ func MustGetUsername(c *gin.Context) string {
 		panic("username not found in context")
 	}
 	return username
+}
+
+func WithUsername(ctx context.Context, username string) context.Context {
+	return context.WithValue(ctx, usernameRequestCtxKey{}, username)
+}
+
+func UsernameFromRequestContext(ctx context.Context) (string, bool) {
+	username, ok := ctx.Value(usernameRequestCtxKey{}).(string)
+	return username, ok && username != ""
 }
 
 // 错误定义

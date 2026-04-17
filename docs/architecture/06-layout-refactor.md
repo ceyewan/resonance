@@ -224,11 +224,13 @@ pkg/
 ### Step 4 - Logic 加 `event/doc.go` 占位
 
 1. 新建 `logic/event/doc.go`,内容就是包声明 + 说明性 doc comment:
+
    ```go
    // Package event 预留给 Phase 5 的 ChatEvent 统一处理层:
    // Builder / Persister / Handler(Message/Recall/Edit/...)。当前为空。
    package event
    ```
+
 2. 验证
 
 ### Step 5 - Task 重命名 `dispatcher/helpers.go` → `dispatcher/inbox.go`

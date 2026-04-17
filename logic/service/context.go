@@ -35,18 +35,3 @@ func MustUsernameFromCtx(ctx context.Context) (string, error) {
 	}
 	return "", status.Errorf(codes.Unauthenticated, "missing username in context")
 }
-
-func usernameFromContext(ctx context.Context) (string, error) {
-	if username, ok := UsernameFromCtx(ctx); ok {
-		return username, nil
-	}
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", status.Errorf(codes.Unauthenticated, "missing metadata")
-	}
-	values := md.Get(metadataUsernameKey)
-	if len(values) == 0 || values[0] == "" {
-		return "", status.Errorf(codes.Unauthenticated, "missing username metadata")
-	}
-	return values[0], nil
-}

@@ -137,7 +137,10 @@ export async function applyIncomingPush(
   }
 }
 
-export async function syncInboxDelta(currentUsername: string, pageSize: number = 200): Promise<void> {
+export async function syncInboxDelta(
+  currentUsername: string,
+  pageSize: number = 200,
+): Promise<void> {
   const retry = syncRetryState.get(currentUsername);
   if (retry && Date.now() < retry.nextAllowedAt) {
     return;
@@ -167,7 +170,10 @@ export async function syncInboxDelta(currentUsername: string, pageSize: number =
         await applyIncomingPush(event.message, currentUsername, { suppressReadReceipt: true });
 
         const currentSessionId = useSessionStore.getState().currentSessionId;
-        if (event.message.sessionId === currentSessionId && event.message.fromUsername !== currentUsername) {
+        if (
+          event.message.sessionId === currentSessionId &&
+          event.message.fromUsername !== currentUsername
+        ) {
           const seq = Number(event.message.seqId);
           const existingSeq = pendingReadReceipts.get(event.message.sessionId) ?? 0;
           pendingReadReceipts.set(event.message.sessionId, Math.max(existingSeq, seq));

@@ -46,21 +46,26 @@ logic/
 ## 核心模块
 
 `service/chat.go`
+
 - `SendEvent` 是统一事件入口
 - 当前负责消息事件写入、生成 `event_id/seq_id/timestamp`、触发 Outbox 发布
 
 `service/session.go`
+
 - 只保留会话核心流程：`GetSessionList`、`CreateSession`、`UpdateReadPosition`
 - 会话历史、联系人、Inbox 增量已拆到独立文件，避免继续堆积
 
 `service/history.go` / `contact.go` / `inbox.go`
+
 - 分别承接 `GetHistoryEvents`、`GetContactList/SearchUser`、`PullInboxDelta`
 
 `internal/mqpublish/publish.go`
+
 - 封装 MQ 发布、Outbox 构造、异步 look-aside 发布
 - 这是 Logic 独有能力，不对外暴露给其它服务依赖
 
 `job/outbox.go`
+
 - 后台扫描待补发 Outbox
 - 发布失败按重试次数回退，超过阈值后标记失败
 

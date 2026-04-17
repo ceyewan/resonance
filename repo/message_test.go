@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 func newTestMessageRepo(t *testing.T) (MessageRepo, context.Context) {

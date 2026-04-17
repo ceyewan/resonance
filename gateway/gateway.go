@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
+
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/logicclient"
 	"github.com/ceyewan/resonance/gateway/observability"
@@ -40,9 +41,6 @@ type Gateway struct {
 
 	// workerID 保活停止函数
 	stopWorkerIDKeepAlive func()
-
-	// trace 关闭函数
-	traceShutdown func(context.Context) error
 }
 
 // resources 内部资源聚合，方便统一管理
@@ -252,8 +250,18 @@ func (g *Gateway) Run() error {
 	// 启动 StatusBatcher
 	g.resources.logicClient.StartStatusBatcher()
 
-	go g.grpcServer.Start()
-	go g.httpServer.Start()
+	go func() {
+		if err := g.grpcServer.Start(); err != nil {
+			g.logger.Error("grpc server failed", clog.Error(err))
+			g.cancel()
+		}
+	}()
+	go func() {
+		if err := g.httpServer.Start(); err != nil {
+			g.logger.Error("http server failed", clog.Error(err))
+			g.cancel()
+		}
+	}()
 
 	if err := g.registerService(); err != nil {
 		return err
@@ -301,7 +309,9 @@ func (g *Gateway) Close() error {
 
 	// 2. 注销服务
 	if g.registry != nil {
-		g.registry.Deregister(context.Background(), g.gatewayID)
+		if err := g.registry.Deregister(context.Background(), g.gatewayID); err != nil {
+			g.logger.Warn("deregister gateway failed", clog.Error(err))
+		}
 		g.registry.Close()
 	}
 
@@ -314,7 +324,9 @@ func (g *Gateway) Close() error {
 	defer httpCancel()
 
 	if g.httpServer != nil {
-		g.httpServer.Stop(httpShutdownCtx)
+		if err := g.httpServer.Stop(httpShutdownCtx); err != nil {
+			g.logger.Warn("stop http server failed", clog.Error(err))
+		}
 	}
 
 	// 4. 释放核心资源（带超时控制）

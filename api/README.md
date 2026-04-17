@@ -14,6 +14,7 @@
 ### 1. 安装 Buf CLI
 
 - **macOS (Homebrew)**:
+
     ```bash
     brew install bufbuild/buf/buf
     ```

@@ -5,11 +5,12 @@ import (
 	"strings"
 
 	"github.com/ceyewan/genesis/clog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/pkg/event"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // GetHistoryEvents 实现 SessionService.GetHistoryEvents

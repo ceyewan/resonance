@@ -7,13 +7,14 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
+	"google.golang.org/protobuf/proto"
+
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
-	"google.golang.org/protobuf/proto"
 )
 
 // PublishMessageToMQResult 发布消息到 MQ 的结果
@@ -41,7 +42,7 @@ func PublishMessageToMQ(
 	}
 
 	// 3. 获取 Topic (从 protobuf 扩展字段)
-	topic := string(proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string))
+	topic := proto.GetExtension(event.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string)
 
 	// 4. 创建 Outbox 记录
 	outbox := &model.MessageOutbox{

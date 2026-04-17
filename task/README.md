@@ -53,15 +53,18 @@ Task 当前采用单消费者模型：
 ## 核心模块
 
 `dispatcher/dispatcher.go`
+
 - 单入口
 - 先存储，后推送
 - 未知 payload 直接跳过，避免无意义反复重试
 
 `dispatcher/inbox.go`
+
 - 承担 Inbox 构建辅助逻辑
 - 事件类型转换已复用 `pkg/event`
 
 `dispatcher/handler_*.go`
+
 - `handler_message.go`：消息事件写扩散
 - `handler_recall.go`：撤回事件写扩散
 - `handler_edit.go`：编辑事件写扩散
@@ -69,6 +72,7 @@ Task 当前采用单消费者模型：
 - `handler_session.go`：会话更新事件扩散
 
 `pusher/`
+
 - 按网关分组复用 gRPC Push 客户端
 - 将在线用户事件发往对应 Gateway 实例
 

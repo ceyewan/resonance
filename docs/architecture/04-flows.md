@@ -190,6 +190,7 @@ Web(A1 - Web)        Gateway             Logic                 NATS         Task
 ### 未来扩展:已读回执(对方看到"已读")
 
 如果要做"B 看到 A 已读"(单聊已读标记、群聊已读数):
+
 - `target_usernames` 扩展到会话所有成员
 - 其他成员的客户端收到 `ReadReceipt` 后,在 A 最后一条已读消息上显示"已读"标记
 - 无需改协议,只需改 Logic 里构造 MQEvent 时的 targets

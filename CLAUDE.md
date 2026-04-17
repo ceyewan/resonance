@@ -59,7 +59,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 
 ## 技术栈
 
-- **后端**:Go 1.25+、[Genesis v0.2.0](github.com/ceyewan/genesis)(本地子模块 `genesis/`)、gRPC、NATS
+- **后端**:Go 1.26+、[Genesis v0.2.0](github.com/ceyewan/genesis)(本地子模块 `genesis/`)、gRPC、NATS
 - **存储**:PostgreSQL 17(消息/用户/会话)、Redis(路由映射、缓存)
 - **前端**:React 18 + TypeScript + Vite + Zustand + ConnectRPC + Dexie(IndexedDB)
 - **协议**:Protobuf(`api/proto/`),`make gen` 生成 Go + TS 代码
@@ -99,16 +99,21 @@ cat logic/logic.go                                  # 项目中的资源组装�
 make gen              # 生成 Protobuf 代码(Go + TS)
 make tidy             # 整理 Go 依赖
 
-make run-logic        # 等价于 go run main.go -module logic
-make run-gateway
-make run-task
+# 本地开发
+make dev              # 一键起 logic/gateway/task/web（先执行 make up-infra）
+go run main.go -module logic    # 手动起单个服务：logic/gateway/task/init
 
-make up               # docker-compose 启动 PostgreSQL/Redis/NATS
-make init             # go run main.go -module init (GORM AutoMigrate + 种子数据,幂等)
+# 质量守门
+make format           # 一键格式化 (Go/Proto/Prettier/Markdown)
+make lint             # 一键静态检查 (golangci-lint + buf + prettier + markdown + web)
+make lint-security    # govulncheck 漏洞扫描（按需）
+make test             # go test ./...
 
-make build-logic      # 编译产物
-make build-gateway
-make build-task
+# 基础设施与部署
+make up-infra         # 启动 PostgreSQL/Redis/NATS/etcd
+make init             # GORM AutoMigrate + 种子数据,幂等
+make up               # 本地构建镜像 + Compose 起所有服务
+make up-prod          # 生产配置（Caddy 反代，profile=production）
 ```
 
 ### 测试

@@ -11,6 +11,7 @@
 ### 1.1 职责边界
 
 **负责**:
+
 - 业务规则与权限判断(谁能发消息、谁能撤回、谁能入群)
 - 生成 `ChatEvent`(分配 event_id、seq_id、timestamp)
 - Outbox 事务写入(保证业务操作和 MQ 投递一致性)
@@ -18,6 +19,7 @@
 - 同步 RPC 响应(给 Gateway 返回 event_id/seq_id 做 Ack)
 
 **不负责**:
+
 - 推送(Task 负责)
 - 写 Inbox(Task 负责)
 - WebSocket 连接管理(Gateway)
@@ -57,6 +59,7 @@ logic/
 ```
 
 **关键变化**:
+
 - `service/session.go` 已拆薄，History/Contact/Inbox 分拆为独立文件。
 - `service/helpers.go` 已迁移到 `internal/mqpublish/publish.go`，避免 service 杂糅工具函数。
 - `event/` 当前仅 `doc.go` 占位，Phase 5 再承载 ChatEvent Builder/Handler 实体实现。
@@ -95,6 +98,7 @@ func (p *EventPersister) PersistAndPublish(ctx context.Context, ev *commonv1.Cha
 ```
 
 关键点:
+
 - **所有事件**(不只是消息)都经过 Outbox,保证投递可靠。
 - 撤回/编辑事件需要在事务内**同时更新主表**(标记 recalled_at / 更新 content)。
 
@@ -186,6 +190,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 ### 2.1 职责边界
 
 **负责**:
+
 - HTTP/ConnectRPC 路由与鉴权中间件
 - WebSocket 连接升级、读写循环、心跳
 - 协议编解码(protobuf)
@@ -194,6 +199,7 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 - 在线状态批量上报到 Logic
 
 **不负责**:
+
 - 业务决策
 - 任何持久化
 
@@ -314,12 +320,14 @@ func (s *PushService) PushStream(ctx context.Context, req *gatewayv1.PushStreamR
 ### 3.1 职责边界
 
 **负责**:
+
 - 消费 MQ(NATS)
 - 按 `ChatEvent.payload` 类型**分发处理**:写 Inbox(写扩散)、派生状态(如未读数失效等)
 - 查询用户路由
 - 推送到对应 Gateway
 
 **不负责**:
+
 - 任何业务决策(权限、时间窗口等都由 Logic 保证)
 - 生成 event_id/seq_id(Logic 已分配)
 - **业务主事实变更**(message_content 写入 / recalled_at / edited_at 必须由 Logic 主事务完成)——如果 Task 里写主表,说明该逻辑放错了层
@@ -453,16 +461,19 @@ func (d *Dispatcher) handleReadReceipt(ctx context.Context, ev *commonv1.ChatEve
 实施完成后,对应 README 需要更新以下内容:
 
 **`logic/README.md`**:
+
 - 新增 `event/` 模块的说明
 - `ChatService.SendEvent` 统一事件入口的说明
 - 各 payload 类型的处理流程(handler_*)
 
 **`gateway/README.md`**:
+
 - WsPacket 新的 oneof 结构
 - `PushService` 两个 RPC 的区分(PushEvent 持久化 / PushStream 短暂)
 - Stream 缓冲与下发机制
 
 **`task/README.md`**:
+
 - 从双消费者改为单消费者的说明
 - Dispatcher 按事件类型分发的流程图
 - 各 handler 的职责

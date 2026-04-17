@@ -44,20 +44,24 @@ gateway/
 ## 核心模块
 
 `transport/httpapi/`
+
 - 负责 ConnectRPC 对外 API
 - `handler.go` 承接 Auth/Session 相关接口
 - `factory.go` 负责 HTTP 中间件装配，避免与顶层 `middleware/` 命名混淆
 
 `transport/ws/`
+
 - 负责 WS 握手、连接读写、包编解码与 packet 分发
 - `codec.go`、`conn.go`、`manager.go`、`presence.go` 已合并到同一 `ws` 包，避免原先 `protocol/`、`connection/` 的职责分裂
 
 `logicclient/`
+
 - 封装 Gateway 到 Logic 的所有 gRPC 调用
 - 统一注入 `x-username` metadata
 - `batcher.go` 负责 Presence 状态批量同步
 
 `pushserver/service.go`
+
 - 提供内部 `PushService`
 - 接收 Task 的 `PushEvent` / `PushStream` 并投递到本机在线连接
 

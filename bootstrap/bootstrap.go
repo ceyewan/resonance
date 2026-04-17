@@ -10,9 +10,10 @@ import (
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // Config 初始化所需的配置（复用 logic.yaml）

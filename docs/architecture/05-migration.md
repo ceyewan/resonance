@@ -19,6 +19,7 @@
 | **Phase 8** | AI 流式(StreamChunk 协议 + AI 流式输出) | Phase 7 | 中 |
 
 **原则**:
+
 - Phase 1~4 是**骨架改造**,必须先做完。
 - Phase 5~8 是**功能叠加**,顺序可灵活调整,但撤回/已读先于 AI 落地——它们是事件驱动框架的**自然试金石**。
 
@@ -29,6 +30,7 @@
 **目标**:把 `00~04` 文档过一遍,对所有"设计决策"节点做确认。
 
 检查清单:
+
 - [ ] `00-overview.md` 的 8 条设计原则是否有异议
 - [ ] `01-protocol.md` 的 `ChatEvent` 结构,payload oneof 分支是否覆盖已知场景
 - [ ] `02-database.md` 的 Inbox 重构方案是否可行(灰度 vs 停机迁移)
@@ -44,6 +46,7 @@
 **目标**:引入 `common/v1/ChatEvent`,消除四处重复的消息定义。**不改业务逻辑**,只改协议和序列化。
 
 **当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+
 - 已新增 `common/v1/{session,message,event,view}.proto`
 - 已完成 `gateway/logic/mq` 协议重写与代码生成
 - 已完成 `gateway/v1` 从单一 `api.proto` 拆分为 `auth.proto` + `session.proto`
@@ -89,22 +92,26 @@
 改完 proto 后 `make gen`,根据编译错误逐个修复:
 
 **Logic**:
+
 - `service/chat.go` 的 `SendMessage` 改为 `SendEvent`,入参是 `ChatEvent.payload`
 - 内部构造 `ChatEvent` 填入 Outbox 的 payload(原先存 `PushEvent` bytes,现在存 `MQEvent` bytes)
 - `service/session.go` 的响应类型从旧结构改为 `ChatEvent`
 
 **Gateway**:
+
 - `ws/dispatcher.go` 的 oneof 分发代码重写
 - `api/*.go` 的 ConnectRPC handlers 的字段名调整
 - `client/services.go` 的 Logic 调用签名调整
 - `push/service.go` 的 PushEvent 接受 `ChatEvent`(PushStream 先占位,不实现)
 
 **Task**:
+
 - `dispatcher/dispatcher.go` 的 MQ 消费改为读 `MQEvent.event`(ChatEvent)
 - 但**分发逻辑仍按旧方式**:所有 payload=Message 就走旧写 Inbox 流程。其他类型直接 log 并 ACK。
 - Phase 4 再做完整分派。
 
 **Web**:
+
 - 所有用到旧类型(`PushMessage`、`ChatRequest`)的地方改为 `ChatEvent`
 - 接入 TypeScript 生成的新类型
 
@@ -126,6 +133,7 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 **目标**:删除 body 里的死字段,错误用 gRPC status。
 
 **当前状态(2026-04-17)**:后端已完成收口并通过 `go test ./...`。
+
 - Gateway -> Logic 调用统一注入 `x-username` metadata
 - Logic 新增 auth unary interceptor,统一把 metadata username 注入 context
 - Service 层改为 `MustUsernameFromCtx` 取身份
@@ -162,6 +170,7 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 **目标**:`t_inbox` 重构为事件流;`t_message_content` 加字段;`t_session` 加字段。
 
 **当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+
 - `model` 已切换到 `event_id/event_type/payload` 结构，移除 `Inbox.is_read/msg_id`
 - `MessageRepo` 已完成接口升级：`SaveMessageContent/SaveInboxBatch/GetInboxDelta([]*model.Inbox)/GetUnreadMessageCount`
 - `logic/service/session.go` 的 `PullInboxDelta` 已改为反序列化 `t_inbox.payload` 返回 `ChatEvent`
@@ -173,12 +182,14 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 根据项目当前用户量选:
 
 **A. 停机迁移**(推荐,如果用户量小):
+
 1. 停服
 2. 执行 `02-database.md` 的 SQL
 3. 清空 `t_inbox`(V1 的 Inbox 数据不迁移,用户重连后从主表重构一次最近的事件流)
 4. 启动新版
 
 **B. 灰度迁移**(大用户量):
+
 1. 新建 `t_inbox_v2`
 2. 双写:代码 check flag,既写旧也写新
 3. 跑脚本把旧 Inbox 数据按 `event_id` JOIN `message_content` 重构成 ChatEvent bytes,写入 v2
@@ -236,6 +247,7 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 **目标**:消除 Push/Storage 时序问题,MQ 消费负载 ×2 问题。
 
 **当前状态(2026-04-17)**:后端主干已完成首轮落地并通过 `go test ./...`。
+
 - `task` 已从双消费者收敛为单消费者（`consumer` 配置）
 - `task/dispatcher` 已改为单入口 `Handle`，按 payload 分 handler
 - 处理语义已收口：存储失败返回 error 触发 NAK；推送失败只记日志/指标，不 NAK
@@ -261,6 +273,7 @@ Proto 是破坏性变更,无法简单回滚。Phase 1 前打 tag,如有严重问
 **目标**:验证事件驱动框架对"非消息"事件的处理。
 
 **当前预留态(2026-04-17)**:
+
 - `logic/v1/chat.proto` 已为 `recall/edit` 预留 oneof 分支
 - `task/dispatcher/handler_recall.go` 与 `handler_edit.go` 已收敛为只写 Inbox + 推送
 - `logic/service/chat.go` 仍只接受 `Message` payload,非 `Message` 显式返回未接通错误

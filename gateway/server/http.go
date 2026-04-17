@@ -5,11 +5,12 @@ import (
 	"net/http"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/gin-gonic/gin"
+
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/transport/httpapi"
 	"github.com/ceyewan/resonance/gateway/transport/ws"
 	"github.com/ceyewan/resonance/pkg/health"
-	"github.com/gin-gonic/gin"
 )
 
 // HTTPServer HTTP 服务包装器

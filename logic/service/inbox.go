@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
-	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
 
 // PullInboxDelta 实现 SessionService.PullInboxDelta

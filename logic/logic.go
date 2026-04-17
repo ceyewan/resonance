@@ -12,6 +12,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
+
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/job"
 	"github.com/ceyewan/resonance/logic/observability"
@@ -346,7 +347,9 @@ func (l *Logic) Close() error {
 
 	// 2. 注销服务
 	if l.registry != nil {
-		l.registry.Deregister(context.Background(), l.serviceID)
+		if err := l.registry.Deregister(context.Background(), l.serviceID); err != nil {
+			l.logger.Warn("deregister logic service failed", clog.Error(err))
+		}
 		l.registry.Close()
 	}
 

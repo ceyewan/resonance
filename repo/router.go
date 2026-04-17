@@ -8,6 +8,7 @@ import (
 	"github.com/ceyewan/genesis/cache"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
+
 	"github.com/ceyewan/resonance/model"
 )
 

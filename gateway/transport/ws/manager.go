@@ -6,9 +6,10 @@ import (
 	"sync"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/gorilla/websocket"
+
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/observability"
-	"github.com/gorilla/websocket"
 )
 
 // Manager 管理所有 WebSocket 连接
@@ -107,7 +108,7 @@ func (m *Manager) SendToUser(username string, packet *gatewayv1.WsPacket) error 
 
 // Broadcast 广播消息给所有在线用户
 func (m *Manager) Broadcast(packet *gatewayv1.WsPacket) {
-	m.connections.Range(func(key, value interface{}) bool {
+	m.connections.Range(func(key, value any) bool {
 		conn := value.(*Conn)
 		if err := conn.Send(packet); err != nil {
 			m.logger.Error("failed to broadcast message",
@@ -121,7 +122,7 @@ func (m *Manager) Broadcast(packet *gatewayv1.WsPacket) {
 // OnlineCount 获取在线用户数
 func (m *Manager) OnlineCount() int {
 	count := 0
-	m.connections.Range(func(key, value interface{}) bool {
+	m.connections.Range(func(key, value any) bool {
 		count++
 		return true
 	})
@@ -132,7 +133,7 @@ func (m *Manager) OnlineCount() int {
 
 // Close 关闭所有连接
 func (m *Manager) Close() error {
-	m.connections.Range(func(key, value interface{}) bool {
+	m.connections.Range(func(key, value any) bool {
 		conn := value.(*Conn)
 		conn.Close()
 		return true
