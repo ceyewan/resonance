@@ -102,6 +102,10 @@ func (c *GatewayClient) EnqueueBlocking(task *PushTask) {
 		c.logger.Warn("enqueue skipped: client closing", clog.String("gateway_id", c.id))
 		return
 	}
+	if c.ctx.Err() != nil {
+		c.logger.Warn("enqueue skipped: client canceled", clog.String("gateway_id", c.id))
+		return
+	}
 	select {
 	case <-c.ctx.Done():
 		c.logger.Warn("enqueue skipped: client canceled", clog.String("gateway_id", c.id))
