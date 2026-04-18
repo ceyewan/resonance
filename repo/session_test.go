@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -253,13 +254,60 @@ func TestSessionRepo_GetUserSession(t *testing.T) {
 	t.Run("获取不存在的用户会话应返回错误", func(t *testing.T) {
 		_, err := repo.GetUserSession(ctx, "non_existent_user", "user_session_test")
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "user session not found")
+		assert.Contains(t, err.Error(), "session member not found")
+		assert.ErrorIs(t, err, ErrSessionMemberNotFound)
 	})
 
 	t.Run("获取空用户名应返回错误", func(t *testing.T) {
 		_, err := repo.GetUserSession(ctx, "", "user_session_test")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "username cannot be empty")
+	})
+}
+
+func TestSessionRepo_UpdateLastReadSeq(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+
+	repo, err := NewSessionRepo(database, WithSessionRepoLogger(getTestLogger(t)))
+	require.NoError(t, err)
+	defer repo.Close()
+
+	ctx := context.Background()
+
+	require.NoError(t, repo.CreateSession(ctx, &model.Session{
+		SessionID: "read_seq_session",
+		Type:      1,
+		MaxSeqID:  20,
+	}))
+	require.NoError(t, repo.AddMember(ctx, &model.SessionMember{
+		SessionID:   "read_seq_session",
+		Username:    "alice",
+		LastReadSeq: 10,
+	}))
+
+	t.Run("更新为更大 seq 成功", func(t *testing.T) {
+		err := repo.UpdateLastReadSeq(ctx, "read_seq_session", "alice", 15)
+		require.NoError(t, err)
+
+		member, err := repo.GetUserSession(ctx, "alice", "read_seq_session")
+		require.NoError(t, err)
+		assert.Equal(t, int64(15), member.LastReadSeq)
+	})
+
+	t.Run("更新为更小 seq 视为 no-op", func(t *testing.T) {
+		err := repo.UpdateLastReadSeq(ctx, "read_seq_session", "alice", 12)
+		require.NoError(t, err)
+
+		member, err := repo.GetUserSession(ctx, "alice", "read_seq_session")
+		require.NoError(t, err)
+		assert.Equal(t, int64(15), member.LastReadSeq)
+	})
+
+	t.Run("不存在的成员返回 not found", func(t *testing.T) {
+		err := repo.UpdateLastReadSeq(ctx, "read_seq_session", "bob", 18)
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, ErrSessionMemberNotFound))
 	})
 }
 
@@ -309,6 +357,23 @@ func TestSessionRepo_GetUserSessionList(t *testing.T) {
 		assert.Contains(t, sessionIDs, "session_001")
 		assert.Contains(t, sessionIDs, "session_002")
 		assert.Contains(t, sessionIDs, "session_003")
+	})
+
+	t.Run("会话列表按 max_seq_id 倒序且同分稳定排序", func(t *testing.T) {
+		require.NoError(t, repo.UpdateMaxSeqID(ctx, "session_001", 20))
+		require.NoError(t, repo.UpdateMaxSeqID(ctx, "session_002", 20))
+		require.NoError(t, repo.UpdateMaxSeqID(ctx, "session_003", 10))
+
+		userSessions, err := repo.GetUserSessionList(ctx, "list_test_user")
+		require.NoError(t, err)
+		require.Len(t, userSessions, 3)
+
+		assert.Equal(t, "session_001", userSessions[0].SessionID)
+		assert.Equal(t, "session_002", userSessions[1].SessionID)
+		assert.Equal(t, "session_003", userSessions[2].SessionID)
+		assert.Equal(t, int64(20), userSessions[0].MaxSeqID)
+		assert.Equal(t, int64(20), userSessions[1].MaxSeqID)
+		assert.Equal(t, int64(10), userSessions[2].MaxSeqID)
 	})
 
 	t.Run("获取不存在用户的会话列表应返回空", func(t *testing.T) {

@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"strings"
+	"errors"
 
 	"github.com/ceyewan/genesis/clog"
 	"google.golang.org/grpc/codes"
@@ -11,6 +11,7 @@ import (
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/pkg/event"
+	"github.com/ceyewan/resonance/repo"
 )
 
 // GetHistoryEvents 实现 SessionService.GetHistoryEvents
@@ -33,7 +34,7 @@ func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetH
 	}
 
 	if _, err := s.sessionRepo.GetUserSession(ctx, username, req.SessionId); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repo.ErrSessionMemberNotFound) {
 			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to verify session permission")

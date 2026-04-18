@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -307,6 +308,9 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 	}
 
 	if err := s.sessionRepo.UpdateLastReadSeq(ctx, req.SessionId, username, req.SeqId); err != nil {
+		if errors.Is(err, repo.ErrSessionMemberNotFound) {
+			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
+		}
 		s.logger.Error("failed to update read position", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to update read position")
 	}

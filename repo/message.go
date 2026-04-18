@@ -61,12 +61,6 @@ func NewMessageRepo(database db.DB, opts ...MessageRepoOption) (MessageRepo, err
 		logger = logger.WithNamespace("message_repo")
 	}
 
-	// 自动迁移表结构
-	// 注意：生产环境建议使用专门的 migration 工具管理 schema，此处仅为简化开发
-	if err := database.DB(context.Background()).AutoMigrate(&model.MessageOutbox{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate outbox table: %w", err)
-	}
-
 	return &messageRepo{
 		db:     database,
 		logger: logger,
@@ -188,7 +182,7 @@ func (r *messageRepo) GetLastMessage(ctx context.Context, sessionID string) (*mo
 		Order("seq_id DESC").
 		First(&message).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("no message found in session: %s", sessionID)
+			return nil, fmt.Errorf("%w: session_id=%s", ErrMessageNotFound, sessionID)
 		}
 		r.logger.Error("获取最后一条消息失败",
 			clog.String("session_id", sessionID),

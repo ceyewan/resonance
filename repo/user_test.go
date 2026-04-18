@@ -109,6 +109,7 @@ func TestUserRepo_GetUserByUsername(t *testing.T) {
 		_, err := repo.GetUserByUsername(ctx, "non_existent_user")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "user not found")
+		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
 
 	t.Run("获取空用户名应返回错误", func(t *testing.T) {

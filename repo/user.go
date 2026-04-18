@@ -96,7 +96,7 @@ func (r *userRepo) GetUserByUsername(ctx context.Context, username string) (*mod
 	gormDB := r.db.DB(ctx)
 	if err := gormDB.Where("username = ?", username).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("user not found: %s", username)
+			return nil, fmt.Errorf("%w: %s", ErrUserNotFound, username)
 		}
 		r.logger.Error("获取用户失败",
 			clog.String("username", username),

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -136,7 +137,18 @@ func (r *routerRepo) GetUserGateway(ctx context.Context, username string) (*mode
 	var router model.Router
 	err := r.cache.Get(ctx, key, &router)
 	if err != nil {
-		// cache.Get 返回错误时，可能是 key 不存在
+		exists, existsErr := r.cache.Has(ctx, key)
+		if existsErr != nil {
+			r.logger.DebugContext(ctx, "Failed to check user gateway mapping existence",
+				clog.String("username", username),
+				clog.Error(existsErr),
+			)
+			return nil, fmt.Errorf("failed to check user gateway existence: %w", existsErr)
+		}
+		if !exists {
+			return nil, fmt.Errorf("%w: %s", ErrRouteNotFound, username)
+		}
+
 		r.logger.DebugContext(ctx, "Failed to get user gateway mapping",
 			clog.String("username", username),
 			clog.Error(err),
@@ -183,20 +195,20 @@ func (r *routerRepo) BatchSetUserGateway(ctx context.Context, routers []*model.R
 		return nil
 	}
 
-	errors := make([]error, 0, len(routers))
+	errs := make([]error, 0, len(routers))
 	for _, router := range routers {
 		if err := r.SetUserGateway(ctx, router); err != nil {
-			errors = append(errors, fmt.Errorf("username %s: %w", router.Username, err))
+			errs = append(errs, fmt.Errorf("username %s: %w", router.Username, err))
 		}
 	}
 
 	// 如果有部分失败，记录警告日志
-	if len(errors) > 0 {
+	if len(errs) > 0 {
 		r.logger.WarnContext(ctx, "Some user gateway mappings failed to set",
-			clog.Int("success_count", len(routers)-len(errors)),
-			clog.Int("error_count", len(errors)),
+			clog.Int("success_count", len(routers)-len(errs)),
+			clog.Int("error_count", len(errs)),
 		)
-		return fmt.Errorf("batch set failed: %d errors", len(errors))
+		return fmt.Errorf("batch set failed: %d errors", len(errs))
 	}
 
 	r.logger.DebugContext(ctx, "Batch set user gateway mappings completed",
@@ -213,20 +225,20 @@ func (r *routerRepo) BatchDeleteUserGateway(ctx context.Context, usernames []str
 		return nil
 	}
 
-	errors := make([]error, 0, len(usernames))
+	errs := make([]error, 0, len(usernames))
 	for _, username := range usernames {
 		if err := r.DeleteUserGateway(ctx, username); err != nil {
-			errors = append(errors, fmt.Errorf("username %s: %w", username, err))
+			errs = append(errs, fmt.Errorf("username %s: %w", username, err))
 		}
 	}
 
 	// 如果有部分失败，记录警告日志
-	if len(errors) > 0 {
+	if len(errs) > 0 {
 		r.logger.WarnContext(ctx, "Some user gateway mappings failed to delete",
-			clog.Int("success_count", len(usernames)-len(errors)),
-			clog.Int("error_count", len(errors)),
+			clog.Int("success_count", len(usernames)-len(errs)),
+			clog.Int("error_count", len(errs)),
 		)
-		return fmt.Errorf("batch delete failed: %d errors", len(errors))
+		return fmt.Errorf("batch delete failed: %d errors", len(errs))
 	}
 
 	r.logger.DebugContext(ctx, "Batch delete user gateway mappings completed",
@@ -245,30 +257,32 @@ func (r *routerRepo) BatchGetUsersGateway(ctx context.Context, usernames []strin
 
 	// 批量获取，这里使用并行方式提高性能
 	results := make([]*model.Router, 0, len(usernames))
-	errors := make([]error, 0, len(usernames))
+	errs := make([]error, 0, len(usernames))
 
 	for _, username := range usernames {
 		router, err := r.GetUserGateway(ctx, username)
 		if err != nil {
-			// 记录错误但继续处理其他用户
-			errors = append(errors, fmt.Errorf("username %s: %w", username, err))
+			if errors.Is(err, ErrRouteNotFound) {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("username %s: %w", username, err))
 			continue
 		}
 		results = append(results, router)
 	}
 
 	// 如果有部分失败，记录警告日志
-	if len(errors) > 0 {
+	if len(errs) > 0 {
 		r.logger.WarnContext(ctx, "Some user gateway mappings failed to retrieve",
 			clog.Int("success_count", len(results)),
-			clog.Int("error_count", len(errors)),
+			clog.Int("error_count", len(errs)),
 		)
 	}
 
 	r.logger.DebugContext(ctx, "Batch get user gateway mappings completed",
 		clog.Int("requested", len(usernames)),
 		clog.Int("successful", len(results)),
-		clog.Int("failed", len(errors)),
+		clog.Int("failed", len(errs)),
 	)
 
 	return results, nil
