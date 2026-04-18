@@ -24,7 +24,7 @@
     /* Paths */
     "baseUrl": ".",
     "paths": {
-      "@gen/*": ["../api/gen/ts/*"]
+      "@gen/*": ["./src/gen/*"]
     }
   },
   "include": ["src"]
