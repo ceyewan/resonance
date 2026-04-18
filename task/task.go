@@ -31,23 +31,39 @@ type Task struct {
 	resources *resources
 
 	// 组件
-	pusherMgr    *pusher.Manager
+	pusherMgr    pusher.PusherManager
 	dispatcher   *dispatcher.Dispatcher
-	consumer     *consumer.Consumer
-	healthServer *health.Server
+	consumer     consumerComponent
+	healthServer healthComponent
 }
 
 // resources 内部资源聚合
 type resources struct {
-	redisConn    connector.RedisConnector
-	postgresConn connector.PostgreSQLConnector
-	natsConn     connector.NATSConnector
-	etcdConn     connector.EtcdConnector
+	redisConn    closeable
+	postgresConn closeable
+	natsConn     closeable
+	etcdConn     closeable
 	mqClient     mq.MQ
 	registry     registry.Registry
 	routerRepo   repo.RouterRepo
 	sessionRepo  repo.SessionRepo
 	messageRepo  repo.MessageRepo
+}
+
+type closeable interface {
+	Close() error
+}
+
+type consumerComponent interface {
+	Start() error
+	Stop() error
+	SetName(name string)
+}
+
+type healthComponent interface {
+	Start() error
+	Stop(ctx context.Context) error
+	SetReady(ready bool)
 }
 
 // New 创建 Task 实例
