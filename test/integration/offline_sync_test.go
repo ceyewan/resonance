@@ -96,11 +96,11 @@ func TestOfflineSync_GoldenPath(t *testing.T) {
 	sessionClient := logicv1.NewSessionServiceClient(logicConn)
 	chatClient := logicv1.NewChatServiceClient(logicConn)
 
-	require.NoError(t, callWithRetry(3*time.Second, func() error {
+	require.NoError(t, callWithRetry(func() error {
 		_, e := authClient.Register(ctx, &logicv1.RegisterRequest{Username: "alice", Password: "pass123", Nickname: "Alice"})
 		return e
 	}))
-	require.NoError(t, callWithRetry(3*time.Second, func() error {
+	require.NoError(t, callWithRetry(func() error {
 		_, e := authClient.Register(ctx, &logicv1.RegisterRequest{Username: "bob", Password: "pass123", Nickname: "Bob"})
 		return e
 	}))
