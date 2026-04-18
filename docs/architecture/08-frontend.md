@@ -161,7 +161,7 @@ web/
 
 1. Auth 恢复:从 `localStorage` 读 token → 调 `/me`(若无则重登录)。
 2. HTTP 加载 `GetSessionList` → 写 Dexie `sessions`(覆盖式)。
-3. 建 WebSocket(Header 带 JWT)。
+3. 建 WebSocket(`?token=<jwt>` query 参数鉴权,浏览器原生 WS 不支持自定义 Header)。
 4. 触发 `sync/inbox.run()`:以 `meta.inbox_cursor_id` 分页拉取,直到 `has_more=false`。
 5. UI 订阅 Dexie,直接渲染。
 
@@ -265,7 +265,7 @@ web/
 
 | Step | 目标 | 关键产出 | 验收 | 推荐模型 |
 |------|------|----------|------|---------|
-| **S0** | 脚手架 | Vite 6 + TS 5 + Tailwind 4 + ESLint flat;`tsconfig paths: "@gen/*" → "../api/gen/ts/*"`;`/` 显示空白但能跑 | `npm run dev` 打开,`npm run type-check` 通过 | **Codex (gpt-5.3-codex)**:配置型,不容易发明 API |
+| **S0** | 脚手架 | Vite 6 + TS 5 + Tailwind 4 + ESLint flat;`tsconfig paths: "@gen/*" → "../api/gen/ts/*"`;`/` 显示空白但能跑 | `npm run dev` 打开,`npm run type-check` 与 `npm run build` 均通过 | **Codex (gpt-5.3-codex)**:配置型,不容易发明 API |
 | **S1** | ConnectRPC 底座 | `api/transport.ts` + `api/clients.ts`;JWT 拦截器(读 localStorage);`lib/id.ts` bigint 封装 | 手写一个调用 `AuthService.Login` 的 demo 页,能跑通 | **Codex** |
 | **S2** | Dexie + Applier | `db/schema.ts`(sessions/events/outbox/meta)+ `db/repo.ts` + `sync/applier.ts`;**单测**覆盖所有 `ChatEvent` oneof 分支 + 幂等 | `vitest` 跑 `applier` 单测全绿,包含重复 `event_id`、乱序 `seq_id`、pending 覆盖三种用例 | **Codex**:纯业务逻辑 + 强单测,最适合 |
 | **S3** | WebSocket 骨架 | `api/ws/client.ts`(连接 / 心跳 / 指数退避重连 / 状态机) + `api/ws/dispatcher.ts`(oneof 分发) + `stores/connection.ts` | 断网重连、心跳保活可手工验证;dispatcher 对未知 case 编译报错 | **Codex** 主写,如遇重连抖动问题上 **gpt-5.4 xhigh** |

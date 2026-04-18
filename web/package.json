@@ -28,11 +28,12 @@
     "react-hook-form": "^7.55.0",
     "react-markdown": "^9.0.3",
     "remark-gfm": "^4.0.1",
-    "zustand": "^5.0.3",
-    "zod": "^3.24.3"
+    "zod": "^3.24.3",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.4",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
