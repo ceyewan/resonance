@@ -80,6 +80,9 @@ func (c *GatewayClient) Enqueue(task *PushTask) error {
 	if c.closing.Load() {
 		return fmt.Errorf("gateway %s client closing", c.id)
 	}
+	if c.ctx.Err() != nil {
+		return fmt.Errorf("gateway %s client closing", c.id)
+	}
 
 	select {
 	case <-c.ctx.Done():

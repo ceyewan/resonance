@@ -321,7 +321,15 @@ func setupInfra(t *testing.T, logger clog.Logger) *infra {
 		Timezone:        "UTC",
 	}, connector.WithLogger(logger))
 	require.NoError(t, err)
-	require.NoError(t, pgConn.Connect(context.Background()))
+	var connectErr error
+	for range 10 {
+		connectErr = pgConn.Connect(context.Background())
+		if connectErr == nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	require.NoError(t, connectErr)
 
 	redisConn, err := connector.NewRedis(&connector.RedisConfig{
 		Name:         "golden-redis",
