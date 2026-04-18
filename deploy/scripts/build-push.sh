@@ -9,6 +9,7 @@ set -e
 
 DOCKERHUB_USER=ceyewan
 IMAGE_NAME=resonance
+IMAGE_REPO=$DOCKERHUB_USER/$IMAGE_NAME
 PLATFORM=linux/amd64
 TAG=${2:-v0.1}
 
@@ -16,23 +17,23 @@ case "$1" in
   local)
     docker build \
       --target final \
-      -t $IMAGE_NAME:local -f deploy/Dockerfile .
-    echo "本地镜像已构建：$IMAGE_NAME:local"
+      -t $IMAGE_REPO:local -f deploy/Dockerfile .
+    echo "本地镜像已构建：$IMAGE_REPO:local"
     ;;
   amd64)
     docker build --platform=$PLATFORM \
       --target final \
-      -t $IMAGE_NAME:amd64 -f deploy/Dockerfile .
-    echo "amd64镜像已构建：$IMAGE_NAME:amd64"
+      -t $IMAGE_REPO:amd64 -f deploy/Dockerfile .
+    echo "amd64镜像已构建：$IMAGE_REPO:amd64"
     ;;
   push)
     echo "正在构建并推送镜像..."
     docker build --platform=$PLATFORM \
       --target final \
-      -t $DOCKERHUB_USER/$IMAGE_NAME:$TAG -f deploy/Dockerfile .
+      -t $IMAGE_REPO:$TAG -f deploy/Dockerfile .
     
-    docker push $DOCKERHUB_USER/$IMAGE_NAME:$TAG
-    echo "已上传到 Docker Hub: $DOCKERHUB_USER/$IMAGE_NAME:$TAG"
+    docker push $IMAGE_REPO:$TAG
+    echo "已上传到 Docker Hub: $IMAGE_REPO:$TAG"
     ;;
   *)
     echo "用法: $0 [local|amd64|push] [TAG]"

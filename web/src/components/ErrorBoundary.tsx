@@ -53,10 +53,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
                 应用遇到了意外错误，请刷新页面重试
               </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="lg-btn-primary"
-              >
+              <button onClick={() => window.location.reload()} className="lg-btn-primary">
                 刷新页面
               </button>
               {process.env.NODE_ENV === "development" && this.state.error && (

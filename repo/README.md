@@ -25,7 +25,7 @@ repo/
 | --- | --- | --- |
 | `UserRepo` | PostgreSQL | 用户创建、查询、搜索、更新 |
 | `SessionRepo` | PostgreSQL | 会话管理、成员管理、联系人查询、已读位点 |
-| `MessageRepo` | PostgreSQL | 消息落库、信箱写扩散、历史拉取、Outbox |
+| `MessageRepo` | PostgreSQL | 消息事件落库、Inbox 事件流写扩散、历史拉取、未读计数、Outbox |
 | `RouterRepo` | Redis | 用户与网关映射、批量路由查询 |
 
 ## 使用方式

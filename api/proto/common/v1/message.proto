@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package resonance.common.v1;
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
+
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TEXT = 1;
+  MESSAGE_TYPE_IMAGE = 2;
+  MESSAGE_TYPE_FILE = 3;
+  MESSAGE_TYPE_SYSTEM = 4;
+  MESSAGE_TYPE_AI_STREAM = 5;
+}
+
+// Message 是 ChatEvent 的一种 payload，只承载消息本体字段
+// 注意：不要塞会话元信息 / 目标用户列表 / 渲染快照等非消息语义
+// 若需要消息快照化上下文，另建 MessageEnvelope / MessageRenderMeta
+message Message {
+  MessageType type = 1;
+  string content = 2;
+  int64 reply_to_event_id = 3;
+  string client_msg_id = 4;
+  repeated string mentioned_usernames = 5;
+}

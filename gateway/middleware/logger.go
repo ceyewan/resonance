@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -25,7 +24,7 @@ func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 		c.Header(TraceIDHeader, traceID)
 
 		// 2. 注入 trace_id 到 Context
-		ctx := context.WithValue(c.Request.Context(), TraceIDKey, traceID)
+		ctx := WithTraceID(c.Request.Context(), traceID)
 		c.Request = c.Request.WithContext(ctx)
 
 		// 3. 生成请求 ID

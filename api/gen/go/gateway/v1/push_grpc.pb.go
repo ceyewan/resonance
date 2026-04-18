@@ -19,18 +19,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	PushService_Push_FullMethodName = "/resonance.gateway.v1.PushService/Push"
+	PushService_PushEvent_FullMethodName  = "/resonance.gateway.v1.PushService/PushEvent"
+	PushService_PushStream_FullMethodName = "/resonance.gateway.v1.PushService/PushStream"
 )
 
 // PushServiceClient is the client API for PushService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// PushService 处理从 Task 推送消息到网关的请求
 type PushServiceClient interface {
-	// Push 一元 RPC 推送单条消息到网关
-	// Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
-	Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error)
+	PushEvent(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*PushEventResponse, error)
+	PushStream(ctx context.Context, in *PushStreamRequest, opts ...grpc.CallOption) (*PushStreamResponse, error)
 }
 
 type pushServiceClient struct {
@@ -41,10 +39,20 @@ func NewPushServiceClient(cc grpc.ClientConnInterface) PushServiceClient {
 	return &pushServiceClient{cc}
 }
 
-func (c *pushServiceClient) Push(ctx context.Context, in *PushRequest, opts ...grpc.CallOption) (*PushResponse, error) {
+func (c *pushServiceClient) PushEvent(ctx context.Context, in *PushEventRequest, opts ...grpc.CallOption) (*PushEventResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PushResponse)
-	err := c.cc.Invoke(ctx, PushService_Push_FullMethodName, in, out, cOpts...)
+	out := new(PushEventResponse)
+	err := c.cc.Invoke(ctx, PushService_PushEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *pushServiceClient) PushStream(ctx context.Context, in *PushStreamRequest, opts ...grpc.CallOption) (*PushStreamResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PushStreamResponse)
+	err := c.cc.Invoke(ctx, PushService_PushStream_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -54,12 +62,9 @@ func (c *pushServiceClient) Push(ctx context.Context, in *PushRequest, opts ...g
 // PushServiceServer is the server API for PushService service.
 // All implementations must embed UnimplementedPushServiceServer
 // for forward compatibility.
-//
-// PushService 处理从 Task 推送消息到网关的请求
 type PushServiceServer interface {
-	// Push 一元 RPC 推送单条消息到网关
-	// Task 异步持久化连接模式：每个 Gateway 一个 Client，独立 loop 持续推送
-	Push(context.Context, *PushRequest) (*PushResponse, error)
+	PushEvent(context.Context, *PushEventRequest) (*PushEventResponse, error)
+	PushStream(context.Context, *PushStreamRequest) (*PushStreamResponse, error)
 	mustEmbedUnimplementedPushServiceServer()
 }
 
@@ -70,8 +75,11 @@ type PushServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedPushServiceServer struct{}
 
-func (UnimplementedPushServiceServer) Push(context.Context, *PushRequest) (*PushResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Push not implemented")
+func (UnimplementedPushServiceServer) PushEvent(context.Context, *PushEventRequest) (*PushEventResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PushEvent not implemented")
+}
+func (UnimplementedPushServiceServer) PushStream(context.Context, *PushStreamRequest) (*PushStreamResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PushStream not implemented")
 }
 func (UnimplementedPushServiceServer) mustEmbedUnimplementedPushServiceServer() {}
 func (UnimplementedPushServiceServer) testEmbeddedByValue()                     {}
@@ -94,20 +102,38 @@ func RegisterPushServiceServer(s grpc.ServiceRegistrar, srv PushServiceServer) {
 	s.RegisterService(&PushService_ServiceDesc, srv)
 }
 
-func _PushService_Push_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PushRequest)
+func _PushService_PushEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PushEventRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(PushServiceServer).Push(ctx, in)
+		return srv.(PushServiceServer).PushEvent(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: PushService_Push_FullMethodName,
+		FullMethod: PushService_PushEvent_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(PushServiceServer).Push(ctx, req.(*PushRequest))
+		return srv.(PushServiceServer).PushEvent(ctx, req.(*PushEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PushService_PushStream_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PushStreamRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PushServiceServer).PushStream(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PushService_PushStream_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PushServiceServer).PushStream(ctx, req.(*PushStreamRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -120,8 +146,12 @@ var PushService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*PushServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Push",
-			Handler:    _PushService_Push_Handler,
+			MethodName: "PushEvent",
+			Handler:    _PushService_PushEvent_Handler,
+		},
+		{
+			MethodName: "PushStream",
+			Handler:    _PushService_PushStream_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

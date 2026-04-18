@@ -69,10 +69,7 @@ export function useWsMessageHandler({ getSend }: UseWsMessageHandlerOptions) {
         send(ackPacket);
       }
     },
-    [
-      user,
-      getSend,
-    ],
+    [user, getSend],
   );
 
   /**

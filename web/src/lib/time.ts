@@ -30,7 +30,10 @@ export const TIME_FORMAT = {
 /**
  * 将 bigint 时间戳（秒级）格式化为时间字符串
  */
-export function formatTimestamp(timestamp: bigint, options: Intl.DateTimeFormatOptions = TIME_FORMAT.MESSAGE_TIME): string {
+export function formatTimestamp(
+  timestamp: bigint,
+  options: Intl.DateTimeFormatOptions = TIME_FORMAT.MESSAGE_TIME,
+): string {
   const date = new Date(Number(timestamp) * 1000);
   return date.toLocaleTimeString("zh-CN", options);
 }
@@ -38,7 +41,10 @@ export function formatTimestamp(timestamp: bigint, options: Intl.DateTimeFormatO
 /**
  * 将 bigint 时间戳（秒级）格式化为日期字符串
  */
-export function formatDate(timestamp: bigint, options: Intl.DateTimeFormatOptions = TIME_FORMAT.SESSION_TIME): string {
+export function formatDate(
+  timestamp: bigint,
+  options: Intl.DateTimeFormatOptions = TIME_FORMAT.SESSION_TIME,
+): string {
   const date = new Date(Number(timestamp) * 1000);
   return date.toLocaleDateString("zh-CN", options);
 }

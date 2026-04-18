@@ -1,0 +1,300 @@
+package httpapi
+
+import (
+	"context"
+
+	"connectrpc.com/connect"
+	"github.com/ceyewan/genesis/clog"
+	"github.com/gin-gonic/gin"
+
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/gateway/logicclient"
+	"github.com/ceyewan/resonance/gateway/middleware"
+)
+
+// HTTPHandler 实现 Gateway 的 HTTP API
+type HTTPHandler struct {
+	logicClient *logicclient.Client
+	logger      clog.Logger
+	authConfig  *middleware.AuthConfig
+}
+
+// NewHTTPHandler 创建 API Handler
+func NewHTTPHandler(logicClient *logicclient.Client, logger clog.Logger) *HTTPHandler {
+	return &HTTPHandler{
+		logicClient: logicClient,
+		logger:      logger,
+		authConfig:  middleware.NewAuthConfig(logicClient, logger),
+	}
+}
+
+// RequireAuthMiddleware 提供给外部路由使用的认证中间件
+func (h *HTTPHandler) RequireAuthMiddleware() gin.HandlerFunc {
+	return h.authConfig.RequireAuth()
+}
+
+// getUsernameFromContext 从 Context 中获取经过中间件解析的用户名
+func (h *HTTPHandler) getUsernameFromContext(ctx context.Context) (string, error) {
+	username, ok := middleware.UsernameFromRequestContext(ctx)
+	if !ok || username == "" {
+		return "", connect.NewError(connect.CodeUnauthenticated, middleware.ErrMissingToken)
+	}
+	return username, nil
+}
+
+// ==================== AuthService 实现 ====================
+
+// Login 实现 AuthService.Login（公开接口）
+func (h *HTTPHandler) Login(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.LoginRequest],
+) (*connect.Response[gatewayv1.LoginResponse], error) {
+	h.logger.Info("login request", clog.String("username", req.Msg.Username))
+
+	logicReq := &logicv1.LoginRequest{
+		Username: req.Msg.Username,
+		Password: req.Msg.Password,
+	}
+
+	logicResp, err := h.logicClient.Login(ctx, logicReq)
+	if err != nil {
+		h.logger.Error("login failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.LoginResponse{
+		AccessToken: logicResp.AccessToken,
+		User:        logicResp.User,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// Register 实现 AuthService.Register（公开接口）
+func (h *HTTPHandler) Register(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.RegisterRequest],
+) (*connect.Response[gatewayv1.RegisterResponse], error) {
+	h.logger.Info("register request", clog.String("username", req.Msg.Username))
+
+	logicReq := &logicv1.RegisterRequest{
+		Username: req.Msg.Username,
+		Password: req.Msg.Password,
+		Nickname: req.Msg.Nickname,
+	}
+
+	logicResp, err := h.logicClient.Register(ctx, logicReq)
+	if err != nil {
+		h.logger.Error("register failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.RegisterResponse{
+		AccessToken: logicResp.AccessToken,
+		User:        logicResp.User,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// Logout 实现 AuthService.Logout
+// 当前语义为 no-op：服务端不维护 token 黑名单，登出依赖前端清理本地 token。
+func (h *HTTPHandler) Logout(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.LogoutRequest],
+) (*connect.Response[gatewayv1.LogoutResponse], error) {
+	h.logger.Info("logout request (no-op, client should clear local token)")
+
+	resp := &gatewayv1.LogoutResponse{
+		Success: true,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// ==================== SessionService 实现 ====================
+// 以下接口需要认证，由路由中间件统一处理
+
+// GetSessionList 实现 SessionService.GetSessionList
+func (h *HTTPHandler) GetSessionList(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.GetSessionListRequest],
+) (*connect.Response[gatewayv1.GetSessionListResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicResp, err := h.logicClient.GetSessionList(ctx, username)
+	if err != nil {
+		h.logger.Error("get session list failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.GetSessionListResponse{
+		Sessions: logicResp.Sessions,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// CreateSession 实现 SessionService.CreateSession
+func (h *HTTPHandler) CreateSession(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.CreateSessionRequest],
+) (*connect.Response[gatewayv1.CreateSessionResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.CreateSessionRequest{
+		Members: req.Msg.Members,
+		Name:    req.Msg.Name,
+		Type:    req.Msg.Type,
+	}
+
+	logicResp, err := h.logicClient.CreateSession(ctx, username, logicReq)
+	if err != nil {
+		h.logger.Error("create session failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.CreateSessionResponse{
+		SessionId: logicResp.SessionId,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// GetHistoryEvents 实现 SessionService.GetHistoryEvents
+func (h *HTTPHandler) GetHistoryEvents(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.GetHistoryEventsRequest],
+) (*connect.Response[gatewayv1.GetHistoryEventsResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.GetHistoryEventsRequest{
+		SessionId: req.Msg.SessionId,
+		Limit:     req.Msg.Limit,
+		BeforeSeq: req.Msg.BeforeSeq,
+	}
+
+	logicResp, err := h.logicClient.GetHistoryEvents(ctx, username, logicReq)
+	if err != nil {
+		h.logger.Error("get history events failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.GetHistoryEventsResponse{
+		Events: logicResp.Events,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// GetContactList 实现 SessionService.GetContactList
+func (h *HTTPHandler) GetContactList(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.GetContactListRequest],
+) (*connect.Response[gatewayv1.GetContactListResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicResp, err := h.logicClient.GetContactList(ctx, username)
+	if err != nil {
+		h.logger.Error("get contact list failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.GetContactListResponse{
+		Contacts: logicResp.Contacts,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// SearchUser 实现 SessionService.SearchUser
+func (h *HTTPHandler) SearchUser(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.SearchUserRequest],
+) (*connect.Response[gatewayv1.SearchUserResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicResp, err := h.logicClient.SearchUser(ctx, username, req.Msg.Query)
+	if err != nil {
+		h.logger.Error("search user failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.SearchUserResponse{
+		Users: logicResp.Users,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// UpdateReadPosition 实现 SessionService.UpdateReadPosition
+func (h *HTTPHandler) UpdateReadPosition(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.UpdateReadPositionRequest],
+) (*connect.Response[gatewayv1.UpdateReadPositionResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.UpdateReadPositionRequest{
+		SessionId: req.Msg.SessionId,
+		SeqId:     req.Msg.SeqId,
+	}
+
+	logicResp, err := h.logicClient.UpdateReadPosition(ctx, username, logicReq)
+	if err != nil {
+		h.logger.Error("update read position failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	resp := &gatewayv1.UpdateReadPositionResponse{
+		UnreadCount: logicResp.UnreadCount,
+	}
+
+	return connect.NewResponse(resp), nil
+}
+
+// PullInboxDelta 实现 SessionService.PullInboxDelta
+func (h *HTTPHandler) PullInboxDelta(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.PullInboxDeltaRequest],
+) (*connect.Response[gatewayv1.PullInboxDeltaResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicReq := &logicv1.PullInboxDeltaRequest{
+		CursorId: req.Msg.CursorId,
+		Limit:    req.Msg.Limit,
+	}
+
+	logicResp, err := h.logicClient.PullInboxDelta(ctx, username, logicReq)
+	if err != nil {
+		h.logger.Error("pull inbox delta failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	return connect.NewResponse(&gatewayv1.PullInboxDeltaResponse{
+		Events:       logicResp.Events,
+		NextCursorId: logicResp.NextCursorId,
+		HasMore:      logicResp.HasMore,
+	}), nil
+}

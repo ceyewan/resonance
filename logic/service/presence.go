@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ceyewan/genesis/clog"
+
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
@@ -56,7 +57,6 @@ func (s *PresenceService) SyncStatus(ctx context.Context, req *logicv1.SyncStatu
 
 	return &logicv1.SyncStatusResponse{
 		SeqId: req.SeqId,
-		Error: "", // 这里简单返回空，实际可以聚合错误信息
 	}, nil
 }
 

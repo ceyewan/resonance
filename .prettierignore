@@ -9,3 +9,6 @@ web/.vite
 # Generated code
 api/gen
 web/src/gen
+
+# Markdown is linted separately and often contains intentional manual layout
+**/*.md

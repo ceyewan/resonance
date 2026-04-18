@@ -6,24 +6,25 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
-	"github.com/ceyewan/resonance/gateway/observability"
-	"github.com/ceyewan/resonance/gateway/push"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/ceyewan/resonance/gateway/observability"
+	"github.com/ceyewan/resonance/gateway/pushserver"
 )
 
 // GRPCServer gRPC 服务包装器
 type GRPCServer struct {
 	logger      clog.Logger
-	pushService *push.Service
+	pushService *pushserver.Service
 	server      *grpc.Server
 	addr        string
 }
 
 // NewGRPCServer 创建 gRPC 服务
-func NewGRPCServer(addr string, logger clog.Logger, pushService *push.Service) *GRPCServer {
+func NewGRPCServer(addr string, logger clog.Logger, pushService *pushserver.Service) *GRPCServer {
 	return &GRPCServer{
 		addr:        addr,
 		logger:      logger,
@@ -64,7 +65,7 @@ func (s *GRPCServer) Stop() {
 }
 
 // recoveryUnaryInterceptor 恢复拦截器 (Unary)
-func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("grpc panic recovered", clog.Any("panic", r))
@@ -75,7 +76,7 @@ func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req interface
 }
 
 // recoveryStreamInterceptor 恢复拦截器 (Stream)
-func (s *GRPCServer) recoveryStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+func (s *GRPCServer) recoveryStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("grpc panic recovered", clog.Any("panic", r))
@@ -87,7 +88,7 @@ func (s *GRPCServer) recoveryStreamInterceptor(srv interface{}, ss grpc.ServerSt
 
 // loggerUnaryInterceptor 日志拦截器 (Unary)
 // 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
-func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	startTime := time.Now()
 	resp, err := handler(ctx, req)
 	duration := time.Since(startTime)
@@ -114,7 +115,7 @@ func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}
 
 // loggerStreamInterceptor 日志拦截器 (Stream)
 // 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
-func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (s *GRPCServer) loggerStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
 	err := handler(srv, ss)
 	duration := time.Since(startTime)
@@ -142,7 +143,7 @@ func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStre
 // traceContextUnaryInterceptor TraceContext 传递拦截器 (Unary)
 // 从 gRPC metadata 中提取 TraceContext 并注入到 Context，
 // 以支持 OTEL 链路追踪跨服务传递
-func (s *GRPCServer) traceContextUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *GRPCServer) traceContextUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	// 从 gRPC metadata 中提取 TraceContext（如果有的话）
 	// 这样可以支持从客户端（如 Gateway Client）传递过来的 TraceContext
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -167,7 +168,7 @@ func (s *GRPCServer) traceContextUnaryInterceptor(ctx context.Context, req inter
 // traceContextStreamInterceptor TraceContext 传递拦截器 (Stream)
 // 从 gRPC metadata 中提取 TraceContext 并注入到 Context，
 // 以支持 OTEL 链路追踪跨服务传递
-func (s *GRPCServer) traceContextStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (s *GRPCServer) traceContextStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	// 从 gRPC metadata 中提取 TraceContext（如果有的话）
 	ctx := ss.Context()
 	if md, ok := metadata.FromIncomingContext(ctx); ok {

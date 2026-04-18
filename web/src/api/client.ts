@@ -1,12 +1,13 @@
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { createPromiseClient } from "@connectrpc/connect";
-import { AuthService, SessionService } from "@/gen/gateway/v1/api_connect";
+import { AuthService } from "@/gen/gateway/v1/auth_connect";
+import { SessionService } from "@/gen/gateway/v1/session_connect";
 import { useAuthStore } from "@/stores/auth";
 import {
   CreateSessionRequest,
   SearchUserRequest,
   GetContactListRequest,
-} from "@/gen/gateway/v1/api_pb";
+} from "@/gen/gateway/v1/session_pb";
 import { defaultApiBaseUrl, runtimeApiBaseUrl } from "@/config/runtime";
 
 const baseUrl = runtimeApiBaseUrl || import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl();

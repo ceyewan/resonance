@@ -10,15 +10,35 @@
 #
 # 目标：
 #   1) gateway / web 不对宿主机暴露端口（仅通过 caddy 网络反代）
-#   2) 为 web 注入运行时 API/WS 地址（可被 .env 覆盖）
+#   2) 注入 Caddy 网络和反向代理 labels
+#   3) 为 web 注入运行时 API/WS 地址（可被 .env 覆盖）
 # =============================================================================
 
 services:
   gateway:
     ports: !reset []
+    networks:
+      - resonance-net
+      - caddy
+    labels:
+      caddy: ${CADDY_GATEWAY_DOMAIN:-}
+      caddy.reverse_proxy: "{{upstreams 8080}}"
+      caddy.encode: gzip
 
   web:
     ports: !reset []
+    networks:
+      - resonance-net
+      - caddy
+    labels:
+      caddy: ${CADDY_WEB_DOMAIN:-}
+      caddy.reverse_proxy: "{{upstreams 4173}}"
+      caddy.encode: gzip
     environment:
       RESONANCE_WEB_API_BASE_URL: ${RESONANCE_WEB_API_BASE_URL:-https://${CADDY_GATEWAY_DOMAIN}}
       RESONANCE_WEB_WS_BASE_URL: ${RESONANCE_WEB_WS_BASE_URL:-wss://${CADDY_GATEWAY_DOMAIN}/ws}
+
+networks:
+  caddy:
+    external: true
+    name: caddy

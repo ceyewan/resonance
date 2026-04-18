@@ -1,0 +1,14 @@
+{
+  "name": "resonance-tooling",
+  "private": true,
+  "scripts": {
+    "format:markdown": "markdownlint-cli2 --fix",
+    "format:prettier": "prettier --write .",
+    "lint:markdown": "markdownlint-cli2",
+    "lint:prettier": "prettier --check ."
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.18.1",
+    "prettier": "^3.6.2"
+  }
+}

@@ -2,15 +2,17 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
-	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // TestRouterRepo_BasicOperations 测试基本的 CRUD 操作
@@ -115,13 +117,43 @@ func TestRouterRepo_BasicOperations(t *testing.T) {
 		// 验证删除成功
 		_, err = routerRepo.GetUserGateway(ctx, testRouter.Username)
 		assert.Error(t, err) // 应该返回错误，因为用户已被删除
+		assert.ErrorIs(t, err, ErrRouteNotFound)
 	})
 
 	// 6. 测试获取不存在的用户
 	t.Run("GetNonExistentUser", func(t *testing.T) {
 		_, err := routerRepo.GetUserGateway(ctx, "nonexistentuser")
 		assert.Error(t, err)
+		assert.ErrorIs(t, err, ErrRouteNotFound)
 	})
+}
+
+func TestRouterRepo_BatchGetUsersGateway_IgnoreOfflineUsers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	redisConn := getTestRedis(t)
+	logger := getTestLogger(t)
+
+	routerRepo, err := NewRouterRepo(redisConn, WithLogger(logger))
+	require.NoError(t, err)
+	defer routerRepo.Close()
+	defer cleanupRedisData(t, redisConn)
+
+	ctx := context.Background()
+	require.NoError(t, routerRepo.SetUserGateway(ctx, &model.Router{
+		Username:  "online_user",
+		GatewayID: "gateway-001",
+		RemoteIP:  "192.168.1.10",
+		Timestamp: time.Now().Unix(),
+	}))
+
+	routers, err := routerRepo.BatchGetUsersGateway(ctx, []string{"online_user", "offline_user"})
+	require.NoError(t, err)
+	require.Len(t, routers, 1)
+	assert.Equal(t, "online_user", routers[0].Username)
+	assert.Equal(t, "gateway-001", routers[0].GatewayID)
 }
 
 // TestRouterRepo_ErrorHandling 测试错误处理
@@ -266,11 +298,11 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 	t.Run("ConcurrentWrites", func(t *testing.T) {
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			go func(id int) {
 				defer func() { done <- true }()
 
-				for j := 0; j < numOperations; j++ {
+				for j := range numOperations {
 					username := fmt.Sprintf("user_%d_%d", id, j)
 					router := &model.Router{
 						Username:  username,
@@ -286,7 +318,7 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 	})
@@ -305,11 +337,11 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			go func() {
 				defer func() { done <- true }()
 
-				for j := 0; j < numOperations; j++ {
+				for range numOperations {
 					router, err := routerRepo.GetUserGateway(ctx, "concurrent_test_user")
 					assert.NoError(t, err)
 					assert.NotNil(t, router)
@@ -319,8 +351,26 @@ func TestRouterRepo_Concurrency(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 	})
+}
+
+func TestRouterRepo_GetUserGateway_ReturnsNotFoundSentinel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	redisConn := getTestRedis(t)
+	logger := getTestLogger(t)
+
+	routerRepo, err := NewRouterRepo(redisConn, WithLogger(logger))
+	require.NoError(t, err)
+	defer routerRepo.Close()
+	defer cleanupRedisData(t, redisConn)
+
+	_, err = routerRepo.GetUserGateway(context.Background(), "missing-user")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrRouteNotFound))
 }

@@ -7,9 +7,10 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // MessageRepoOption 配置 MessageRepo 的选项
@@ -60,20 +61,14 @@ func NewMessageRepo(database db.DB, opts ...MessageRepoOption) (MessageRepo, err
 		logger = logger.WithNamespace("message_repo")
 	}
 
-	// 自动迁移表结构
-	// 注意：生产环境建议使用专门的 migration 工具管理 schema，此处仅为简化开发
-	if err := database.DB(context.Background()).AutoMigrate(&model.MessageOutbox{}); err != nil {
-		return nil, fmt.Errorf("failed to migrate outbox table: %w", err)
-	}
-
 	return &messageRepo{
 		db:     database,
 		logger: logger,
 	}, nil
 }
 
-// SaveMessage 保存消息内容
-func (r *messageRepo) SaveMessage(ctx context.Context, msg *model.MessageContent) error {
+// SaveMessageContent 保存消息内容
+func (r *messageRepo) SaveMessageContent(ctx context.Context, msg *model.MessageContent) error {
 	if msg == nil {
 		return fmt.Errorf("message cannot be nil")
 	}
@@ -83,28 +78,28 @@ func (r *messageRepo) SaveMessage(ctx context.Context, msg *model.MessageContent
 	if msg.SenderUsername == "" {
 		return fmt.Errorf("sender_username cannot be empty")
 	}
-	if msg.MsgID == 0 {
-		return fmt.Errorf("msg_id cannot be zero")
+	if msg.EventID == 0 {
+		return fmt.Errorf("event_id cannot be zero")
 	}
 
 	gormDB := r.db.DB(ctx)
 	if err := gormDB.Create(msg).Error; err != nil {
 		r.logger.Error("保存消息失败",
 			clog.String("session_id", msg.SessionID),
-			clog.Int64("msg_id", msg.MsgID),
+			clog.Int64("event_id", msg.EventID),
 			clog.Error(err))
 		return fmt.Errorf("failed to save message: %w", err)
 	}
 
 	r.logger.Debug("保存消息成功",
 		clog.String("session_id", msg.SessionID),
-		clog.Int64("msg_id", msg.MsgID),
+		clog.Int64("event_id", msg.EventID),
 		clog.Int64("seq_id", msg.SeqID))
 	return nil
 }
 
-// SaveInbox 批量写入信箱 (写扩散)
-func (r *messageRepo) SaveInbox(ctx context.Context, inboxes []*model.Inbox) error {
+// SaveInboxBatch 批量写入信箱 (写扩散)
+func (r *messageRepo) SaveInboxBatch(ctx context.Context, inboxes []*model.Inbox) error {
 	if len(inboxes) == 0 {
 		return nil
 	}
@@ -133,6 +128,7 @@ func (r *messageRepo) SaveInbox(ctx context.Context, inboxes []*model.Inbox) err
 // 语义：
 //   - beforeSeq == 0: 拉取该会话“最近”的 limit 条消息
 //   - beforeSeq > 0: 拉取 seq_id < beforeSeq 的历史消息
+//
 // 返回顺序统一为 seq_id 升序，方便前端直接渲染。
 func (r *messageRepo) GetHistoryMessages(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error) {
 	if sessionID == "" {
@@ -186,7 +182,7 @@ func (r *messageRepo) GetLastMessage(ctx context.Context, sessionID string) (*mo
 		Order("seq_id DESC").
 		First(&message).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("no message found in session: %s", sessionID)
+			return nil, fmt.Errorf("%w: session_id=%s", ErrMessageNotFound, sessionID)
 		}
 		r.logger.Error("获取最后一条消息失败",
 			clog.String("session_id", sessionID),
@@ -224,37 +220,8 @@ func (r *messageRepo) GetLastMessagesBatch(ctx context.Context, sessionIDs []str
 	return messages, nil
 }
 
-// GetUnreadMessages 获取用户未读消息 (从小群信箱)
-func (r *messageRepo) GetUnreadMessages(ctx context.Context, username string, limit int) ([]*model.Inbox, error) {
-	if username == "" {
-		return nil, fmt.Errorf("username cannot be empty")
-	}
-	if limit <= 0 {
-		limit = 50
-	}
-	if limit > 500 {
-		limit = 500
-	}
-
-	var inboxes []*model.Inbox
-	gormDB := r.db.DB(ctx)
-
-	// 查询用户的未读消息
-	if err := gormDB.Where("owner_username = ? AND is_read = 0", username).
-		Order("created_at DESC").
-		Limit(limit).
-		Find(&inboxes).Error; err != nil {
-		r.logger.Error("获取未读消息失败",
-			clog.String("username", username),
-			clog.Error(err))
-		return nil, fmt.Errorf("failed to get unread messages: %w", err)
-	}
-
-	return inboxes, nil
-}
-
 // GetInboxDelta 按游标拉取用户增量消息
-func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*InboxDeltaItem, error) {
+func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error) {
 	if username == "" {
 		return nil, fmt.Errorf("username cannot be empty")
 	}
@@ -265,35 +232,12 @@ func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursor
 		limit = 500
 	}
 
-	type inboxRow struct {
-		InboxID        int64
-		MsgID          int64
-		SeqID          int64
-		SessionID      string
-		SenderUsername string
-		Content        string
-		MsgType        string
-		CreatedAt      time.Time
-	}
-
-	rows := make([]*inboxRow, 0)
+	items := make([]*model.Inbox, 0)
 	gormDB := r.db.DB(ctx)
-	if err := gormDB.Table("t_inbox i").
-		Select(`
-			i.id AS inbox_id,
-			m.msg_id AS msg_id,
-			m.seq_id AS seq_id,
-			m.session_id AS session_id,
-			m.sender_username AS sender_username,
-			m.content AS content,
-			m.msg_type AS msg_type,
-			m.created_at AS created_at
-		`).
-		Joins("INNER JOIN t_message_content m ON m.msg_id = i.msg_id").
-		Where("i.owner_username = ? AND i.id > ?", username, cursorID).
-		Order("i.id ASC").
+	if err := gormDB.Where("owner_username = ? AND id > ?", username, cursorID).
+		Order("id ASC").
 		Limit(limit).
-		Scan(&rows).Error; err != nil {
+		Find(&items).Error; err != nil {
 		r.logger.Error("拉取 inbox 增量失败",
 			clog.String("username", username),
 			clog.Int64("cursor_id", cursorID),
@@ -302,21 +246,61 @@ func (r *messageRepo) GetInboxDelta(ctx context.Context, username string, cursor
 		return nil, fmt.Errorf("failed to get inbox delta: %w", err)
 	}
 
-	items := make([]*InboxDeltaItem, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, &InboxDeltaItem{
-			InboxID:        row.InboxID,
-			MsgID:          row.MsgID,
-			SeqID:          row.SeqID,
-			SessionID:      row.SessionID,
-			SenderUsername: row.SenderUsername,
-			Content:        row.Content,
-			MsgType:        row.MsgType,
-			CreatedAt:      row.CreatedAt,
-		})
+	return items, nil
+}
+
+// GetUnreadMessageCount 获取用户在会话内的未读"消息"数
+// 只统计 event_type = InboxEventTypeMessage 的事件：Recall/Edit/ReadReceipt/SessionUpdate
+// 属于同步事件流，进入 Inbox 但不计入未读角标，避免撤回/已读回执等污染 badge。
+func (r *messageRepo) GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error) {
+	if username == "" || sessionID == "" {
+		return 0, fmt.Errorf("username and session_id cannot be empty")
 	}
 
-	return items, nil
+	type row struct {
+		LastReadSeq int64
+	}
+	var sess row
+	gormDB := r.db.DB(ctx)
+	if err := gormDB.Table("t_session_member").
+		Select("last_read_seq").
+		Where("username = ? AND session_id = ?", username, sessionID).
+		Take(&sess).Error; err != nil {
+		return 0, fmt.Errorf("failed to get session member: %w", err)
+	}
+
+	var count int64
+	if err := gormDB.Model(&model.Inbox{}).
+		Where("owner_username = ? AND session_id = ? AND seq_id > ? AND event_type = ?",
+			username, sessionID, sess.LastReadSeq, model.InboxEventTypeMessage).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count unread inbox: %w", err)
+	}
+	return count, nil
+}
+
+// MarkMessageRecalled 按 event_id 标记撤回
+func (r *messageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
+	if eventID == 0 {
+		return fmt.Errorf("event_id cannot be zero")
+	}
+	return r.db.DB(ctx).Model(&model.MessageContent{}).
+		Where("event_id = ?", eventID).
+		Update("recalled_at", at).Error
+}
+
+// UpdateMessageContent 按 event_id 更新消息内容
+func (r *messageRepo) UpdateMessageContent(ctx context.Context, eventID int64, newContent string, at time.Time) error {
+	if eventID == 0 {
+		return fmt.Errorf("event_id cannot be zero")
+	}
+	return r.db.DB(ctx).Model(&model.MessageContent{}).
+		Where("event_id = ?", eventID).
+		Updates(map[string]any{
+			"content":    newContent,
+			"edited_at":  at,
+			"edit_count": gorm.Expr("edit_count + ?", 1),
+		}).Error
 }
 
 // SaveMessageWithOutbox 事务内保存消息并记录本地消息表
@@ -360,7 +344,7 @@ func (r *messageRepo) UpdateOutboxStatus(ctx context.Context, id int64, status i
 // UpdateOutboxRetry 更新本地消息表重试信息
 func (r *messageRepo) UpdateOutboxRetry(ctx context.Context, id int64, nextRetry time.Time, count int) error {
 	gormDB := r.db.DB(ctx)
-	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Updates(map[string]interface{}{
+	if err := gormDB.Model(&model.MessageOutbox{}).Where("id = ?", id).Updates(map[string]any{
 		"next_retry_time": nextRetry,
 		"retry_count":     count,
 	}).Error; err != nil {

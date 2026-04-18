@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ceyewan/resonance/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 func TestUserRepo_CreateUser(t *testing.T) {
@@ -108,6 +109,7 @@ func TestUserRepo_GetUserByUsername(t *testing.T) {
 		_, err := repo.GetUserByUsername(ctx, "non_existent_user")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "user not found")
+		assert.ErrorIs(t, err, ErrUserNotFound)
 	})
 
 	t.Run("获取空用户名应返回错误", func(t *testing.T) {
@@ -284,9 +286,9 @@ func TestUserRepo_Concurrent(t *testing.T) {
 
 		done := make(chan bool, numGoroutines)
 
-		for i := 0; i < numGoroutines; i++ {
+		for i := range numGoroutines {
 			worker := func(goroutineID int) {
-				for j := 0; j < usersPerGoroutine; j++ {
+				for j := range usersPerGoroutine {
 					username := fmt.Sprintf("concurrent_user_%d_%d", goroutineID, j)
 					user := &model.User{
 						Username: username,
@@ -301,7 +303,7 @@ func TestUserRepo_Concurrent(t *testing.T) {
 		}
 
 		// 等待所有 goroutine 完成
-		for i := 0; i < numGoroutines; i++ {
+		for range numGoroutines {
 			<-done
 		}
 

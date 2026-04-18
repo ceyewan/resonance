@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier lint lint-go lint-proto lint-prettier lint-web init dev up up-prod down down-prod logs logs-prod clean
+.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up up-prod down down-prod logs logs-prod clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -11,6 +11,7 @@
 export
 
 # Docker Compose 命令
+COMPOSE_INFRA := docker compose --env-file .env -p resonance -f deploy/base.yaml
 COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml
 COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
 
@@ -31,8 +32,8 @@ help: ## 显示帮助信息
 gen: ## 生成 protobuf 代码
 	@echo "🔧 生成 protobuf 代码..."
 	@cd api && buf generate --template buf.gen.go.yaml
-	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/api.proto
-	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/api.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
+	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ 代码生成完成"
 
 tidy: ## 整理 Go 依赖
@@ -40,42 +41,66 @@ tidy: ## 整理 Go 依赖
 	@go mod tidy
 	@echo "✅ 完成"
 
-format: format-go format-proto format-prettier ## 一键格式化 Go/Proto/TS/YAML/MD
+format: format-go format-proto format-prettier format-markdown ## 一键格式化 Go/Proto/TS/YAML/MD
 	@echo "✅ 全量格式化完成"
 
-format-go: ## 格式化 Go 代码（排除 api/gen）
-	@echo "🔧 格式化 Go 代码..."
-	@GO_FILES="$$(rg --files -g '*.go' -g '!api/gen/**')"; \
-	if [ -n "$$GO_FILES" ]; then \
-		echo "$$GO_FILES" | xargs gofmt -w; \
+format-go: ## 现代化并格式化 Go 代码（go fix modernize + gofmt + goimports）
+	@echo "🔧 现代化并格式化 Go 代码..."
+	@if ! command -v goimports >/dev/null 2>&1; then \
+		echo "❌ 未安装 goimports，请先执行: go install golang.org/x/tools/cmd/goimports@latest"; \
+		exit 1; \
 	fi
+	@GO_PACKAGES="$$(go list ./... | grep -v '^github.com/ceyewan/resonance/api/gen' || true)"; \
+	if [ -n "$$GO_PACKAGES" ]; then \
+		echo "$$GO_PACKAGES" | xargs go fix; \
+	fi
+	@find . -name '*.go' -not -path './api/gen/*' -not -path './node_modules/*' -not -path './genesis/*' -print0 \
+		| xargs -0 gofmt -s -w
+	@find . -name '*.go' -not -path './api/gen/*' -not -path './node_modules/*' -not -path './genesis/*' -print0 \
+		| xargs -0 goimports -local github.com/ceyewan/resonance -w
 
 format-proto: ## 格式化 Proto 定义
 	@echo "🔧 格式化 Proto..."
 	@cd api && buf format -w proto
 
-format-prettier: ## 格式化 TS/YAML/Markdown/JSON 等
+format-prettier: ## 格式化 TS/YAML/JSON/CSS 等
 	@echo "🔧 格式化 Prettier 支持的文件..."
-	@prettier --write .
+	@npx prettier --write .
 
-lint: lint-go lint-proto lint-prettier lint-web ## 一键执行 Go/Proto/Prettier/Web Lint
+format-markdown: ## 自动修复可修复的 Markdown 规范问题
+	@echo "🔧 修复可自动处理的 Markdown 问题..."
+	@npx markdownlint-cli2 --fix
+
+lint: lint-go lint-proto lint-prettier lint-markdown lint-web ## 一键执行 Go/Proto/Prettier/Markdown/Web Lint
 	@echo "✅ 全量 Lint 通过"
 
 lint-go: ## Go 静态检查（golangci-lint）
 	@echo "🔍 Go lint (golangci-lint)..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "❌ 未安装 golangci-lint，请先安装后重试"; \
+		echo "❌ 未安装 golangci-lint，请先执行: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8"; \
 		exit 1; \
 	fi
 	@golangci-lint run --config .golangci.yaml ./...
+
+lint-security: ## Go 漏洞扫描（govulncheck）
+	@echo "🔍 Go vulnerability check (govulncheck)..."
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "❌ 未安装 govulncheck，请先执行: go install golang.org/x/vuln/cmd/govulncheck@latest"; \
+		exit 1; \
+	fi
+	@govulncheck ./...
 
 lint-proto: ## Proto lint 检查
 	@echo "🔍 Buf lint..."
 	@cd api && buf lint
 
-lint-prettier: ## Prettier 格式检查
+lint-prettier: ## Prettier 格式检查（TS/YAML/JSON/CSS 等）
 	@echo "🔍 Prettier check..."
-	@prettier --check .
+	@npx prettier --check .
+
+lint-markdown: ## Markdown lint 检查
+	@echo "🔍 Markdown lint..."
+	@npx markdownlint-cli2
 
 lint-web: ## 前端 ESLint 检查
 	@echo "🔍 Web lint..."
@@ -86,29 +111,37 @@ lint-web: ## 前端 ESLint 检查
 		echo "ℹ️  未检测到 ESLint 配置，已跳过 npm run lint"; \
 	fi
 
+test: test-go ## 执行测试
+	@echo "✅ 全量测试通过"
+
+test-go: ## Go 测试
+	@echo "🧪 Go test..."
+	@go test ./...
+
 # ============================================================================
 # 数据库初始化
 # ============================================================================
 init: ## 初始化数据库（建表 + 种子数据，幂等可重复执行）
 	@echo "🔧 初始化数据库..."
-	@RESONANCE_ENV=$(RESONANCE_ENV) go run main.go -module init
+	@go run main.go -module init
 	@echo ""
 
 # ============================================================================
 # 本地开发（直接运行，不用 Docker）
 # ============================================================================
-dev: ## 本地开发模式（需要先启动基础设施）
+dev: ## 本地开发模式（先执行 make up-infra，再直跑业务服务）
 	@echo "🚀 启动本地开发环境..."
-	@echo "⚠️  请确保已运行: make up"
+	@echo "⚠️  请先执行: make up-infra"
+	@echo "⚠️  不要先执行 make up，否则会与本地直跑端口冲突"
 	@echo ""
 	@trap 'echo ""; echo "🛑 停止所有服务..."; kill $$LOGIC_PID $$TASK_PID $$GATEWAY_PID $$WEB_PID 2>/dev/null; exit 0' INT TERM; \
 	echo "📡 启动 Logic..."; \
-	RESONANCE_ENV=dev go run main.go -module logic & LOGIC_PID=$$!; \
+	go run main.go -module logic & LOGIC_PID=$$!; \
 	echo "📡 启动 Task..."; \
-	RESONANCE_ENV=dev go run main.go -module task & TASK_PID=$$!; \
+	go run main.go -module task & TASK_PID=$$!; \
 	sleep 2; \
 	echo "🌐 启动 Gateway..."; \
-	RESONANCE_ENV=dev go run main.go -module gateway & GATEWAY_PID=$$!; \
+	go run main.go -module gateway & GATEWAY_PID=$$!; \
 	sleep 2; \
 	echo "🎨 启动 Web..."; \
 	cd web && npm run dev & WEB_PID=$$!; \
@@ -124,7 +157,20 @@ dev: ## 本地开发模式（需要先启动基础设施）
 # ============================================================================
 # Docker 部署
 # ============================================================================
-up: ## 启动所有服务（Docker）- 需要在 .env 中设置 RESONANCE_ENV=prod
+up-infra: ## 启动基础设施（postgres/redis/nats/etcd）
+	@echo "🚀 启动基础设施..."
+	@$(COMPOSE_INFRA) up -d
+	@echo "✅ 基础设施已启动"
+
+down-infra: ## 停止基础设施
+	@echo "🛑 停止基础设施..."
+	@$(COMPOSE_INFRA) down
+	@echo "✅ 基础设施已停止"
+
+logs-infra: ## 查看基础设施日志
+	@$(COMPOSE_INFRA) logs -f
+
+up: ## 启动所有服务（Docker）
 	@chmod +x deploy/scripts/deploy-local.sh
 	@./deploy/scripts/deploy-local.sh
 

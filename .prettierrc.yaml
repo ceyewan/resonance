@@ -1,5 +1,6 @@
 # Resonance Prettier 配置
-# 适用：ts/tsx/js/json/yaml/markdown/css 等由 prettier 支持的文件
+# 适用：ts/tsx/js/json/yaml/css 等由 prettier 支持的文件
+# Markdown 由 markdownlint-cli2 接管（见 .markdownlint-cli2.yaml），在 .prettierignore 中排除
 printWidth: 100
 tabWidth: 2
 useTabs: false
@@ -9,11 +10,3 @@ trailingComma: all
 bracketSpacing: true
 arrowParens: always
 endOfLine: lf
-
-overrides:
-  - files: "*.md"
-    options:
-      parser: markdown
-      tabWidth: 4
-      useTabs: false
-      proseWrap: preserve

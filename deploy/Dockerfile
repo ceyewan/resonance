@@ -23,7 +23,7 @@ RUN npm run build
 # 后端构建阶段
 # =========================
 
-FROM golang:1.25 AS builder
+FROM golang:1.26 AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./

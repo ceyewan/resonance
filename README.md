@@ -5,7 +5,7 @@
 ## 特性
 
 - **IM 业务优先**: 专注于核心 IM 功能实现，包括实时消息、在线状态、离线处理
-- **高性能**: 基于 Go 1.25+，支持高并发连接和消息处理
+- **高性能**: 基于 Go 1.26+，支持高并发连接和消息处理
 - **松耦合架构**: Gateway、Logic、Task 服务按职责分离，支持独立部署和扩展
 - **可靠的投递**: 消息不丢失、不重复、保证时序，支持离线消息和重试机制
 - **现代化技术栈**: WebSocket 长连接、gRPC 服务间通信、Protobuf 协议定义
@@ -110,7 +110,7 @@ resonance/
 
 ### 前置要求
 
-- Go 1.25+
+- Go 1.26+
 - Node.js 18+
 - Redis 6.0+
 - PostgreSQL 17+
@@ -123,56 +123,60 @@ resonance/
 ```bash
 git clone https://github.com/ceyewan/resonance.git
 cd resonance
+cp .env.example .env
 ```
 
-**2. 生成协议代码**
+**2. 安装工具链依赖**
+
+```bash
+# 根目录的 prettier / markdownlint 等工具
+npm ci
+
+# 前端依赖
+cd web && npm ci && cd ..
+```
+
+**3. 生成协议代码**
 
 ```bash
 make gen
-```
-
-**3. 整理依赖**
-
-```bash
 make tidy
 ```
 
-**4. 启动基础设施 (可选)**
+**4. 启动基础设施**
 
 ```bash
-# 使用 Docker 启动 PostgreSQL/Redis
-make up
-```
+# 启动 PostgreSQL / Redis / NATS / etcd
+make up-infra
 
-**5. 初始化数据库**
-
-```bash
-# 建表 + 种子数据（幂等，可重复执行）
+# 初始化数据库（建表 + 种子数据，幂等）
 make init
 ```
 
-**6. 启动后端服务**
+**5. 本地开发模式（二选一）**
 
 ```bash
-# 终端 1: 启动 Gateway
-make run-gateway
+# 方案 A：一键拉起后端三件套 + 前端（推荐）
+make dev
 
-# 终端 2: 启动 Logic
-make run-logic
-
-# 终端 3: 启动 Task
-make run-task
+# 方案 B：手动分别启动（需要多个终端）
+go run main.go -module logic
+go run main.go -module gateway
+go run main.go -module task
+cd web && npm run dev
 ```
 
-**7. 启动前端**
+访问 <http://localhost:5173>
+
+**6. Docker 一键部署（可选）**
 
 ```bash
-cd web
-npm install
-npm run dev
-```
+# 本地镜像构建 + Compose 起所有服务（含业务容器）
+make up
 
-访问 http://localhost:5173
+# 生产配置（Caddy 反代，profile=production）
+make up-prod
+```
 
 ## 常用命令
 
@@ -180,18 +184,24 @@ npm run dev
 
 ```bash
 # 代码生成
-make gen                  # 生成 Protobuf 代码
+make gen                  # 生成 Protobuf (Go + TS)
 make tidy                 # 整理 Go 依赖
 
-# 开发运行
-make run-gateway          # 运行网关服务
-make run-logic            # 运行逻辑服务
-make run-task             # 运行任务服务
+# 格式化与静态检查
+make format               # gofmt + goimports + go fix modernize + prettier + markdown
+make lint                 # golangci-lint + buf lint + prettier check + markdown lint + web
+make lint-security        # govulncheck 漏洞扫描（按需跑）
+make test                 # go test ./...
 
-# 生产构建
-make build-gateway        # 编译网关服务
-make build-logic          # 编译逻辑服务
-make build-task           # 编译任务服务
+# 本地开发
+make dev                  # 同时启动 logic / gateway / task / web
+go run main.go -module <logic|gateway|task|init>
+
+# Docker 部署
+make up-infra             # 只启动基础设施（postgres/redis/nats/etcd）
+make up                   # 本地构建镜像 + 起所有服务
+make down                 # 停止所有服务
+make logs                 # 查看日志
 ```
 
 ### 前端
@@ -209,7 +219,7 @@ npm run type-check       # 类型检查
 
 | 类别       | 技术                                          |
 | ---------- | --------------------------------------------- |
-| 语言       | Go 1.25+                                      |
+| 语言       | Go 1.26+                                      |
 | 组件库     | [Genesis](https://github.com/ceyewan/genesis) |
 | 服务间通信 | gRPC                                          |
 | 消息队列   | NATS                                          |

@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package resonance.common.v1;
+
+import "common/v1/event.proto";
+import "common/v1/session.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1";
+
+// SessionInfo 是会话列表/会话概览的跨层视图对象
+// gateway/v1 与 logic/v1 均直接引用，避免镜像复制
+message SessionInfo {
+  string session_id = 1;
+  string name = 2;
+  SessionType type = 3;
+  string avatar_url = 4;
+  int64 unread_count = 5;
+  int64 last_read_seq = 6;
+  ChatEvent last_event = 7;
+}
+
+// ContactInfo 是联系人列表/用户搜索的跨层视图对象
+message ContactInfo {
+  string username = 1;
+  string nickname = 2;
+  string avatar_url = 3;
+}
+
+// InboxEvent 是 PullInboxDelta 返回的单条增量事件
+// 承载 Inbox 游标 id 与反序列化后的 ChatEvent
+message InboxEvent {
+  int64 inbox_id = 1;
+  ChatEvent event = 2;
+}

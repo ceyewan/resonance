@@ -116,9 +116,7 @@ export function MessageBubble({
   if (message.msgType === "system") {
     return (
       <div className="flex justify-center">
-        <div className="lg-bubble-system rounded-full px-3 py-1 text-xs">
-          {message.content}
-        </div>
+        <div className="lg-bubble-system rounded-full px-3 py-1 text-xs">{message.content}</div>
       </div>
     );
   }

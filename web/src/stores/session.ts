@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { PushMessage } from "@/gen/gateway/v1/packet_pb";
-import { UpdateReadPositionRequest } from "@/gen/gateway/v1/api_pb";
+import { UpdateReadPositionRequest } from "@/gen/gateway/v1/session_pb";
 import { sessionClient } from "@/api/client";
 import { SESSION_TYPES } from "@/constants";
 

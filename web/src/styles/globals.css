@@ -60,16 +60,32 @@
   body {
     @apply h-full overflow-hidden font-sans text-gray-900 antialiased dark:text-gray-100;
     background:
-      radial-gradient(130% 120% at 15% 10%, rgba(var(--lg-sky-500), 0.32) 0%, rgba(255, 255, 255, 0) 50%),
-      radial-gradient(110% 100% at 85% 0%, rgba(var(--lg-sky-600), 0.2) 0%, rgba(255, 255, 255, 0) 42%),
+      radial-gradient(
+        130% 120% at 15% 10%,
+        rgba(var(--lg-sky-500), 0.32) 0%,
+        rgba(255, 255, 255, 0) 50%
+      ),
+      radial-gradient(
+        110% 100% at 85% 0%,
+        rgba(var(--lg-sky-600), 0.2) 0%,
+        rgba(255, 255, 255, 0) 42%
+      ),
       linear-gradient(160deg, #eef5ff 0%, #e6f1ff 45%, #dceeff 100%);
     background-attachment: fixed;
   }
 
   .dark body {
     background:
-      radial-gradient(130% 120% at 10% 0%, rgba(var(--lg-sky-500), 0.22) 0%, rgba(15, 23, 42, 0) 45%),
-      radial-gradient(115% 105% at 90% 0%, rgba(var(--lg-sky-600), 0.16) 0%, rgba(15, 23, 42, 0) 42%),
+      radial-gradient(
+        130% 120% at 10% 0%,
+        rgba(var(--lg-sky-500), 0.22) 0%,
+        rgba(15, 23, 42, 0) 45%
+      ),
+      radial-gradient(
+        115% 105% at 90% 0%,
+        rgba(var(--lg-sky-600), 0.16) 0%,
+        rgba(15, 23, 42, 0) 42%
+      ),
       linear-gradient(160deg, #0f172a 0%, #111d33 45%, #0b1220 100%);
   }
 
@@ -170,7 +186,11 @@
 
   .lg-btn-primary {
     @apply rounded-2xl px-5 py-2.5 font-semibold text-white;
-    background: linear-gradient(135deg, rgb(var(--lg-sky-500) / 0.95) 0%, rgb(var(--lg-sky-600) / 0.98) 100%);
+    background: linear-gradient(
+      135deg,
+      rgb(var(--lg-sky-500) / 0.95) 0%,
+      rgb(var(--lg-sky-600) / 0.98) 100%
+    );
     backdrop-filter: blur(8px) saturate(1.1);
     box-shadow:
       0 16px 32px -20px rgb(var(--lg-sky-600) / 0.7),
@@ -195,7 +215,11 @@
   }
 
   .dark .lg-btn-primary {
-    background: linear-gradient(135deg, rgb(var(--lg-sky-400) / 0.9) 0%, rgb(var(--lg-sky-500) / 0.95) 100%);
+    background: linear-gradient(
+      135deg,
+      rgb(var(--lg-sky-400) / 0.9) 0%,
+      rgb(var(--lg-sky-500) / 0.95) 100%
+    );
     box-shadow:
       0 16px 32px -20px rgb(var(--lg-sky-500) / 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
@@ -303,7 +327,11 @@
   /* === 消息气泡样式 === */
 
   .lg-bubble-own {
-    background: linear-gradient(135deg, rgb(var(--lg-sky-500) / 0.92) 0%, rgb(var(--lg-sky-600) / 0.95) 100%);
+    background: linear-gradient(
+      135deg,
+      rgb(var(--lg-sky-500) / 0.92) 0%,
+      rgb(var(--lg-sky-600) / 0.95) 100%
+    );
     backdrop-filter: blur(12px) saturate(1.15);
     -webkit-backdrop-filter: blur(12px) saturate(1.15);
     border: 1px solid rgba(255, 255, 255, 0.25);
@@ -314,7 +342,11 @@
   }
 
   .dark .lg-bubble-own {
-    background: linear-gradient(135deg, rgb(var(--lg-sky-400) / 0.85) 0%, rgb(var(--lg-sky-500) / 0.9) 100%);
+    background: linear-gradient(
+      135deg,
+      rgb(var(--lg-sky-400) / 0.85) 0%,
+      rgb(var(--lg-sky-500) / 0.9) 100%
+    );
     border-color: rgba(255, 255, 255, 0.15);
     box-shadow:
       0 12px 28px -16px rgb(var(--lg-sky-500) / 0.5),
@@ -386,7 +418,11 @@
   }
 
   .lg-session-item-active {
-    background: linear-gradient(135deg, rgb(7 89 133 / 0.98) 0%, rgb(var(--lg-sky-600) / 0.98) 100%);
+    background: linear-gradient(
+      135deg,
+      rgb(7 89 133 / 0.98) 0%,
+      rgb(var(--lg-sky-600) / 0.98) 100%
+    );
     border-color: rgba(186, 230, 253, 0.6);
     box-shadow:
       0 16px 32px -20px rgb(3 105 161 / 0.8),
@@ -478,7 +514,8 @@
   }
 
   @keyframes lg-pulse-glow {
-    0%, 100% {
+    0%,
+    100% {
       box-shadow:
         0 0 20px rgb(var(--lg-sky-500) / 0.3),
         0 0 40px rgb(var(--lg-sky-500) / 0.1);

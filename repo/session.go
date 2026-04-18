@@ -6,8 +6,9 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
-	"github.com/ceyewan/resonance/model"
 	"gorm.io/gorm"
+
+	"github.com/ceyewan/resonance/model"
 )
 
 // SessionRepoOption 配置 SessionRepo 的选项
@@ -95,7 +96,7 @@ func (r *sessionRepo) GetSession(ctx context.Context, sessionID string) (*model.
 	gormDB := r.db.DB(ctx)
 	if err := gormDB.Where("session_id = ?", sessionID).First(&session).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("session not found: %s", sessionID)
+			return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
 		}
 		r.logger.Error("获取会话失败",
 			clog.String("session_id", sessionID),
@@ -120,7 +121,7 @@ func (r *sessionRepo) GetUserSession(ctx context.Context, username, sessionID st
 	if err := gormDB.Where("session_id = ? AND username = ?", sessionID, username).
 		First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("user session not found: username=%s, session_id=%s", username, sessionID)
+			return nil, fmt.Errorf("%w: username=%s, session_id=%s", ErrSessionMemberNotFound, username, sessionID)
 		}
 		r.logger.Error("获取用户会话失败",
 			clog.String("username", username),
@@ -181,7 +182,10 @@ func (r *sessionRepo) GetUserSessionList(ctx context.Context, username string) (
 
 	// 获取会话详情
 	var sessions []*model.Session
-	if err := gormDB.Where("session_id IN ?", sessionIDs).Find(&sessions).Error; err != nil {
+	if err := gormDB.Where("session_id IN ?", sessionIDs).
+		Order("max_seq_id DESC").
+		Order("session_id ASC").
+		Find(&sessions).Error; err != nil {
 		r.logger.Error("获取会话详情失败",
 			clog.String("username", username),
 			clog.Error(err))
@@ -262,7 +266,7 @@ func (r *sessionRepo) UpdateMaxSeqID(ctx context.Context, sessionID string, newS
 		var session model.Session
 		if err := gormDB.Where("session_id = ?", sessionID).First(&session).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("session not found: %s", sessionID)
+				return fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
 			}
 			return fmt.Errorf("failed to check session: %w", err)
 		}
@@ -354,6 +358,16 @@ func (r *sessionRepo) UpdateLastReadSeq(ctx context.Context, sessionID, username
 			clog.Int64("last_read_seq", lastReadSeq),
 			clog.Error(result.Error))
 		return fmt.Errorf("failed to update last read seq: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		var member model.SessionMember
+		if err := gormDB.Where("session_id = ? AND username = ?", sessionID, username).First(&member).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return fmt.Errorf("%w: username=%s, session_id=%s", ErrSessionMemberNotFound, username, sessionID)
+			}
+			return fmt.Errorf("failed to check session member: %w", err)
+		}
 	}
 
 	return nil

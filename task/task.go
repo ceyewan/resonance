@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
+
 	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/config"
@@ -30,24 +31,39 @@ type Task struct {
 	resources *resources
 
 	// 组件
-	pusherMgr       *pusher.Manager
-	dispatcher      *dispatcher.Dispatcher
-	storageConsumer *consumer.Consumer
-	pushConsumer    *consumer.Consumer
-	healthServer    *health.Server
+	pusherMgr    pusher.PusherManager
+	dispatcher   *dispatcher.Dispatcher
+	consumer     consumerComponent
+	healthServer healthComponent
 }
 
 // resources 内部资源聚合
 type resources struct {
-	redisConn    connector.RedisConnector
-	postgresConn connector.PostgreSQLConnector
-	natsConn     connector.NATSConnector
-	etcdConn     connector.EtcdConnector
+	redisConn    closeable
+	postgresConn closeable
+	natsConn     closeable
+	etcdConn     closeable
 	mqClient     mq.MQ
 	registry     registry.Registry
 	routerRepo   repo.RouterRepo
 	sessionRepo  repo.SessionRepo
 	messageRepo  repo.MessageRepo
+}
+
+type closeable interface {
+	Close() error
+}
+
+type consumerComponent interface {
+	Start() error
+	Stop() error
+	SetName(name string)
+}
+
+type healthComponent interface {
+	Start() error
+	Stop(ctx context.Context) error
+	SetReady(ready bool)
 }
 
 // New 创建 Task 实例
@@ -114,31 +130,20 @@ func (t *Task) initComponents() error {
 
 	// 5. 初始化 Dispatcher
 	t.dispatcher = dispatcher.NewDispatcher(
-		res.sessionRepo,
 		res.messageRepo,
 		res.routerRepo,
 		t.pusherMgr,
 		logger,
 	)
 
-	// 6. 初始化 Consumers
-	// 6.1 Storage Consumer (落库)
-	t.storageConsumer = consumer.NewConsumer(
+	// 6. 初始化单消费者（先存储后推送）
+	t.consumer = consumer.NewConsumer(
 		res.mqClient,
-		t.dispatcher.DispatchStorage,
-		t.config.StorageConsumer,
-		logger.WithNamespace("consumer_storage"),
+		t.dispatcher.Handle,
+		t.config.Consumer,
+		logger.WithNamespace("consumer"),
 	)
-	t.storageConsumer.SetName("storage")
-
-	// 6.2 Push Consumer (推送)
-	t.pushConsumer = consumer.NewConsumer(
-		res.mqClient,
-		t.dispatcher.DispatchPush,
-		t.config.PushConsumer,
-		logger.WithNamespace("consumer_push"),
-	)
-	t.pushConsumer.SetName("push")
+	t.consumer.SetName("chat_event")
 
 	// 7. 健康检查 Server
 	t.healthServer = health.NewServer(t.config.GetHTTPAddr(), logger)
@@ -250,12 +255,9 @@ func (t *Task) Run() error {
 		return fmt.Errorf("pusher manager start: %w", err)
 	}
 
-	// 启动 Consumers (开始消费消息)
-	if err := t.storageConsumer.Start(); err != nil {
-		return fmt.Errorf("storage consumer start: %w", err)
-	}
-	if err := t.pushConsumer.Start(); err != nil {
-		return fmt.Errorf("push consumer start: %w", err)
+	// 启动 Consumer (开始消费消息)
+	if err := t.consumer.Start(); err != nil {
+		return fmt.Errorf("consumer start: %w", err)
 	}
 
 	// 服务就绪，标记健康检查
@@ -283,11 +285,10 @@ func (t *Task) Close() error {
 	}
 
 	// 2. 停止消费
-	if t.storageConsumer != nil {
-		t.storageConsumer.Stop()
-	}
-	if t.pushConsumer != nil {
-		t.pushConsumer.Stop()
+	if t.consumer != nil {
+		if err := t.consumer.Stop(); err != nil {
+			t.logger.Warn("stop consumer failed", clog.Error(err))
+		}
 	}
 
 	// 3. 关闭 Pusher (断开 Gateway 连接)

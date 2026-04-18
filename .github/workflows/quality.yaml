@@ -1,0 +1,127 @@
+name: Quality Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26.1"
+  NODE_VERSION: "18"
+  BUF_VERSION: "1.61.0"
+  GOLANGCI_LINT_VERSION: "v1.64.8"
+
+jobs:
+  go-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@${{ env.GOLANGCI_LINT_VERSION }}
+
+      - name: Run Go lint
+        run: make lint-go
+
+  go-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # repo/ 层测试依赖 testcontainers 自动拉起 postgres/redis 镜像，
+      # ubuntu-latest runner 自带 Docker daemon，无需额外 services。
+      - name: Run Go tests
+        run: make test-go
+
+  go-security:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run Go vulnerability scan
+        run: make lint-security
+
+  proto-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install buf
+        run: |
+          curl -sSL "https://github.com/bufbuild/buf/releases/download/v${{ env.BUF_VERSION }}/buf-$(uname -s)-$(uname -m)" -o /usr/local/bin/buf
+          chmod +x /usr/local/bin/buf
+
+      - name: Run proto lint
+        run: make lint-proto
+
+  docs-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install tooling dependencies
+        run: npm ci
+
+      - name: Run prettier check
+        run: make lint-prettier
+
+      - name: Run markdown lint
+        run: make lint-markdown
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web dependencies
+        run: cd web && npm ci
+
+      - name: Run web lint
+        run: make lint-web
+
+      - name: Run web build
+        run: cd web && npm run build

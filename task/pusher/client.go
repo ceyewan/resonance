@@ -8,16 +8,18 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
-	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
-	"github.com/ceyewan/resonance/task/observability"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/task/observability"
 )
 
 // PushTask 推送任务
 type PushTask struct {
 	ToUsernames []string
-	Message     *gatewayv1.PushMessage
+	Event       *commonv1.ChatEvent
 }
 
 // GatewayClient 单个 Gateway 的推送客户端
@@ -65,7 +67,7 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 	}
 
 	// 启动多个并发推送 loop
-	for i := 0; i < pusherCount; i++ {
+	for i := range pusherCount {
 		client.wg.Add(1)
 		go client.pushLoop(i)
 	}
@@ -76,6 +78,9 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 // Enqueue 将推送任务加入队列（非阻塞）
 func (c *GatewayClient) Enqueue(task *PushTask) error {
 	if c.closing.Load() {
+		return fmt.Errorf("gateway %s client closing", c.id)
+	}
+	if c.ctx.Err() != nil {
 		return fmt.Errorf("gateway %s client closing", c.id)
 	}
 
@@ -95,6 +100,10 @@ func (c *GatewayClient) Enqueue(task *PushTask) error {
 func (c *GatewayClient) EnqueueBlocking(task *PushTask) {
 	if c.closing.Load() {
 		c.logger.Warn("enqueue skipped: client closing", clog.String("gateway_id", c.id))
+		return
+	}
+	if c.ctx.Err() != nil {
+		c.logger.Warn("enqueue skipped: client canceled", clog.String("gateway_id", c.id))
 		return
 	}
 	select {
@@ -164,52 +173,44 @@ func (c *GatewayClient) doPush(task *PushTask) {
 	const retryDelay = 1 * time.Second
 
 	var lastErr error
-	for attempt := 0; attempt < maxRetry; attempt++ {
+	for attempt := range maxRetry {
 		if attempt > 0 {
 			c.logger.Warn("retrying push",
 				clog.String("gateway_id", c.id),
-				clog.Int64("msg_id", task.Message.MsgId),
+				clog.Int64("event_id", task.Event.GetEventId()),
 				clog.Int("attempt", attempt+1))
 			time.Sleep(retryDelay)
 		}
 
 		ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
-		req := &gatewayv1.PushRequest{
+		req := &gatewayv1.PushEventRequest{
 			ToUsernames: task.ToUsernames,
-			Message:     task.Message,
+			Event:       task.Event,
 		}
 
-		resp, err := c.client.Push(ctx, req)
+		resp, err := c.client.PushEvent(ctx, req)
 		cancel()
 
 		if err != nil {
 			lastErr = err
 			c.logger.Warn("push attempt failed",
 				clog.String("gateway_id", c.id),
-				clog.Int64("msg_id", task.Message.MsgId),
+				clog.Int64("event_id", task.Event.GetEventId()),
 				clog.Int("attempt", attempt+1),
 				clog.Error(err))
 			continue
 		}
 
-		if resp.Error != "" {
-			c.logger.Error("push error from gateway",
-				clog.String("gateway_id", c.id),
-				clog.Int64("msg_id", resp.MsgId),
-				clog.String("error", resp.Error))
-			return // Gateway 返回业务错误，不重试
-		}
-
 		if len(resp.FailedUsernames) > 0 {
 			c.logger.Warn("partial push failure",
 				clog.String("gateway_id", c.id),
-				clog.Int64("msg_id", resp.MsgId),
+				clog.Int64("event_id", resp.EventId),
 				clog.Int("failed_count", len(resp.FailedUsernames)))
 		}
 
 		c.logger.Debug("push success",
 			clog.String("gateway_id", c.id),
-			clog.Int64("msg_id", task.Message.MsgId),
+			clog.Int64("event_id", task.Event.GetEventId()),
 			clog.Int("user_count", len(task.ToUsernames)))
 		return // 成功
 	}
@@ -217,7 +218,7 @@ func (c *GatewayClient) doPush(task *PushTask) {
 	// 重试耗尽，记录错误
 	c.logger.Error("push failed after retries",
 		clog.String("gateway_id", c.id),
-		clog.Int64("msg_id", task.Message.MsgId),
+		clog.Int64("event_id", task.Event.GetEventId()),
 		clog.Int("user_count", len(task.ToUsernames)),
 		clog.Error(lastErr))
 }

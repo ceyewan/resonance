@@ -1,239 +1,107 @@
 # Logic 服务
 
-Logic 是 Resonance IM 系统的核心业务逻辑服务，处理所有业务相关的请求。
+Logic 是 Resonance IM 的业务规则中心，负责鉴权后的业务判断、事件生成、主事实写入与 Outbox 投递。
 
-## 📐 架构设计
+## 职责边界
 
-### 核心职责
+- 负责：业务规则、权限校验、`ChatEvent` 生成、主表写入、Outbox 事务一致性、同步 RPC 响应
+- 不负责：WebSocket 连接管理、在线推送、Inbox 写扩散
 
-```
-┌─────────────┐    gRPC     ┌─────────────┐    MQ      ┌──────────┐
-│   Gateway   │─────────────▶│    Logic    │───────────▶│   Task   │
-│             │◀─────────────│             │            │          │
-└─────────────┘   Response   └─────────────┘            └──────────┘
-                             │
-                             ▼
-                       ┌───────────┐
-                       │  MySQL    │
-                       │  Redis    │
-                       └───────────┘
-```
+当前实现状态：
 
-**业务处理流程**：
+- `ChatService.SendEvent` 已统一为事件入口，但当前只落地 `Message` payload
+- `Recall/Edit` 的协议与 Task handler 已预留，后续在 Phase 5 接通
+- MQ 发布辅助已从 `service/` 下沉到 `internal/mqpublish/`
 
-1. **接收请求** - 通过 gRPC 接收来自 Gateway 的请求
-2. **业务处理** - 验证权限、查询数据、执行业务逻辑
-3. **消息发布** - 将需要异步处理的任务发布到 MQ（带 Outbox 保证）
-4. **返回响应** - 将处理结果返回给 Gateway
+## 目录结构
 
-### 目录结构
-
-```
+```text
 logic/
-├── logic.go                # 生命周期管理、组件组装、优雅关闭
-├── config/                 # 配置定义与加载
-│   └── config.go           # Config 结构体 + OutboxConfig
-├── server/                 # gRPC Server 封装
-│   └── grpc.go             # 拦截器（日志、恢复）、分级日志策略
-├── service/                # 业务服务实现
-│   ├── auth.go             # 认证服务（Login/Register/ValidateToken）
-│   ├── session.go          # 会话服务（GetSessionList 批量查询优化）
-│   ├── chat.go             # 聊天服务（SendMessage + MQ 发布）
-│   ├── presence.go         # 在线状态服务
-│   ├── helpers.go          # 公共函数（PublishMessageToMQ）
-│   └── interfaces.go       # 服务接口定义（便于测试）
-├── job/                    # 后台任务
-│   └── outbox.go           # Outbox 补发（Worker Pool 并发）
-├── observability/          # 可观测性
-│   ├── observability.go    # Trace/Metrics 初始化、辅助函数
-│   └── config.go           # 可观测性配置
+├── logic.go
+├── config/
+├── observability/
+├── server/
+│   ├── grpc.go
+│   └── interceptor_auth.go
+├── service/
+│   ├── auth.go
+│   ├── chat.go
+│   ├── session.go
+│   ├── history.go
+│   ├── contact.go
+│   ├── inbox.go
+│   ├── presence.go
+│   ├── context.go
+│   └── interfaces.go
+├── internal/
+│   └── mqpublish/
+│       └── publish.go
+├── event/
+│   └── doc.go
+├── job/
+│   └── outbox.go
 └── README.md
 ```
 
-## ⚙️ 配置说明
+## 核心模块
 
-配置加载顺序：环境变量 > `.env` > `logic.{env}.yaml` > `logic.yaml`
+`service/chat.go`
 
-### 核心配置项
+- `SendEvent` 是统一事件入口
+- 当前负责消息事件写入、生成 `event_id/seq_id/timestamp`、触发 Outbox 发布
 
-```yaml
-service:
-    name: logic-service
-    server_addr: :15090
+`service/session.go`
 
-observability:
-    trace:
-        disable: false # 是否禁用 Trace 上报
-        endpoint: localhost:4317 # OTLP Collector 地址
-        sampler: 1.0 # 采样率
-    metrics:
-        port: 9091 # Prometheus 端口
-        path: /metrics
+- 只保留会话核心流程：`GetSessionList`、`CreateSession`、`UpdateReadPosition`
+- 会话历史、联系人、Inbox 增量已拆到独立文件，避免继续堆积
 
-outbox:
-    batch_size: 100 # 每次处理的消息批次
-    max_retries: 5 # 最大重试次数
-    ticker_time: 1s # 扫描间隔
-    worker_count: 5 # 并发 Worker 数量
+`service/history.go` / `contact.go` / `inbox.go`
+
+- 分别承接 `GetHistoryEvents`、`GetContactList/SearchUser`、`PullInboxDelta`
+
+`internal/mqpublish/publish.go`
+
+- 封装 MQ 发布、Outbox 构造、异步 look-aside 发布
+- 这是 Logic 独有能力，不对外暴露给其它服务依赖
+
+`job/outbox.go`
+
+- 后台扫描待补发 Outbox
+- 发布失败按重试次数回退，超过阈值后标记失败
+
+## 关键流程
+
+消息发送：
+
+1. Gateway 通过 gRPC 调用 `ChatService.SendEvent`
+2. Logic 校验会话成员关系并分配 `event_id/seq_id`
+3. 写 `message_content` 与 `message_outbox` 在同一事务内完成
+4. 主流程返回 Ack，同时异步尝试投递 MQ
+5. 投递失败由 `job/outbox.go` 兜底补发
+
+会话读取：
+
+1. `GetSessionList` 使用批量查询避免 N+1
+2. `GetHistoryEvents` 校验会话权限后返回历史事件
+3. `PullInboxDelta` 按游标解码 `InboxEvent`
+
+## 运行与验证
+
+运行：
+
+```bash
+make run-logic
 ```
 
-## 🔑 关键组件
+验证：
 
-### AuthService (认证服务)
-
-- 使用 `genesis/auth` (JWT) 进行 Token 签发与验证
-- 密码使用 `bcrypt` 加密存储
-- 日志脱敏：不记录用户名，防止用户枚举攻击
-
-### SessionService (会话服务)
-
-- **批量查询优化**：`GetSessionList` 使用批量查询避免 N+1 问题
-    - `GetUsersByUsernames()` - 批量获取用户信息
-    - `GetUserSessionsBatch()` - 批量获取会话成员
-    - `GetLastMessagesBatch()` - 批量获取最后消息（子查询优化）
-
-### ChatService (聊天服务)
-
-- 使用 Snowflake 生成全局唯一 MsgID
-- 消息持久化到 MySQL（事务保证）
-- MQ 发布带 Outbox 模式（可靠性保证）
-- 自动注入 Trace Context 到 MQ 消息
-
-### PresenceService (在线状态服务)
-
-- 接收 Gateway 上报的用户在线状态
-- 更新 Redis 中的路由表 (`RouterRepo`)
-
-## 🔧 性能优化
-
-### N+1 查询优化
-
-**优化前**：50 个会话需要 150+ 次数据库查询
-**优化后**：仅需 4 次查询（提升 37.5 倍）
-
-```
-1. GetUserSessionList       → 1 次查询
-2. GetLastMessagesBatch      → 1 次查询（子查询）
-3. GetUserSessionsBatch      → 1 次查询
-4. GetUsersByUsernames       → 1 次查询（IN 查询）
+```bash
+go test ./logic/...
+go build ./logic/...
 ```
 
-### Outbox Worker Pool
+## 相关文档
 
-**优化前**：串行处理消息补发
-**优化后**：5 个并发 Worker（提升 5 倍吞吐量）
-
-### gRPC 日志分级
-
-- 错误请求 → Error 级别
-- 慢请求 (>100ms) → Warn 级别
-- 正常请求 → Debug 级别（生产环境不记录）
-
-**日志减少**：80%+
-
-## 📊 可观测性
-
-### Trace（分布式追踪）
-
-- OpenTelemetry OTLP 上报
-- 自动注入/提取 Trace Context
-- MQ 消息携带 Trace Headers，实现跨服务追踪
-
-### Metrics（业务指标）
-
-| 指标名称                                | 说明               | 桶值       |
-| --------------------------------------- | ------------------ | ---------- |
-| `logic_login_duration_seconds`          | Login 耗时         | 0.01~1s    |
-| `logic_register_duration_seconds`       | Register 耗时      | 0.01~1s    |
-| `logic_send_message_duration_seconds`   | SendMessage 耗时   | 0.005~0.5s |
-| `logic_create_session_duration_seconds` | CreateSession 耗时 | 0.01~1s    |
-
-访问 `http://localhost:9091/metrics` 查看 Prometheus 指标。
-
-## 🔒 可靠性保证
-
-### Outbox 模式
-
-```
-                    MQ 发布流程
-
-┌─────────────┐                   ┌─────────────┐
-│   Logic     │                   │     MQ      │
-├─────────────┤                   ├─────────────┤
-│ 1. 保存消息 │                   │             │
-│ 2. 保存 Outbox│ ────Look-aside──▶│  立即发布   │
-│ 3. 返回响应 │     (异步重试)     │             │
-└─────────────┘                   └─────────────┘
-        │                                 │
-        │           Outbox Job            │
-        └─────────────────────────────────┘
-              (定时补发未发送消息)
-```
-
-- **事务保证**：SaveMessageWithOutbox 在同一事务中完成
-- **异步发布**：PublishMessageToMQAsync 立即尝试发布
-- **指数退避重试**：重试间隔为 n² 秒
-- **Worker Pool**：5 个并发 Worker 处理积压
-
-### 优雅关闭
-
-```go
-// 10 秒超时控制
-// goroutine 并发关闭资源
-// 超时后记录警告但继续关闭
-```
-
-## 🚀 使用示例
-
-```go
-package main
-
-import (
-    "github.com/ceyewan/resonance/logic"
-)
-
-func main() {
-    // 创建 Logic 实例 (自动加载配置)
-    l, err := logic.New()
-    if err != nil {
-        panic(err)
-    }
-    defer l.Close()
-
-    // 启动服务
-    if err := l.Run(); err != nil {
-        panic(err)
-    }
-
-    // 等待关闭信号
-    <-l.Done()
-}
-```
-
-## 📝 已实现功能
-
-- [x] JWT Token 签发与验证（接入 genesis/auth）
-- [x] 密码 bcrypt 加密
-- [x] 群聊 SessionID 生成（Snowflake）
-- [x] 离线消息处理（Outbox + MQ）
-- [x] N+1 查询优化（批量查询）
-- [x] Trace 链路追踪（OpenTelemetry）
-- [x] Prometheus 业务指标
-- [x] gRPC 分级日志
-- [x] 日志脱敏（防用户枚举）
-- [x] 优雅关闭（超时控制）
-
-## 🚧 待完善功能
-
-- [ ] 消息撤回
-- [ ] 消息编辑
-- [ ] 群成员管理
-- [ ] 单元测试和集成测试
-- [ ] 健康检查端点（/healthz）
-
-## 📚 相关文档
-
-- [项目整体 CLAUDE.md](../CLAUDE.md)
-- [Gateway 服务文档](../gateway/README.md)
-- [Task 服务文档](../task/README.md)
-- [Genesis 组件文档](https://github.com/ceyewan/genesis)
+- [架构总览](../docs/architecture/00-overview.md)
+- [服务设计](../docs/architecture/03-services.md)
+- [布局重构](../docs/architecture/06-layout-refactor.md)

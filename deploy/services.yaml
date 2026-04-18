@@ -4,7 +4,7 @@
 # 本地开发模式：
 #   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
 #   - 暴露 Gateway (8080) 和 Web (4173) 端口到 127.0.0.1
-#   - 不使用 Caddy
+#   - 不使用 Caddy / Watchtower
 #
 # 生产模式（使用宿主机 Caddy）：
 #   docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production up -d
@@ -23,11 +23,9 @@ x-resonance-service: &resonance-service
   build: *resonance-build
   env_file:
     - ../.env
-  environment: &resonance-env # 环境配置
-    RESONANCE_ENV: ${RESONANCE_ENV:-prod}
+  environment: &resonance-env
     RESONANCE_DEBUG_CONFIG: ${RESONANCE_DEBUG_CONFIG:-false}
   volumes:
-    # 挂载外部配置目录：改配置后重启容器即可生效，无需重建镜像
     - ${RESONANCE_CONFIG_DIR:-../configs}:/app/configs:ro
   networks:
     - resonance-net
@@ -44,20 +42,26 @@ services:
     environment:
       <<: *resonance-env
       RESONANCE_POSTGRES_HOST: postgres
-    restart: "no"  # 一次性任务，执行完不重启
+    restart: "no"
     labels:
-      com.centurylinklabs.watchtower.enable: "false"  # 不需要自动更新
+      com.centurylinklabs.watchtower.enable: "false"
 
   logic:
     <<: *resonance-service
     hostname: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
+    container_name: resonance-logic
+    command: ["-module", "logic"]
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
+      RESONANCE_SERVICE_HOST: ""
       RESONANCE_POSTGRES_HOST: postgres
-    container_name: resonance-logic
-    command: ["-module", "logic"]
+      RESONANCE_REDIS_ADDR: redis:6379
+      RESONANCE_NATS_URL: nats://nats:4222
+      RESONANCE_ETCD_ENDPOINTS: etcd:2379
     depends_on:
+      init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -65,6 +69,38 @@ services:
       etcd:
         condition: service_healthy
       nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:15091/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    labels:
+      com.centurylinklabs.watchtower.enable: "true"
+
+  task:
+    <<: *resonance-service
+    hostname: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
+    container_name: resonance-task
+    command: ["-module", "task"]
+    environment:
+      <<: *resonance-env
+      HOSTNAME: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
+      RESONANCE_POSTGRES_HOST: postgres
+      RESONANCE_REDIS_ADDR: redis:6379
+      RESONANCE_NATS_URL: nats://nats:4222
+      RESONANCE_ETCD_ENDPOINTS: etcd:2379
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      etcd:
         condition: service_healthy
     labels:
       com.centurylinklabs.watchtower.enable: "true"
@@ -72,76 +108,45 @@ services:
   gateway:
     <<: *resonance-service
     hostname: ${RESONANCE_GATEWAY_HOSTNAME:-gateway-service-001}
+    container_name: resonance-gateway
+    command: ["-module", "gateway"]
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_GATEWAY_HOSTNAME:-gateway-service-001}
-    container_name: resonance-gateway
-    command: ["-module", "gateway"]
+      RESONANCE_SERVICE_HOST: ""
+      RESONANCE_REDIS_ADDR: redis:6379
+      RESONANCE_ETCD_ENDPOINTS: etcd:2379
     depends_on:
+      logic:
+        condition: service_healthy
       redis:
         condition: service_healthy
       etcd:
         condition: service_healthy
       nats:
         condition: service_healthy
-    # 本地开发：暴露端口；生产环境：通过 Caddy labels
     ports:
       - "${GATEWAY_PORT_BINDING:-127.0.0.1:8080:8080}"
-    networks:
-      - resonance-net
-      - caddy
-    labels:
-      # 生产环境 Caddy 配置（当域名变量不为空时生效）
-      caddy: ${CADDY_GATEWAY_DOMAIN:-}
-      caddy.reverse_proxy: "{{upstreams 8080}}"
-      caddy.encode: gzip
-      # Watchtower 自动更新
-      com.centurylinklabs.watchtower.enable: "true"
-
-  task:
-    <<: *resonance-service
-    hostname: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
-    environment:
-      <<: *resonance-env
-      HOSTNAME: ${RESONANCE_TASK_HOSTNAME:-task-service-001}
-      RESONANCE_POSTGRES_HOST: postgres
-    container_name: resonance-task
-    command: ["-module", "task"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-      etcd:
-        condition: service_healthy
     labels:
       com.centurylinklabs.watchtower.enable: "true"
 
   web:
     <<: *resonance-service
     hostname: ${RESONANCE_WEB_HOSTNAME:-web-service-001}
+    container_name: resonance-web
+    command: ["-module", "web"]
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_WEB_HOSTNAME:-web-service-001}
-    container_name: resonance-web
-    command: ["-module", "web"]
-    # 本地开发：暴露端口；生产环境：通过 Caddy labels
+      RESONANCE_SERVICE_HOST: 0.0.0.0
+    depends_on:
+      gateway:
+        condition: service_started
     ports:
       - "${WEB_PORT_BINDING:-127.0.0.1:4173:4173}"
-    networks:
-      - resonance-net
-      - caddy
     labels:
-      # 生产环境 Caddy 配置（当域名变量不为空时生效）
-      caddy: ${CADDY_WEB_DOMAIN:-}
-      caddy.reverse_proxy: "{{upstreams 4173}}"
-      caddy.encode: gzip
-      # Watchtower 自动更新
       com.centurylinklabs.watchtower.enable: "true"
 
-  # Watchtower - 自动更新容器（仅生产环境）
   watchtower:
     image: containrrr/watchtower:latest
     container_name: resonance-watchtower
@@ -149,21 +154,10 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # 每 60 秒检查一次镜像更新
       - WATCHTOWER_POLL_INTERVAL=60
-      # 自动清理旧镜像
       - WATCHTOWER_CLEANUP=true
-      # 只监控带有特定 label 的容器
       - WATCHTOWER_LABEL_ENABLE=true
-      # 通知配置（可选）
-      # - WATCHTOWER_NOTIFICATIONS=shoutrrr
-      # - WATCHTOWER_NOTIFICATION_URL=telegram://token@telegram?channels=chat_id
     labels:
-      com.centurylinklabs.watchtower.enable: "false" # Watchtower 不监控自己
+      com.centurylinklabs.watchtower.enable: "false"
     profiles:
-      - production # 只在生产环境启用
-
-networks:
-  caddy:
-    external: true
-    name: caddy
+      - production

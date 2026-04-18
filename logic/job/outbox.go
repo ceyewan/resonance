@@ -7,9 +7,10 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
+
+	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
-	"github.com/ceyewan/resonance/logic/config"
 )
 
 // OutboxRelay 负责扫描本地消息表并将未发送的消息补发到 MQ
@@ -79,13 +80,11 @@ func (j *OutboxRelay) processMessagesWithWorkerPool(ctx context.Context, message
 
 	// 启动 Worker
 	for i := 0; i < j.config.GetWorkerCount() && i < len(messages); i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
+		wg.Go(func() {
 			for msg := range msgChan {
 				j.relayMessage(ctx, msg)
 			}
-		}(i)
+		})
 	}
 
 	// 发送消息到通道
@@ -103,7 +102,7 @@ func (j *OutboxRelay) relayMessage(ctx context.Context, msg *model.MessageOutbox
 	if err := j.mqClient.Publish(ctx, msg.Topic, msg.Payload); err != nil {
 		j.logger.Warn("failed to relay message",
 			clog.Int64("id", msg.ID),
-			clog.Int64("msg_id", msg.MsgID),
+			clog.Int64("event_id", msg.EventID),
 			clog.Error(err))
 
 		// 更新重试信息 (指数退避)
@@ -111,7 +110,7 @@ func (j *OutboxRelay) relayMessage(ctx context.Context, msg *model.MessageOutbox
 		if retryCount > j.config.GetMaxRetries() {
 			// 标记为失败，不再重试
 			_ = j.messageRepo.UpdateOutboxStatus(ctx, msg.ID, model.OutboxStatusFailed)
-			j.logger.Error("message reached max retries, marked as failed", clog.Int64("msg_id", msg.MsgID))
+			j.logger.Error("message reached max retries, marked as failed", clog.Int64("event_id", msg.EventID))
 			return
 		}
 

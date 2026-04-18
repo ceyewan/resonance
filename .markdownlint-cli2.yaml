@@ -1,0 +1,15 @@
+globs:
+  - "**/*.md"
+ignores:
+  - "**/node_modules/**"
+  - "api/gen/**"
+  - "web/src/gen/**"
+config:
+  default: true
+  MD013: false # 行长度：允许长行（表格、链接等）
+  MD024:
+    siblings_only: true # 同级标题不允许重复，不同级可重复
+  MD036: false # 允许加粗作为伪标题
+  MD033: false # 允许内联 HTML（徽章、details 等）
+  MD040: false # 允许 fenced code block 不指定语言（架构图、项目树等 ASCII 场景）
+  MD041: false # 首行不强制为标题

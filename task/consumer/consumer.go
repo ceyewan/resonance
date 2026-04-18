@@ -9,15 +9,16 @@ import (
 	"github.com/ceyewan/genesis/metrics"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/xerrors"
+	"go.opentelemetry.io/otel/attribute"
+	"google.golang.org/protobuf/proto"
+
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/task/config"
 	"github.com/ceyewan/resonance/task/observability"
-	"go.opentelemetry.io/otel/attribute"
-	"google.golang.org/protobuf/proto"
 )
 
 // HandlerFunc 消息处理函数
-type HandlerFunc func(context.Context, *mqv1.PushEvent) error
+type HandlerFunc func(context.Context, *mqv1.MQEvent) error
 
 // Consumer MQ 消费者
 type Consumer struct {
@@ -130,10 +131,12 @@ func (c *Consumer) worker(id int) {
 			if msg == nil {
 				continue
 			}
-			c.handleMessage(c.ctx, msg)
+			if err := c.handleMessage(c.ctx, msg); err != nil {
+				c.logger.Warn("worker failed to handle message", clog.Int("worker_id", id), clog.Error(err))
+			}
 		case <-c.ctx.Done():
 			// 优雅关闭：处理完 jobsCh 中剩余的消息
-			c.drainJobs(id)
+			c.drainJobs()
 			c.logger.Debug("worker stopped", clog.Int("worker_id", id))
 			return
 		}
@@ -141,7 +144,7 @@ func (c *Consumer) worker(id int) {
 }
 
 // drainJobs 处理剩余的任务
-func (c *Consumer) drainJobs(workerID int) {
+func (c *Consumer) drainJobs() {
 	for {
 		select {
 		case msg, ok := <-c.jobsCh:
@@ -151,7 +154,9 @@ func (c *Consumer) drainJobs(workerID int) {
 			if msg == nil {
 				continue
 			}
-			c.handleMessage(c.ctx, msg)
+			if err := c.handleMessage(c.ctx, msg); err != nil {
+				c.logger.Warn("drain job failed", clog.Error(err))
+			}
 		default:
 			// 队列已空
 			return
@@ -163,10 +168,10 @@ func (c *Consumer) drainJobs(workerID int) {
 func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 	start := time.Now()
 
-	// 1. 解析 PushEvent
-	event := &mqv1.PushEvent{}
+	// 1. 解析 MQEvent
+	event := &mqv1.MQEvent{}
 	if err := proto.Unmarshal(msg.Data(), event); err != nil {
-		c.logger.Error("failed to unmarshal push event",
+		c.logger.Error("failed to unmarshal mq event",
 			clog.Int("data_len", len(msg.Data())),
 			clog.Error(err))
 
@@ -174,7 +179,9 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		// 当前行为：直接 Ack，消息永久丢失
 		// 等升级到 NATS JetStream 后，可以利用其 Nak + 死信队列功能
 		// 短期改进：可以将无法解析的原始消息记录到数据库的 dead_letter 表
-		msg.Ack()
+		if err := msg.Ack(); err != nil {
+			c.logger.Warn("failed to ack malformed mq event", clog.Error(err))
+		}
 		return nil
 	}
 
@@ -194,48 +201,53 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		spanName = "consumer." + c.name + ".process"
 	}
 	ctx, endSpan := observability.StartSpan(ctx, spanName,
-		attribute.Int64("msg_id", event.MsgId),
-		attribute.String("session_id", event.SessionId),
-		attribute.String("from_username", event.FromUsername),
+		attribute.Int64("event_id", event.GetEvent().GetEventId()),
+		attribute.String("session_id", event.GetEvent().GetSessionId()),
+		attribute.String("from_username", event.GetEvent().GetFromUsername()),
 	)
 	defer endSpan()
 
-	c.logger.Debug("processing push event",
-		clog.Int64("msg_id", event.MsgId),
-		clog.String("session_id", event.SessionId))
+	c.logger.Debug("processing mq event",
+		clog.Int64("event_id", event.GetEvent().GetEventId()),
+		clog.String("session_id", event.GetEvent().GetSessionId()))
 
 	// 4. 处理消息（带重试）
 	if err := c.processWithRetry(ctx, event); err != nil {
 		c.logger.Error("failed to process push event after retries",
-			clog.Int64("msg_id", event.MsgId),
+			clog.Int64("event_id", event.GetEvent().GetEventId()),
 			clog.Error(err))
 
 		// 记录失败指标
-		c.recordMetrics(ctx, start, "fail", err)
+		c.recordMetrics(ctx, start, "fail")
 
-		msg.Nak() // 处理失败，Nak 让消息重新入队
+		if err := msg.Nak(); err != nil {
+			c.logger.Warn("failed to nak mq event", clog.Error(err))
+		}
 		return err
 	}
 
 	// 5. 处理成功，Ack 确认
-	msg.Ack()
-	c.logger.Debug("push event processed successfully",
-		clog.Int64("msg_id", event.MsgId))
+	if err := msg.Ack(); err != nil {
+		c.logger.Warn("failed to ack mq event", clog.Error(err))
+		return err
+	}
+	c.logger.Debug("mq event processed successfully",
+		clog.Int64("event_id", event.GetEvent().GetEventId()))
 
 	// 记录成功指标
-	c.recordMetrics(ctx, start, "success", nil)
+	c.recordMetrics(ctx, start, "success")
 
 	return nil
 }
 
 // processWithRetry 带重试的处理逻辑
-func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.PushEvent) error {
+func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.MQEvent) error {
 	var lastErr error
 
 	for i := 0; i < c.config.MaxRetry; i++ {
 		if i > 0 {
-			c.logger.Warn("retrying push event",
-				clog.Int64("msg_id", event.MsgId),
+			c.logger.Warn("retrying mq event",
+				clog.Int64("event_id", event.GetEvent().GetEventId()),
 				clog.Int("attempt", i+1),
 				clog.Int("max_retry", c.config.MaxRetry))
 			time.Sleep(time.Duration(c.config.RetryInterval) * time.Second)
@@ -254,7 +266,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.PushEvent) 
 }
 
 // recordMetrics 记录处理指标
-func (c *Consumer) recordMetrics(ctx context.Context, start time.Time, status string, err error) {
+func (c *Consumer) recordMetrics(ctx context.Context, start time.Time, status string) {
 	duration := time.Since(start)
 
 	// 使用传入的 histogram 或默认指标

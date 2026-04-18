@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
-	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
-	"github.com/ceyewan/resonance/logic/service"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/logic/service"
 )
 
 // GRPCServer gRPC 服务包装器
@@ -50,6 +51,7 @@ func (s *GRPCServer) Start() error {
 	s.server = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
 			s.recoveryUnaryInterceptor,
+			s.authUnaryInterceptor,
 			s.loggerUnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
@@ -81,7 +83,7 @@ func (s *GRPCServer) Stop() {
 }
 
 // recoveryUnaryInterceptor 恢复拦截器 (Unary)
-func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("grpc panic recovered", clog.Any("panic", r))
@@ -92,7 +94,7 @@ func (s *GRPCServer) recoveryUnaryInterceptor(ctx context.Context, req interface
 }
 
 // recoveryStreamInterceptor 恢复拦截器 (Stream)
-func (s *GRPCServer) recoveryStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+func (s *GRPCServer) recoveryStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.logger.Error("grpc panic recovered", clog.Any("panic", r))
@@ -104,7 +106,7 @@ func (s *GRPCServer) recoveryStreamInterceptor(srv interface{}, ss grpc.ServerSt
 
 // loggerUnaryInterceptor 日志拦截器 (Unary)
 // 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
-func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	startTime := time.Now()
 	resp, err := handler(ctx, req)
 	duration := time.Since(startTime)
@@ -140,7 +142,7 @@ func (s *GRPCServer) loggerUnaryInterceptor(ctx context.Context, req interface{}
 
 // loggerStreamInterceptor 日志拦截器 (Stream)
 // 策略：错误日志记录为 Error，慢请求（>100ms）记录为 Warn，正常请求记录为 Debug
-func (s *GRPCServer) loggerStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (s *GRPCServer) loggerStreamInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	startTime := time.Now()
 	err := handler(srv, ss)
 	duration := time.Since(startTime)

@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+import "common/v1/event.proto";
+import "common/v1/session.proto";
+import "common/v1/view.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
+
+// SessionService 对外会话与历史接口（Web -> Gateway，ConnectRPC/HTTP）
+// DTO 统一使用 common.v1 的视图类型，避免与 logic/v1 镜像复制
+service SessionService {
+  rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc GetHistoryEvents(GetHistoryEventsRequest) returns (GetHistoryEventsResponse);
+  rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
+  rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
+  rpc UpdateReadPosition(UpdateReadPositionRequest) returns (UpdateReadPositionResponse);
+  rpc PullInboxDelta(PullInboxDeltaRequest) returns (PullInboxDeltaResponse);
+}
+
+message GetSessionListRequest {}
+
+message GetSessionListResponse {
+  repeated resonance.common.v1.SessionInfo sessions = 1;
+}
+
+message CreateSessionRequest {
+  repeated string members = 1;
+  string name = 2;
+  resonance.common.v1.SessionType type = 3;
+}
+
+message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message GetHistoryEventsRequest {
+  string session_id = 1;
+  int64 limit = 2;
+  int64 before_seq = 3;
+}
+
+message GetHistoryEventsResponse {
+  repeated resonance.common.v1.ChatEvent events = 1;
+}
+
+message GetContactListRequest {}
+
+message GetContactListResponse {
+  repeated resonance.common.v1.ContactInfo contacts = 1;
+}
+
+message SearchUserRequest {
+  string query = 1;
+}
+
+message SearchUserResponse {
+  repeated resonance.common.v1.ContactInfo users = 1;
+}
+
+message UpdateReadPositionRequest {
+  string session_id = 1;
+  int64 seq_id = 2;
+}
+
+message UpdateReadPositionResponse {
+  int64 unread_count = 1;
+}
+
+message PullInboxDeltaRequest {
+  int64 cursor_id = 1;
+  int64 limit = 2;
+}
+
+message PullInboxDeltaResponse {
+  repeated resonance.common.v1.InboxEvent events = 1;
+  int64 next_cursor_id = 2;
+  bool has_more = 3;
+}

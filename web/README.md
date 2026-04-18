@@ -109,6 +109,7 @@ VITE_WS_BASE_URL=ws://localhost:8080/ws
 ```
 
 生产（容器）模式支持运行时配置，无需重建前端包：
+
 - `RESONANCE_WEB_API_BASE_URL`：覆盖 API 地址
 - `RESONANCE_WEB_WS_BASE_URL`：覆盖 WebSocket 地址
 
@@ -125,7 +126,7 @@ cd .. && make gen
 npm run dev
 ```
 
-访问 http://localhost:5173
+访问 <http://localhost:5173>
 
 ---
 
