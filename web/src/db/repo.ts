@@ -38,12 +38,11 @@ export async function getEventsBySession(sessionId: string): Promise<EventRow[]>
 export async function findPendingEventByClientMsgId(
   sessionId: string,
   clientMsgId: string,
-  isPending: (seqId: string) => boolean,
 ): Promise<EventRow | undefined> {
   return db.events
     .where("clientMsgId")
     .equals(clientMsgId)
-    .and((row) => row.sessionId === sessionId && isPending(row.seqId))
+    .and((row) => row.sessionId === sessionId && row.seqId.startsWith("-"))
     .first();
 }
 
@@ -81,13 +80,4 @@ export async function withRwTransaction<T>(
   fn: () => Promise<T>,
 ): Promise<T> {
   return db.transaction("rw", db.sessions, db.events, db.outbox, db.meta, fn);
-}
-
-export async function clearAll(): Promise<void> {
-  await db.transaction("rw", db.sessions, db.events, db.outbox, db.meta, async () => {
-    await db.sessions.clear();
-    await db.events.clear();
-    await db.outbox.clear();
-    await db.meta.clear();
-  });
 }

@@ -11,8 +11,9 @@
 |------|:----:|------|
 | S0 脚手架 | ✅ | Vite 6 + React 19 + TS 5.9 + Tailwind 4 + ESLint 9 flat;`@gen/*` alias 通过 symlink 指向 `api/gen/ts`(`preserveSymlinks: true`) |
 | S1 ConnectRPC 底座 | ✅ | `api/transport.ts` + `api/clients.ts` + `lib/id.ts` 已落地;Connect-ES v2(`bufbuild/es:v2.11.0`,service 定义并入 `*_pb.ts`,已废弃 `connectrpc/es`);runtime config 链路(`/runtime-config.js` → `window.__RESONANCE_RUNTIME_CONFIG__`);`vite.config.ts` 配 dev middleware + `server.proxy` 兜底跨域;`createClient`(v2)替换 v1 `createPromiseClient` |
-| S2 Dexie + Applier | ⏭ 下一步 | 从这里开始 |
-| S3 ~ S9 | 📋 未开工 | 按 § 11 推进 |
+| S2 Dexie + Applier | ✅ | `db/schema.ts` + `db/repo.ts` + `sync/applier.ts` + `applier` 单测已落地,覆盖幂等/乱序/pending 覆盖/全部 oneof 分支 |
+| S3 WebSocket 骨架 | ✅ | `api/ws/client.ts` + `api/ws/dispatcher.ts` + `stores/connection.ts` 已落地,包含心跳/指数退避重连/oneof 分发 |
+| S4 ~ S9 | 📋 未开工 | 按 § 11 推进 |
 
 **重要提醒**:当前 `web/src/App.tsx` 是 S1 验收用的**临时登录 demo**,仅为验证 ConnectRPC 能跑通。
 S6 鉴权页 + 路由上线后会被正式的 `features/auth/` + `/chat` 三栏布局替换,**不要在它基础上叠业务**。
@@ -151,7 +152,17 @@ web/
 web/src/
 ├── api/
 │   ├── transport.ts          # ✅ createConnectTransport + JWT 拦截器 + runtime config baseUrl
-│   └── clients.ts            # ✅ createClient(AuthService/SessionService)
+│   ├── clients.ts            # ✅ createClient(AuthService/SessionService)
+│   └── ws/
+│       ├── client.ts         # ✅ WebSocket 封装：连接/重连/心跳
+│       └── dispatcher.ts     # ✅ WsPacket oneof 分发
+├── db/
+│   ├── schema.ts             # ✅ Dexie 四表定义（sessions/events/outbox/meta）
+│   └── repo.ts               # ✅ CRUD 封装（不暴露 Dexie.Table）
+├── sync/
+│   └── applier.ts            # ✅ ChatEvent 按 oneof 分发入库
+├── stores/
+│   └── connection.ts         # ✅ 连接状态机（idle/connecting/open/offline）
 ├── lib/
 │   └── id.ts                 # ✅ bigint ↔ string 转换
 ├── styles/index.css          # ✅ Tailwind 4 + 主题 CSS 变量

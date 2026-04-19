@@ -39,10 +39,6 @@ function messagePreview(event: ChatEvent): string {
   return "";
 }
 
-function isPendingSeq(seqId: string): boolean {
-  return toBigIntId(seqId) < 0n;
-}
-
 function toEventRow(event: ChatEvent): EventRow {
   const base: EventRow = {
     sessionId: event.sessionId,
@@ -120,11 +116,7 @@ async function applyMessage(event: ChatEvent): Promise<void> {
   const row = toEventRow(event);
 
   if (row.clientMsgId !== "" && event.seqId >= 0n) {
-    const pending = await findPendingEventByClientMsgId(
-      event.sessionId,
-      row.clientMsgId,
-      isPendingSeq,
-    );
+    const pending = await findPendingEventByClientMsgId(event.sessionId, row.clientMsgId);
     if (pending !== undefined) {
       await deleteEvent(pending.sessionId, pending.seqId);
     }
@@ -190,6 +182,7 @@ async function applyReadReceipt(event: ChatEvent): Promise<void> {
   const existing = await getSession(event.sessionId);
   const next = existing ?? createDefaultSession(event.sessionId);
   const readUptoSeqId = row.readUptoSeqId;
+  const meUsername = (await getMeta("me_username")) ?? "";
 
   if (next.type === SessionType.GROUP) {
     next.readUptoSeqByUser = {
@@ -198,6 +191,13 @@ async function applyReadReceipt(event: ChatEvent): Promise<void> {
     };
   } else {
     next.readUptoSeqId = readUptoSeqId;
+  }
+  if (event.fromUsername === meUsername) {
+    const currentLastRead = toBigIntId(next.lastReadSeq);
+    const incomingLastRead = toBigIntId(readUptoSeqId);
+    if (incomingLastRead > currentLastRead) {
+      next.lastReadSeq = toIdString(incomingLastRead);
+    }
   }
 
   await upsertSession(next);

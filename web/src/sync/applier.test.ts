@@ -13,7 +13,8 @@ import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
 import { SessionType } from "@gen/common/v1/session_pb";
 import { beforeEach, describe, expect, test } from "vitest";
 
-import { clearAll, getEventsBySession, getSession, putEvent, setMeta, upsertSession } from "../db/repo";
+import { getEventsBySession, getSession, putEvent, setMeta, upsertSession } from "../db/repo";
+import { db } from "../db/schema";
 import type { EventRow, SessionRow } from "../db/schema";
 import { toIdString } from "../lib/id";
 import { applyEvent } from "./applier";
@@ -64,8 +65,17 @@ function makeMessageEvent(params: {
   });
 }
 
+async function clearAllForTest(): Promise<void> {
+  await db.transaction("rw", db.sessions, db.events, db.outbox, db.meta, async () => {
+    await db.sessions.clear();
+    await db.events.clear();
+    await db.outbox.clear();
+    await db.meta.clear();
+  });
+}
+
 beforeEach(async () => {
-  await clearAll();
+  await clearAllForTest();
   await setMeta({ key: "me_username", value: "alice" });
 });
 
@@ -304,6 +314,29 @@ describe("applyEvent", () => {
 
     const session = await getSession(sessionId);
     expect(session?.readUptoSeqByUser.bob).toBe("99");
+  });
+
+  test("g3) ReadReceipt 来自本人时推进 last_read_seq", async () => {
+    const sessionId = "s-read-self";
+    await upsertSession(makeBaseSession(sessionId, SessionType.DIRECT));
+
+    const receipt = create(ChatEventSchema, {
+      eventId: 7201n,
+      seqId: 7n,
+      sessionId,
+      fromUsername: "alice",
+      timestampMs: 72001n,
+      payload: {
+        case: "readReceipt",
+        value: create(ReadReceiptSchema, {
+          readUptoSeqId: 123n,
+        }),
+      },
+    });
+    await applyEvent(receipt);
+
+    const session = await getSession(sessionId);
+    expect(session?.lastReadSeq).toBe("123");
   });
 
   test("h) SessionUpdate 覆盖会话元信息", async () => {
