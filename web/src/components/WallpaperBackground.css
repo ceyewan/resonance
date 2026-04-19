@@ -1,0 +1,175 @@
+/*
+ * WallpaperBackground —— 液态玻璃壁纸系统
+ *
+ * 设计理念：壁纸不是静态背景，而是一个"活的"空间。
+ * 所有玻璃面板在这个空间上方"漂浮"，透过半透明材质
+ * 看到下方流动的色彩和光球，这就是液态玻璃的深度层级。
+ */
+
+.wallpaper {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Layer 1: 流动渐变壁纸 ── */
+.wallpaper__gradient {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--glass-bg-gradient);
+  background-size: 400% 400%;
+  animation: wallpaper-flow 20s ease infinite;
+}
+
+@keyframes wallpaper-flow {
+  0%   { background-position: 0% 50%; }
+  25%  { background-position: 100% 25%; }
+  50%  { background-position: 100% 50%; }
+  75%  { background-position: 0% 75%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Layer 2: 装饰光球 ── */
+.wallpaper__orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+
+.wallpaper__orb--primary {
+  z-index: 1;
+  width: 420px;
+  height: 420px;
+  left: 5%;
+  top: 15%;
+  background: radial-gradient(
+    circle,
+    var(--accent-glow) 0%,
+    rgba(180, 83, 60, 0.08) 40%,
+    transparent 70%
+  );
+  filter: blur(80px);
+  animation: orb-drift-1 22s ease-in-out infinite;
+}
+
+.wallpaper__orb--secondary {
+  z-index: 1;
+  width: 500px;
+  height: 500px;
+  right: 10%;
+  bottom: 5%;
+  background: radial-gradient(
+    circle,
+    rgba(168, 180, 230, 0.2) 0%,
+    rgba(168, 180, 230, 0.06) 40%,
+    transparent 70%
+  );
+  filter: blur(100px);
+  animation: orb-drift-2 28s ease-in-out reverse infinite;
+}
+
+.wallpaper__orb--accent {
+  z-index: 1;
+  width: 300px;
+  height: 300px;
+  left: 50%;
+  top: 60%;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    circle,
+    rgba(148, 163, 184, 0.15) 0%,
+    transparent 60%
+  );
+  filter: blur(70px);
+  animation: orb-drift-3 18s ease-in-out infinite;
+}
+
+@keyframes orb-drift-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  25%  { transform: translate(40px, -30px) scale(1.05); }
+  50%  { transform: translate(20px, -60px) scale(0.95); }
+  75%  { transform: translate(-20px, -20px) scale(1.08); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes orb-drift-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-30px, -40px) scale(1.1); }
+  66%  { transform: translate(20px, 30px) scale(0.92); }
+  100% { transform: translate(0, 0) scale(1); }
+}
+
+@keyframes orb-drift-3 {
+  0%   { transform: translateX(-50%) translate(0, 0) scale(1); }
+  50%  { transform: translateX(-50%) translate(30px, -40px) scale(1.12); }
+  100% { transform: translateX(-50%) translate(0, 0) scale(1); }
+}
+
+/* ── Layer 3: 噪点纹理覆盖 ── */
+.wallpaper__noise {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  /* 用 SVG feTurbulence 生成的噪点 */
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px 256px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .wallpaper__noise {
+    opacity: 0.06;
+  }
+}
+
+/* ── Layer 4: 微光粒子（CSS 生成的随机闪烁点） ── */
+.wallpaper__shimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 40% 70%, rgba(255,255,255,0.45) 0%, transparent 100%),
+    radial-gradient(1px 1px at 15% 80%, rgba(255,255,255,0.35) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 45%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 90% 15%, rgba(255,255,255,0.4) 0%, transparent 100%);
+  animation: shimmer-pulse 6s ease-in-out infinite;
+}
+
+@keyframes shimmer-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .wallpaper__shimmer {
+    animation-name: shimmer-pulse-dark;
+  }
+
+  @keyframes shimmer-pulse-dark {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.4; }
+  }
+}
+
+/* ── Content Layer ── */
+.wallpaper__content {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}

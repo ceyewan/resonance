@@ -1,0 +1,185 @@
+/*
+ * AuthPages —— 鉴权页面共享样式
+ *
+ * 登录页和注册页共用的布局、头部、表单、动画样式。
+ */
+
+/* ── 页面布局 ── */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.auth-form {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+
+  /* 入场动画 */
+  animation: auth-enter 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ── 头部 ── */
+.auth-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.auth-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ── Logo（极简双阶液态玻璃） ── */
+.auth-logo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+  width: 96px; /* 整体缩小一圈 */
+  height: 96px;
+  border-radius: 50%;
+
+  /* 外层阶梯：左上强光冰蓝，右下折射樱花粉 */
+  background: linear-gradient(135deg, rgba(190, 215, 255, 0.65) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 205, 220, 0.6) 100%);
+  box-shadow: 
+    inset 2px 3px 6px rgba(255, 255, 255, 0.95), /* 强烈的左上顶光反射 */
+    inset -1px -2px 4px rgba(255, 255, 255, 0.4),
+    0 6px 16px rgba(150, 180, 220, 0.25); /* 整体底部微蓝落地阴影 */
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* 核心内圆 */
+.auth-logo__icon {
+  width: 60px; /* 相对于外环显得更饱满 */
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 3;
+  margin: auto;
+  
+  /* 偏白的高亮球面感，承接外环的色彩倾向 */
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(250, 252, 255, 0.85) 50%,
+    rgba(255, 240, 245, 0.5) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow:
+    inset 2px 2px 4px rgba(255, 255, 255, 1),
+    0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.auth-logo__letter {
+  font-size: 38px; /* 字体放大 */
+  font-weight: 300; /* 收为细体，提升呼吸感和现代艺术感 */
+  color: #3b4e6a; /* 保持深邃的灰蓝岩色 */
+  text-shadow: 
+    0 1px 0 rgba(255, 255, 255, 1), /* 强化玻璃刻印一般的底光 */
+    0 2px 6px rgba(50, 70, 100, 0.15); /* 加深字母蓝阴影，形成立体浮凸 */
+  padding-left: 2px;
+}
+
+/* Logo 外放微弱的呼吸环境光 */
+.auth-logo__ripple {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(200, 220, 255, 0.3) 0%, transparent 50%, rgba(255, 210, 225, 0.3) 100%);
+  opacity: 0;
+  z-index: -1;
+  animation: logo-breathe 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes logo-breathe {
+  0% { transform: scale(0.9); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+/* ── 表单字段 ── */
+.auth-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── 错误消息 ── */
+.auth-error {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: #ef4444;
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-3px); }
+  40%, 60% { transform: translateX(3px); }
+}
+
+/* ── 操作区域 ── */
+.auth-actions {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ── 切换链接 ── */
+.auth-switch {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.auth-switch__link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.25s ease;
+}
+
+.auth-switch__link:hover {
+  color: var(--color-primary-hover);
+}

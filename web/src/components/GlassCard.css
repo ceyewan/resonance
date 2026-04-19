@@ -1,0 +1,186 @@
+/*
+ * GlassCard —— 液态玻璃卡片的多层光学系统
+ *
+ * 架构层次（从底到顶）：
+ *   0. 容器自身 —— 提供 backdrop-filter blur + 主体半透明背景
+ *   1. __refraction —— SVG 折射滤镜层（背景内容光线弯曲）
+ *   2. __ambient —— 环境反光（天光渐变 overlay）
+ *   3. __specular —— 镜面高光（鼠标追踪光斑）
+ *   4. __rim —— 边缘脊线光
+ *   5. __content —— 内容层
+ */
+
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  will-change: transform;
+  isolation: isolate;
+
+  /* ── 物理引擎注入的 CSS 变量（useLiquidGlass 写入） ── */
+  --lg-tx: 0px;
+  --lg-ty: 0px;
+  --lg-rx: 0deg;
+  --lg-ry: 0deg;
+  --lg-scale: 1;
+  --lg-glow-x: 50%;
+  --lg-glow-y: 50%;
+  --lg-glow-opacity: 0;
+  --lg-refraction: 0;
+
+  /* ── 3D 透视变换 ── */
+  transform:
+    perspective(var(--glass-perspective, 1200px))
+    translate3d(var(--lg-tx), var(--lg-ty), 0)
+    rotateX(var(--lg-rx))
+    rotateY(var(--lg-ry))
+    scale(var(--lg-scale));
+  transform-style: preserve-3d;
+  transition: box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── 玻璃材质基底 ── */
+  background: var(--glass-card-bg);
+  border: 1px solid var(--glass-card-border);
+  backdrop-filter: blur(var(--glass-blur-lg, 40px)) saturate(1.8);
+  -webkit-backdrop-filter: blur(var(--glass-blur-lg, 40px)) saturate(1.8);
+
+  /* ── 多层阴影系统 ── */
+  box-shadow:
+    /* 外部浮起阴影 */
+    0 8px 40px rgba(0, 0, 0, 0.08),
+    0 2px 12px rgba(0, 0, 0, 0.04),
+    /* 内部光晕（玻璃厚度感） */
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* 暗色模式阴影调整 */
+@media (prefers-color-scheme: dark) {
+  .glass-card {
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.3),
+      0 2px 12px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* ── Layer 1: 折射层 ── */
+.glass-card__refraction {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  /* 通过 SVG url 滤镜弯曲背景 */
+  backdrop-filter: url(#resonance-glass-refraction) blur(0.5px);
+  -webkit-backdrop-filter: url(#resonance-glass-refraction) blur(0.5px);
+  opacity: var(--lg-refraction);
+  transition: opacity 0.3s ease;
+}
+
+/* ── Layer 2: 环境反光 ── */
+.glass-card__ambient {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  /* 从上方柔光渐变（模拟天光） */
+  background:
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.08) 30%,
+      transparent 60%,
+      rgba(0, 0, 0, 0.03) 100%
+    );
+  mix-blend-mode: overlay;
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-card__ambient {
+    background:
+      linear-gradient(
+        165deg,
+        rgba(255, 255, 255, 0.08) 0%,
+        rgba(255, 255, 255, 0.02) 30%,
+        transparent 60%,
+        rgba(0, 0, 0, 0.1) 100%
+      );
+  }
+}
+
+/* ── Layer 3: 镜面高光（Specular Highlight） ── */
+.glass-card__specular {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: var(--lg-glow-opacity);
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 椭圆形高光跟随鼠标 */
+  background:
+    radial-gradient(
+      ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.15) 30%,
+      transparent 70%
+    );
+  mix-blend-mode: overlay;
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-card__specular {
+    background:
+      radial-gradient(
+        ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
+        rgba(255, 255, 255, 0.25) 0%,
+        rgba(255, 255, 255, 0.06) 30%,
+        transparent 70%
+      );
+  }
+}
+
+/* ── Layer 4: 边缘脊线光（Rim Light） ── */
+.glass-card__rim {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  /* 极细的内边缘高光线 */
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.5),
+    inset 1px 0 0 rgba(255, 255, 255, 0.1),
+    inset -1px 0 0 rgba(255, 255, 255, 0.1),
+    inset 0 -0.5px 0 rgba(255, 255, 255, 0.05);
+  opacity: calc(0.4 + var(--lg-glow-opacity) * 0.6);
+  transition: opacity 0.3s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-card__rim {
+    box-shadow:
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.15),
+      inset 1px 0 0 rgba(255, 255, 255, 0.04),
+      inset -1px 0 0 rgba(255, 255, 255, 0.04),
+      inset 0 -0.5px 0 rgba(255, 255, 255, 0.02);
+  }
+}
+
+/* ── Content Layer ── */
+.glass-card__content {
+  position: relative;
+  z-index: 10;
+  width: calc(100vw - 64px);
+  max-width: 380px;
+  margin-inline: auto;
+  color: var(--color-text);
+}
+
+@media (min-width: 640px) {
+  .glass-card__content {
+    width: 380px;
+  }
+}
