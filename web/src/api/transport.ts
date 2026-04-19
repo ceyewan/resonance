@@ -1,7 +1,6 @@
 import type { Interceptor } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-web";
 
-const AUTHORIZATION_HEADER = "Authorization";
 const ACCESS_TOKEN_KEY = "resonance_access_token";
 
 export function getAccessToken(): string | null {
@@ -19,18 +18,17 @@ export function clearAccessToken(): void {
 const authInterceptor: Interceptor = (next) => async (req) => {
   const token = getAccessToken();
   if (token) {
-    req.header.set(AUTHORIZATION_HEADER, `Bearer ${token}`);
+    req.header.set("Authorization", `Bearer ${token}`);
   }
   return await next(req);
 };
 
-function resolveBaseUrl(): string {
-  const fromEnv = (globalThis as { __RES_API_BASE_URL__?: string })
-    .__RES_API_BASE_URL__;
-  return fromEnv?.trim() ?? "";
-}
+// Runtime config 由 webserver 模块的 /runtime-config.js 端点注入（生产）。
+// 开发期同源 + Vite proxy，fallback 空串即可。
+const apiBaseUrl =
+  window.__RESONANCE_RUNTIME_CONFIG__?.apiBaseUrl?.trim() ?? "";
 
 export const transport = createConnectTransport({
-  baseUrl: resolveBaseUrl(),
+  baseUrl: apiBaseUrl,
   interceptors: [authInterceptor],
 });

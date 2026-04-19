@@ -21,8 +21,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
 
-    /* Paths */
-    "baseUrl": ".",
+    /* Paths — TS 5.0+ 不再需要 baseUrl，paths 以 tsconfig 所在目录解析 */
     "paths": {
       "@gen/*": ["./src/gen/*"]
     }

@@ -6,8 +6,8 @@ managed:
 
 plugins:
   # 1. 基础 protobuf 消息类型生成器
-  # 锁定 v1.36.0 以匹配 go.mod 中的 google.golang.org/protobuf v1.36.x
-  - remote: buf.build/protocolbuffers/go:v1.36.0
+  # 锁定 v1.36.11 以精确匹配 go.mod 中的 google.golang.org/protobuf v1.36.11
+  - remote: buf.build/protocolbuffers/go:v1.36.11
     out: gen/go
     opt: paths=source_relative # 生成的代码路径与 .proto 文件相对路径保持一致
 

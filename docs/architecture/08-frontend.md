@@ -5,6 +5,22 @@
 
 ---
 
+## 0. 当前进度
+
+| Step | 状态 | 备注 |
+|------|:----:|------|
+| S0 脚手架 | ✅ | Vite 6 + React 19 + TS 5.9 + Tailwind 4 + ESLint 9 flat;`@gen/*` alias 通过 symlink 指向 `api/gen/ts`(`preserveSymlinks: true`) |
+| S1 ConnectRPC 底座 | ✅ | `api/transport.ts` + `api/clients.ts` + `lib/id.ts` 已落地;Connect-ES v2(`bufbuild/es:v2.11.0`,service 定义并入 `*_pb.ts`,已废弃 `connectrpc/es`);runtime config 链路(`/runtime-config.js` → `window.__RESONANCE_RUNTIME_CONFIG__`);`vite.config.ts` 配 dev middleware + `server.proxy` 兜底跨域;`createClient`(v2)替换 v1 `createPromiseClient` |
+| S2 Dexie + Applier | ⏭ 下一步 | 从这里开始 |
+| S3 ~ S9 | 📋 未开工 | 按 § 11 推进 |
+
+**重要提醒**:当前 `web/src/App.tsx` 是 S1 验收用的**临时登录 demo**,仅为验证 ConnectRPC 能跑通。
+S6 鉴权页 + 路由上线后会被正式的 `features/auth/` + `/chat` 三栏布局替换,**不要在它基础上叠业务**。
+
+版本基线(Protobuf 插件 + 前端运行时库)统一 pin 在 `api/README.md §"开发注意事项"`,升级时同步两处。
+
+---
+
 ## 1. 目标与非目标
 
 ### 目标
@@ -30,7 +46,7 @@
 | 构建 | **Vite 6 + TypeScript 5** | 与后端 `make gen` 产物无缝衔接 |
 | 框架 | **React 19** | 并发渲染、`use` hook,对流式/Suspense 友好 |
 | 路由 | **TanStack Router** | 类型安全路由,天然支持 loader + search params |
-| 服务端状态 | **TanStack Query** + `@connectrpc/connect-query` | 封装 ConnectRPC 请求的缓存、重试、失效 |
+| 服务端状态 | **TanStack Query**(+ `@connectrpc/connect-query` 待 S5+ 按需引入) | 封装 ConnectRPC 请求的缓存、重试、失效;暂未安装,S1 demo 直接裸调 `authClient` |
 | 客户端状态 | **Zustand** | 连接状态、当前会话、草稿等瞬时 UI 状态 |
 | 本地持久化 | **Dexie 4** (IndexedDB) + `dexie-react-hooks` | 会话列表、事件流、Inbox 游标;`useLiveQuery` 订阅 |
 | WebSocket | 自写薄封装 | 断线重连、心跳、`client_seq` 追踪、ACK 超时重发 |
@@ -44,6 +60,30 @@
 | Lint / 格式 | **ESLint 9 (flat)** + **Prettier** | 已有 `make lint/format` 链路兼容 |
 
 > **保留项**:`api/gen/ts/`(Protobuf 生成的 TS)是前后端契约唯一来源,前端通过 `tsconfig` path 直接引用,不复制、不改动。
+
+### 2.1 运行时配置链路
+
+Web 镜像**一次构建、多环境复用**,不把 API / WS 地址打进 bundle。配置在容器启动时注入,链路如下:
+
+```
+.env (RESONANCE_WEB_API_BASE_URL / RESONANCE_WEB_WS_BASE_URL)
+  │
+  ▼ docker-compose env_file 注入到 web 容器
+web 容器环境变量
+  │
+  ▼ webserver/web.go 的 GET /runtime-config.js 端点响应
+window.__RESONANCE_RUNTIME_CONFIG__ = { apiBaseUrl, wsBaseUrl }
+  │
+  ▼ index.html 的 <script src="/runtime-config.js"> 在 main.tsx 之前同步执行
+api/transport.ts / api/ws/client.ts 读取 window 全局,构造 transport / WebSocket
+```
+
+**约束**:
+
+- `index.html` 里 `<script src="/runtime-config.js"></script>` 必须放在 module 脚本之前。module 脚本天然 `defer`,会等经典脚本执行完 + HTML 解析完再跑,顺序由浏览器保证。
+- `vite-env.d.ts` 声明 `Window.__RESONANCE_RUNTIME_CONFIG__` 类型,业务代码不得直接 `as any` 读 window。
+- 开发期由 `vite.config.ts` 的 dev middleware 兜底 `/runtime-config.js` 返回 `window.__RESONANCE_RUNTIME_CONFIG__ = {};`,此时 API base / WS base 都是空串,依靠 `server.proxy` 把 `/resonance.*` 和 `/ws` 打到 `localhost:8080`。
+- 前端**不使用** `import.meta.env.VITE_*`:环境变量是 build-time 的,不符合"一次构建多环境复用"目标。
 
 ---
 
@@ -104,6 +144,22 @@ web/
 - `api/` 不依赖 `features/`,不依赖 `db/`。
 - `db/` 不依赖 `api/`(数据结构与网络解耦)。
 - `sync/` 是 `api/` 与 `db/` 的唯一桥梁。
+
+**当前已落地快照**(其他目录在 S2+ 按需创建):
+
+```
+web/src/
+├── api/
+│   ├── transport.ts          # ✅ createConnectTransport + JWT 拦截器 + runtime config baseUrl
+│   └── clients.ts            # ✅ createClient(AuthService/SessionService)
+├── lib/
+│   └── id.ts                 # ✅ bigint ↔ string 转换
+├── styles/index.css          # ✅ Tailwind 4 + 主题 CSS 变量
+├── gen/                      # 🔗 软链接 → ../../api/gen/ts(生成物,不改)
+├── App.tsx                   # ⚠️ S1 登录 demo,S6 删
+├── main.tsx
+└── vite-env.d.ts             # ✅ Window.__RESONANCE_RUNTIME_CONFIG__ 类型
+```
 
 ---
 
@@ -265,9 +321,9 @@ web/
 
 | Step | 目标 | 关键产出 | 验收 | 推荐模型 |
 |------|------|----------|------|---------|
-| **S0** | 脚手架 | Vite 6 + TS 5 + Tailwind 4 + ESLint flat;`tsconfig paths: "@gen/*" → "../api/gen/ts/*"`;`/` 显示空白但能跑 | `npm run dev` 打开,`npm run type-check` 与 `npm run build` 均通过 | **Codex (gpt-5.3-codex)**:配置型,不容易发明 API |
-| **S1** | ConnectRPC 底座 | `api/transport.ts`(`createConnectTransport` + JWT 拦截器) + `api/clients.ts`(`createPromiseClient(AuthService/SessionService, transport)`);`lib/id.ts` bigint 封装;`src/gen` 软链接指向 `api/gen/ts`(解决 symlink 外依赖解析问题) | 手写一个调用 `AuthService.Login` 的 demo 页,能跑通 | **Codex** |
-| **S2** | Dexie + Applier | `db/schema.ts`(sessions/events/outbox/meta)+ `db/repo.ts` + `sync/applier.ts`;**单测**覆盖所有 `ChatEvent` oneof 分支 + 幂等 | `vitest` 跑 `applier` 单测全绿,包含重复 `event_id`、乱序 `seq_id`、pending 覆盖三种用例 | **Codex**:纯业务逻辑 + 强单测,最适合 |
+| **S0** ✅ | 脚手架 | Vite 6 + TS 5 + Tailwind 4 + ESLint flat;`tsconfig paths: "@gen/*" → "../api/gen/ts/*"`;`/` 显示空白但能跑 | `npm run dev` 打开,`npm run type-check` 与 `npm run build` 均通过 | **Codex (gpt-5.3-codex)**:配置型,不容易发明 API |
+| **S1** ✅ | ConnectRPC 底座 | `api/transport.ts`(`createConnectTransport` + JWT 拦截器,baseUrl 从 `window.__RESONANCE_RUNTIME_CONFIG__.apiBaseUrl` 读取) + `api/clients.ts`(`createClient(AuthService, transport)`,Connect-ES v2 起 service 定义并入 `*_pb.ts`);`lib/id.ts` bigint 封装;`src/gen` 软链接指向 `api/gen/ts`(解决 symlink 外依赖解析问题);`index.html` 加载 `/runtime-config.js`,`vite.config.ts` 配 dev middleware + dev proxy | 手写一个调用 `AuthService.Login` 的 demo 页,能跑通 | **Codex** |
+| **S2** ⏭ 下一步 | Dexie + Applier | `db/schema.ts`(sessions/events/outbox/meta)+ `db/repo.ts` + `sync/applier.ts`;**单测**覆盖所有 `ChatEvent` oneof 分支 + 幂等 | `vitest` 跑 `applier` 单测全绿,包含重复 `event_id`、乱序 `seq_id`、pending 覆盖三种用例 | **Codex**:纯业务逻辑 + 强单测,最适合 |
 | **S3** | WebSocket 骨架 | `api/ws/client.ts`(连接 / 心跳 / 指数退避重连 / 状态机) + `api/ws/dispatcher.ts`(oneof 分发) + `stores/connection.ts` | 断网重连、心跳保活可手工验证;dispatcher 对未知 case 编译报错 | **Codex** 主写,如遇重连抖动问题上 **gpt-5.4 xhigh** |
 | **S4** | Outbox + ACK 状态机 | `api/ws/outbox.ts`:`send()` 返回 `Promise<Ack>`,5s 超时、3 次重发、`failed` 终态;与 Dexie `outbox` 表双写 | 单测:网络正常 ACK、ACK 超时、多次重发、最终失败四条路径 | **Codex**:这是整个系统最易错的部分,务必强约束 + 测试 |
 | **S5** | Inbox 同步循环 | `sync/inbox.ts`:启动 / 重连时按 `meta.inbox_cursor_id` 分页拉到 `has_more=false`;`sync/reconcile.ts`:WS 与 Inbox 事件去重 | 单测模拟 Inbox 与 WS 同时到达,`events` 表无重复 | **Codex** |
