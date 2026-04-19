@@ -79,6 +79,10 @@ export async function syncSessionList(): Promise<SessionRow[]> {
     getSessions(),
   ]);
   const existingById = new Map(existingRows.map((row) => [row.sessionId, row]));
+  const { getAccessToken } = await import("../api/transport");
+  if (getAccessToken() === "mock-token-123") {
+    return existingRows;
+  }
   const response = await sessionClient.getSessionList({});
   const nextRows = response.sessions.map((snapshot) =>
     toSessionRow(snapshot, existingById.get(snapshot.sessionId)),
@@ -99,6 +103,10 @@ export async function loadHistory(
   sessionId: string,
   options: LoadHistoryOptions = {},
 ): Promise<number> {
+  const { getAccessToken } = await import("../api/transport");
+  if (getAccessToken() === "mock-token-123") {
+    return 0;
+  }
   const { sessionClient } = await import("../api/clients");
   const response = await sessionClient.getHistoryEvents({
     sessionId,

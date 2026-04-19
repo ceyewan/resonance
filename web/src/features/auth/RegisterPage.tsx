@@ -41,7 +41,7 @@ export function RegisterPage() {
   return (
     <WallpaperBackground>
       <div className="auth-page">
-        <form onSubmit={handleRegister} className="auth-form">
+        <form onSubmit={(e) => void handleRegister(e)} className="auth-form">
           <GlassCard padding="44px 40px" cornerRadius={28}>
             {/* Header */}
             <div className="auth-header">
@@ -89,7 +89,7 @@ export function RegisterPage() {
               <GlassButton
                 type="submit"
                 disabled={loading || !username || !password || !nickname}
-                onClick={handleRegister}
+                onClick={(e) => void handleRegister(e)}
               >
                 {loading ? "Signing up..." : "Sign Up"}
               </GlassButton>

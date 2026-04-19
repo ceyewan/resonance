@@ -6,21 +6,21 @@ import { SessionDetailPanel } from "../session-detail/SessionDetailPanel";
 export function EmptyChat() {
   return (
     <div className="grid h-full w-full gap-4 lg:grid-cols-[minmax(0,1fr)_320px] xl:grid-cols-[minmax(0,1fr)_360px]">
-      <GlassCard className="h-full flex items-center justify-center w-full" padding="24px" cornerRadius={24} enableTilt={false}>
-        <div className="text-center text-white/40 flex flex-col items-center max-w-sm">
-          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 backdrop-blur-sm border border-white/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),0_8px_32px_rgba(0,0,0,0.1)]">
-            <MessageCircle className="w-10 h-10 text-white/50" strokeWidth={1.5} />
+      <GlassCard className="h-full flex items-center justify-center w-full relative overflow-hidden" padding="24px" cornerRadius={24} enableTilt={false}>
+        <div className="text-center text-white flex flex-col items-center max-w-sm relative z-10">
+          <div className="w-[88px] h-[88px] rounded-full bg-white/[0.03] flex items-center justify-center mb-6 backdrop-blur-xl border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.1),inset_0_1px_2px_rgba(255,255,255,0.2)]">
+            <MessageCircle className="w-10 h-10 text-white/70" strokeWidth={1.5} />
           </div>
-          <h3 className="text-xl font-medium text-white/80 mb-2 tracking-tight">Your Messages</h3>
-          <p className="text-[15px] leading-relaxed mb-5">Select a chat from the left panel to start messaging, or start a new conversation.</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Link to="/contacts" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/75 hover:bg-white/5">
-              <Users className="w-4 h-4" />
+          <h3 className="text-[22px] font-semibold text-white mb-2 tracking-tight">Your Messages</h3>
+          <p className="text-[15px] leading-relaxed mb-8 text-white/60">Select a chat from the left panel to start messaging, or start a new conversation.</p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link to="/contacts" className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.05] px-5 py-2.5 text-[14px] font-medium text-white/90 hover:bg-white/10 hover:text-white transition-all shadow-sm">
+              <Users className="w-[18px] h-[18px]" />
               Contacts
             </Link>
-            <Link to="/contacts" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/75 hover:bg-white/5">
-              <Plus className="w-4 h-4" />
-              New Chat / Group
+            <Link to="/contacts" className="inline-flex items-center gap-2 rounded-full border border-[var(--glass-btn-primary-border)] bg-[var(--color-primary)] px-5 py-2.5 text-[14px] font-medium text-white hover:bg-[var(--color-primary-hover)] transition-all shadow-[0_4px_12px_rgba(180,83,60,0.25),inset_0_1px_1px_rgba(255,255,255,0.3)]">
+              <Plus className="w-[18px] h-[18px]" />
+              New Chat
             </Link>
           </div>
         </div>

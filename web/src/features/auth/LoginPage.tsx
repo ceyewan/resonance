@@ -4,8 +4,8 @@ import { GlassCard } from "../../components/GlassCard";
 import { GlassInput } from "../../components/GlassInput";
 import { GlassButton } from "../../components/GlassButton";
 import { WallpaperBackground } from "../../components/WallpaperBackground";
-import { useAuthState } from "../../hooks/useAuthState";
 import { login } from "../../services/auth";
+import { mockLoginAndPopulateDb } from "../../services/mock";
 import { KeyRound, User } from "lucide-react";
 import "./AuthPages.css";
 
@@ -15,7 +15,6 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const auth = useAuthState();
   const navigate = useNavigate();
 
   const handleLogin = async (e?: React.FormEvent) => {
@@ -35,10 +34,23 @@ export function LoginPage() {
     }
   };
 
+  const handleMockLogin = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      await mockLoginAndPopulateDb();
+      void navigate({ to: "/chat" });
+    } catch (cause: unknown) {
+      setError(cause instanceof Error ? cause.message : "Mock login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <WallpaperBackground>
       <div className="auth-page">
-        <form onSubmit={handleLogin} className="auth-form">
+        <form onSubmit={(e) => void handleLogin(e)} className="auth-form">
           <GlassCard padding="44px 40px" cornerRadius={28}>
             {/* Brand Header */}
             <div className="auth-header">
@@ -81,13 +93,25 @@ export function LoginPage() {
 
             {/* Actions */}
             <div className="auth-actions">
-              <GlassButton
-                type="submit"
-                disabled={loading || !username || !password}
-                onClick={handleLogin}
-              >
-                {loading ? "Signing in..." : "Sign In"}
-              </GlassButton>
+              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                <GlassButton
+                  type="button"
+                  disabled={loading}
+                  onClick={(e) => { e.preventDefault(); void handleMockLogin(); }}
+                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.8)' }}
+                >
+                  {loading ? "..." : "Demo Mode"}
+                </GlassButton>
+
+                <GlassButton
+                  type="submit"
+                  disabled={loading || !username || !password}
+                  onClick={(e) => void handleLogin(e)}
+                  style={{ flex: 1 }}
+                >
+                  {loading ? "Signing in..." : "Sign In"}
+                </GlassButton>
+              </div>
 
               <p className="auth-switch">
                 Don't have an account?{" "}

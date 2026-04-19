@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 
 /**
  * 液态玻璃物理引擎 Hook
@@ -77,7 +77,20 @@ export function useLiquidGlass<T extends HTMLElement>(
   const isPressed = useRef(false);
   const isHovered = useRef(false);
 
-  const cfg = { ...DEFAULT_CONFIG, ...config };
+  const [cfg, setCfg] = useState({ ...DEFAULT_CONFIG, ...config });
+
+  useEffect(() => {
+    setCfg({ ...DEFAULT_CONFIG, ...config });
+  }, [
+    config.damping,
+    config.stiffness,
+    config.tiltMax,
+    config.perspective,
+    config.activationRange,
+    config.glowIntensity,
+    config.enableRefraction,
+    config.pressScale,
+  ]);
 
   const spring = useRef<SpringState>({
     translateX: 0,
