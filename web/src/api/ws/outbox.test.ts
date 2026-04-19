@@ -11,6 +11,7 @@ import {
 } from "@gen/gateway/v1/packet_pb";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
+import * as repo from "../../db/repo";
 import { getOutbox } from "../../db/repo";
 import { db } from "../../db/schema";
 import { OutboxManager } from "./outbox";
@@ -109,6 +110,7 @@ describe("OutboxManager", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   test("1) 正常 ACK：send resolve 且 outbox.status=acked", async () => {
@@ -240,5 +242,23 @@ describe("OutboxManager", () => {
     const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
     ws.emitAck(clientSeq);
     await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+  });
+
+  test("7) ACK 落库失败时 send() reject，Promise 不悬挂", async () => {
+    const ws = new FakeWsClient();
+    const outbox = new OutboxManager(ws);
+    vi.spyOn(repo, "markOutboxAcked").mockRejectedValue(new Error("persist failed"));
+
+    const promise = outbox.send("s7", "cmid-7", createChatRequestPacket());
+    await waitForSentPackets(ws, 1);
+
+    const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
+    ws.emitAck(clientSeq);
+
+    await expect(promise).rejects.toMatchObject({
+      name: "OutboxError",
+      clientSeq,
+      message: "persist failed",
+    });
   });
 });

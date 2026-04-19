@@ -8,9 +8,15 @@ type ConnectionState = {
   lastConnectedAtMs: number;
   lastDisconnectedAtMs: number;
   lastError: string;
+  inboxSyncing: boolean;
+  lastInboxSyncAtMs: number;
+  lastInboxSyncError: string;
   setConnecting: () => void;
   setOpen: () => void;
   setOffline: (error: string) => void;
+  startInboxSync: () => void;
+  finishInboxSync: () => void;
+  failInboxSync: (error: string) => void;
   reset: () => void;
 };
 
@@ -20,6 +26,9 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   lastConnectedAtMs: 0,
   lastDisconnectedAtMs: 0,
   lastError: "",
+  inboxSyncing: false,
+  lastInboxSyncAtMs: 0,
+  lastInboxSyncError: "",
   setConnecting: () => {
     set({
       status: "connecting",
@@ -40,6 +49,25 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
       lastError: error,
     });
   },
+  startInboxSync: () => {
+    set({
+      inboxSyncing: true,
+      lastInboxSyncError: "",
+    });
+  },
+  finishInboxSync: () => {
+    set({
+      inboxSyncing: false,
+      lastInboxSyncAtMs: Date.now(),
+      lastInboxSyncError: "",
+    });
+  },
+  failInboxSync: (error: string) => {
+    set({
+      inboxSyncing: false,
+      lastInboxSyncError: error,
+    });
+  },
   reset: () => {
     set({
       status: "idle",
@@ -47,6 +75,9 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
       lastConnectedAtMs: 0,
       lastDisconnectedAtMs: 0,
       lastError: "",
+      inboxSyncing: false,
+      lastInboxSyncAtMs: 0,
+      lastInboxSyncError: "",
     });
   },
 }));

@@ -94,12 +94,21 @@ export class OutboxManager {
     this.clearTimeout(entry);
     this.pending.delete(refClientSeq);
     void (async () => {
-      await markOutboxAcked(
-        refClientSeq,
-        toIdString(ackPayload.eventId),
-        toIdString(ackPayload.seqId),
-      );
-      entry.resolve(ackPayload);
+      try {
+        await markOutboxAcked(
+          refClientSeq,
+          toIdString(ackPayload.eventId),
+          toIdString(ackPayload.seqId),
+        );
+        entry.resolve(ackPayload);
+      } catch (cause) {
+        entry.reject(
+          new OutboxError(
+            cause instanceof Error ? cause.message : "Failed to persist outbox ack",
+            refClientSeq,
+          ),
+        );
+      }
     })();
   }
 

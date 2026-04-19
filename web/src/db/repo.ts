@@ -12,8 +12,19 @@ export async function getSession(sessionId: string): Promise<SessionRow | undefi
   return db.sessions.get(sessionId);
 }
 
+export async function getSessions(): Promise<SessionRow[]> {
+  return db.sessions.toArray();
+}
+
 export async function upsertSession(row: SessionRow): Promise<void> {
   await db.sessions.put(row);
+}
+
+export async function replaceSessions(rows: SessionRow[]): Promise<void> {
+  await db.transaction("rw", db.sessions, async () => {
+    await db.sessions.clear();
+    await db.sessions.bulkPut(rows);
+  });
 }
 
 export async function putEvent(row: EventRow): Promise<void> {
@@ -102,8 +113,21 @@ export async function getOutboxByStatus(status: OutboxRow["status"]): Promise<Ou
   return db.outbox.where("status").equals(status).toArray();
 }
 
+export async function getOutboxRowsBySession(sessionId: string): Promise<OutboxRow[]> {
+  return db.outbox.where("sessionId").equals(sessionId).toArray();
+}
+
 export async function getPendingOutboxRows(): Promise<OutboxRow[]> {
   return db.outbox.where("status").anyOf(["sending", "retrying"]).toArray();
+}
+
+export async function clearAllData(): Promise<void> {
+  await db.transaction("rw", db.sessions, db.events, db.outbox, db.meta, async () => {
+    await db.sessions.clear();
+    await db.events.clear();
+    await db.outbox.clear();
+    await db.meta.clear();
+  });
 }
 
 export async function withRwTransaction<T>(

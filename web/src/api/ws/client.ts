@@ -15,6 +15,17 @@ export type WsClientOptions = {
   createSocket?: (url: string) => WebSocket;
 };
 
+export function buildWsUrl(token?: string): string {
+  const baseUrl = getWsBaseUrl();
+  if (token === undefined || token.trim() === "") {
+    return baseUrl;
+  }
+
+  const url = new URL(baseUrl, window.location.origin);
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
 export class WsClient {
   private readonly url: string;
   private readonly heartbeatIntervalMs: number;
