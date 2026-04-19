@@ -39,7 +39,7 @@ export function Composer({ sessionId }: ComposerProps) {
       <button 
         type="submit" 
         disabled={!draft.trim() || isSending}
-        className="shrink-0 w-11 h-11 rounded-full bg-[var(--color-primary)] text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--color-primary-hover)] transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.2)]"
+        className="shrink-0 w-11 h-11 rounded-full bg-[var(--color-primary)] text-[var(--color-text)] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--color-primary-hover)] transition-all shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.2)]"
       >
         {isSending ? (
           <Loader2 className="w-5 h-5 animate-spin" />

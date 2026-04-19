@@ -11,7 +11,7 @@ export function ChatLayout() {
     return (
       <WallpaperBackground>
         <div className="flex h-screen w-full items-center justify-center">
-          <div className="text-white/50 text-sm">Loading...</div>
+          <div className="text-[var(--color-text-muted)] opacity-70 text-sm">Loading...</div>
         </div>
       </WallpaperBackground>
     );

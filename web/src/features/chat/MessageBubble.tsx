@@ -16,8 +16,8 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
   const isMe = event.fromUsername === auth.currentUser?.username || event.fromUsername === "" || !event.fromUsername;
 
   const bubbleClass = isMe 
-    ? "bg-[var(--color-primary)]/80 text-white ml-auto rounded-tr-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.15)] border border-white/20 backdrop-blur-md"
-    : "bg-white/10 text-white/90 mr-auto rounded-tl-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_4px_12px_rgba(0,0,0,0.1)] border border-white/10 backdrop-blur-md";
+    ? "bg-[var(--color-primary)]/80 text-[var(--color-text)] ml-auto rounded-tr-sm shadow-[inset_0_1px_2px_rgba(255,255,255,0.4),0_4px_12px_rgba(0,0,0,0.15)] border border-[var(--color-border)] backdrop-blur-md"
+    : "bg-[var(--glass-surface-hover)] text-[var(--color-text)] mr-auto rounded-tl-sm shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_4px_12px_rgba(0,0,0,0.1)] border border-[var(--color-border)] backdrop-blur-md";
 
   return (
     <div className={`flex flex-col w-full ${isMe ? 'items-end' : 'items-start'} group`}>
@@ -25,12 +25,12 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
         {/* Status Indicators for my messages */}
         {isMe && sendState && (
           <div className="flex flex-col items-center justify-center shrink-0 w-6 h-6 mb-1">
-            {sendState.status === "sending" && <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />}
-            {sendState.status === "retrying" && <RefreshCw className="w-3.5 h-3.5 text-orange-400 animate-spin" />}
+            {sendState.status === "sending" && <Loader2 className="w-3.5 h-3.5 text-[var(--color-text-muted)] opacity-60 animate-spin" />}
+            {sendState.status === "retrying" && <RefreshCw className="w-3.5 h-3.5 text-[#f97316] animate-spin" />}
             {sendState.status === "failed" && (
               <button 
                 onClick={() => void retry(event.sessionId, event.clientMsgId)}
-                className="text-red-400 hover:text-red-300 transition-colors"
+                className="text-[#ef4444] hover:text-[#f87171] transition-colors"
                 title="Failed to send. Click to retry."
               >
                 <AlertCircle className="w-4 h-4" />

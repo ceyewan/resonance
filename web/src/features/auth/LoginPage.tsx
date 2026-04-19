@@ -96,9 +96,10 @@ export function LoginPage() {
               <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                 <GlassButton
                   type="button"
+                  variant="ghost"
                   disabled={loading}
                   onClick={(e) => { e.preventDefault(); void handleMockLogin(); }}
-                  style={{ flex: 1, background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.8)' }}
+                  style={{ flex: 1 }}
                 >
                   {loading ? "..." : "Demo Mode"}
                 </GlassButton>

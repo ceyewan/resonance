@@ -18,28 +18,28 @@
   /* ═══════ 壁纸渐变 ═══════ */
   --glass-bg-gradient: linear-gradient(
     135deg,
-    #ffffff 0%,     /* 纯净白 */
-    #f0f5ff 30%,    /* 极浅冰雪蓝 */
-    #e3edff 50%,    /* 柔和浅淡蓝 */
-    #ffedf2 75%,    /* 极浅樱花粉 */
-    #ffe4e8 100%    /* 浅桃粉 */
+    #e8ecef 0%,     /* 柔和冰灰 */
+    #d4e0f0 30%,    /* 深一点的冰蓝 */
+    #c8d8f5 50%,    /* 清水蓝 */
+    #f2d5df 75%,    /* 暗樱花粉 */
+    #efc8d1 100%    /* 柔和浅桃 */
   );
 
   /* ═══════ 玻璃材质 ═══════ */
   /* Card 级别 */
-  --glass-card-bg: rgba(255, 255, 255, 0.38);
-  --glass-card-border: rgba(255, 255, 255, 0.55);
+  --glass-card-bg: rgba(255, 255, 255, 0.45);
+  --glass-card-border: rgba(255, 255, 255, 0.7);
   /* 通用面板 */
-  --glass-surface: rgba(255, 255, 255, 0.35);
-  --glass-surface-hover: rgba(255, 255, 255, 0.48);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-border-light: rgba(255, 255, 255, 0.65);
+  --glass-surface: rgba(255, 255, 255, 0.55);
+  --glass-surface-hover: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-border-light: rgba(255, 255, 255, 0.85);
   /* 输入框 */
-  --glass-input-bg: rgba(255, 255, 255, 0.28);
-  --glass-input-border: rgba(0, 0, 0, 0.08);
-  --glass-input-hover-bg: rgba(255, 255, 255, 0.38);
-  --glass-input-hover-border: rgba(0, 0, 0, 0.12);
-  --glass-input-focus-bg: rgba(255, 255, 255, 0.45);
+  --glass-input-bg: rgba(255, 255, 255, 0.65);
+  --glass-input-border: rgba(0, 0, 0, 0.15);
+  --glass-input-hover-bg: rgba(255, 255, 255, 0.85);
+  --glass-input-hover-border: rgba(0, 0, 0, 0.25);
+  --glass-input-focus-bg: rgba(255, 255, 255, 0.95);
   /* 按钮 */
   --glass-btn-primary-bg: rgba(180, 83, 60, 0.95); /* 深色、高不透明度，防止光晕冲刷 */
   --glass-btn-primary-border: rgba(220, 120, 100, 0.4);
@@ -58,13 +58,13 @@
   --bubble-other: rgba(255, 255, 255, 0.75);
 
   /* ═══════ 语义色彩 ═══════ */
-  --color-bg: #faf7f5;
-  --color-surface: rgba(255, 255, 255, 0.55);
+  --color-bg: #e2e8f0;
+  --color-surface: rgba(255, 255, 255, 0.75);
   --color-primary: #b4533c;
   --color-primary-hover: #9c4530;
-  --color-text: #1e293b;
-  --color-text-muted: #64748b;
-  --color-border: rgba(0, 0, 0, 0.08);
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-border: rgba(0, 0, 0, 0.15);
 
   /* ═══════ 强调色 ═══════ */
   --accent: #b4533c;
