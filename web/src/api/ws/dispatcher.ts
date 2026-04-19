@@ -1,15 +1,24 @@
-import type { WsPacket } from "@gen/gateway/v1/packet_pb";
+import type { ChatEvent } from "@gen/common/v1/event_pb";
+import type {
+  Ack,
+  ChatRequest,
+  StreamBegin,
+  StreamChunk,
+  StreamEnd,
+  TypingSignal,
+  WsPacket,
+} from "@gen/gateway/v1/packet_pb";
 
 export type WsPacketHandlers = {
-  onPulse?: (packet: WsPacket) => void;
-  onAck?: (packet: WsPacket) => void;
-  onChatRequest?: (packet: WsPacket) => void;
-  onEvent?: (packet: WsPacket) => void;
-  onStreamBegin?: (packet: WsPacket) => void;
-  onStreamChunk?: (packet: WsPacket) => void;
-  onStreamEnd?: (packet: WsPacket) => void;
-  onTyping?: (packet: WsPacket) => void;
-  onEmpty?: (packet: WsPacket) => void;
+  onPulse?: () => void;
+  onAck?: (ack: Ack) => void;
+  onChatRequest?: (req: ChatRequest) => void;
+  onEvent?: (event: ChatEvent) => void;
+  onStreamBegin?: (msg: StreamBegin) => void;
+  onStreamChunk?: (msg: StreamChunk) => void;
+  onStreamEnd?: (msg: StreamEnd) => void;
+  onTyping?: (signal: TypingSignal) => void;
+  onEmpty?: () => void;
 };
 
 export function dispatchWsPacket(
@@ -19,31 +28,31 @@ export function dispatchWsPacket(
   const payloadCase = packet.payload.case;
   switch (payloadCase) {
     case "pulse":
-      handlers.onPulse?.(packet);
+      handlers.onPulse?.();
       return;
     case "ack":
-      handlers.onAck?.(packet);
+      handlers.onAck?.(packet.payload.value);
       return;
     case "chatRequest":
-      handlers.onChatRequest?.(packet);
+      handlers.onChatRequest?.(packet.payload.value);
       return;
     case "event":
-      handlers.onEvent?.(packet);
+      handlers.onEvent?.(packet.payload.value);
       return;
     case "streamBegin":
-      handlers.onStreamBegin?.(packet);
+      handlers.onStreamBegin?.(packet.payload.value);
       return;
     case "streamChunk":
-      handlers.onStreamChunk?.(packet);
+      handlers.onStreamChunk?.(packet.payload.value);
       return;
     case "streamEnd":
-      handlers.onStreamEnd?.(packet);
+      handlers.onStreamEnd?.(packet.payload.value);
       return;
     case "typing":
-      handlers.onTyping?.(packet);
+      handlers.onTyping?.(packet.payload.value);
       return;
     case undefined:
-      handlers.onEmpty?.(packet);
+      handlers.onEmpty?.();
       return;
   }
 

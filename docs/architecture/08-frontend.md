@@ -13,7 +13,8 @@
 | S1 ConnectRPC 底座 | ✅ | `api/transport.ts` + `api/clients.ts` + `lib/id.ts` 已落地;Connect-ES v2(`bufbuild/es:v2.11.0`,service 定义并入 `*_pb.ts`,已废弃 `connectrpc/es`);runtime config 链路(`/runtime-config.js` → `window.__RESONANCE_RUNTIME_CONFIG__`);`vite.config.ts` 配 dev middleware + `server.proxy` 兜底跨域;`createClient`(v2)替换 v1 `createPromiseClient` |
 | S2 Dexie + Applier | ✅ | `db/schema.ts` + `db/repo.ts` + `sync/applier.ts` + `applier` 单测已落地,覆盖幂等/乱序/pending 覆盖/全部 oneof 分支 |
 | S3 WebSocket 骨架 | ✅ | `api/ws/client.ts` + `api/ws/dispatcher.ts` + `stores/connection.ts` 已落地,包含心跳/指数退避重连/oneof 分发 |
-| S4 ~ S9 | 📋 未开工 | 按 § 11 推进 |
+| S4 Outbox + ACK 状态机 | ✅ | `api/ws/outbox.ts` 已落地，包含 5s 超时、3 次重发、failed 终态与 Dexie outbox 双写 |
+| S5 ~ S9 | 📋 未开工 | 按 § 11 推进 |
 
 **重要提醒**:当前 `web/src/App.tsx` 是 S1 验收用的**临时登录 demo**,仅为验证 ConnectRPC 能跑通。
 S6 鉴权页 + 路由上线后会被正式的 `features/auth/` + `/chat` 三栏布局替换,**不要在它基础上叠业务**。
@@ -334,9 +335,9 @@ web/src/
 |------|------|----------|------|---------|
 | **S0** ✅ | 脚手架 | Vite 6 + TS 5 + Tailwind 4 + ESLint flat;`tsconfig paths: "@gen/*" → "../api/gen/ts/*"`;`/` 显示空白但能跑 | `npm run dev` 打开,`npm run type-check` 与 `npm run build` 均通过 | **Codex (gpt-5.3-codex)**:配置型,不容易发明 API |
 | **S1** ✅ | ConnectRPC 底座 | `api/transport.ts`(`createConnectTransport` + JWT 拦截器,baseUrl 从 `window.__RESONANCE_RUNTIME_CONFIG__.apiBaseUrl` 读取) + `api/clients.ts`(`createClient(AuthService, transport)`,Connect-ES v2 起 service 定义并入 `*_pb.ts`);`lib/id.ts` bigint 封装;`src/gen` 软链接指向 `api/gen/ts`(解决 symlink 外依赖解析问题);`index.html` 加载 `/runtime-config.js`,`vite.config.ts` 配 dev middleware + dev proxy | 手写一个调用 `AuthService.Login` 的 demo 页,能跑通 | **Codex** |
-| **S2** ⏭ 下一步 | Dexie + Applier | `db/schema.ts`(sessions/events/outbox/meta)+ `db/repo.ts` + `sync/applier.ts`;**单测**覆盖所有 `ChatEvent` oneof 分支 + 幂等 | `vitest` 跑 `applier` 单测全绿,包含重复 `event_id`、乱序 `seq_id`、pending 覆盖三种用例 | **Codex**:纯业务逻辑 + 强单测,最适合 |
-| **S3** | WebSocket 骨架 | `api/ws/client.ts`(连接 / 心跳 / 指数退避重连 / 状态机) + `api/ws/dispatcher.ts`(oneof 分发) + `stores/connection.ts` | 断网重连、心跳保活可手工验证;dispatcher 对未知 case 编译报错 | **Codex** 主写,如遇重连抖动问题上 **gpt-5.4 xhigh** |
-| **S4** | Outbox + ACK 状态机 | `api/ws/outbox.ts`:`send()` 返回 `Promise<Ack>`,5s 超时、3 次重发、`failed` 终态;与 Dexie `outbox` 表双写 | 单测:网络正常 ACK、ACK 超时、多次重发、最终失败四条路径 | **Codex**:这是整个系统最易错的部分,务必强约束 + 测试 |
+| **S2** ✅ | Dexie + Applier | `db/schema.ts`(sessions/events/outbox/meta)+ `db/repo.ts` + `sync/applier.ts`;**单测**覆盖所有 `ChatEvent` oneof 分支 + 幂等 | `vitest` 跑 `applier` 单测全绿,包含重复 `event_id`、乱序 `seq_id`、pending 覆盖三种用例 | **Codex**:纯业务逻辑 + 强单测,最适合 |
+| **S3** ✅ | WebSocket 骨架 | `api/ws/client.ts`(连接 / 心跳 / 指数退避重连 / 状态机) + `api/ws/dispatcher.ts`(oneof 分发) + `stores/connection.ts` | 断网重连、心跳保活可手工验证;dispatcher 对未知 case 编译报错 | **Codex** 主写,如遇重连抖动问题上 **gpt-5.4 xhigh** |
+| **S4** ✅ | Outbox + ACK 状态机 | `api/ws/outbox.ts`:`send()` 返回 `Promise<Ack>`,5s 超时、3 次重发、`failed` 终态;与 Dexie `outbox` 表双写 | 单测:网络正常 ACK、ACK 超时、多次重发、最终失败四条路径 | **Codex**:这是整个系统最易错的部分,务必强约束 + 测试 |
 | **S5** | Inbox 同步循环 | `sync/inbox.ts`:启动 / 重连时按 `meta.inbox_cursor_id` 分页拉到 `has_more=false`;`sync/reconcile.ts`:WS 与 Inbox 事件去重 | 单测模拟 Inbox 与 WS 同时到达,`events` 表无重复 | **Codex** |
 | **S6** | 鉴权页 + 路由 | TanStack Router 路由树;`features/auth/` 登录注册页(react-hook-form + zod);路由守卫 | 能登录 → 跳 `/chat`;token 失效自动回 `/login` | **Gemini 2.5 Pro**:UI 为主,Telegram 观感的登录页 |
 | **S7** | 三栏聊天 MVP(视觉 + 交互) | 布局骨架 + `features/session-list` + `features/chat`(MessageList / Bubble / Composer / TypingIndicator);消息发送/接收贯通;读取 Dexie via `useLiveQuery` | 两个账号能互发文本,刷新页面消息仍在,切会话正确定位 | **Gemini**:Telegram 观感的核心视觉就在这一步,留足迭代时间 |

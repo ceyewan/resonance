@@ -59,6 +59,10 @@ export async function enqueueOutbox(row: OutboxRow): Promise<void> {
   await db.outbox.put(row);
 }
 
+export async function getOutbox(clientSeq: string): Promise<OutboxRow | undefined> {
+  return db.outbox.get(clientSeq);
+}
+
 export async function markOutboxAcked(
   clientSeq: string,
   ackedEventId: string,
@@ -72,8 +76,34 @@ export async function markOutboxAcked(
   });
 }
 
+export async function markOutboxRetrying(
+  clientSeq: string,
+  retryCount: number,
+): Promise<void> {
+  await db.outbox.update(clientSeq, {
+    status: "retrying",
+    retryCount,
+    updatedAtMs: Date.now(),
+  });
+}
+
+export async function markOutboxFailed(
+  clientSeq: string,
+  retryCount: number,
+): Promise<void> {
+  await db.outbox.update(clientSeq, {
+    status: "failed",
+    retryCount,
+    updatedAtMs: Date.now(),
+  });
+}
+
 export async function getOutboxByStatus(status: OutboxRow["status"]): Promise<OutboxRow[]> {
   return db.outbox.where("status").equals(status).toArray();
+}
+
+export async function getPendingOutboxRows(): Promise<OutboxRow[]> {
+  return db.outbox.where("status").anyOf(["sending", "retrying"]).toArray();
 }
 
 export async function withRwTransaction<T>(

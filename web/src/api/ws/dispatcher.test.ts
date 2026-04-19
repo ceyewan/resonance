@@ -1,7 +1,15 @@
 import { create } from "@bufbuild/protobuf";
-import { ChatEventSchema } from "@gen/common/v1/event_pb";
+import { type ChatEvent, ChatEventSchema } from "@gen/common/v1/event_pb";
+import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
 import {
+  type Ack,
+  type ChatRequest,
+  type StreamBegin,
+  type StreamChunk,
+  type StreamEnd,
+  type TypingSignal,
   AckSchema,
+  ChatRequestSchema,
   PulseSchema,
   StreamBeginSchema,
   StreamChunkSchema,
@@ -15,14 +23,15 @@ import { dispatchWsPacket } from "./dispatcher";
 
 describe("dispatchWsPacket", () => {
   test("按 payload.case 分发到对应 handler", () => {
-    const onPulse = vi.fn();
-    const onAck = vi.fn();
-    const onEvent = vi.fn();
-    const onStreamBegin = vi.fn();
-    const onStreamChunk = vi.fn();
-    const onStreamEnd = vi.fn();
-    const onTyping = vi.fn();
-    const onEmpty = vi.fn();
+    const onPulse = vi.fn<() => void>();
+    const onAck = vi.fn<(ack: Ack) => void>();
+    const onChatRequest = vi.fn<(req: ChatRequest) => void>();
+    const onEvent = vi.fn<(event: ChatEvent) => void>();
+    const onStreamBegin = vi.fn<(msg: StreamBegin) => void>();
+    const onStreamChunk = vi.fn<(msg: StreamChunk) => void>();
+    const onStreamEnd = vi.fn<(msg: StreamEnd) => void>();
+    const onTyping = vi.fn<(signal: TypingSignal) => void>();
+    const onEmpty = vi.fn<() => void>();
 
     const packets = [
       create(WsPacketSchema, {
@@ -44,6 +53,22 @@ describe("dispatchWsPacket", () => {
       create(WsPacketSchema, {
         clientSeq: "3",
         payload: {
+          case: "chatRequest",
+          value: create(ChatRequestSchema, {
+            sessionId: "s-chat",
+            message: create(MessageSchema, {
+              type: MessageType.TEXT,
+              content: "hello",
+              replyToEventId: 0n,
+              clientMsgId: "client-1",
+              mentionedUsernames: [],
+            }),
+          }),
+        },
+      }),
+      create(WsPacketSchema, {
+        clientSeq: "4",
+        payload: {
           case: "event",
           value: create(ChatEventSchema, {
             eventId: 21n,
@@ -56,7 +81,7 @@ describe("dispatchWsPacket", () => {
         },
       }),
       create(WsPacketSchema, {
-        clientSeq: "4",
+        clientSeq: "5",
         payload: {
           case: "streamBegin",
           value: create(StreamBeginSchema, {
@@ -67,7 +92,7 @@ describe("dispatchWsPacket", () => {
         },
       }),
       create(WsPacketSchema, {
-        clientSeq: "5",
+        clientSeq: "6",
         payload: {
           case: "streamChunk",
           value: create(StreamChunkSchema, {
@@ -78,7 +103,7 @@ describe("dispatchWsPacket", () => {
         },
       }),
       create(WsPacketSchema, {
-        clientSeq: "6",
+        clientSeq: "7",
         payload: {
           case: "streamEnd",
           value: create(StreamEndSchema, {
@@ -88,7 +113,7 @@ describe("dispatchWsPacket", () => {
         },
       }),
       create(WsPacketSchema, {
-        clientSeq: "7",
+        clientSeq: "8",
         payload: {
           case: "typing",
           value: create(TypingSignalSchema, {
@@ -98,13 +123,14 @@ describe("dispatchWsPacket", () => {
           }),
         },
       }),
-      create(WsPacketSchema, { clientSeq: "8", payload: { case: undefined } }),
+      create(WsPacketSchema, { clientSeq: "9", payload: { case: undefined } }),
     ];
 
     for (const packet of packets) {
       dispatchWsPacket(packet, {
         onPulse,
         onAck,
+        onChatRequest,
         onEvent,
         onStreamBegin,
         onStreamChunk,
@@ -116,6 +142,7 @@ describe("dispatchWsPacket", () => {
 
     expect(onPulse).toHaveBeenCalledTimes(1);
     expect(onAck).toHaveBeenCalledTimes(1);
+    expect(onChatRequest).toHaveBeenCalledTimes(1);
     expect(onEvent).toHaveBeenCalledTimes(1);
     expect(onStreamBegin).toHaveBeenCalledTimes(1);
     expect(onStreamChunk).toHaveBeenCalledTimes(1);

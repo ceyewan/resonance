@@ -4,7 +4,7 @@ export type ConnectionStatus = "idle" | "connecting" | "open" | "offline";
 
 type ConnectionState = {
   status: ConnectionStatus;
-  reconnectAttempts: number;
+  lastConnectingAtMs: number;
   lastConnectedAtMs: number;
   lastDisconnectedAtMs: number;
   lastError: string;
@@ -16,20 +16,19 @@ type ConnectionState = {
 
 export const useConnectionStore = create<ConnectionState>((set) => ({
   status: "idle",
-  reconnectAttempts: 0,
+  lastConnectingAtMs: 0,
   lastConnectedAtMs: 0,
   lastDisconnectedAtMs: 0,
   lastError: "",
   setConnecting: () => {
-    set((state) => ({
+    set({
       status: "connecting",
-      reconnectAttempts: state.reconnectAttempts + 1,
-    }));
+      lastConnectingAtMs: Date.now(),
+    });
   },
   setOpen: () => {
     set({
       status: "open",
-      reconnectAttempts: 0,
       lastConnectedAtMs: Date.now(),
       lastError: "",
     });
@@ -44,7 +43,7 @@ export const useConnectionStore = create<ConnectionState>((set) => ({
   reset: () => {
     set({
       status: "idle",
-      reconnectAttempts: 0,
+      lastConnectingAtMs: 0,
       lastConnectedAtMs: 0,
       lastDisconnectedAtMs: 0,
       lastError: "",
