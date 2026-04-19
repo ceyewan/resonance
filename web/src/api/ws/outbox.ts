@@ -38,7 +38,7 @@ export class OutboxError extends Error {
 export class OutboxManager {
   private readonly pending = new Map<string, PendingEntry>();
 
-  constructor(private readonly ws: Pick<WsClient, "send" | "onPacket">) {
+  constructor(private readonly ws: Pick<WsClient, "isOpen" | "send" | "onPacket">) {
     this.ws.onPacket((packet) => {
       dispatchWsPacket(packet, {
         onAck: (ack) => {
@@ -104,30 +104,40 @@ export class OutboxManager {
   }
 
   async flushPending(): Promise<void> {
+    if (!this.ws.isOpen()) {
+      return;
+    }
+
     const rows = await getPendingOutboxRows();
     for (const row of rows) {
-      if (this.pending.has(row.clientSeq)) {
-        continue;
-      }
-      const packet = deserializePacket(row.payloadJson);
-      const entry: PendingEntry = {
-        row,
-        packet,
-        timeoutId: null,
-        resolve: () => {},
-        reject: () => {},
-      };
-      this.pending.set(row.clientSeq, entry);
+      const entry = this.pending.get(row.clientSeq) ?? this.restorePendingEntry(row);
       this.trySend(entry);
     }
   }
 
-  private trySend(entry: PendingEntry): void {
+  private restorePendingEntry(row: OutboxRow): PendingEntry {
+    const entry: PendingEntry = {
+      row,
+      packet: deserializePacket(row.payloadJson),
+      timeoutId: null,
+      resolve: () => {},
+      reject: () => {},
+    };
+    this.pending.set(row.clientSeq, entry);
+    return entry;
+  }
+
+  private trySend(entry: PendingEntry): boolean {
+    if (entry.timeoutId !== null || !this.ws.isOpen()) {
+      return false;
+    }
+
     try {
       this.ws.send(entry.packet);
       this.armTimeout(entry);
+      return true;
     } catch {
-      this.handleTimeout(entry);
+      return false;
     }
   }
 
@@ -143,9 +153,9 @@ export class OutboxManager {
     if (current === undefined) {
       return;
     }
+    this.clearTimeout(entry);
 
     if (entry.row.retryCount >= MAX_RETRY_COUNT) {
-      this.clearTimeout(entry);
       this.pending.delete(entry.row.clientSeq);
       const finalRetryCount = entry.row.retryCount;
       void markOutboxFailed(entry.row.clientSeq, finalRetryCount);

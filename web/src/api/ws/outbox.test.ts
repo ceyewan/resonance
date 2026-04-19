@@ -19,9 +19,18 @@ type PacketListener = (packet: WsPacket) => void;
 
 class FakeWsClient {
   sentPackets: WsPacket[] = [];
+  open = true;
+  throwOnSend = false;
   private readonly listeners = new Set<PacketListener>();
 
+  isOpen(): boolean {
+    return this.open;
+  }
+
   send(packet: WsPacket): void {
+    if (this.throwOnSend) {
+      throw new Error("send failed");
+    }
     this.sentPackets.push(packet);
   }
 
@@ -185,5 +194,51 @@ describe("OutboxManager", () => {
     const failedRow = await getOutbox(clientSeq);
     expect(failedRow?.status).toBe("failed");
     expect(failedRow?.retryCount).toBe(3);
+  });
+
+  test("5) 连接未打开时只入队，重连 flush 后发送并收到 ACK", async () => {
+    const ws = new FakeWsClient();
+    ws.open = false;
+    const outbox = new OutboxManager(ws);
+
+    const promise = outbox.send("s5", "cmid-5", createChatRequestPacket());
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(ws.sentPackets).toHaveLength(0);
+    const queuedRows = await db.outbox.toArray();
+    expect(queuedRows).toHaveLength(1);
+    expect(queuedRows[0]?.status).toBe("sending");
+    expect(queuedRows[0]?.retryCount).toBe(0);
+
+    ws.open = true;
+    await outbox.flushPending();
+    await waitForSentPackets(ws, 1);
+
+    const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
+    ws.emitAck(clientSeq);
+    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+  });
+
+  test("6) ws.send() 抛错时不立即耗尽重试，恢复后 flush 可继续发送", async () => {
+    const ws = new FakeWsClient();
+    ws.throwOnSend = true;
+    const outbox = new OutboxManager(ws);
+
+    const promise = outbox.send("s6", "cmid-6", createChatRequestPacket());
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(ws.sentPackets).toHaveLength(0);
+    const queuedRows = await db.outbox.toArray();
+    expect(queuedRows).toHaveLength(1);
+    expect(queuedRows[0]?.status).toBe("sending");
+    expect(queuedRows[0]?.retryCount).toBe(0);
+
+    ws.throwOnSend = false;
+    await outbox.flushPending();
+    await waitForSentPackets(ws, 1);
+
+    const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
+    ws.emitAck(clientSeq);
+    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
   });
 });

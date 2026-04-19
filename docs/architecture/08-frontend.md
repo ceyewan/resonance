@@ -13,7 +13,7 @@
 | S1 ConnectRPC 底座 | ✅ | `api/transport.ts` + `api/clients.ts` + `lib/id.ts` 已落地;Connect-ES v2(`bufbuild/es:v2.11.0`,service 定义并入 `*_pb.ts`,已废弃 `connectrpc/es`);runtime config 链路(`/runtime-config.js` → `window.__RESONANCE_RUNTIME_CONFIG__`);`vite.config.ts` 配 dev middleware + `server.proxy` 兜底跨域;`createClient`(v2)替换 v1 `createPromiseClient` |
 | S2 Dexie + Applier | ✅ | `db/schema.ts` + `db/repo.ts` + `sync/applier.ts` + `applier` 单测已落地,覆盖幂等/乱序/pending 覆盖/全部 oneof 分支 |
 | S3 WebSocket 骨架 | ✅ | `api/ws/client.ts` + `api/ws/dispatcher.ts` + `stores/connection.ts` 已落地,包含心跳/指数退避重连/oneof 分发 |
-| S4 Outbox + ACK 状态机 | ✅ | `api/ws/outbox.ts` 已落地，包含 5s 超时、3 次重发、failed 终态与 Dexie outbox 双写 |
+| S4 Outbox + ACK 状态机 | ✅ | `api/ws/outbox.ts` 已落地，包含 5s 超时、3 次重发、failed 终态与 Dexie outbox 双写；仅对“已实际发出”的包启动 ACK 计时，连接不可用时保留 pending 待重连 flush |
 | S5 ~ S9 | 📋 未开工 | 按 § 11 推进 |
 
 **重要提醒**:当前 `web/src/App.tsx` 是 S1 验收用的**临时登录 demo**,仅为验证 ConnectRPC 能跑通。
@@ -198,7 +198,7 @@ web/src/
 
 1. **UI 只读 Dexie,不读网络**。`useLiveQuery` 自动响应本地写入。
 2. **事件入库有且仅有一条路径**:`sync/applier.applyEvent`,无论来自 WS 还是 `PullInboxDelta`。
-3. **发送走 outbox**:Composer 先写本地 pending 事件(`client_msg_id` 占位) → WS 发 `ChatRequest` → 收到 `Ack` 后用正式 `event_id`/`seq_id` 覆盖。ACK 5s 未到自动重发,3 次后标 `failed` 并暴露重试入口。断网时 pending 事件留在 `outbox` 表,重连后 flush。
+3. **发送走 outbox**:Composer 先写本地 pending 事件(`client_msg_id` 占位) → WS 发 `ChatRequest` → 收到 `Ack` 后用正式 `event_id`/`seq_id` 覆盖。ACK 5s 未到自动重发,3 次后标 `failed` 并暴露重试入口。**只有成功调用 `ws.send()` 后才启动 ACK 计时**;断网或连接未就绪时 pending 事件只留在 `outbox` 表,等待重连后 flush。重复发送的去重依赖后端基于 `client_msg_id` 提供幂等保证。
 4. **Inbox 拉取**:启动时 / 重连时,以本地 `meta.inbox_cursor_id` 起点循环 `PullInboxDelta` 直到 `has_more=false`。
 
 ---
