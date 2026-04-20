@@ -114,7 +114,7 @@ resonance/
 ### 前置要求
 
 - Go 1.26+
-- Node.js 18+
+- Node.js 22+
 - Redis 6.0+
 - PostgreSQL 17+
 - Buf (Protobuf 代码生成)
