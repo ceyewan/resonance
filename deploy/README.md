@@ -122,7 +122,7 @@ Web 镜像**一次构建、多环境复用**，不把 API / WebSocket 地址打�
 - 留空时 apiBaseUrl = wsBaseUrl = ""，前端走**同源**调用（生产由 Caddy 反代到 gateway）。
 - 开发期 `vite dev` 不走这条链路，由 `vite.config.ts` 的 dev middleware + `server.proxy` 兜底，直接把 `/resonance.*` 和 `/ws` 代理到 `localhost:8080`。
 
-详见 `docs/architecture/08-frontend.md § 2.1`。
+详见 `docs/frontend/01-web-architecture.md § 2.1`。
 
 ## 常用命令
 

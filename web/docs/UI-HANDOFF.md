@@ -3,6 +3,8 @@
 本文档面向接手 `web/` 前端页面开发的同学。
 目标是让页面层直接消费稳定的 hook / service，不需要理解 Dexie、WebSocket、ConnectRPC 的底层细节。
 
+如果你负责的是前端运行时、数据流、WS、Dexie、Outbox、Inbox Sync，请看 [RUNTIME-HANDOFF.md](./RUNTIME-HANDOFF.md)。
+
 ## 1. 当前状态
 
 当前前端已补齐核心运行时，包含：
@@ -15,8 +17,8 @@
 - 本地 Dexie 数据源
 - Timeline 的 pending / retry 状态聚合
 
-当前 `src/App.tsx` 只是 **runtime smoke demo**，用于验证核心链路，不是最终页面。
-S6/S7 开发时，应直接替换为正式路由和页面骨架。
+当前前端已经切到正式路由结构，`src/App.tsx` 现在只是路由容器。
+页面层的主要入口应直接看 `src/router.tsx` 与 `src/features/*`。
 
 ## 2. 页面层应该依赖什么
 
@@ -174,7 +176,23 @@ S6/S7 开发时，应直接替换为正式路由和页面骨架。
 - 同步中指示
 - 错误提示条
 
-## 7. 运行时链路（页面只需知道，不需要自己实现）
+## 7. UI / Runtime 协作边界
+
+当前前端其实分成两块协作面：
+
+- `UI/UX`
+  - 负责页面、布局、样式、组件组合、交互体验
+- `Runtime / Logic`
+  - 负责 ConnectRPC、WebSocket、Dexie、Outbox、Inbox Sync、状态机
+
+页面层和 runtime 层之间的接口，统一收敛到：
+
+- `hooks/*`
+- `services/*`
+
+如果你在页面开发时发现还缺接口，应该先补 `hook / service`，不要直接绕过接口层。
+
+## 8. 运行时链路（页面只需知道，不需要自己实现）
 
 当前运行时已经内置以下顺序：
 
@@ -193,18 +211,14 @@ S6/S7 开发时，应直接替换为正式路由和页面骨架。
 - WS 重连后如何补数据
 - WS 和 Inbox 的去重
 
-## 8. 建议的正式目录落点
+## 9. 建议的正式目录落点
 
 后续 S6/S7 页面建议按以下方式组织：
 
-- `src/routes/`
-  - 路由树
 - `src/features/auth/`
   - 登录 / 注册页
-- `src/features/session-list/`
-  - 左栏会话列表
 - `src/features/chat/`
-  - 中栏消息区、输入框
+  - 左栏会话列表、中栏消息区、输入框
 - `src/features/session-detail/`
   - 右栏详情
 - `src/components/`
@@ -212,7 +226,7 @@ S6/S7 开发时，应直接替换为正式路由和页面骨架。
 
 页面层通过 hooks / services 调业务，不向下穿透到底层模块。
 
-## 9. 当前可直接参考的文件
+## 10. 当前可直接参考的文件
 
 核心运行时：
 
@@ -228,15 +242,16 @@ UI 接口层：
 - `src/hooks/index.ts`
 - `src/services/index.ts`
 
-验证页：
+应用入口：
 
 - `src/App.tsx`
+- `src/router.tsx`
 
-## 10. 接手建议
+## 11. 接手建议
 
 接手时建议顺序：
 
-1. 先把 `src/App.tsx` 替换成正式路由入口
+1. 先从 `src/router.tsx` 和对应 `src/features/*` 页面开始接手
 2. 保留 `restoreAuthSession()` 作为应用启动动作
 3. 登录页先接 `login()` / `logout()`
 4. 左栏先接 `useSessionListLive()`
