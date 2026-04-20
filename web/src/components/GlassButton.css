@@ -1,0 +1,180 @@
+/*
+ * GlassButton —— 液态玻璃按钮的光学系统
+ *
+ * 按钮级液态玻璃特征：
+ *   - 更细腻的噪点折射（小元素用高频 feTurbulence）
+ *   - 更强的弹性反馈（pressScale 更明显）
+ *   - 镜面高光聚焦更紧密
+ *   - 微妙的色散边缘高光
+ */
+
+.glass-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: hidden;
+  border: none;
+  cursor: pointer;
+  will-change: transform;
+  isolation: isolate;
+
+  /* 物理引擎注入 */
+  --lg-tx: 0px;
+  --lg-ty: 0px;
+  --lg-rx: 0deg;
+  --lg-ry: 0deg;
+  --lg-scale: 1;
+  --lg-glow-x: 50%;
+  --lg-glow-y: 50%;
+  --lg-glow-opacity: 0;
+  --lg-refraction: 0;
+
+  transform: perspective(800px) translate3d(var(--lg-tx), var(--lg-ty), 0) rotateX(var(--lg-rx))
+    rotateY(var(--lg-ry)) scale(var(--lg-scale));
+  transform-style: preserve-3d;
+  transition:
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.3s ease;
+
+  padding: 14px 32px;
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+/* ── Primary 变体 ── */
+.glass-btn--primary {
+  background: var(--glass-btn-primary-bg);
+  color: #fff;
+  border: 1px solid var(--glass-btn-primary-border);
+  backdrop-filter: blur(var(--glass-blur-sm, 12px)) saturate(1.6);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm, 12px)) saturate(1.6);
+  box-shadow:
+    0 4px 20px var(--accent-glow),
+    0 1px 4px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+.glass-btn--primary:hover {
+  box-shadow:
+    0 8px 32px var(--accent-glow),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+
+/* ── Ghost 变体 ── */
+.glass-btn--ghost {
+  background: var(--glass-surface);
+  color: var(--color-text);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-sm)) saturate(1.4);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.glass-btn--ghost:hover {
+  background: var(--glass-surface-hover);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ── Disabled ── */
+.glass-btn--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── 折射纹理层 ── */
+.glass-btn__refraction {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  backdrop-filter: url(#resonance-glass-button-refraction);
+  -webkit-backdrop-filter: url(#resonance-glass-button-refraction);
+  opacity: var(--lg-refraction);
+  transition: opacity 0.3s ease;
+}
+
+/* ── 镜面高光 ── */
+.glass-btn__specular {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: var(--lg-glow-opacity);
+  background: radial-gradient(
+    ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    transparent 70%
+  );
+  mix-blend-mode: overlay; /* 底色变深后，降低叠加白色的强度可确保质感 */
+  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── 内部柔光 ── */
+.glass-btn__inner-light {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-btn--primary {
+    box-shadow:
+      0 4px 20px var(--accent-glow),
+      0 1px 4px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .glass-btn__inner-light {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.08) 100%
+    );
+  }
+
+  .glass-btn__specular {
+    background: radial-gradient(
+      ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.05) 40%,
+      transparent 70%
+    );
+  }
+}
+
+/* ── 按钮文字 ── */
+.glass-btn__label {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}

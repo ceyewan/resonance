@@ -40,6 +40,15 @@
 | PERF-004 | perf-message-storage.md | 消息存储分层 | P2     | 待规划 |
 | PERF-005 | perf-db-optimization.md | 数据库优化   | P2     | 待规划 |
 
+### 四、前端专项 (Frontend)
+
+| 文档 | 用途 |
+|------|------|
+| [frontend/README.md](./frontend/README.md) | 前端文档总索引 |
+| [frontend/01-web-architecture.md](./frontend/01-web-architecture.md) | 前端运行时架构、数据流、目录结构 |
+| [frontend/02-liquid-glass-design.md](./frontend/02-liquid-glass-design.md) | 视觉方案与设计锚点 |
+| [frontend/04-uiux-plan.md](./frontend/04-uiux-plan.md) | UI/UX 交付计划 |
+
 ---
 
 ## 🎯 实施路线图

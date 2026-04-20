@@ -1,0 +1,165 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+/*
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║  Resonance — Liquid Glass Design Token System               ║
+ * ║                                                              ║
+ * ║  基于 Apple iOS 26 Liquid Glass 设计语言：                    ║
+ * ║  - 半透明超材质（Translucent Material）                       ║
+ * ║  - 实时折射与反射（Refraction & Reflection）                  ║
+ * ║  - 动态镜面高光（Specular Highlights）                        ║
+ * ║  - 自适应深度层级（Contextual Depth）                         ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ */
+
+:root {
+  /* ═══════ 壁纸渐变 ═══════ */
+  --glass-bg-gradient: linear-gradient(
+    135deg,
+    #e8ecef 0%,
+    /* 柔和冰灰 */ #d4e0f0 30%,
+    /* 深一点的冰蓝 */ #c8d8f5 50%,
+    /* 清水蓝 */ #f2d5df 75%,
+    /* 暗樱花粉 */ #efc8d1 100% /* 柔和浅桃 */
+  );
+
+  /* ═══════ 玻璃材质 ═══════ */
+  /* Card 级别 */
+  --glass-card-bg: rgba(255, 255, 255, 0.45);
+  --glass-card-border: rgba(255, 255, 255, 0.7);
+  /* 通用面板 */
+  --glass-surface: rgba(255, 255, 255, 0.55);
+  --glass-surface-hover: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-border-light: rgba(255, 255, 255, 0.85);
+  /* 输入框 */
+  --glass-input-bg: rgba(255, 255, 255, 0.65);
+  --glass-input-border: rgba(0, 0, 0, 0.15);
+  --glass-input-hover-bg: rgba(255, 255, 255, 0.85);
+  --glass-input-hover-border: rgba(0, 0, 0, 0.25);
+  --glass-input-focus-bg: rgba(255, 255, 255, 0.95);
+  /* 按钮 */
+  --glass-btn-primary-bg: rgba(180, 83, 60, 0.95); /* 深色、高不透明度，防止光晕冲刷 */
+  --glass-btn-primary-border: rgba(220, 120, 100, 0.4);
+
+  /* ═══════ 模糊值 ═══════ */
+  --glass-blur-sm: 12px;
+  --glass-blur-md: 24px;
+  --glass-blur-lg: 40px;
+  --glass-blur-xl: 60px;
+
+  /* ═══════ 3D 透视 ═══════ */
+  --glass-perspective: 1200px;
+
+  /* ═══════ 气泡 ═══════ */
+  --bubble-self: rgba(180, 83, 60, 0.85);
+  --bubble-other: rgba(255, 255, 255, 0.75);
+
+  /* ═══════ 语义色彩 ═══════ */
+  --color-bg: #e2e8f0;
+  --color-surface: rgba(255, 255, 255, 0.75);
+  --color-primary: #b4533c;
+  --color-primary-hover: #9c4530;
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-border: rgba(0, 0, 0, 0.15);
+
+  /* ═══════ 强调色 ═══════ */
+  --accent: #b4533c;
+  --accent-glow: rgba(180, 83, 60, 0.35);
+  --accent-subtle: rgba(180, 83, 60, 0.1);
+}
+
+/* ════════ 暗色模式 ════════ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --glass-bg-gradient: linear-gradient(
+      135deg,
+      #0c0a1f 0%,
+      #1a1640 25%,
+      #2a2255 50%,
+      #1e1a3a 75%,
+      #12101e 100%
+    );
+
+    --glass-card-bg: rgba(255, 255, 255, 0.06);
+    --glass-card-border: rgba(255, 255, 255, 0.1);
+    --glass-surface: rgba(255, 255, 255, 0.05);
+    --glass-surface-hover: rgba(255, 255, 255, 0.09);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-border-light: rgba(255, 255, 255, 0.14);
+    --glass-input-bg: rgba(255, 255, 255, 0.05);
+    --glass-input-border: rgba(255, 255, 255, 0.1);
+    --glass-input-hover-bg: rgba(255, 255, 255, 0.08);
+    --glass-input-hover-border: rgba(255, 255, 255, 0.15);
+    --glass-input-focus-bg: rgba(255, 255, 255, 0.1);
+    --glass-btn-primary-bg: rgba(210, 118, 102, 0.7);
+    --glass-btn-primary-border: rgba(255, 180, 160, 0.25);
+
+    --bubble-self: rgba(60, 100, 140, 0.6);
+    --bubble-other: rgba(255, 255, 255, 0.07);
+
+    --color-bg: #0e0c1a;
+    --color-surface: rgba(20, 18, 30, 0.5);
+    --color-primary: #f0a797;
+    --color-primary-hover: #e0947c;
+    --color-text: #e8e4e0;
+    --color-text-muted: #9a928c;
+    --color-border: rgba(255, 255, 255, 0.12);
+
+    --accent: #f0a797;
+    --accent-glow: rgba(240, 167, 151, 0.25);
+    --accent-subtle: rgba(240, 167, 151, 0.08);
+  }
+}
+
+/* ════════ 全局重置 ════════ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family:
+    "Outfit",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-weight: 400;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* 防止移动端触摸高亮 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ════════ 选择高亮色 ════════ */
+::selection {
+  background: var(--accent-subtle);
+  color: var(--color-text);
+}
+
+/* ════════ 滚动条（Webkit） ════════ */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+  }
+}

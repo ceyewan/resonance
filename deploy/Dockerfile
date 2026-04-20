@@ -5,7 +5,7 @@
 # =========================
 # 前端构建阶段
 # =========================
-FROM node:18-alpine AS frontend-builder
+FROM node:22-alpine AS frontend-builder
 WORKDIR /src
 # 复制生成的 API 代码以支持软链接解析 (web/src/gen -> ../../api/gen/ts)
 COPY api/gen/ts ./api/gen/ts

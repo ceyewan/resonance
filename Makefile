@@ -14,6 +14,8 @@ export
 COMPOSE_INFRA := docker compose --env-file .env -p resonance -f deploy/base.yaml
 COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml
 COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
+PRETTIER := ./tools/node_modules/.bin/prettier
+MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2
 
 # ============================================================================
 # 帮助信息
@@ -65,11 +67,19 @@ format-proto: ## 格式化 Proto 定义
 
 format-prettier: ## 格式化 TS/YAML/JSON/CSS 等
 	@echo "🔧 格式化 Prettier 支持的文件..."
-	@npx prettier --write .
+	@if [ ! -e "$(PRETTIER)" ]; then \
+		echo "❌ 未安装 repo 级前端工具，请先执行: cd tools && npm ci"; \
+		exit 1; \
+	fi
+	@$(PRETTIER) --write .
 
 format-markdown: ## 自动修复可修复的 Markdown 规范问题
 	@echo "🔧 修复可自动处理的 Markdown 问题..."
-	@npx markdownlint-cli2 --fix
+	@if [ ! -e "$(MARKDOWNLINT)" ]; then \
+		echo "❌ 未安装 repo 级前端工具，请先执行: cd tools && npm ci"; \
+		exit 1; \
+	fi
+	@$(MARKDOWNLINT) --fix
 
 lint: lint-go lint-proto lint-prettier lint-markdown lint-web ## 一键执行 Go/Proto/Prettier/Markdown/Web Lint
 	@echo "✅ 全量 Lint 通过"
@@ -96,11 +106,19 @@ lint-proto: ## Proto lint 检查
 
 lint-prettier: ## Prettier 格式检查（TS/YAML/JSON/CSS 等）
 	@echo "🔍 Prettier check..."
-	@npx prettier --check .
+	@if [ ! -e "$(PRETTIER)" ]; then \
+		echo "❌ 未安装 repo 级前端工具，请先执行: cd tools && npm ci"; \
+		exit 1; \
+	fi
+	@$(PRETTIER) --check .
 
 lint-markdown: ## Markdown lint 检查
 	@echo "🔍 Markdown lint..."
-	@npx markdownlint-cli2
+	@if [ ! -e "$(MARKDOWNLINT)" ]; then \
+		echo "❌ 未安装 repo 级前端工具，请先执行: cd tools && npm ci"; \
+		exit 1; \
+	fi
+	@$(MARKDOWNLINT)
 
 lint-web: ## 前端 ESLint 检查
 	@echo "🔍 Web lint..."

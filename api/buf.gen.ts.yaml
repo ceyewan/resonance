@@ -5,15 +5,12 @@ managed:
   enabled: true
 
 plugins:
-  # 1. TypeScript 消息生成器 (Protobuf-ES)
-  # 锁定 v1.10.0 以匹配 web/package.json 中的 @bufbuild/protobuf: ^1.10.1
-  # 注意：如果升级此插件版本，必须同步升级前端 npm 依赖，否则代码将无法编译
-  - remote: buf.build/bufbuild/es:v1.10.0
-    out: gen/ts
-    opt: target=ts
-
-  # 2. TypeScript ConnectRPC 生成器
-  # 锁定 v1.4.0 以匹配 web/package.json 中的 @connectrpc/connect: ^1.4.2
-  - remote: buf.build/connectrpc/es:v1.4.0
+  # TypeScript 消息 + Service 定义生成器 (Protobuf-ES v2)
+  # 锁定 v2.11.0 以匹配 web/package.json 中的 @bufbuild/protobuf ^2.11.0
+  #
+  # Connect-ES v2 起不再需要独立的 connectrpc/es 插件：
+  # bufbuild/es v2 会一并生成 message / enum / service definitions，
+  # Connect-Web v2 运行时直接消费 *_pb.ts 即可。
+  - remote: buf.build/bufbuild/es:v2.11.0
     out: gen/ts
     opt: target=ts

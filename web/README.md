@@ -1,296 +1,246 @@
-# Resonance Web
+# Web 前端
 
-Resonance IM 系统的 Web 前端，采用 **React + TypeScript** 技术栈，融合 **Telegram 布局** 与 **Liquid Glass 设计语言**。
+`web/` 是 Resonance IM 的浏览器端实现，负责鉴权页面、会话列表、聊天时间线、联系人与设置页，以及本地离线缓存与长连接运行时。
 
-## 概述
+当前前端已完成一轮重建，主线能力是：
 
-Resonance Web 是 Resonance IM 系统的前端应用，通过 **ConnectRPC (HTTP)** 和 **WebSocket (Protobuf)** 与 Gateway 服务通信。
+- `ConnectRPC + WebSocket` 双通道接入
+- `Dexie + Zustand` 本地状态与离线缓存
+- 三栏聊天界面与液态玻璃视觉系统
+- Inbox 增量同步、Outbox ACK 重试、自动已读推进
 
-**设计目标**：打造现代、流畅的即时通讯体验，采用 Liquid Glass 设计语言，创造具有光学玻璃质感和流动交互的界面。
+## 当前实现效果
 
----
+基于当前源码，前端已经不是 demo 壳子，而是一套可跑通核心 IM 链路的页面层。
+
+### 已落地页面
+
+1. `登录 / 注册`
+   - 路由：`/login`、`/register`
+   - 视觉上使用 Liquid Glass 风格：动态壁纸、半透明玻璃卡片、柔和高光与动效
+   - 登录页提供 `Demo Mode`，便于在本地快速进入聊天界面
+2. `聊天主界面`
+   - 路由：`/chat`、`/chat/$sessionId`
+   - 桌面端为三栏结构：
+     - 左栏：会话列表、搜索、未读角标、联系人/新会话/设置入口
+     - 中栏：消息时间线、发送框、发送中/重试中/失败态
+     - 右栏：会话详情、连接状态、未读数、快捷操作占位
+   - 小屏下左栏与右栏会收起，主聊天区优先显示
+3. `联系人页`
+   - 路由：`/contacts`
+   - 已支持联系人浏览、用户搜索、发起单聊、创建群聊骨架
+4. `设置页`
+   - 路由：`/settings`
+   - 已展示当前用户资料、运行时状态、退出登录入口
+
+### 已接通的交互链路
+
+- 登录成功后自动恢复运行时并同步会话
+- 历史消息加载
+- WebSocket 收消息并落本地库
+- 本地插入 pending 消息
+- ACK 成功后更新 outbox 状态
+- ACK 超时自动重试，超过阈值标记失败
+- 打开会话后自动推进已读位置
+
+### 仍属于骨架或占位的部分
+
+- 右侧详情栏当前以状态展示和操作占位为主，还不是完整资料面板
+- 联系人页的群组创建表单已可调用后端，但 UI 仍偏“开发骨架”
+- 目前页面主要围绕 `Message` 事件渲染，`Recall / Edit / Reaction / AI Stream` 还未形成完整 UI
 
 ## 技术栈
 
-| 类别     | 技术         | 版本  | 用途                |
-| -------- | ------------ | ----- | ------------------- |
-| 框架     | React        | 18.3+ | UI 框架             |
-| 语言     | TypeScript   | 5.6+  | 类型安全            |
-| 构建     | Vite         | 5.4+  | 开发服务器与打包    |
-| 状态     | Zustand      | 4.5+  | 轻量状态管理        |
-| 样式     | Tailwind CSS | 3.4+  | 原子化 CSS          |
-| 设计语言 | Liquid Glass | -     | 液态玻璃风格        |
-| API      | ConnectRPC   | 1.4+  | 类型安全的 RPC 调用 |
-| 实时通信 | WebSocket    | -     | Protobuf 消息推送   |
+- `React 19`
+- `TypeScript 5`
+- `Vite 6`
+- `Tailwind CSS 4`
+- `TanStack Router`
+- `ConnectRPC Web`
+- `WebSocket`
+- `Dexie`
+- `Zustand`
+- `Vitest`
 
----
+## 目录结构
 
-## 项目结构
-
-```
+```text
 web/
 ├── src/
-│   ├── api/                     # API 通信层
-│   │   └── client.ts            # ConnectRPC 客户端（带认证拦截器）
-│   ├── components/              # React 组件
-│   │   ├── Chat/                # 聊天相关组件（ChatHeader, ChatArea, SessionSidebar）
-│   │   ├── ChatInput.tsx        # 消息输入框
-│   │   ├── ConnectionStatus.tsx # 连接状态指示器
-│   │   ├── ErrorBoundary.tsx    # 错误边界
-│   │   ├── MessageBubble.tsx    # 消息气泡
-│   │   ├── NewChatModal.tsx     # 新建聊天弹窗
-│   │   └── SessionItem.tsx      # 会话列表项
-│   ├── config/                  # 运行时配置
-│   │   └── runtime.ts           # 动态配置加载
-│   ├── constants/               # 常量定义
-│   │   └── index.ts             # 消息类型、错误信息等
-│   ├── gen/                     # Protobuf 生成代码（软链接 → ../api/gen/ts）
-│   ├── hooks/                   # 自定义 Hooks
-│   │   ├── useAuth.ts           # 认证 Hook
-│   │   ├── useSession.ts        # 会话管理 Hook
-│   │   ├── useWebSocket.ts      # WebSocket Hook（心跳/重连）
-│   │   └── useWsMessageHandler.ts # WebSocket 消息处理
-│   ├── lib/                     # 工具库
-│   │   ├── avatar.ts            # 头像颜色生成
-│   │   ├── cn.ts                # className 合并工具
-│   │   └── time.ts              # 时间格式化工具
-│   ├── pages/                   # 页面组件
-│   │   ├── ChatPage.tsx         # 聊天主界面
-│   │   └── LoginPage.tsx        # 登录/注册页
-│   ├── stores/                  # Zustand 状态管理
-│   │   ├── auth.ts              # 认证状态（持久化）
-│   │   ├── session.ts           # 会话状态
-│   │   └── message.ts           # 消息状态
-│   ├── styles/                  # 全局样式
-│   │   └── globals.css          # Tailwind + Liquid Glass 设计 tokens
-│   ├── App.tsx                  # 应用入口
-│   └── main.tsx                 # React 挂载
+│   ├── api/                  # ConnectRPC transport、客户端、WS 客户端与 outbox
+│   ├── app/                  # 前端运行时入口
+│   ├── components/           # 通用玻璃组件、背景与 shader
+│   ├── db/                   # Dexie schema 与 repo 封装
+│   ├── features/
+│   │   ├── auth/             # 登录 / 注册
+│   │   ├── chat/             # 三栏聊天主界面
+│   │   ├── contact/          # 联系人 / 搜索 / 建群
+│   │   ├── session-detail/   # 右侧详情栏
+│   │   └── settings/         # 设置页
+│   ├── hooks/                # 页面层稳定接口
+│   ├── services/             # 业务动作封装
+│   ├── stores/               # Zustand store
+│   ├── sync/                 # Inbox 同步、事件落库、WS 去重/对账
+│   ├── styles/               # 全局 design tokens 与基础样式
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── router.tsx
+├── docs/
+│   ├── README.md             # web 目录内部文档索引
+│   ├── UI-HANDOFF.md         # 页面层接手说明
+│   └── RUNTIME-HANDOFF.md    # 运行时 / 数据流 / 业务逻辑接手说明
 ├── package.json
-├── vite.config.ts               # Vite 配置（代理 → Gateway）
-├── tailwind.config.ts           # Tailwind 配置
-├── tsconfig.json                # TypeScript 配置
-├── README.md                    # 本文档
-└── CLAUDE.md                    # AI 开发助手指引
+└── README.md
 ```
 
----
+## 运行时架构
 
-## 配置速查
+页面层并不直接操作底层传输层，而是通过 `hooks / services` 消费稳定接口。
 
-| 文件 | 一句话职责 |
-| --- | ---|
-| `package.json` | 定义前端依赖与脚本入口（`dev/build/type-check`）。 |
-| `vite.config.ts` | 控制开发服务器与构建行为（别名 `@`、`src/gen` 软链解析）。 |
-| `tsconfig.json` | 定义业务代码的 TypeScript 编译规则（严格模式、路径别名）。 |
-| `tailwind.config.ts` | 定义 Tailwind 扫描范围、暗色模式策略与主题扩展。 |
-| `.gitignore` | 约束前端目录下不入库文件（`node_modules`、`dist` 等）。 |
+### 页面层建议依赖
 
----
+- 读状态：`src/hooks/*`
+- 执行动作：`src/services/*`
+- 本地数据：仅由 `service / sync / runtime` 间接读写 Dexie
 
-## 快速开始
+### 核心链路
 
-### 1. 安装依赖
+#### 1. 启动链路
+
+1. `restoreAuthSession()` 恢复 token 与当前用户
+2. `AppRuntime.start()` 先同步会话列表
+3. 建立带 token 的 WebSocket 连接
+4. 连接成功后执行 `Inbox Sync`
+5. `flushPending()` 补发 outbox 中未确认消息
+
+#### 2. 发送消息链路
+
+1. `sendTextMessage()` 先在 Dexie 插入一条本地 pending event
+2. `OutboxManager` 为 `WsPacket` 分配 `clientSeq`
+3. 通过 WebSocket 发送消息
+4. 收到 ACK 后标记为 `acked`
+5. 若超时则进入 `retrying`，超过阈值进入 `failed`
+6. 服务端正式下发 `ChatEvent` 后，以服务端事件为准更新时间线
+
+#### 3. 收消息链路
+
+1. `WsClient` 接收二进制 `WsPacket`
+2. `dispatchWsPacket()` 按 packet 类型分发
+3. `reconcileWsEvent()` 做事件对账与去重
+4. `applyEvent()` 把 `ChatEvent` 写入 Dexie
+5. 页面通过 live query 自动刷新
+
+## 本地存储模型
+
+当前 Dexie 中包含 4 张表：
+
+- `sessions`
+  - 会话元数据、未读数、最后事件预览、已读位置
+- `events`
+  - 按 `sessionId + seqId` 存储事件时间线
+- `outbox`
+  - 客户端待发送、重试中、已 ACK、失败的消息
+- `meta`
+  - 当前用户名等运行时元信息
+
+这套结构是对后端事件驱动模型的前端映射，目标是支持：
+
+- 断线重连补偿
+- 本地 pending 态
+- 会话列表与时间线的增量更新
+
+## 提交演进脉络
+
+根据 `web/` 相关提交记录，当前实现大致按以下阶段推进：
+
+| 阶段 | 关键提交 | 说明 |
+|------|----------|------|
+| 旧版阶段 | `233aeb7`、`dbd4207`、`2340533` | 早期会话已读、页面重构、注册昵称能力 |
+| 重建起点 | `4e9e87e` | 删除旧前端目录，明确以重构后的事件驱动前端为起点 |
+| S0 | `272fe3e` | 搭建 `Vite 6 + React 19 + TS 5 + Tailwind 4 + ESLint flat` |
+| S1 | `70d8893`、`21286a9`、`9438557` | 建立 ConnectRPC 底座，升级 Connect-ES v2，补 runtime-config |
+| S2 | `3ee3a0a` | 建立 Dexie schema 与事件 applier |
+| S3 | `59944f2` | 完成 WebSocket 骨架 |
+| S4 | `55bad16`、`42dab7d` | Outbox + ACK 状态机，补齐离线发送与 flush 语义 |
+| Runtime 收口 | `5a32ff8` | 交付前端运行时内核 |
+| S6 | `f908835`、`67e0a6a` | 鉴权页、路由骨架、基础 UI 下层 |
+| S7 | `c01574a`、`f388ddd`、`892c8f3` | 三栏聊天 UI、对比度修复、自动已读与文档收尾 |
+
+如果要理解当前结构为何这样拆，建议按这个顺序阅读提交。
+
+## 开发命令
+
+在仓库根目录先完成协议生成，再进入 `web/` 开发：
+
+```bash
+make gen
+```
 
 ```bash
 cd web
 npm install
-```
-
-### 2. 配置环境变量
-
-开发模式创建 `.env.local` 文件：
-
-```bash
-# Gateway API 地址（ConnectRPC）
-VITE_API_BASE_URL=http://localhost:8080
-
-# Gateway WebSocket 地址
-VITE_WS_BASE_URL=ws://localhost:8080/ws
-```
-
-生产（容器）模式支持运行时配置，无需重建前端包：
-
-- `RESONANCE_WEB_API_BASE_URL`：覆盖 API 地址
-- `RESONANCE_WEB_WS_BASE_URL`：覆盖 WebSocket 地址
-
-### 3. 确保协议代码已生成
-
-```bash
-# 从项目根目录执行
-cd .. && make gen
-```
-
-### 4. 启动开发服务器
-
-```bash
 npm run dev
 ```
 
-访问 <http://localhost:5173>
-
----
-
-## 常用命令
+常用命令：
 
 ```bash
-npm run dev          # 开发服务器（5173 端口）
-npm run build        # 生产构建
-npm run preview      # 预览构建产物
-npm run type-check   # TypeScript 类型检查
+npm run dev
+npm run build
+npm run type-check
+npm run lint
 ```
 
----
+## 运行依赖
 
-## 通信架构
+前端依赖后端 Gateway 提供：
 
-```
-┌─────────────────┐         ┌─────────────────┐
-│     Browser     │         │    Gateway      │
-│                 │         │   (localhost    │
-│  ┌───────────┐  │         │    :8080)       │
-│  │   React   │  │         │                 │
-│  │ ┌─────┐  │  │         │  ┌───────────┐  │
-│  │ │ API │◄─┼─┼─────────┼─►│ ConnectRPC │  │
-│  │ └─────┘  │  │ HTTP    │  │   HTTP    │  │
-│  │ ┌─────┐  │  │         │  └───────────┘  │
-│  │ │  WS │◄─┼─┼─────────┼─►│ WebSocket  │  │
-│  │ └─────┘  │  │ WS      │  │ (Protobuf)│  │
-│  └───────────┘  │         │  └───────────┘  │
-└─────────────────┘         └─────────────────┘
-```
+- ConnectRPC HTTP 接口
+- `/ws` WebSocket 入口
+- `/runtime-config.js` 运行时配置注入（生产）
 
-- **ConnectRPC**: 登录、注册、获取会话列表等 API
-- **WebSocket**: 实时消息推送，Protobuf 二进制格式
+开发期默认走同源与 Vite 代理；生产期从 `window.__RESONANCE_RUNTIME_CONFIG__` 读取：
 
----
+- `apiBaseUrl`
+- `wsBaseUrl`
 
-## 组件架构
+鉴权约定与后端文档保持一致：
 
-### 页面级组件
+- HTTP：`Authorization: Bearer <jwt>`
+- WebSocket：`?token=<jwt>`
 
-| 组件 | 路径 | 职责 |
-| ---- | ---- | ---- |
-| LoginPage | `pages/LoginPage.tsx` | 登录/注册 |
-| ChatPage | `pages/ChatPage.tsx` | 聊天主界面 |
+## 页面层开发约束
 
-### 聊天组件（`components/Chat/`）
+页面组件不要直接依赖这些底层模块：
 
-| 组件 | 职责 |
-| ---- | ---- |
-| ChatHeader | 顶部导航栏（Logo、用户信息、登出） |
-| ChatArea | 聊天区域（消息列表 + 输入框） |
-| SessionSidebar | 会话侧边栏（会话列表 + 新建按钮） |
+- `Dexie`
+- `sessionClient / authClient`
+- `WsClient`
+- `OutboxManager`
+- `dispatchWsPacket`
+- `applyEvent`
 
-### 通用组件
+应优先使用：
 
-| 组件 | 职责 |
-| ---- | ---- |
-| ChatInput | 消息输入框（支持多行、发送） |
-| ConnectionStatus | 连接状态指示器（已连接/连接中/断开） |
-| ErrorBoundary | 错误边界（捕获子组件错误） |
-| MessageBubble | 消息气泡（支持不同消息类型） |
-| NewChatModal | 新建聊天弹窗 |
-| SessionItem | 会话列表项（显示头像、名称、最后消息） |
+- `useAuthState`
+- `useConnectionState`
+- `useSessionListLive`
+- `useSessionTimeline`
+- `useLoadHistory`
+- `useSendMessage`
 
----
+更详细的接手规范见 [docs/UI-HANDOFF.md](./docs/UI-HANDOFF.md)。
 
-## 状态管理
+## 当前已知边界
 
-### AuthStore (`stores/auth.ts`)
-
-```typescript
-interface User {
-  username: string;
-  nickname?: string;
-  avatarUrl?: string;
-}
-
-interface AuthState {
-  user: User | null;
-  accessToken: string | null;
-  isAuthenticated: boolean;
-  isLoading: boolean;
-  error: string | null;
-}
-```
-
-### SessionStore (`stores/session.ts`)
-
-```typescript
-interface SessionInfo {
-  sessionId: string;
-  name: string;
-  type: 1 | 2; // 1-单聊, 2-群聊
-  avatarUrl?: string;
-  unreadCount: number;
-  lastReadSeq: number;
-  maxSeqId: number;
-  lastMessage?: {
-    msgId: bigint;
-    seqId: bigint;
-    content: string;
-    type: string;
-    timestamp: bigint;
-  };
-}
-```
-
-### MessageStore (`stores/message.ts`)
-
-```typescript
-interface ChatMessage {
-  msgId: string;
-  sessionId: string;
-  fromUsername: string;
-  content: string;
-  msgType: "text" | "image" | "file" | "audio" | "video" | "system";
-  timestamp: bigint;
-  status: "sending" | "sent" | "failed";
-  isOwn: boolean;
-}
-```
-
----
-
-## 样式系统
-
-### Liquid Glass CSS 类
-
-| 类名 | 用途 |
-| ---- | ---- |
-| `lg-glass` | 基础玻璃效果（一级模糊） |
-| `lg-glass-strong` | 强玻璃效果（二级模糊） |
-| `lg-btn-primary` | 主按钮样式 |
-| `lg-btn-secondary` | 次按钮样式 |
-| `lg-input` | 输入框样式 |
-| `lg-bubble-own` | 己方消息气泡 |
-| `lg-bubble-other` | 对方消息气泡 |
-| `lg-bubble-system` | 系统消息气泡 |
-| `lg-session-item` | 会话列表项 |
-| `lg-session-item-active` | 激活的会话列表项 |
-| `lg-modal-overlay` | 模态框遮罩 |
-| `lg-modal-content` | 模态框内容 |
-| `lg-status-badge` | 状态徽章 |
-| `lg-animate-in` | 入场动画 |
-
----
-
-## 待实现功能
-
-- [ ] 消息长按菜单（回复/转发/删除）
-- [ ] 消息回复链
-- [ ] 消息编辑/撤回
-- [ ] 图片发送与预览
-- [ ] 文件传输
-- [ ] 群组管理
-- [ ] 搜索功能
-- [ ] 消息已读状态（双勾）
-- [ ] 暗色主题切换按钮
-- [ ] 消息表情反应
-
----
+- 前端当前重点是 IM 核心链路，不是完整产品化界面
+- 消息渲染目前以文本消息为主，富媒体和复杂事件类型尚未补齐
+- 移动端已经做了基础收缩，但交互仍优先按桌面三栏体验设计
+- 事件驱动协议已接入前端基础设施，但更多事件类型仍需配合后端分阶段落地
 
 ## 相关文档
 
-- [CLAUDE.md](./CLAUDE.md) - AI 开发助手指引
-- [../README.md](../README.md) - 项目整体文档
+- [仓库根 README](../README.md)
+- [架构总览](../docs/architecture/00-overview.md)
+- [迁移计划](../docs/architecture/05-migration.md)
+- [UI 接手说明](./docs/UI-HANDOFF.md)

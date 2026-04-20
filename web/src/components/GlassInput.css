@@ -1,0 +1,130 @@
+/*
+ * GlassInput —— 液态玻璃输入框
+ *
+ * 焦点状态时：
+ *   - 边框高亮为 accent 色
+ *   - 底部发光脊线亮起（模拟光聚焦）
+ *   - 背景略增不透明度
+ */
+
+.glass-input-wrapper {
+  position: relative;
+}
+
+.glass-input {
+  width: 100%;
+  padding: 14px 20px;
+  border-radius: 16px;
+  border: 1px solid var(--glass-input-border);
+  background: var(--glass-input-bg);
+  backdrop-filter: blur(var(--glass-blur-md, 24px)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--glass-blur-md, 24px)) saturate(1.4);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.35s ease,
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.glass-input:hover {
+  background: var(--glass-input-hover-bg);
+  border-color: var(--glass-input-hover-border);
+}
+
+.glass-input:focus {
+  border-color: var(--color-primary);
+  background: var(--glass-input-focus-bg);
+  box-shadow:
+    0 0 0 3px var(--accent-glow),
+    0 2px 12px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.glass-input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── 焦点发光脊线 ── */
+.glass-input__focus-glow {
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  border-radius: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-primary) 30%,
+    var(--color-primary) 70%,
+    transparent 100%
+  );
+  opacity: 0;
+  transform: scaleX(0.3);
+  transition:
+    opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  filter: blur(1px);
+}
+
+.glass-input:focus ~ .glass-input__focus-glow {
+  opacity: 0.8;
+  transform: scaleX(1);
+}
+
+/* ── 内部天光 ── */
+.glass-input__ambient {
+  position: absolute;
+  inset: 1px;
+  border-radius: 15px;
+  pointer-events: none;
+  background: linear-gradient(175deg, rgba(255, 255, 255, 0.15) 0%, transparent 40%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-input {
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .glass-input:focus {
+    box-shadow:
+      0 0 0 3px var(--accent-glow),
+      0 2px 12px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-input__ambient {
+    background: linear-gradient(175deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%);
+  }
+}
+
+/* ── 图标 ── */
+.glass-input__icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--color-primary);
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  border-right: 1px solid var(--glass-border);
+}

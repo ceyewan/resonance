@@ -2,15 +2,13 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
-    />
-    <title>Resonance IM</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resonance</title>
   </head>
   <body>
     <div id="root"></div>
+    <!-- 生产环境由 webserver 注入 window.__RESONANCE_RUNTIME_CONFIG__；开发期由 Vite middleware 兜底返回空对象。 -->
     <script src="/runtime-config.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

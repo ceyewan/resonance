@@ -96,6 +96,9 @@ resonance/
 │   ├── services.yaml      # 业务服务编排
 │   ├── Dockerfile         # 统一镜像构建
 │   └── scripts/           # 部署/发布脚本
+├── tools/                 # 仓库级工具链（prettier / markdownlint 等）
+│   ├── package.json
+│   └── package-lock.json
 └── web/                   # React 前端
     ├── src/
     │   ├── api/           # ConnectRPC 客户端
@@ -111,7 +114,7 @@ resonance/
 ### 前置要求
 
 - Go 1.26+
-- Node.js 18+
+- Node.js 22+
 - Redis 6.0+
 - PostgreSQL 17+
 - Buf (Protobuf 代码生成)
@@ -129,8 +132,8 @@ cp .env.example .env
 **2. 安装工具链依赖**
 
 ```bash
-# 根目录的 prettier / markdownlint 等工具
-npm ci
+# 仓库级 prettier / markdownlint 等工具
+cd tools && npm ci && cd ..
 
 # 前端依赖
 cd web && npm ci && cd ..
