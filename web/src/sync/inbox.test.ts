@@ -4,6 +4,10 @@ import { create } from "@bufbuild/protobuf";
 import { ChatEventSchema } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
 import { InboxEventSchema, type InboxEvent } from "@gen/common/v1/view_pb";
+import {
+  PullInboxDeltaResponseSchema,
+  type PullInboxDeltaResponse,
+} from "@gen/gateway/v1/session_pb";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { getEventsBySession, getMeta, setMeta } from "../db/repo";
@@ -74,20 +78,24 @@ describe("InboxSyncManager", () => {
       pullInboxDelta: ({ cursorId }) => {
         callCount += 1;
         if (cursorId === 0n) {
-          return Promise.resolve({
-            events: [
-              makeInboxEvent(1n, 1_001n, 11n, sessionId),
-              makeInboxEvent(2n, 1_002n, 12n, sessionId),
-            ],
-            nextCursorId: 2n,
-            hasMore: true,
-          });
+          return Promise.resolve(
+            create(PullInboxDeltaResponseSchema, {
+              events: [
+                makeInboxEvent(1n, 1_001n, 11n, sessionId),
+                makeInboxEvent(2n, 1_002n, 12n, sessionId),
+              ],
+              nextCursorId: 2n,
+              hasMore: true,
+            }),
+          );
         }
-        return Promise.resolve({
-          events: [makeInboxEvent(3n, 1_003n, 13n, sessionId)],
-          nextCursorId: 3n,
-          hasMore: false,
-        });
+        return Promise.resolve(
+          create(PullInboxDeltaResponseSchema, {
+            events: [makeInboxEvent(3n, 1_003n, 13n, sessionId)],
+            nextCursorId: 3n,
+            hasMore: false,
+          }),
+        );
       },
     });
 
@@ -105,11 +113,14 @@ describe("InboxSyncManager", () => {
     const second = makeInboxEvent(11n, 2_002n, 22n, sessionId);
 
     const manager = new InboxSyncManager({
-      pullInboxDelta: () => Promise.resolve({
-        events: [first, second],
-        nextCursorId: 11n,
-        hasMore: false,
-      }),
+      pullInboxDelta: () =>
+        Promise.resolve(
+          create(PullInboxDeltaResponseSchema, {
+            events: [first, second],
+            nextCursorId: 11n,
+            hasMore: false,
+          }),
+        ),
       applyInboxEvent: async (item) => {
         if (item.inboxId === 11n) {
           throw new Error("boom");
@@ -126,11 +137,7 @@ describe("InboxSyncManager", () => {
 
   test("d) 并发调用 run() 只执行一轮实际拉取", async () => {
     const sessionId = "s-inbox-concurrent";
-    const deferred = createDeferred<{
-      events: InboxEvent[];
-      nextCursorId: bigint;
-      hasMore: boolean;
-    }>();
+    const deferred = createDeferred<PullInboxDeltaResponse>();
     let callCount = 0;
     const manager = new InboxSyncManager({
       pullInboxDelta: () => {
@@ -142,11 +149,13 @@ describe("InboxSyncManager", () => {
     const p1 = manager.run();
     const p2 = manager.run();
 
-    deferred.resolve({
-      events: [makeInboxEvent(20n, 3_001n, 31n, sessionId)],
-      nextCursorId: 20n,
-      hasMore: false,
-    });
+    deferred.resolve(
+      create(PullInboxDeltaResponseSchema, {
+        events: [makeInboxEvent(20n, 3_001n, 31n, sessionId)],
+        nextCursorId: 20n,
+        hasMore: false,
+      }),
+    );
 
     await Promise.all([p1, p2]);
     expect(callCount).toBe(1);
@@ -156,11 +165,14 @@ describe("InboxSyncManager", () => {
 
   test("e) 空响应且 has_more=false 时直接返回", async () => {
     const manager = new InboxSyncManager({
-      pullInboxDelta: () => Promise.resolve({
-        events: [],
-        nextCursorId: 0n,
-        hasMore: false,
-      }),
+      pullInboxDelta: () =>
+        Promise.resolve(
+          create(PullInboxDeltaResponseSchema, {
+            events: [],
+            nextCursorId: 0n,
+            hasMore: false,
+          }),
+        ),
     });
 
     await manager.run();
@@ -173,11 +185,13 @@ describe("InboxSyncManager", () => {
     const manager = new InboxSyncManager({
       pullInboxDelta: ({ cursorId }) => {
         seenCursor.push(cursorId);
-        return Promise.resolve({
-          events: [],
-          nextCursorId: cursorId,
-          hasMore: false,
-        });
+        return Promise.resolve(
+          create(PullInboxDeltaResponseSchema, {
+            events: [],
+            nextCursorId: cursorId,
+            hasMore: false,
+          }),
+        );
       },
     });
 

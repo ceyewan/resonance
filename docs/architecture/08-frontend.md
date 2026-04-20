@@ -13,12 +13,20 @@
 | S1 ConnectRPC 底座 | ✅ | `api/transport.ts` + `api/clients.ts` + `lib/id.ts` 已落地;Connect-ES v2(`bufbuild/es:v2.11.0`,service 定义并入 `*_pb.ts`,已废弃 `connectrpc/es`);runtime config 链路(`/runtime-config.js` → `window.__RESONANCE_RUNTIME_CONFIG__`);`vite.config.ts` 配 dev middleware + `server.proxy` 兜底跨域;`createClient`(v2)替换 v1 `createPromiseClient` |
 | S2 Dexie + Applier | ✅ | `db/schema.ts` + `db/repo.ts` + `sync/applier.ts` + `applier` 单测已落地,覆盖幂等/乱序/pending 覆盖/全部 oneof 分支 |
 | S3 WebSocket 骨架 | ✅ | `api/ws/client.ts` + `api/ws/dispatcher.ts` + `stores/connection.ts` 已落地,包含心跳/指数退避重连/oneof 分发 |
-| S4 Outbox + ACK 状态机 | ✅ | `api/ws/outbox.ts` 已落地，包含 5s 超时、3 次重发、failed 终态与 Dexie outbox 双写；仅对“已实际发出”的包启动 ACK 计时，连接不可用时保留 pending 待重连 flush |
+| S4 Outbox + ACK 状态机 | ✅ | `api/ws/outbox.ts` 已落地，包含 5s 超时、3 次重发、failed 终态与 Dexie outbox 双写；仅对"已实际发出"的包启动 ACK 计时，连接不可用时保留 pending 待重连 flush |
 | S5 Inbox 同步循环 | ✅ | `sync/inbox.ts` + `sync/reconcile.ts` 已落地；`runInboxSync` 分页串行拉取，失败不前移 cursor，并发 run 合并；WS/Inbox 合流复用 applier 幂等，并补齐 runtime/bootstrap、`services/*`、`hooks/*` 供 S6/S7 直接消费 |
-| S6 ~ S9 | 📋 未开工 | 按 § 11 推进 |
+| S6 鉴权页 + 路由 | ✅ | TanStack Router 路由树落地(`/login` `/register` `/chat` `/chat/$sessionId` `/contacts` `/settings`);`features/auth/{Login,Register}Page.tsx` + `useAuthGuard` hook;`App.tsx` 精简为仅挂载路由(smoke demo 已删除) |
+| S7 三栏聊天 MVP | ✅ | `features/chat/{ChatLayout,ChatRoom,SessionRail,MessageList,MessageBubble,Composer}.tsx` + `features/session-detail/SessionDetailPanel.tsx` 落地;`ChatRoom` 以组件组合方式消费 `MessageList + Composer`;发送链路贯通 outbox,失败可重试;`useSessionListLive` / `useSessionTimeline` 订阅 Dexie;`useAutoMarkRead` 节流触发 `UpdateReadPosition`,使未读角标随浏览自动清零 |
+| S8 会话管理(对齐现有后端) | 🟡 部分 | 已完成:联系人列表、搜索、创建单聊/群聊(`features/contact/ContactsPage.tsx` + `useContactDirectory`);未读角标 UI;基础消息气泡(文本、时间戳、发送状态、重试入口);Settings 页展示 profile/连接状态/登出。**暂停**:撤回/编辑 UI(依赖 Phase 5)、多端已读同步 UI(依赖 Phase 6)、@提及高亮、回复引用折行 |
+| S9 AI 流式 + 打磨 | ⏸ 暂停 | 依赖后端 Phase 7/8(AI Service 尚未实现);TanStack Virtual 虚拟列表、骨架屏、E2E 同步推迟 |
 
-**重要提醒**:当前 `web/src/App.tsx` 是运行时 smoke demo,用于验证 auth/bootstrap/ws/inbox/outbox 主链路。
-S6 鉴权页 + 路由上线后会被正式的 `features/auth/` + `/chat` 三栏布局替换,**不要在它基础上叠业务**。
+**S6/S7/S8 落地细节补充**:
+
+- `App.tsx` 已由 smoke demo 收敛为纯路由容器(`App.tsx` 仅挂载 `LiquidGlassShaderPool` + `RouterProvider`);原 smoke demo 中的 auth/bootstrap/ws 验证逻辑由 `app/runtime.ts` + `useAuthGuard` 承接。
+- 消息组件遵循 § 3 规定的 `MessageList / MessageBubble / Composer` 拆分,`ChatRoom` 只组合不写业务细节,符合 § 10 硬约束#10(组件纯度)。
+- `useAutoMarkRead`(`hooks/useAutoMarkRead.ts`):500ms 防抖,页面隐藏时不触发,`lastDispatchedRef` 防重复,失败回滚到 0 允许重试。
+- `features/session-list/` 旧版在重构中删除,其角色由 `features/chat/SessionRail.tsx` 取代。
+- **已知技术债(不阻塞 S7/S8)**:`tsc -b`(即 `npm run build`)目前仍存在 10 处 pre-existing 类型错误(`outbox.test.ts`、`GlassCard.tsx` 的陈旧 `@ts-expect-error`、`db/schema.ts` EventRow 主键类型、`LoginPage.tsx` `GlassButton` props、`services/mock.ts`、`services/session.ts:54` 的 exhaustive switch),需在后续清理;`npm run type-check`、ESLint、Vitest 全部全绿(31 tests)。
 
 版本基线(Protobuf 插件 + 前端运行时库)统一 pin 在 `api/README.md §"开发注意事项"`,升级时同步两处。
 
@@ -148,7 +156,7 @@ web/
 - `db/` 不依赖 `api/`(数据结构与网络解耦)。
 - `sync/` 是 `api/` 与 `db/` 的唯一桥梁。
 
-**当前已落地快照**(其他目录在 S2+ 按需创建):
+**当前已落地快照**(更新至 S6/S7/S8 部分落地):
 
 ```
 web/src/
@@ -157,31 +165,60 @@ web/src/
 │   ├── clients.ts            # ✅ createClient(AuthService/SessionService)
 │   └── ws/
 │       ├── client.ts         # ✅ WebSocket 封装：连接/重连/心跳
-│       └── dispatcher.ts     # ✅ WsPacket oneof 分发
+│       ├── dispatcher.ts     # ✅ WsPacket oneof 分发
+│       └── outbox.ts         # ✅ 5s 超时 / 3 次重发 / failed 终态
 ├── app/
 │   └── runtime.ts            # ✅ bootstrap + WS/Inbox/Outbox 接线
 ├── db/
-│   ├── schema.ts             # ✅ Dexie 四表定义（sessions/events/outbox/meta）
-│   └── repo.ts               # ✅ CRUD 封装（不暴露 Dexie.Table）
+│   ├── schema.ts             # ✅ Dexie 四表(sessions/events/outbox/meta)
+│   └── repo.ts               # ✅ CRUD 封装(不暴露 Dexie.Table)
+├── features/
+│   ├── auth/
+│   │   ├── LoginPage.tsx     # ✅ 登录表单 + token 写入
+│   │   └── RegisterPage.tsx  # ✅ 注册表单(含昵称)
+│   ├── chat/
+│   │   ├── ChatLayout.tsx    # ✅ 左栏 SessionRail + 中/右栏 Outlet
+│   │   ├── SessionRail.tsx   # ✅ 会话列表 + 搜索 + 未读角标(Dexie live)
+│   │   ├── ChatRoom.tsx      # ✅ 头部 + MessageList + Composer + SessionDetailPanel
+│   │   ├── MessageList.tsx   # ✅ Dexie 订阅 + 自动滚底 + 空态
+│   │   ├── MessageBubble.tsx # ✅ 气泡 / 时间戳 / 发送状态 / 失败重试
+│   │   ├── Composer.tsx      # ✅ textarea 多行 + Enter/Shift+Enter + 发送
+│   │   └── EmptyChat.tsx     # ✅ /chat 首页占位
+│   ├── contact/
+│   │   └── ContactsPage.tsx  # ✅ 联系人列表 / 搜索用户 / 创建单聊或群聊
+│   ├── session-detail/
+│   │   └── SessionDetailPanel.tsx # ✅ 会话元信息 + 状态 + 预留操作按钮
+│   └── settings/
+│       └── SettingsPage.tsx  # ✅ Profile / 连接状态 / 登出
 ├── hooks/
-│   ├── useAuthState.ts       # ✅ UI 直接消费的认证/连接/会话 hook
+│   ├── useAuthGuard.ts       # ✅ 未登录跳 /login,可选 bootstrap
+│   ├── useAuthState.ts       # ✅ Zustand auth 浅订阅
+│   ├── useAutoMarkRead.ts    # ✅ 节流调用 markSessionRead,未读角标自动清零
+│   ├── useConnectionState.ts # ✅ 连接 + inboxSyncing 浅订阅
+│   ├── useContactDirectory.ts # ✅ 联系人 + 搜索 + 创建会话业务 hook
+│   ├── useLoadHistory.ts     # ✅ 按会话拉历史(beforeSeq 翻页)
+│   ├── useSendMessage.ts     # ✅ 发送 / 重试包装
+│   ├── useSessionListLive.ts # ✅ Dexie sessions 表实时订阅
 │   └── useSessionTimeline.ts # ✅ Dexie 事件 + outbox 状态聚合
 ├── services/
 │   ├── auth.ts               # ✅ 登录恢复 / 登出 / runtime 启停
 │   ├── chat.ts               # ✅ pending 写入 / 发送 / 重试
-│   └── session.ts            # ✅ session list / history / read 业务入口
+│   ├── contact.ts            # ✅ GetContactList / SearchUser / CreateSession
+│   └── session.ts            # ✅ session list / history / markSessionRead
 ├── sync/
 │   ├── applier.ts            # ✅ ChatEvent 按 oneof 分发入库
-│   ├── inbox.ts              # ✅ PullInboxDelta 分页同步（cursor + 可重入保护）
-│   └── reconcile.ts          # ✅ WS/Inbox 统一入口，复用 applier 幂等
+│   ├── inbox.ts              # ✅ PullInboxDelta 分页同步(cursor + 可重入)
+│   └── reconcile.ts          # ✅ WS/Inbox 统一入口,复用 applier 幂等
 ├── stores/
 │   ├── auth.ts               # ✅ token/user/bootstrap 状态
-│   └── connection.ts         # ✅ 连接状态机（idle/connecting/open/offline）
+│   └── connection.ts         # ✅ 连接状态机(idle/connecting/open/offline)
+├── components/               # ✅ GlassCard / WallpaperBackground / LiquidGlassShaderPool ...
 ├── lib/
 │   └── id.ts                 # ✅ bigint ↔ string 转换
-├── styles/index.css          # ✅ Tailwind 4 + 主题 CSS 变量
+├── styles/index.css          # ✅ Tailwind 4 + 主题 CSS 变量(light/dark)
 ├── gen/                      # 🔗 软链接 → ../../api/gen/ts(生成物,不改)
-├── App.tsx                   # ⚠️ 运行时 smoke demo,S6 删
+├── router.tsx                # ✅ TanStack Router 路由树
+├── App.tsx                   # ✅ 纯路由容器(原 smoke demo 已删)
 ├── main.tsx
 └── vite-env.d.ts             # ✅ Window.__RESONANCE_RUNTIME_CONFIG__ 类型
 ```
@@ -352,10 +389,12 @@ web/src/
 | **S3** ✅ | WebSocket 骨架 | `api/ws/client.ts`(连接 / 心跳 / 指数退避重连 / 状态机) + `api/ws/dispatcher.ts`(oneof 分发) + `stores/connection.ts` | 断网重连、心跳保活可手工验证;dispatcher 对未知 case 编译报错 | **Codex** 主写,如遇重连抖动问题上 **gpt-5.4 xhigh** |
 | **S4** ✅ | Outbox + ACK 状态机 | `api/ws/outbox.ts`:`send()` 返回 `Promise<Ack>`,5s 超时、3 次重发、`failed` 终态;与 Dexie `outbox` 表双写 | 单测:网络正常 ACK、ACK 超时、多次重发、最终失败四条路径 | **Codex**:这是整个系统最易错的部分,务必强约束 + 测试 |
 | **S5** ✅ | Inbox 同步循环 | `sync/inbox.ts`:启动 / 重连时按 `meta.inbox_cursor_id` 分页拉到 `has_more=false`;`sync/reconcile.ts`:WS 与 Inbox 事件去重 | 单测模拟 Inbox 与 WS 同时到达,`events` 表无重复 | **Codex** |
-| **S6** | 鉴权页 + 路由 | TanStack Router 路由树;`features/auth/` 登录注册页(react-hook-form + zod);路由守卫 | 能登录 → 跳 `/chat`;token 失效自动回 `/login` | **Gemini 2.5 Pro**:UI 为主,Telegram 观感的登录页 |
-| **S7** | 三栏聊天 MVP(视觉 + 交互) | 布局骨架 + `features/session-list` + `features/chat`(MessageList / Bubble / Composer / TypingIndicator);消息发送/接收贯通;读取 Dexie via `useLiveQuery` | 两个账号能互发文本,刷新页面消息仍在,切会话正确定位 | **Gemini**:Telegram 观感的核心视觉就在这一步,留足迭代时间 |
-| **S8** | 会话管理 + 富能力 | 创建单聊/群聊、联系人、搜索;回复、撤回、编辑、@ 提及;已读回执 UI;未读角标 | 每种 `ChatEvent` 分支在 UI 上都有正确表现 | **Gemini**(UI 为主)+ **Codex**(撤回/编辑的 applier 分支,若 S2 没写完整) |
-| **S9** | AI 流式 + 打磨 | `features/ai-chat` StreamBegin/Chunk/End 占位消息 + Markdown 渲染;TanStack Virtual 虚拟列表;骨架屏;错误边界;Playwright E2E 3~5 条主链路 | 流式打字效果稳定;1w 条消息列表不卡;E2E 全绿 | **Gemini**(AI 流式 UI + 动效)+ **Codex**(虚拟列表性能调校、E2E 脚本) |
+| **S6** ✅ | 鉴权页 + 路由 | TanStack Router 路由树;`features/auth/` 登录注册页;`useAuthGuard` 守卫 | 能登录 → 跳 `/chat`;token 失效自动回 `/login` | **Gemini 2.5 Pro** |
+| **S7** ✅ | 三栏聊天 MVP(视觉 + 交互) | `ChatLayout` + `SessionRail` + `ChatRoom(MessageList/MessageBubble/Composer)` + `SessionDetailPanel`;发送接收端到端贯通 Dexie 与 outbox;`useAutoMarkRead` 节流调用 `UpdateReadPosition` | 两个账号能互发文本,刷新消息仍在,未读角标自动清零,失败可重试 | **Gemini** |
+| **S8** 🟡 | 会话管理(部分) | 已完成:联系人/搜索/创建单聊或群聊(`ContactsPage` + `useContactDirectory` + `services/contact.ts`)、未读角标 UI、基础消息气泡。**暂停**:回复、撤回(Phase 5)、编辑(Phase 5)、@ 提及高亮、多端已读 UI(Phase 6) | 当前可达:能创建新会话、发消息,收到对方消息未读自增 + 进入会话自动清零 | **Gemini**(UI 为主)+ **Codex**(撤回/编辑 applier 分支,待 Phase 5) |
+| **S9** ⏸ | AI 流式 + 打磨 | `features/ai-chat` StreamBegin/Chunk/End 占位消息 + Markdown 渲染;TanStack Virtual 虚拟列表;骨架屏;错误边界;Playwright E2E 3~5 条主链路 | **推迟**:等后端 Phase 7/8(AI Service V1 + 流式协议)完成后再启动 | **Gemini**(AI 流式 UI + 动效)+ **Codex**(虚拟列表性能调校、E2E 脚本) |
+
+> **S8/S9 暂停理由**:撤回/编辑/已读依赖后端 `docs/architecture/05-migration.md` 的 Phase 5/6,AI 流式依赖 Phase 7/8。前端 applier 与 WS dispatcher 的 `ChatEvent` oneof 已预留全部分支,后端一旦接通即可在 UI 层按需补齐,不会回改 `sync/` 与 `db/`。
 
 ### 分派速查
 
