@@ -50,8 +50,6 @@ function previewFromEvent(event: ChatEvent | undefined): string {
     case undefined:
       return "";
   }
-
-  throw new Error(`Unhandled ChatEvent payload case: ${String(event.payload.case)}`);
 }
 
 function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): SessionRow {

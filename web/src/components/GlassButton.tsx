@@ -1,13 +1,10 @@
-import { ReactNode } from "react";
+import { type ButtonHTMLAttributes, type ReactNode } from "react";
 import { useLiquidGlass } from "../hooks/useLiquidGlass";
 import "./GlassButton.css";
 
-interface GlassButtonProps {
-  onClick?: (e: React.FormEvent) => void;
+interface GlassButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  type?: "button" | "submit" | "reset";
   className?: string;
-  disabled?: boolean;
   /** 按钮风格变体 */
   variant?: "primary" | "ghost";
 }
@@ -19,6 +16,7 @@ export function GlassButton({
   className = "",
   disabled = false,
   variant = "primary",
+  ...rest
 }: GlassButtonProps) {
   const glass = useLiquidGlass<HTMLButtonElement>({
     damping: 0.2,
@@ -36,6 +34,7 @@ export function GlassButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
+      {...rest}
       {...(disabled ? {} : glass.handlers)}
       className={`glass-btn glass-btn--${variant} ${disabled ? "glass-btn--disabled" : ""} ${className}`}
     >

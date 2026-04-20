@@ -1,21 +1,19 @@
+import { create } from "@bufbuild/protobuf";
+import { UserSchema, type User } from "@gen/common/v1/types_pb";
 import { db } from "../db/schema";
 import { useAuthStore } from "../stores/auth";
 import { appRuntime } from "../app/runtime";
-import type { User } from "@gen/common/v1/types_pb";
 import { SessionType } from "@gen/common/v1/session_pb";
 import { MessageType } from "@gen/common/v1/message_pb";
 import { SessionUpdateKind } from "@gen/common/v1/event_pb";
 
 export async function mockLoginAndPopulateDb() {
   const mockToken = "mock-token-123";
-  const mockUser: User = {
-    $typeName: "resonance.common.v1.User",
-    id: "user-1",
+  const mockUser: User = create(UserSchema, {
     username: "mock_user",
     nickname: "Demo User",
     avatarUrl: "",
-    createdAt: "0",
-  };
+  });
 
   // 1. Set Auth State (Zustand Store) and LocalStorage to bypass restoreAuthSession
   localStorage.setItem("resonance_access_token", mockToken);

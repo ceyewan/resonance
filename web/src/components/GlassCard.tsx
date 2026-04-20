@@ -36,7 +36,6 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
     });
 
     const setRefs = (element: HTMLDivElement) => {
-      // @ts-expect-error 更新内部 ref
       glass.ref.current = element;
       if (typeof ref === "function") {
         ref(element);

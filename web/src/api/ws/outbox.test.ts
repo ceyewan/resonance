@@ -6,7 +6,6 @@ import {
   AckSchema,
   ChatRequestSchema,
   WsPacketSchema,
-  type Ack,
   type WsPacket,
 } from "@gen/gateway/v1/packet_pb";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -149,7 +148,7 @@ describe("OutboxManager", () => {
     expect(retryRow?.retryCount).toBe(1);
 
     ws.emitAck(clientSeq);
-    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+    await expect(promise).resolves.toMatchObject({ refClientSeq: clientSeq });
 
     await vi.advanceTimersByTimeAsync(0);
     const ackedRow = await getOutbox(clientSeq);
@@ -172,7 +171,7 @@ describe("OutboxManager", () => {
     expect(retryRow?.retryCount).toBe(2);
 
     ws.emitAck(clientSeq);
-    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+    await expect(promise).resolves.toMatchObject({ refClientSeq: clientSeq });
   });
 
   test("4) 3 次重发均失败：最终 failed 并抛 OutboxError", async () => {
@@ -218,7 +217,7 @@ describe("OutboxManager", () => {
 
     const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
     ws.emitAck(clientSeq);
-    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+    await expect(promise).resolves.toMatchObject({ refClientSeq: clientSeq });
   });
 
   test("6) ws.send() 抛错时不立即耗尽重试，恢复后 flush 可继续发送", async () => {
@@ -241,7 +240,7 @@ describe("OutboxManager", () => {
 
     const clientSeq = ws.sentPackets[0]?.clientSeq ?? "";
     ws.emitAck(clientSeq);
-    await expect(promise).resolves.toMatchObject<Ack>({ refClientSeq: clientSeq });
+    await expect(promise).resolves.toMatchObject({ refClientSeq: clientSeq });
   });
 
   test("7) ACK 落库失败时 send() reject，Promise 不悬挂", async () => {

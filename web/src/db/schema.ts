@@ -1,4 +1,4 @@
-import Dexie, { type EntityTable } from "dexie";
+import Dexie, { type EntityTable, type Table } from "dexie";
 import type { SessionUpdateKind } from "@gen/common/v1/event_pb";
 import type { MessageType } from "@gen/common/v1/message_pb";
 import type { SessionType } from "@gen/common/v1/session_pb";
@@ -71,7 +71,7 @@ export type MetaRow = {
 
 export class ResonanceDb extends Dexie {
   sessions!: EntityTable<SessionRow, "sessionId">;
-  events!: EntityTable<EventRow, [string, string]>;
+  events!: Table<EventRow, [string, string]>;
   outbox!: EntityTable<OutboxRow, "clientSeq">;
   meta!: EntityTable<MetaRow, "key">;
 
