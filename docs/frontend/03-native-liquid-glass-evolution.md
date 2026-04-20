@@ -9,33 +9,34 @@
 我们目前的尝试（`useLiquidJelly.ts`）已经证明了“物理学与 DOM 解耦”是驯服这一特效的正确方向。
 **后续目标**：将所有复杂的运动轨迹封装到底层 Hook 中，保证最终的 Component 只负责接收纯净的、高性能的 CSS 变量。
 
-*   **`useLiquidPhysics` Hook 进阶**：从目前的 2D 平移（Translate）和缩放（Scale）拓展到 3D 矩阵。引入基于鼠标视差的 3D 倾斜算法（`rotateX` & `rotateY`），通过 `transform: perspective(1200px)` 实现真实的镜面翻转景深感。
-*   **DOM 纯净化**：坚决摒弃第三方库那种 `Fragment` 返回 6 层兄弟节点的“灾难排版”。坚守核心容器必须是完整的 `div` 语义，特效层必须以 `absolute inset-0 z-[-1]` 的形式严格封锁在卡片内部。
+* **`useLiquidPhysics` Hook 进阶**：从目前的 2D 平移（Translate）和缩放（Scale）拓展到 3D 矩阵。引入基于鼠标视差的 3D 倾斜算法（`rotateX` & `rotateY`），通过 `transform: perspective(1200px)` 实现真实的镜面翻转景深感。
+* **DOM 纯净化**：坚决摒弃第三方库那种 `Fragment` 返回 6 层兄弟节点的“灾难排版”。坚守核心容器必须是完整的 `div` 语义，特效层必须以 `absolute inset-0 z-[-1]` 的形式严格封锁在卡片内部。
 
 ## 2. 光学引擎：解决“四角黑斑”的终极方案
 
 第三方库最大的败笔在于：它使用了一张写死的 Base64 JEPG 噪声图片作为置换贴图核心，导致在小尺寸按钮上不可避免地产生固定像素的“光斑死角”。
 
 **我们的光学重构思路：**
-*   **动态 SVG 节点注入**：在系统全局（比如 App Root 处）挂载一个隐形的 `<svg id="resonance-shader-pool">`。
-*   **真实的动态噪点 (feTurbulence)**：当 `GlassCard` 渲染时，组件内部的 Effect 自动根据当前卡片或按钮的 `rect.width` 和 `rect.height`，向全局 Pool 动态生成一个拥有唯一 `id`（借助 `useId()`生成）的 `<filter>`。
-*   **分辨率自适应重映射**：大卡片用大波长噪点，小按钮用极细小致密的波长噪点。这样按钮也能有轻微的“微波水波纹”光学扭曲，而再也不会出现四个骇人的宏观大黑洞。
+
+* **动态 SVG 节点注入**：在系统全局（比如 App Root 处）挂载一个隐形的 `<svg id="resonance-shader-pool">`。
+* **真实的动态噪点 (feTurbulence)**：当 `GlassCard` 渲染时，组件内部的 Effect 自动根据当前卡片或按钮的 `rect.width` 和 `rect.height`，向全局 Pool 动态生成一个拥有唯一 `id`（借助 `useId()`生成）的 `<filter>`。
+* **分辨率自适应重映射**：大卡片用大波长噪点，小按钮用极细小致密的波长噪点。这样按钮也能有轻微的“微波水波纹”光学扭曲，而再也不会出现四个骇人的宏观大黑洞。
 
 ## 3. 层叠材质：零冲突的高性能复合光影编织
 
 在不依赖强制绝对定位黑魔法的前提下，要在同一个物理空间再造晶莹剔透的水晶质感，我们需要将光影全部交由浏览器最底层的 GPU 合成：
 
-*   **环境反光层 (Ambient Reflection)**：结合 `mix-blend-mode: overlay` 和大跨度的线形渐变 `linear-gradient` 模拟天光/暗面。
-*   **物理交互高光 (Dynamic Glow)**：在 `GlassCard` 最外层叠加一个专门跟手移动的高强度发光球（目前的 CSS Radial Gradient 已经实现，后续可以扩展为随鼠标点击呈水波扩散晕开）。
-*   **色散偏移 (Chromatic Aberration)**：如果要在纯 CSS 体系下实现红、蓝、绿三原色的分离偏移重影，我们可以利用 `box-shadow: 1px 0 2px red, -1px 0 2px blue;` 的极简特性或者 `text-shadow`、`backdrop-filter: hue-rotate()` 等硬件底层特效来实现平替，完全取代第三方库的高危 SVG 混合滤镜。
+* **环境反光层 (Ambient Reflection)**：结合 `mix-blend-mode: overlay` 和大跨度的线形渐变 `linear-gradient` 模拟天光/暗面。
+* **物理交互高光 (Dynamic Glow)**：在 `GlassCard` 最外层叠加一个专门跟手移动的高强度发光球（目前的 CSS Radial Gradient 已经实现，后续可以扩展为随鼠标点击呈水波扩散晕开）。
+* **色散偏移 (Chromatic Aberration)**：如果要在纯 CSS 体系下实现红、蓝、绿三原色的分离偏移重影，我们可以利用 `box-shadow: 1px 0 2px red, -1px 0 2px blue;` 的极简特性或者 `text-shadow`、`backdrop-filter: hue-rotate()` 等硬件底层特效来实现平替，完全取代第三方库的高危 SVG 混合滤镜。
 
 ## 4. 封装的成果结晶：`@resonance/glass` 组件包
 
 最终我们将在这个工程下输出一套属于我们的无死角组件家族：
 
-1.  `<GlassContainer>`：大画幅承载体。负责极高深度的景深、极强的 3D 弹性和低烈度的色偏散光。
-2.  `<GlassButton>`：交互终端。剥除所有的噪点变形光学层，只保留纯净的物理缩放摇摆和极致的随动反光，杜绝任何字外形变。
-3.  `<GlassInput>`：状态感知器。在 Focus 的那一刻激发光晕层的高亮收拢。
+1. `<GlassContainer>`：大画幅承载体。负责极高深度的景深、极强的 3D 弹性和低烈度的色偏散光。
+2. `<GlassButton>`：交互终端。剥除所有的噪点变形光学层，只保留纯净的物理缩放摇摆和极致的随动反光，杜绝任何字外形变。
+3. `<GlassInput>`：状态感知器。在 Focus 的那一刻激发光晕层的高亮收拢。
 
 **总结：**
 我们抛弃了第三方库的代码糟粕，但我们永远继承它对于“果冻力学、光学滤镜”的物理理念。通过上面的这套重构路径图，我们可以封装出一套全球最干净、最现代且 0 Bug 的 Resonance Native Glass 顶级引擎。

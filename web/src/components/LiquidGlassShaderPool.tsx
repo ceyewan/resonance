@@ -64,17 +64,8 @@ export function LiquidGlassShaderPool() {
           >
             <fePointLight x={200} y={100} z={300} />
           </feSpecularLighting>
-          <feComposite
-            in="specLight"
-            in2="SourceAlpha"
-            operator="in"
-            result="specComposed"
-          />
-          <feBlend
-            in="specComposed"
-            in2="SourceGraphic"
-            mode="screen"
-          />
+          <feComposite in="specLight" in2="SourceAlpha" operator="in" result="specComposed" />
+          <feBlend in="specComposed" in2="SourceGraphic" mode="screen" />
         </filter>
 
         {/* ── 轻微色散（棱镜分色效果，用于按钮高光边缘） ── */}

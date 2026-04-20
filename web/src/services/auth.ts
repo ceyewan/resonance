@@ -2,11 +2,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import type { User } from "@gen/common/v1/types_pb";
 
 import { authClient } from "../api/clients";
-import {
-  clearAccessToken,
-  getAccessToken,
-  setAccessToken,
-} from "../api/transport";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../api/transport";
 import { appRuntime } from "../app/runtime";
 import { clearAllData } from "../db/repo";
 import { useAuthStore } from "../stores/auth";
@@ -19,11 +15,14 @@ function storeCurrentUser(user: User | null): void {
     localStorage.removeItem(CURRENT_USER_KEY);
     return;
   }
-  localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({
-    username: user.username,
-    nickname: user.nickname,
-    avatarUrl: user.avatarUrl,
-  }));
+  localStorage.setItem(
+    CURRENT_USER_KEY,
+    JSON.stringify({
+      username: user.username,
+      nickname: user.nickname,
+      avatarUrl: user.avatarUrl,
+    }),
+  );
 }
 
 function readStoredUser(): User | null {

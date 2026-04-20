@@ -1,12 +1,6 @@
 import Dexie from "dexie";
 
-import {
-  type EventRow,
-  type MetaRow,
-  type OutboxRow,
-  type SessionRow,
-  db,
-} from "./schema";
+import { type EventRow, type MetaRow, type OutboxRow, type SessionRow, db } from "./schema";
 
 export async function getSession(sessionId: string): Promise<SessionRow | undefined> {
   return db.sessions.get(sessionId);
@@ -87,10 +81,7 @@ export async function markOutboxAcked(
   });
 }
 
-export async function markOutboxRetrying(
-  clientSeq: string,
-  retryCount: number,
-): Promise<void> {
+export async function markOutboxRetrying(clientSeq: string, retryCount: number): Promise<void> {
   await db.outbox.update(clientSeq, {
     status: "retrying",
     retryCount,
@@ -98,10 +89,7 @@ export async function markOutboxRetrying(
   });
 }
 
-export async function markOutboxFailed(
-  clientSeq: string,
-  retryCount: number,
-): Promise<void> {
+export async function markOutboxFailed(clientSeq: string, retryCount: number): Promise<void> {
   await db.outbox.update(clientSeq, {
     status: "failed",
     retryCount,
@@ -130,8 +118,6 @@ export async function clearAllData(): Promise<void> {
   });
 }
 
-export async function withRwTransaction<T>(
-  fn: () => Promise<T>,
-): Promise<T> {
+export async function withRwTransaction<T>(fn: () => Promise<T>): Promise<T> {
   return db.transaction("rw", db.sessions, db.events, db.outbox, db.meta, fn);
 }

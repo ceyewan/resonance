@@ -112,12 +112,14 @@ Web 镜像**一次构建、多环境复用**，不把 API / WebSocket 地址打�
 - `.env` 里设置 `RESONANCE_WEB_API_BASE_URL` / `RESONANCE_WEB_WS_BASE_URL`
 - `services.prod.yaml` 注入到 `resonance-web` 容器
 - 容器内 `webserver` 模块响应 `GET /runtime-config.js`，返回：
+
     ```js
     window.__RESONANCE_RUNTIME_CONFIG__ = {
       apiBaseUrl: "...",
       wsBaseUrl: "...",
     };
     ```
+
 - 前端 `index.html` 同步加载该脚本，`transport.ts` / WS 客户端读取 `window.__RESONANCE_RUNTIME_CONFIG__` 构造请求。
 - 留空时 apiBaseUrl = wsBaseUrl = ""，前端走**同源**调用（生产由 Caddy 反代到 gateway）。
 - 开发期 `vite dev` 不走这条链路，由 `vite.config.ts` 的 dev middleware + `server.proxy` 兜底，直接把 `/resonance.*` 和 `/ws` 代理到 `localhost:8080`。

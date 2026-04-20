@@ -79,8 +79,7 @@ export class ResonanceDb extends Dexie {
     super(name);
     this.version(1).stores({
       sessions: "sessionId, type, lastEventTs",
-      events:
-        "[sessionId+seqId], eventId, [sessionId+timestampMs], clientMsgId",
+      events: "[sessionId+seqId], eventId, [sessionId+timestampMs], clientMsgId",
       outbox: "clientSeq, sessionId, status",
       meta: "key",
     });

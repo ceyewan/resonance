@@ -24,7 +24,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
       enableTilt = true,
       enableRefraction = true,
     },
-    ref
+    ref,
   ) => {
     const glass = useLiquidGlass<HTMLDivElement>({
       tiltMax: enableTilt ? 6 : 0,
@@ -40,8 +40,7 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
       if (typeof ref === "function") {
         ref(element);
       } else if (ref) {
-        (ref as React.MutableRefObject<HTMLDivElement | null>).current =
-          element;
+        (ref as React.MutableRefObject<HTMLDivElement | null>).current = element;
       }
     };
 
@@ -68,11 +67,9 @@ export const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(
         <div className="glass-card__rim" />
 
         {/* Content Layer */}
-        <div className="glass-card__content">
-          {children}
-        </div>
+        <div className="glass-card__content">{children}</div>
       </div>
     );
-  }
+  },
 );
 GlassCard.displayName = "GlassCard";

@@ -77,10 +77,15 @@
   border-radius: 50%;
 
   /* 外层阶梯：左上强光冰蓝，右下折射樱花粉 */
-  background: linear-gradient(135deg, rgba(190, 215, 255, 0.65) 0%, rgba(255, 255, 255, 0.25) 50%, rgba(255, 205, 220, 0.6) 100%);
-  box-shadow: 
-    inset 2px 3px 6px rgba(255, 255, 255, 0.95), /* 强烈的左上顶光反射 */
-    inset -1px -2px 4px rgba(255, 255, 255, 0.4),
+  background: linear-gradient(
+    135deg,
+    rgba(190, 215, 255, 0.65) 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 205, 220, 0.6) 100%
+  );
+  box-shadow:
+    inset 2px 3px 6px rgba(255, 255, 255, 0.95),
+    /* 强烈的左上顶光反射 */ inset -1px -2px 4px rgba(255, 255, 255, 0.4),
     0 6px 16px rgba(150, 180, 220, 0.25); /* 整体底部微蓝落地阴影 */
   border: 1px solid rgba(255, 255, 255, 0.6);
   backdrop-filter: blur(16px);
@@ -98,7 +103,7 @@
   position: relative;
   z-index: 3;
   margin: auto;
-  
+
   /* 偏白的高亮球面感，承接外环的色彩倾向 */
   background: radial-gradient(
     circle at 30% 30%,
@@ -116,9 +121,9 @@
   font-size: 38px; /* 字体放大 */
   font-weight: 300; /* 收为细体，提升呼吸感和现代艺术感 */
   color: #3b4e6a; /* 保持深邃的灰蓝岩色 */
-  text-shadow: 
-    0 1px 0 rgba(255, 255, 255, 1), /* 强化玻璃刻印一般的底光 */
-    0 2px 6px rgba(50, 70, 100, 0.15); /* 加深字母蓝阴影，形成立体浮凸 */
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 1),
+    /* 强化玻璃刻印一般的底光 */ 0 2px 6px rgba(50, 70, 100, 0.15); /* 加深字母蓝阴影，形成立体浮凸 */
   padding-left: 2px;
 }
 
@@ -127,16 +132,29 @@
   position: absolute;
   inset: -6px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(200, 220, 255, 0.3) 0%, transparent 50%, rgba(255, 210, 225, 0.3) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(200, 220, 255, 0.3) 0%,
+    transparent 50%,
+    rgba(255, 210, 225, 0.3) 100%
+  );
   opacity: 0;
   z-index: -1;
   animation: logo-breathe 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
 
 @keyframes logo-breathe {
-  0% { transform: scale(0.9); opacity: 0; }
-  50% { opacity: 1; }
-  100% { transform: scale(1.15); opacity: 0; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
 }
 
 /* ── 表单字段 ── */
@@ -156,10 +174,23 @@
 }
 
 @keyframes shake {
-  10%, 90% { transform: translateX(-1px); }
-  20%, 80% { transform: translateX(2px); }
-  30%, 50%, 70% { transform: translateX(-3px); }
-  40%, 60% { transform: translateX(3px); }
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-3px);
+  }
+  40%,
+  60% {
+    transform: translateX(3px);
+  }
 }
 
 /* ── 操作区域 ── */

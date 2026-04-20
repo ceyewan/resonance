@@ -25,13 +25,9 @@ export const GlassInput = forwardRef<HTMLInputElement, GlassInputProps>(
         {/* 微妙的内部天光 */}
         <div className="glass-input__ambient" />
 
-        {icon && (
-          <div className="glass-input__icon">
-            {icon}
-          </div>
-        )}
+        {icon && <div className="glass-input__icon">{icon}</div>}
       </div>
     );
-  }
+  },
 );
 GlassInput.displayName = "GlassInput";

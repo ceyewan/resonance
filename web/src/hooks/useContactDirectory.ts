@@ -61,17 +61,23 @@ export function useContactDirectory(): ContactDirectoryState {
     }
   }, []);
 
-  const startDirectSession = useCallback(async (username: string) => {
-    const sessionId = await createDirectSession(username);
-    await refresh();
-    return sessionId;
-  }, [refresh]);
+  const startDirectSession = useCallback(
+    async (username: string) => {
+      const sessionId = await createDirectSession(username);
+      await refresh();
+      return sessionId;
+    },
+    [refresh],
+  );
 
-  const startGroupSession = useCallback(async (name: string, members: string[]) => {
-    const sessionId = await createGroupSession(name, members);
-    await refresh();
-    return sessionId;
-  }, [refresh]);
+  const startGroupSession = useCallback(
+    async (name: string, members: string[]) => {
+      const sessionId = await createGroupSession(name, members);
+      await refresh();
+      return sessionId;
+    },
+    [refresh],
+  );
 
   return {
     contacts,

@@ -87,18 +87,19 @@ export function LoginPage() {
             </div>
 
             {/* Error Message */}
-            {error && (
-              <p className="auth-error">{error}</p>
-            )}
+            {error && <p className="auth-error">{error}</p>}
 
             {/* Actions */}
             <div className="auth-actions">
-              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
                 <GlassButton
                   type="button"
                   variant="ghost"
                   disabled={loading}
-                  onClick={(e) => { e.preventDefault(); void handleMockLogin(); }}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void handleMockLogin();
+                  }}
                   style={{ flex: 1 }}
                 >
                   {loading ? "..." : "Demo Mode"}

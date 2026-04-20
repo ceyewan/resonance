@@ -36,10 +36,7 @@ export async function createDirectSession(username: string): Promise<string> {
   return response.sessionId;
 }
 
-export async function createGroupSession(
-  name: string,
-  members: string[],
-): Promise<string> {
+export async function createGroupSession(name: string, members: string[]): Promise<string> {
   const normalizedMembers = members.map((member) => member.trim()).filter(Boolean);
   const normalizedName = name.trim();
   if (normalizedName === "") {

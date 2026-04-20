@@ -31,12 +31,8 @@
   --lg-glow-opacity: 0;
   --lg-refraction: 0;
 
-  transform:
-    perspective(800px)
-    translate3d(var(--lg-tx), var(--lg-ty), 0)
-    rotateX(var(--lg-rx))
-    rotateY(var(--lg-ry))
-    scale(var(--lg-scale));
+  transform: perspective(800px) translate3d(var(--lg-tx), var(--lg-ty), 0) rotateX(var(--lg-rx))
+    rotateY(var(--lg-ry)) scale(var(--lg-scale));
   transform-style: preserve-3d;
   transition:
     box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
@@ -120,13 +116,12 @@
   pointer-events: none;
   border-radius: inherit;
   opacity: var(--lg-glow-opacity);
-  background:
-    radial-gradient(
-      ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
-      rgba(255, 255, 255, 0.25) 0%,
-      rgba(255, 255, 255, 0.05) 40%,
-      transparent 70%
-    );
+  background: radial-gradient(
+    ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    transparent 70%
+  );
   mix-blend-mode: overlay; /* 底色变深后，降低叠加白色的强度可确保质感 */
   transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -138,13 +133,12 @@
   z-index: 2;
   pointer-events: none;
   border-radius: inherit;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(255, 255, 255, 0.25) 0%,
-      transparent 50%,
-      rgba(0, 0, 0, 0.03) 100%
-    );
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
 }
 
 @media (prefers-color-scheme: dark) {
@@ -157,23 +151,21 @@
   }
 
   .glass-btn__inner-light {
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.08) 0%,
-        transparent 50%,
-        rgba(0, 0, 0, 0.08) 100%
-      );
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.08) 100%
+    );
   }
 
   .glass-btn__specular {
-    background:
-      radial-gradient(
-        ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
-        rgba(255, 255, 255, 0.3) 0%,
-        rgba(255, 255, 255, 0.05) 40%,
-        transparent 70%
-      );
+    background: radial-gradient(
+      ellipse 100% 80% at var(--lg-glow-x) var(--lg-glow-y),
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.05) 40%,
+      transparent 70%
+    );
   }
 }
 

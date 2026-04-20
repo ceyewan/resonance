@@ -1,0 +1,14 @@
+{
+  "name": "resonance-tooling",
+  "private": true,
+  "scripts": {
+    "format:markdown": "markdownlint-cli2 --config ../.markdownlint-cli2.yaml --fix ../**/*.md",
+    "format:prettier": "prettier --config ../.prettierrc.yaml --ignore-path ../.prettierignore --write ..",
+    "lint:markdown": "markdownlint-cli2 --config ../.markdownlint-cli2.yaml ../**/*.md",
+    "lint:prettier": "prettier --config ../.prettierrc.yaml --ignore-path ../.prettierignore --check .."
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.18.1",
+    "prettier": "^3.6.2"
+  }
+}

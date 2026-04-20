@@ -93,10 +93,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: tools/package-lock.json
 
       - name: Install tooling dependencies
-        run: npm ci
+        run: cd tools && npm ci
 
       - name: Run prettier check
         run: make lint-prettier

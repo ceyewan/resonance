@@ -32,9 +32,7 @@ export function WallpaperBackground({ children }: WallpaperBackgroundProps) {
       <div className="wallpaper__shimmer" />
 
       {/* Content */}
-      <div className="wallpaper__content">
-        {children}
-      </div>
+      <div className="wallpaper__content">{children}</div>
     </div>
   );
 }

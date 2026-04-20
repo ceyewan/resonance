@@ -3,10 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { getEventsBySession } from "../db/repo";
 import { type EventRow } from "../db/schema";
 import { toBigIntId } from "../lib/id";
-import {
-  getOutboxStatusMap,
-  type OutboxStatusSummary,
-} from "../services/chat";
+import { getOutboxStatusMap, type OutboxStatusSummary } from "../services/chat";
 
 export type TimelineItem = {
   event: EventRow;
@@ -27,14 +24,11 @@ export function useSessionTimeline(sessionId: string | null | undefined) {
     const timeline = events.map((event) => ({
       event,
       sendState:
-        event.clientMsgId.trim() === ""
-          ? null
-          : outboxStatusMap[event.clientMsgId] ?? null,
+        event.clientMsgId.trim() === "" ? null : (outboxStatusMap[event.clientMsgId] ?? null),
     }));
 
     timeline.sort((left, right) => {
-      const tsDelta =
-        toBigIntId(left.event.timestampMs) - toBigIntId(right.event.timestampMs);
+      const tsDelta = toBigIntId(left.event.timestampMs) - toBigIntId(right.event.timestampMs);
       if (tsDelta > 0n) {
         return 1;
       }

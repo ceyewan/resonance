@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
 @import "tailwindcss";
 
 /*
@@ -13,16 +13,15 @@
  * ╚══════════════════════════════════════════════════════════════╝
  */
 
-
 :root {
   /* ═══════ 壁纸渐变 ═══════ */
   --glass-bg-gradient: linear-gradient(
     135deg,
-    #e8ecef 0%,     /* 柔和冰灰 */
-    #d4e0f0 30%,    /* 深一点的冰蓝 */
-    #c8d8f5 50%,    /* 清水蓝 */
-    #f2d5df 75%,    /* 暗樱花粉 */
-    #efc8d1 100%    /* 柔和浅桃 */
+    #e8ecef 0%,
+    /* 柔和冰灰 */ #d4e0f0 30%,
+    /* 深一点的冰蓝 */ #c8d8f5 50%,
+    /* 清水蓝 */ #f2d5df 75%,
+    /* 暗樱花粉 */ #efc8d1 100% /* 柔和浅桃 */
   );
 
   /* ═══════ 玻璃材质 ═══════ */
@@ -124,7 +123,12 @@
 
 body {
   margin: 0;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    "Outfit",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   font-weight: 400;
   background-color: var(--color-bg);
   color: var(--color-text);

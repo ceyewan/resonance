@@ -69,9 +69,7 @@ function lerp(current: number, target: number, factor: number): number {
   return current + (target - current) * factor;
 }
 
-export function useLiquidGlass<T extends HTMLElement>(
-  config: LiquidGlassConfig = {}
-) {
+export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig = {}) {
   const ref = useRef<T>(null);
   const rafId = useRef<number>(0);
   const isPressed = useRef(false);
@@ -146,11 +144,7 @@ export function useLiquidGlass<T extends HTMLElement>(
 
     // ── 3D 倾斜 ──
     // 鼠标在元素内部时产生倾斜（模拟手持玻璃片倾斜看反光）
-    const isInside =
-      mx >= rect.left &&
-      mx <= rect.right &&
-      my >= rect.top &&
-      my <= rect.bottom;
+    const isInside = mx >= rect.left && mx <= rect.right && my >= rect.top && my <= rect.bottom;
 
     if (isInside) {
       const normalX = ((mx - rect.left) / rect.width - 0.5) * 2;
@@ -201,11 +195,7 @@ export function useLiquidGlass<T extends HTMLElement>(
     s.glowX = lerp(s.glowX, s.targetGlowX, lerpFactor * 1.5);
     s.glowY = lerp(s.glowY, s.targetGlowY, lerpFactor * 1.5);
     s.glowOpacity = lerp(s.glowOpacity, s.targetGlowOpacity, dampFactor);
-    s.refractionScale = lerp(
-      s.refractionScale,
-      s.targetRefractionScale,
-      dampFactor
-    );
+    s.refractionScale = lerp(s.refractionScale, s.targetRefractionScale, dampFactor);
 
     // 直接写 CSS Custom Properties（不触发 React render）
     const style = el.style;

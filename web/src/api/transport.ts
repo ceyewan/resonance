@@ -25,8 +25,7 @@ const authInterceptor: Interceptor = (next) => async (req) => {
 
 // Runtime config 由 webserver 模块的 /runtime-config.js 端点注入（生产）。
 // 开发期同源 + Vite proxy，fallback 空串即可。
-const apiBaseUrl =
-  window.__RESONANCE_RUNTIME_CONFIG__?.apiBaseUrl?.trim() ?? "";
+const apiBaseUrl = window.__RESONANCE_RUNTIME_CONFIG__?.apiBaseUrl?.trim() ?? "";
 
 export const transport = createConnectTransport({
   baseUrl: apiBaseUrl,

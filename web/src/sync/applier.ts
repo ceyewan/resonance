@@ -128,8 +128,7 @@ async function applyMessage(event: ChatEvent): Promise<void> {
   const next = existing ?? createDefaultSession(event.sessionId);
   const meUsername = (await getMeta("me_username")) ?? "";
 
-  const shouldUpdateLastEvent =
-    toBigIntId(row.seqId) > toBigIntId(next.lastEventSeqId);
+  const shouldUpdateLastEvent = toBigIntId(row.seqId) > toBigIntId(next.lastEventSeqId);
   if (shouldUpdateLastEvent) {
     next.lastEventId = row.eventId;
     next.lastEventSeqId = row.seqId;

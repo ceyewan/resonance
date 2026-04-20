@@ -35,12 +35,14 @@ export class AppRuntime {
   private readonly syncSessionList: () => Promise<unknown>;
 
   constructor(options: AppRuntimeOptions = {}) {
-    this.createWsClient = options.createWsClient ?? ((token) => new WsClient({
-      url: buildWsUrl(token),
-    }));
+    this.createWsClient =
+      options.createWsClient ??
+      ((token) =>
+        new WsClient({
+          url: buildWsUrl(token),
+        }));
     this.handleWsEvent = options.handleWsEvent ?? reconcileWsEvent;
-    this.syncInboxThenFlush =
-      options.runInboxSyncThenFlushOutbox ?? runInboxSyncThenFlushOutbox;
+    this.syncInboxThenFlush = options.runInboxSyncThenFlushOutbox ?? runInboxSyncThenFlushOutbox;
     this.syncSessionList = options.syncSessionList ?? syncSessionList;
   }
 
@@ -119,7 +121,9 @@ export class AppRuntime {
             void this.handleWsEvent(event).catch((cause: unknown) => {
               useConnectionStore
                 .getState()
-                .setOffline(cause instanceof Error ? cause.message : "Failed to handle WsPacket event");
+                .setOffline(
+                  cause instanceof Error ? cause.message : "Failed to handle WsPacket event",
+                );
             });
           },
         });
@@ -133,10 +137,7 @@ export class AppRuntime {
     );
   }
 
-  private handleWsStatus(
-    status: WsConnectionStatus,
-    outbox: OutboxManager,
-  ): void {
+  private handleWsStatus(status: WsConnectionStatus, outbox: OutboxManager): void {
     const store = useConnectionStore.getState();
     switch (status) {
       case "idle":

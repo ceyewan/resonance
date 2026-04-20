@@ -1,14 +1,6 @@
 import { create } from "@bufbuild/protobuf";
-import {
-  MessageSchema,
-  MessageType,
-  type Message,
-} from "@gen/common/v1/message_pb";
-import {
-  ChatRequestSchema,
-  WsPacketSchema,
-  type Ack,
-} from "@gen/gateway/v1/packet_pb";
+import { MessageSchema, MessageType, type Message } from "@gen/common/v1/message_pb";
+import { ChatRequestSchema, WsPacketSchema, type Ack } from "@gen/gateway/v1/packet_pb";
 
 import { appRuntime } from "../app/runtime";
 import {
@@ -111,18 +103,18 @@ export async function sendTextMessage(input: SendMessageInput): Promise<Ack> {
     throw new Error("Cannot send empty message");
   }
 
-  const message = buildMessage({
-    ...input,
-    content,
-  }, generateClientMsgId());
+  const message = buildMessage(
+    {
+      ...input,
+      content,
+    },
+    generateClientMsgId(),
+  );
   await insertPendingEvent(input.sessionId, message);
   return sendPreparedMessage(input.sessionId, message);
 }
 
-export async function retryPendingMessage(
-  sessionId: string,
-  clientMsgId: string,
-): Promise<Ack> {
+export async function retryPendingMessage(sessionId: string, clientMsgId: string): Promise<Ack> {
   const pending = await findPendingEventByClientMsgId(sessionId, clientMsgId);
   if (pending === undefined || pending.payloadCase !== "message") {
     throw new Error("Pending message not found");

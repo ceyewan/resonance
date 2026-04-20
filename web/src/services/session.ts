@@ -2,13 +2,7 @@ import type { ChatEvent } from "@gen/common/v1/event_pb";
 import type { SessionInfo } from "@gen/common/v1/view_pb";
 import { SessionType } from "@gen/common/v1/session_pb";
 
-import {
-  getSession,
-  getSessions,
-  replaceSessions,
-  setMeta,
-  upsertSession,
-} from "../db/repo";
+import { getSession, getSessions, replaceSessions, setMeta, upsertSession } from "../db/repo";
 import type { SessionRow } from "../db/schema";
 import { toBigIntId, toIdString } from "../lib/id";
 import { applyEvent } from "../sync/applier";

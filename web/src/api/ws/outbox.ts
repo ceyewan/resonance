@@ -48,11 +48,7 @@ export class OutboxManager {
     });
   }
 
-  async send(
-    sessionId: string,
-    clientMsgId: string,
-    packet: WsPacket,
-  ): Promise<Ack> {
+  async send(sessionId: string, clientMsgId: string, packet: WsPacket): Promise<Ack> {
     const clientSeq = generateClientSeq();
     const packetToSend: WsPacket = {
       ...packet,
@@ -169,10 +165,7 @@ export class OutboxManager {
       const finalRetryCount = entry.row.retryCount;
       void markOutboxFailed(entry.row.clientSeq, finalRetryCount);
       entry.reject(
-        new OutboxError(
-          `Ack timeout after ${MAX_RETRY_COUNT} retries`,
-          entry.row.clientSeq,
-        ),
+        new OutboxError(`Ack timeout after ${MAX_RETRY_COUNT} retries`, entry.row.clientSeq),
       );
       return;
     }

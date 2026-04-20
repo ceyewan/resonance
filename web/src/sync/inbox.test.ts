@@ -37,7 +37,12 @@ function makeMessageEvent(eventId: bigint, seqId: bigint, sessionId: string) {
   });
 }
 
-function makeInboxEvent(inboxId: bigint, eventId: bigint, seqId: bigint, sessionId: string): InboxEvent {
+function makeInboxEvent(
+  inboxId: bigint,
+  eventId: bigint,
+  seqId: bigint,
+  sessionId: string,
+): InboxEvent {
   return create(InboxEventSchema, {
     inboxId,
     event: makeMessageEvent(eventId, seqId, sessionId),

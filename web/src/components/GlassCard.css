@@ -28,11 +28,8 @@
   --lg-refraction: 0;
 
   /* ── 3D 透视变换 ── */
-  transform:
-    perspective(var(--glass-perspective, 1200px))
-    translate3d(var(--lg-tx), var(--lg-ty), 0)
-    rotateX(var(--lg-rx))
-    rotateY(var(--lg-ry))
+  transform: perspective(var(--glass-perspective, 1200px))
+    translate3d(var(--lg-tx), var(--lg-ty), 0) rotateX(var(--lg-rx)) rotateY(var(--lg-ry))
     scale(var(--lg-scale));
   transform-style: preserve-3d;
   transition: box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1);
@@ -48,8 +45,7 @@
     /* 外部浮起阴影 */
     0 8px 40px rgba(0, 0, 0, 0.08),
     0 2px 12px rgba(0, 0, 0, 0.04),
-    /* 内部光晕（玻璃厚度感） */
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    /* 内部光晕（玻璃厚度感） */ inset 0 1px 0 rgba(255, 255, 255, 0.4),
     inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }
 
@@ -86,27 +82,25 @@
   pointer-events: none;
   border-radius: inherit;
   /* 从上方柔光渐变（模拟天光） */
-  background:
-    linear-gradient(
-      165deg,
-      rgba(255, 255, 255, 0.35) 0%,
-      rgba(255, 255, 255, 0.08) 30%,
-      transparent 60%,
-      rgba(0, 0, 0, 0.03) 100%
-    );
+  background: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.08) 30%,
+    transparent 60%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
   mix-blend-mode: overlay;
 }
 
 @media (prefers-color-scheme: dark) {
   .glass-card__ambient {
-    background:
-      linear-gradient(
-        165deg,
-        rgba(255, 255, 255, 0.08) 0%,
-        rgba(255, 255, 255, 0.02) 30%,
-        transparent 60%,
-        rgba(0, 0, 0, 0.1) 100%
-      );
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.02) 30%,
+      transparent 60%,
+      rgba(0, 0, 0, 0.1) 100%
+    );
   }
 }
 
@@ -120,25 +114,23 @@
   opacity: var(--lg-glow-opacity);
   transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
   /* 椭圆形高光跟随鼠标 */
-  background:
-    radial-gradient(
-      ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
-      rgba(255, 255, 255, 0.55) 0%,
-      rgba(255, 255, 255, 0.15) 30%,
-      transparent 70%
-    );
+  background: radial-gradient(
+    ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.15) 30%,
+    transparent 70%
+  );
   mix-blend-mode: overlay;
 }
 
 @media (prefers-color-scheme: dark) {
   .glass-card__specular {
-    background:
-      radial-gradient(
-        ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
-        rgba(255, 255, 255, 0.25) 0%,
-        rgba(255, 255, 255, 0.06) 30%,
-        transparent 70%
-      );
+    background: radial-gradient(
+      ellipse 80% 60% at var(--lg-glow-x) var(--lg-glow-y),
+      rgba(255, 255, 255, 0.25) 0%,
+      rgba(255, 255, 255, 0.06) 30%,
+      transparent 70%
+    );
   }
 }
 

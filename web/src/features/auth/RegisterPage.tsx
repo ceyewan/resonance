@@ -27,7 +27,7 @@ export function RegisterPage() {
       await authClient.register({
         username,
         password,
-        nickname
+        nickname,
       });
       // After successful registration, route to login to let them sign in.
       void navigate({ to: "/login" });
@@ -80,9 +80,7 @@ export function RegisterPage() {
             </div>
 
             {/* Error */}
-            {error && (
-              <p className="auth-error">{error}</p>
-            )}
+            {error && <p className="auth-error">{error}</p>}
 
             {/* Actions */}
             <div className="auth-actions">

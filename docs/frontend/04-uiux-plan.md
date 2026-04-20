@@ -63,7 +63,9 @@ Apple 在 WWDC 2025 引入的 Liquid Glass 设计语言，核心哲学是：
 ## 2. 纯原生 Liquid Glass 引擎架构
 
 ### 2.1 技术栈演进
+
 在尝试过第三方库并因性能/布局不可控而放弃后，基于原生 CSS 构建：
+
 - **纯净 DOM**：直接控制 `div`，彻底杜绝对 DOM 树不可控的包装破坏。
 - **SVG Shader Pool**：全局静态挂载的滤镜池 (`#resonance-glass-refraction`)。
 - **物理脱钩**：靠 `useLiquidGlass` 捕捉物理变量。
@@ -101,6 +103,7 @@ components/
 ```
 
 **S6: 鉴权页 + 路由（1~2 天）**
+
 1. 建设原生 `useLiquidGlass` 物理引擎与 CSS Token 体系。
 2. 实现基于多层叠加的 `WallpaperBackground` 组件。
 3. 封装 `GlassCard` `GlassButton` `GlassInput`。

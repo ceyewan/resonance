@@ -1,10 +1,6 @@
 import { useCallback } from "react";
 
-import {
-  retryPendingMessage,
-  sendTextMessage,
-  type SendMessageInput,
-} from "../services/chat";
+import { retryPendingMessage, sendTextMessage, type SendMessageInput } from "../services/chat";
 
 export function useSendMessage() {
   const send = useCallback(async (input: SendMessageInput) => {

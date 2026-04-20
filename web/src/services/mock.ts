@@ -17,11 +17,14 @@ export async function mockLoginAndPopulateDb() {
 
   // 1. Set Auth State (Zustand Store) and LocalStorage to bypass restoreAuthSession
   localStorage.setItem("resonance_access_token", mockToken);
-  localStorage.setItem("resonance_current_user", JSON.stringify({
-    username: mockUser.username,
-    nickname: mockUser.nickname,
-    avatarUrl: mockUser.avatarUrl,
-  }));
+  localStorage.setItem(
+    "resonance_current_user",
+    JSON.stringify({
+      username: mockUser.username,
+      nickname: mockUser.nickname,
+      avatarUrl: mockUser.avatarUrl,
+    }),
+  );
 
   useAuthStore.getState().setAuthenticated(mockToken, mockUser);
 
@@ -79,7 +82,8 @@ export async function mockLoginAndPopulateDb() {
       timestampMs: String(now - 10000),
       payloadCase: "message",
       messageType: MessageType.TEXT,
-      content: "Hey everyone, check out the new Abyssal Glass design! The blur effects are super smooth.",
+      content:
+        "Hey everyone, check out the new Abyssal Glass design! The blur effects are super smooth.",
       replyToEventId: "",
       clientMsgId: "cmsg-10",
       mentionedUsernames: [],
@@ -100,7 +104,8 @@ export async function mockLoginAndPopulateDb() {
       timestampMs: String(now - 5000),
       payloadCase: "message",
       messageType: MessageType.TEXT,
-      content: "Wow, the refraction effect is super clean. This feels like staring into a deep ocean. 🌊",
+      content:
+        "Wow, the refraction effect is super clean. This feels like staring into a deep ocean. 🌊",
       replyToEventId: "",
       clientMsgId: "cmsg-11",
       mentionedUsernames: [],

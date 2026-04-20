@@ -81,7 +81,9 @@ export class InboxSyncManager {
 
       for (const item of response.events) {
         if (item.event === undefined) {
-          throw new Error(`InboxEvent missing event payload for inbox_id=${toIdString(item.inboxId)}`);
+          throw new Error(
+            `InboxEvent missing event payload for inbox_id=${toIdString(item.inboxId)}`,
+          );
         }
         await this.applyInboxEvent(item);
         cursorId = item.inboxId;

@@ -21,10 +21,7 @@ export type WsPacketHandlers = {
   onEmpty?: () => void;
 };
 
-export function dispatchWsPacket(
-  packet: WsPacket,
-  handlers: WsPacketHandlers,
-): void {
+export function dispatchWsPacket(packet: WsPacket, handlers: WsPacketHandlers): void {
   const payloadCase = packet.payload.case;
   switch (payloadCase) {
     case "pulse":

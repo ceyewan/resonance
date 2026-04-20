@@ -51,7 +51,10 @@ export class WsClient {
   }
 
   connect(): void {
-    if (this.socket?.readyState === WebSocket.OPEN || this.socket?.readyState === WebSocket.CONNECTING) {
+    if (
+      this.socket?.readyState === WebSocket.OPEN ||
+      this.socket?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
     this.manualClosed = false;
