@@ -66,6 +66,8 @@ type SessionRepo interface {
 	GetContactList(ctx context.Context, username string) ([]*model.User, error)
 	// UpdateLastReadSeq 更新用户在会话中的已读位置
 	UpdateLastReadSeq(ctx context.Context, sessionID, username string, lastReadSeq int64) error
+	// AdvanceLastReadSeqWithOutbox 在读游标前进时原子更新 last_read_seq 并写 Outbox；未前进时返回 advanced=false
+	AdvanceLastReadSeqWithOutbox(ctx context.Context, sessionID, username string, lastReadSeq int64, outbox *model.MessageOutbox) (advanced bool, err error)
 	// Close 释放资源（如数据库连接等）
 	Close() error
 }
@@ -98,6 +100,8 @@ type MessageRepo interface {
 	SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
 	// RecallMessageWithOutbox 事务内标记撤回并写 Outbox
 	RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error
+	// EditMessageWithOutbox 事务内编辑消息并写 Outbox
+	EditMessageWithOutbox(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error
 	// UpdateOutboxStatus 更新本地消息表状态
 	UpdateOutboxStatus(ctx context.Context, id int64, status int) error
 	// UpdateOutboxRetry 更新本地消息表重试信息

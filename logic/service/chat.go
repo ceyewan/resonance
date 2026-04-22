@@ -82,6 +82,8 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		return s.handleMessage(ctx, req, username, targetUsernames)
 	case req.GetRecall() != nil:
 		return s.handleRecall(ctx, req, username, targetUsernames)
+	case req.GetEdit() != nil:
+		return s.handleEdit(ctx, req, username, targetUsernames)
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unsupported payload")
 	}

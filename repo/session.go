@@ -340,37 +340,54 @@ func (r *sessionRepo) GetContactList(ctx context.Context, username string) ([]*m
 
 // UpdateLastReadSeq 更新用户在会话中的已读位置
 func (r *sessionRepo) UpdateLastReadSeq(ctx context.Context, sessionID, username string, lastReadSeq int64) error {
+	_, err := r.AdvanceLastReadSeqWithOutbox(ctx, sessionID, username, lastReadSeq, nil)
+	return err
+}
+
+// AdvanceLastReadSeqWithOutbox 在读游标前进时原子更新 last_read_seq 并写 Outbox；未前进时返回 advanced=false。
+func (r *sessionRepo) AdvanceLastReadSeqWithOutbox(ctx context.Context, sessionID, username string, lastReadSeq int64, outbox *model.MessageOutbox) (bool, error) {
 	if sessionID == "" || username == "" {
-		return fmt.Errorf("session_id or username cannot be empty")
+		return false, fmt.Errorf("session_id or username cannot be empty")
 	}
 
-	gormDB := r.db.DB(ctx)
+	advanced := false
+	err := r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		result := tx.Model(&model.SessionMember{}).
+			Where("session_id = ? AND username = ? AND last_read_seq < ?", sessionID, username, lastReadSeq).
+			Update("last_read_seq", lastReadSeq)
 
-	// 只有当 newSeq > currentSeq 时才更新，防止回退
-	result := gormDB.Model(&model.SessionMember{}).
-		Where("session_id = ? AND username = ? AND last_read_seq < ?", sessionID, username, lastReadSeq).
-		Update("last_read_seq", lastReadSeq)
-
-	if result.Error != nil {
-		r.logger.Error("更新用户已读位置失败",
-			clog.String("session_id", sessionID),
-			clog.String("username", username),
-			clog.Int64("last_read_seq", lastReadSeq),
-			clog.Error(result.Error))
-		return fmt.Errorf("failed to update last read seq: %w", result.Error)
-	}
-
-	if result.RowsAffected == 0 {
-		var member model.SessionMember
-		if err := gormDB.Where("session_id = ? AND username = ?", sessionID, username).First(&member).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return fmt.Errorf("%w: username=%s, session_id=%s", ErrSessionMemberNotFound, username, sessionID)
-			}
-			return fmt.Errorf("failed to check session member: %w", err)
+		if result.Error != nil {
+			r.logger.Error("更新用户已读位置失败",
+				clog.String("session_id", sessionID),
+				clog.String("username", username),
+				clog.Int64("last_read_seq", lastReadSeq),
+				clog.Error(result.Error))
+			return fmt.Errorf("failed to update last read seq: %w", result.Error)
 		}
-	}
 
-	return nil
+		if result.RowsAffected == 0 {
+			var member model.SessionMember
+			if err := tx.Where("session_id = ? AND username = ?", sessionID, username).First(&member).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					return fmt.Errorf("%w: username=%s, session_id=%s", ErrSessionMemberNotFound, username, sessionID)
+				}
+				return fmt.Errorf("failed to check session member: %w", err)
+			}
+			return nil
+		}
+
+		advanced = true
+		if outbox != nil {
+			if err := tx.Create(outbox).Error; err != nil {
+				return fmt.Errorf("save read receipt outbox: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return false, err
+	}
+	return advanced, nil
 }
 
 // Close 释放资源

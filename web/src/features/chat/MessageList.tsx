@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
+import { useSessionListLive } from "../../hooks/useSessionListLive";
 import { useSessionTimeline } from "../../hooks/useSessionTimeline";
 import { MessageBubble } from "./MessageBubble";
 
@@ -9,6 +10,11 @@ interface MessageListProps {
 
 export function MessageList({ sessionId }: MessageListProps) {
   const timeline = useSessionTimeline(sessionId) ?? [];
+  const sessions = useSessionListLive() ?? [];
+  const session = useMemo(
+    () => sessions.find((item) => item.sessionId === sessionId) ?? null,
+    [sessionId, sessions],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -38,6 +44,7 @@ export function MessageList({ sessionId }: MessageListProps) {
               key={`${event.sessionId}:${event.seqId || event.clientMsgId}`}
               event={event}
               sendState={sendState}
+              session={session}
             />
           ))
       )}

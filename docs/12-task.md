@@ -144,9 +144,9 @@ ChatEvent + target_usernames
 
 ## 7. 统一事件模型在 Task 中的落地
 
-Task 也是当前系统统一事件模型的一个重要验证点。虽然 Logic 侧当前完整打通的主要还是 `message`，但 Task 的 Dispatcher 已经按 `message`、`recall`、`edit`、`read_receipt` 和 `session_update` 分支组织 handler 结构。这说明系统的异步消费框架已经按统一 `ChatEvent` 设计好了，不同 payload 类型至少有一致的入口和处理位置。
+Task 也是当前系统统一事件模型的一个重要验证点。当前 Dispatcher 已按 `message`、`recall`、`edit`、`read_receipt` 和 `session_update` 分支组织 handler 结构，而且其中 `message / recall / edit / read_receipt` 已经实际进入生产链路：Logic 产出统一事件，Task 负责把这些事件写入 Inbox 并推送给在线目标。
 
-这里同样需要强调现状与目标的差异。Task 侧的 handler 结构已经具备，并不代表每种事件都已经在生产链路中稳定使用。某些事件是否真正进入完整闭环，仍取决于 Logic 层是否已完成对应的业务与事务实现。换句话说，Task 已经准备好作为统一事件分发层存在，但统一事件体系本身仍在逐步补齐。
+这说明 Task 并不是只拥有“看起来整齐的 handler 结构”，而是真正承担了统一事件分发层的角色。对于不同 payload，Task 的边界始终保持不变：主事实已经在 Logic 中成立，Task 只负责写扩散、在线推送和离线恢复兜底。
 
 ---
 

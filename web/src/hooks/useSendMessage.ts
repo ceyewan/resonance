@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 import {
   retryPendingMessage,
+  sendEdit,
   sendRecall,
   sendTextMessage,
   type SendMessageInput,
@@ -20,5 +21,9 @@ export function useSendMessage() {
     return sendRecall(sessionId, targetEventId);
   }, []);
 
-  return { send, retry, recall };
+  const edit = useCallback(async (sessionId: string, targetEventId: bigint, newContent: string) => {
+    return sendEdit(sessionId, targetEventId, newContent);
+  }, []);
+
+  return { send, retry, recall, edit };
 }

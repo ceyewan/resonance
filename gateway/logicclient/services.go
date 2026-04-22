@@ -43,9 +43,12 @@ func (c *Client) SendEvent(ctx context.Context, username string, msg *gatewayv1.
 	}
 
 	req := &logicv1.SendEventRequest{SessionId: msg.SessionId}
-	if msg.Recall != nil {
+	switch {
+	case msg.Recall != nil:
 		req.Payload = &logicv1.SendEventRequest_Recall{Recall: msg.Recall}
-	} else {
+	case msg.Edit != nil:
+		req.Payload = &logicv1.SendEventRequest_Edit{Edit: msg.Edit}
+	default:
 		req.Payload = &logicv1.SendEventRequest_Message{Message: msg.Message}
 	}
 
