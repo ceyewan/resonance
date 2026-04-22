@@ -143,11 +143,18 @@ Gateway 不了解一条业务什么时候算真正成功，它只能看到接入
 当前 Logic 的主要实现落点包括：
 
 - `logic/logic.go`：服务装配与生命周期管理
-- `logic/server/`：gRPC server 与拦截器
-- `logic/service/chat.go`：统一事件入口的当前实现
-- `logic/service/session.go`：会话、历史、已读相关业务
+- `logic/server/grpc.go`：gRPC server 注册
+- `logic/server/interceptor_auth.go`：从 `x-username` metadata 恢复身份并写入 context
+- `logic/service/auth.go`：登录、注册与 JWT 签发
+- `logic/service/chat.go`：统一事件入口（`SendEvent`），当前完整打通 `message` payload
+- `logic/service/session.go`：会话创建与成员管理
+- `logic/service/history.go`：历史消息拉取
+- `logic/service/inbox.go`：Inbox 增量拉取（`PullInboxDelta`）与未读数统计
+- `logic/service/contact.go`：联系人搜索
 - `logic/service/presence.go`：在线状态同步
-- `logic/job/outbox.go`：Outbox 补偿任务
+- `logic/internal/mqpublish/publish.go`：Outbox 异步发布 MQ 的内部封装（供 chat.go 和补偿任务复用）
+- `logic/job/outbox.go`：Outbox 定时补偿任务
+- `logic/event/`：Phase 5 预留，统一事件处理骨架（当前为空占位包）
 
 这些文件共同体现了一件事：Logic 当前实现已经明确围绕业务与事务组织起来，而不是围绕协议入口或底层连接器零散拼接。
 

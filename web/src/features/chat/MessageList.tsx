@@ -29,13 +29,17 @@ export function MessageList({ sessionId }: MessageListProps) {
           </span>
         </div>
       ) : (
-        timeline.map(({ event, sendState }) => (
-          <MessageBubble
-            key={`${event.sessionId}:${event.seqId || event.clientMsgId}`}
-            event={event}
-            sendState={sendState}
-          />
-        ))
+        timeline
+          .filter(
+            ({ event }) => event.payloadCase !== "recall" && event.payloadCase !== "readReceipt",
+          )
+          .map(({ event, sendState }) => (
+            <MessageBubble
+              key={`${event.sessionId}:${event.seqId || event.clientMsgId}`}
+              event={event}
+              sendState={sendState}
+            />
+          ))
       )}
     </div>
   );

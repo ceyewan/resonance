@@ -1,9 +1,13 @@
-import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Undo2 } from "lucide-react";
+import { useCallback } from "react";
 
 import { type EventRow } from "../../db/schema";
 import { useAuthState } from "../../hooks/useAuthState";
 import { useSendMessage } from "../../hooks/useSendMessage";
+import { toBigIntId } from "../../lib/id";
 import { type OutboxStatusSummary } from "../../services/chat";
+
+const RECALL_WINDOW_MS = 2 * 60 * 1000;
 
 interface MessageBubbleProps {
   event: EventRow;
@@ -12,12 +16,34 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ event, sendState }: MessageBubbleProps) {
   const auth = useAuthState();
-  const { retry } = useSendMessage();
+  const { retry, recall } = useSendMessage();
 
   const isMe =
     event.fromUsername === auth.currentUser?.username ||
     event.fromUsername === "" ||
     !event.fromUsername;
+
+  const canRecall =
+    isMe &&
+    event.payloadCase === "message" &&
+    !event.recalled &&
+    event.eventId !== "0" &&
+    Date.now() - Number(event.timestampMs) <= RECALL_WINDOW_MS;
+
+  const handleRecall = useCallback(async () => {
+    await recall(event.sessionId, toBigIntId(event.eventId));
+  }, [recall, event.sessionId, event.eventId]);
+
+  // 已撤回：统一显示灰色占位
+  if (event.recalled) {
+    return (
+      <div className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"}`}>
+        <div className="px-4 py-2 rounded-[18px] bg-[var(--glass-input-bg)] border border-[var(--color-border)] text-[var(--color-text-muted)] text-[13px] italic opacity-70 select-none">
+          {isMe ? "你撤回了一条消息" : `${event.fromUsername || "对方"} 撤回了一条消息`}
+        </div>
+      </div>
+    );
+  }
 
   const bubbleClass = isMe
     ? "bg-[var(--bubble-self)] text-[var(--color-text)] rounded-tr-sm"
@@ -26,6 +52,7 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
   return (
     <div className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"} group`}>
       <div className={`flex items-end gap-2 max-w-[75%] ${isMe ? "flex-row" : "flex-row-reverse"}`}>
+        {/* 发送状态指示（自己发的消息） */}
         {isMe && sendState ? (
           <div className="flex flex-col items-center justify-center shrink-0 w-6 h-6 mb-1">
             {sendState.status === "sending" ? (
@@ -45,6 +72,18 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
               </button>
             ) : null}
           </div>
+        ) : null}
+
+        {/* 撤回按钮：悬浮时出现，在气泡旁侧 */}
+        {canRecall ? (
+          <button
+            type="button"
+            title="撤回消息"
+            onClick={() => void handleRecall()}
+            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
         ) : null}
 
         <div

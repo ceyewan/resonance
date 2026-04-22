@@ -34,6 +34,7 @@ message Ack {
 message ChatRequest {
   string session_id = 1;
   resonance.common.v1.Message message = 2;
+  resonance.common.v1.MessageRecall recall = 3;
 }
 
 message StreamBegin {

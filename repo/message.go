@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -279,6 +280,21 @@ func (r *messageRepo) GetUnreadMessageCount(ctx context.Context, username, sessi
 	return count, nil
 }
 
+// GetMessageByEventID 按 event_id 精确查询消息
+func (r *messageRepo) GetMessageByEventID(ctx context.Context, eventID int64) (*model.MessageContent, error) {
+	if eventID == 0 {
+		return nil, fmt.Errorf("event_id cannot be zero")
+	}
+	var msg model.MessageContent
+	if err := r.db.DB(ctx).Where("event_id = ?", eventID).First(&msg).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMessageNotFound
+		}
+		return nil, fmt.Errorf("get message by event_id: %w", err)
+	}
+	return &msg, nil
+}
+
 // MarkMessageRecalled 按 event_id 标记撤回
 func (r *messageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	if eventID == 0 {
@@ -301,6 +317,26 @@ func (r *messageRepo) UpdateMessageContent(ctx context.Context, eventID int64, n
 			"edited_at":  at,
 			"edit_count": gorm.Expr("edit_count + ?", 1),
 		}).Error
+}
+
+// RecallMessageWithOutbox 事务内标记撤回并写 Outbox
+// 若 recalled_at 已被设置（消息已撤回），返回 ErrMessageAlreadyRecalled。
+func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error {
+	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		result := tx.Model(&model.MessageContent{}).
+			Where("event_id = ? AND recalled_at IS NULL", eventID).
+			Update("recalled_at", recalledAt)
+		if result.Error != nil {
+			return fmt.Errorf("mark recalled: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return ErrMessageAlreadyRecalled
+		}
+		if err := tx.Create(outbox).Error; err != nil {
+			return fmt.Errorf("save recall outbox: %w", err)
+		}
+		return nil
+	})
 }
 
 // SaveMessageWithOutbox 事务内保存消息并记录本地消息表

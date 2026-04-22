@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import { MessageRecallSchema } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType, type Message } from "@gen/common/v1/message_pb";
 import { ChatRequestSchema, WsPacketSchema, type Ack } from "@gen/gateway/v1/packet_pb";
 
@@ -112,6 +113,18 @@ export async function sendTextMessage(input: SendMessageInput): Promise<Ack> {
   );
   await insertPendingEvent(input.sessionId, message);
   return sendPreparedMessage(input.sessionId, message);
+}
+
+export async function sendRecall(sessionId: string, targetEventId: bigint): Promise<Ack> {
+  const recall = create(MessageRecallSchema, { targetEventId });
+  const packet = create(WsPacketSchema, {
+    clientSeq: "",
+    payload: {
+      case: "chatRequest",
+      value: create(ChatRequestSchema, { sessionId, recall }),
+    },
+  });
+  return appRuntime.getOutbox().send(sessionId, "", packet);
 }
 
 export async function retryPendingMessage(sessionId: string, clientMsgId: string): Promise<Ack> {
