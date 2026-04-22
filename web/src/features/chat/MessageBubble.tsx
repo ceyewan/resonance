@@ -1,5 +1,5 @@
 import { AlertCircle, Loader2, RefreshCw, Undo2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 
 import { type EventRow } from "../../db/schema";
 import { useAuthState } from "../../hooks/useAuthState";
@@ -17,7 +17,6 @@ interface MessageBubbleProps {
 export function MessageBubble({ event, sendState }: MessageBubbleProps) {
   const auth = useAuthState();
   const { retry, recall } = useSendMessage();
-  const [menuOpen, setMenuOpen] = useState(false);
 
   const isMe =
     event.fromUsername === auth.currentUser?.username ||
@@ -32,7 +31,6 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
     Date.now() - Number(event.timestampMs) <= RECALL_WINDOW_MS;
 
   const handleRecall = useCallback(async () => {
-    setMenuOpen(false);
     await recall(event.sessionId, toBigIntId(event.eventId));
   }, [recall, event.sessionId, event.eventId]);
 
@@ -52,18 +50,9 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
     : "bg-[var(--bubble-other)] text-[var(--color-text)] rounded-tl-sm";
 
   return (
-    <div
-      className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"} group`}
-      onContextMenu={(e) => {
-        if (canRecall) {
-          e.preventDefault();
-          setMenuOpen(true);
-        }
-      }}
-      onBlur={() => setMenuOpen(false)}
-      tabIndex={-1}
-    >
+    <div className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"} group`}>
       <div className={`flex items-end gap-2 max-w-[75%] ${isMe ? "flex-row" : "flex-row-reverse"}`}>
+        {/* 发送状态指示（自己发的消息） */}
         {isMe && sendState ? (
           <div className="flex flex-col items-center justify-center shrink-0 w-6 h-6 mb-1">
             {sendState.status === "sending" ? (
@@ -85,42 +74,35 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
           </div>
         ) : null}
 
-        <div className="relative">
-          <div
-            className={`px-4 py-2.5 rounded-[18px] relative overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_1px_1px_rgba(255,255,255,0.2)] border border-[var(--color-border)] backdrop-blur-md ${bubbleClass}`}
+        {/* 撤回按钮：悬浮时出现，在气泡旁侧 */}
+        {canRecall ? (
+          <button
+            type="button"
+            title="撤回消息"
+            onClick={() => void handleRecall()}
+            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
           >
-            {!isMe && event.fromUsername ? (
-              <div className="text-[12px] font-medium text-[var(--color-primary)] opacity-90 mb-1">
-                {event.fromUsername}
-              </div>
-            ) : null}
-            <div className="relative z-10 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-              {event.content || "[empty content]"}
-            </div>
-            <div className="relative z-10 text-[10px] mt-1.5 opacity-60 flex justify-end">
-              {new Date(Number(event.timestampMs)).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </div>
-          </div>
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+        ) : null}
 
-          {/* 撤回菜单 */}
-          {menuOpen ? (
-            <div
-              className={`absolute z-50 top-0 ${isMe ? "right-full mr-2" : "left-full ml-2"} bg-[var(--glass-bg)] border border-[var(--color-border)] rounded-xl shadow-xl backdrop-blur-md overflow-hidden`}
-              onMouseLeave={() => setMenuOpen(false)}
-            >
-              <button
-                type="button"
-                className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--color-text)] hover:bg-[var(--glass-input-bg)] w-full whitespace-nowrap transition-colors"
-                onClick={() => void handleRecall()}
-              >
-                <Undo2 className="w-3.5 h-3.5 opacity-70" />
-                撤回消息
-              </button>
+        <div
+          className={`px-4 py-2.5 rounded-[18px] relative overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.1),inset_0_1px_1px_rgba(255,255,255,0.2)] border border-[var(--color-border)] backdrop-blur-md ${bubbleClass}`}
+        >
+          {!isMe && event.fromUsername ? (
+            <div className="text-[12px] font-medium text-[var(--color-primary)] opacity-90 mb-1">
+              {event.fromUsername}
             </div>
           ) : null}
+          <div className="relative z-10 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+            {event.content || "[empty content]"}
+          </div>
+          <div className="relative z-10 text-[10px] mt-1.5 opacity-60 flex justify-end">
+            {new Date(Number(event.timestampMs)).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
         </div>
       </div>
     </div>
