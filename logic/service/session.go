@@ -12,11 +12,13 @@ import (
 	"github.com/ceyewan/genesis/mq"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/logic/internal/mqpublish"
+	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/event"
 	"github.com/ceyewan/resonance/repo"
@@ -311,18 +313,84 @@ func (s *SessionService) UpdateReadPosition(ctx context.Context, req *logicv1.Up
 		return nil, err
 	}
 
-	if err := s.sessionRepo.UpdateLastReadSeq(ctx, req.SessionId, username, req.SeqId); err != nil {
+	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
+	if err != nil {
+		s.logger.Error("failed to get session", clog.Error(err))
+		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil
+	}
+
+	timestampMs := time.Now().UnixMilli()
+	readAt := time.UnixMilli(timestampMs)
+	targetUsernames := make([]string, 0)
+	if s.msgIDGen != nil && s.sequencer != nil {
+		if session.MaxSeqID > 0 {
+			if _, err := s.sequencer.SetIfNotExists(ctx, req.SessionId, session.MaxSeqID); err != nil {
+				s.logger.Warn("failed to initialize session sequence for read receipt",
+					clog.String("session_id", req.SessionId),
+					clog.Error(err))
+			}
+		}
+		if members, err := s.sessionRepo.GetMembers(ctx, req.SessionId); err != nil {
+			s.logger.Error("failed to get session members for read receipt", clog.Error(err))
+			return nil, status.Errorf(codes.Internal, "failed to get session members")
+		} else {
+			for _, member := range members {
+				if member.Username == username {
+					continue
+				}
+				targetUsernames = append(targetUsernames, member.Username)
+			}
+		}
+	}
+
+	var outbox *model.MessageOutbox
+	if len(targetUsernames) > 0 {
+		eventID, err := s.msgIDGen.Next()
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to generate event id: %v", err)
+		}
+		seqID, err := s.sequencer.Next(ctx, req.SessionId)
+		if err != nil {
+			s.logger.Error("failed to generate seq id for read receipt", clog.Error(err))
+			return nil, status.Errorf(codes.Unavailable, "server busy: failed to generate sequence")
+		}
+		chatEvent := &commonv1.ChatEvent{
+			EventId:      eventID,
+			SeqId:        seqID,
+			SessionId:    req.SessionId,
+			FromUsername: username,
+			TimestampMs:  timestampMs,
+			Payload: &commonv1.ChatEvent_ReadReceipt{
+				ReadReceipt: &commonv1.ReadReceipt{ReadUptoSeqId: req.SeqId},
+			},
+		}
+		mqEvent := &mqv1.MQEvent{Event: chatEvent, TargetUsernames: targetUsernames}
+		mqEvent.TraceHeaders = make(map[string]string)
+		observability.InjectTraceContext(ctx, mqEvent.TraceHeaders)
+		eventData, err := proto.Marshal(mqEvent)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to marshal read receipt event")
+		}
+		topic := proto.GetExtension(mqEvent.ProtoReflect().Descriptor().Options(), commonv1.E_DefaultTopic).(string)
+		outbox = &model.MessageOutbox{
+			EventID:       eventID,
+			Topic:         topic,
+			Payload:       eventData,
+			Status:        model.OutboxStatusPending,
+			NextRetryTime: readAt,
+		}
+	}
+
+	advanced, err := s.sessionRepo.AdvanceLastReadSeqWithOutbox(ctx, req.SessionId, username, req.SeqId, outbox)
+	if err != nil {
 		if errors.Is(err, repo.ErrSessionMemberNotFound) {
 			return nil, status.Errorf(codes.PermissionDenied, "no permission to access session")
 		}
 		s.logger.Error("failed to update read position", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to update read position")
 	}
-
-	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
-	if err != nil {
-		s.logger.Error("failed to get session", clog.Error(err))
-		return &logicv1.UpdateReadPositionResponse{UnreadCount: 0}, nil
+	if advanced && outbox != nil {
+		mqpublish.PublishMessageToMQAsync(s.mqClient, outbox.ID, outbox.Topic, outbox.Payload, s.logger)
 	}
 
 	unread, err := s.messageRepo.GetUnreadMessageCount(ctx, username, req.SessionId)

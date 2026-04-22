@@ -11,7 +11,7 @@
 |-------|------|------|
 | 0–4 | 事件驱动骨架（Proto / DB / Task / 身份） | ✅ 完成 |
 | **5** | **消息撤回** | ✅ 完成 |
-| 6 | 消息编辑 + 多端已读同步 | ⬜ 待开始 |
+| **6** | **消息编辑 + 多端已读同步** | ✅ 完成 |
 | 7 | AI Service V1（非流式） | ⬜ 待开始 |
 | 8 | AI 流式响应 | ⬜ 待开始 |
 
@@ -53,86 +53,45 @@
 
 ---
 
-## Phase 6：消息编辑 + 多端已读同步
+## Phase 6：消息编辑 + 多端已读同步 ✅
 
-> Phase 5 完成后再开始。
+### 完成状态
 
-### 6A：消息编辑
+| 层 | 状态 |
+|---|---|
+| Proto `ChatRequest.edit` + `ChatEvent.Edit/ReadReceipt` | ✅ |
+| `repo/message.go` — `EditMessageWithOutbox` 原子编辑 | ✅ |
+| `repo/session.go` — `AdvanceLastReadSeqWithOutbox` 原子推进已读位点 | ✅ |
+| `logic/service/edit.go` — 编辑业务校验 + Outbox 事务 | ✅ |
+| `logic/service/chat.go` — SendEvent dispatch 接入 edit | ✅ |
+| `logic/service/session.go` — UpdateReadPosition 产出 read receipt 事件 | ✅ |
+| Task `handler_edit.go` / `handler_read.go` — 写扩散 + 推送 | ✅ |
+| Frontend `sync/applier.ts` — edit / read receipt 状态应用 | ✅ |
+| Frontend UI — 编辑入口、已编辑标记、单聊/群聊已读展示 | ✅ |
+| 单元测试 + 集成测试 | ✅ |
 
-**当前已就位：**
+### 关键实现文件
 
-- Task `handler_edit.go`：写扩散框架完整
-- Frontend `applier.ts`：edit 分支已就位
-- Logic：同撤回，edit payload 未打通
+- `logic/service/edit.go` — handleEdit 主逻辑
+- `logic/service/edit_test.go` — 编辑规则单测
+- `logic/service/session.go` — UpdateReadPosition 补齐 read receipt 事件闭环
+- `logic/service/session_update_read_position_test.go` — 已读回执单测
+- `repo/message.go` — `EditMessageWithOutbox`
+- `repo/session.go` — `AdvanceLastReadSeqWithOutbox`
+- `test/integration/edit_test.go` — edit 实时 + 离线补拉集成测试
+- `test/integration/read_receipt_realtime_test.go` — read receipt 实时 + 离线补拉集成测试
+- `web/src/features/chat/MessageBubble.tsx` — 编辑入口、已编辑标记、消息级读状态
+- `web/src/features/session-detail/SessionDetailPanel.tsx` — 会话级读状态摘要
 
-**任务清单（后端）：**
+### 验证标准
 
-- [ ] **新建 `repo/message.go` 方法：`UpdateMessageContentWithOutbox`**
-  - 事务：`UPDATE t_message_content SET content=?, edited_at=NOW(), edit_count=edit_count+1 WHERE event_id=?`
-  - 同事务写 Outbox
-
-- [ ] **新建 `logic/event/edit.go`**
-
-  ```
-  权限校验：消息存在 / sender == username / recalled_at IS NULL（已撤回的消息不能编辑）
-  生成新的 edit event_id、seq_id
-  构造 ChatEvent{Edit{target_event_id, new_content}}
-  事务更新 + Outbox
-  异步发 MQ
-  ```
-
-- [ ] **扩展 `logic/service/chat.go` SendEvent dispatch** 加入 Edit 分支
-
-- [ ] **前端**：消息气泡增加"编辑"操作 + 编辑后更新本地内容
-
-### 6B：多端已读同步
-
-**当前状态分析：**
-
-- `logic/service/session.go UpdateReadPosition`：已实现 `UPDATE last_read_seq`，未接入 MQ/Outbox
-- Task `handler_read.go`：已实现写扩散框架（写 Inbox）
-- `task/dispatcher/dispatcher.go pushToOnlineUsers`：过滤掉 `from_username`，**ReadReceipt 场景下 targets=[自己]，from_username=自己，导致没有任何推送** —— 这是 Phase 6 需要修复的 bug
-
-**任务清单（后端）：**
-
-- [ ] **新建 `repo/message.go` 方法：`SaveEventWithOutbox`**（通用版，不绑定 MessageContent）
-  - 适用于 ReadReceipt 这类不需要写 message_content 的事件
-  - 入参：`(ctx, outbox *model.MessageOutbox)`，只做事务内写 Outbox
-
-- [ ] **修改 `logic/service/session.go UpdateReadPosition`**
-
-  ```
-  原有逻辑保留（UPDATE last_read_seq）
-  追加：
-    生成 read_receipt event_id（Snowflake）
-    生成 seq_id（注意：ReadReceipt 不写 message_content，seq_id 仍需从 Redis 递增以保持 Inbox 有序）
-    构造 ChatEvent{ReadReceipt{read_upto_seq_id}}，targets=[username]（只给自己）
-    调用 repo.SaveEventWithOutbox（事务内只写 Outbox）
-    异步发 MQ
-  ```
-
-  失败时只记日志，不影响主响应（`UpdateReadPositionResponse` 已经返回了）。
-
-- [ ] **修改 `task/dispatcher/dispatcher.go pushToOnlineUsers`**（解决 ReadReceipt 无法推送的问题）
-  - ReadReceipt 的 targets 只有自己，from_username 也是自己，导致推送列表为空
-  - 方案：在 dispatcher.Handle 中对 ReadReceipt 单独调用 push，不过滤 from_username：
-
-    ```go
-    case *commonv1.ChatEvent_ReadReceipt:
-        if err := d.handleReadReceipt(...); err != nil { return err }
-        d.pushToAllTargets(ctx, ev, mqEvent.TargetUsernames) // 不过滤发送方
-    ```
-
-  - 其他事件类型继续使用 `pushToOnlineUsers`（过滤发送方，避免发送方收到自己发的事件）
-
-- [ ] **前端**：
-  - 在进入会话时触发 UpdateReadPosition（或滚动到底时）
-  - `applier.ts` read_receipt 分支：更新本地会话的未读数为 0
-
-**验证标准（6B）：**
-
-- [ ] A 在 Web Tab 1 读完会话 → Tab 2（未来多端）收到推送后未读数归零
-- [ ] 断线重连 → PullInboxDelta 补到 ReadReceipt 事件，未读数正确恢复
+- [x] 发送者可以在 2 分钟窗口内编辑自己的文本消息
+- [x] 非发送者、跨会话、已撤回消息、超时消息不能编辑
+- [x] 编辑后目标消息主事实更新，且生成独立 Edit 事件进入 MQ / Inbox / WS 链路
+- [x] 在线接收方实时看到编辑后的内容，离线重连后可通过 `PullInboxDelta` 恢复 Edit 事件
+- [x] `UpdateReadPosition` 在读位点真正前进时产出 ReadReceipt 事件
+- [x] ReadReceipt 同时支持实时推送与离线增量恢复
+- [x] 单聊展示“已读/未读”，群聊展示“X 人已读”，详情侧栏展示读回执摘要
 
 ---
 

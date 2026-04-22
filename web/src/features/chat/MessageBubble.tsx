@@ -1,40 +1,81 @@
-import { AlertCircle, Loader2, RefreshCw, Undo2 } from "lucide-react";
+import { AlertCircle, Loader2, Pencil, RefreshCw, Undo2 } from "lucide-react";
 import { useCallback } from "react";
+import { SessionType } from "@gen/common/v1/session_pb";
 
-import { type EventRow } from "../../db/schema";
+import { type EventRow, type SessionRow } from "../../db/schema";
 import { useAuthState } from "../../hooks/useAuthState";
 import { useSendMessage } from "../../hooks/useSendMessage";
 import { toBigIntId } from "../../lib/id";
 import { type OutboxStatusSummary } from "../../services/chat";
 
-const RECALL_WINDOW_MS = 2 * 60 * 1000;
+const ACTION_WINDOW_MS = 2 * 60 * 1000;
 
 interface MessageBubbleProps {
   event: EventRow;
   sendState: OutboxStatusSummary | null;
+  session: SessionRow | null;
 }
 
-export function MessageBubble({ event, sendState }: MessageBubbleProps) {
+function formatReadStatus(
+  isMe: boolean,
+  event: EventRow,
+  session: SessionRow | null,
+  currentUsername: string | undefined,
+): string | null {
+  if (!isMe || session === null || currentUsername === undefined || currentUsername === "") {
+    return null;
+  }
+
+  const eventSeqId = toBigIntId(event.seqId);
+  if (eventSeqId <= 0n) {
+    return null;
+  }
+
+  if (session.type === SessionType.DIRECT) {
+    return toBigIntId(session.readUptoSeqId) >= eventSeqId ? "已读" : "未读";
+  }
+
+  if (session.type === SessionType.GROUP) {
+    const readCount = Object.entries(session.readUptoSeqByUser).filter(
+      ([username, seqId]) => username !== currentUsername && toBigIntId(seqId) >= eventSeqId,
+    ).length;
+    return readCount > 0 ? `${readCount} 人已读` : "未读";
+  }
+
+  return null;
+}
+
+export function MessageBubble({ event, sendState, session }: MessageBubbleProps) {
   const auth = useAuthState();
-  const { retry, recall } = useSendMessage();
+  const { retry, recall, edit } = useSendMessage();
 
   const isMe =
     event.fromUsername === auth.currentUser?.username ||
     event.fromUsername === "" ||
     !event.fromUsername;
 
-  const canRecall =
+  const canOperate =
     isMe &&
     event.payloadCase === "message" &&
     !event.recalled &&
     event.eventId !== "0" &&
-    Date.now() - Number(event.timestampMs) <= RECALL_WINDOW_MS;
+    Date.now() - Number(event.timestampMs) <= ACTION_WINDOW_MS;
+  const canRecall = canOperate;
+  const canEdit = canOperate;
+  const readStatus = formatReadStatus(isMe, event, session, auth.currentUser?.username);
 
   const handleRecall = useCallback(async () => {
     await recall(event.sessionId, toBigIntId(event.eventId));
   }, [recall, event.sessionId, event.eventId]);
 
-  // 已撤回：统一显示灰色占位
+  const handleEdit = useCallback(async () => {
+    const next = window.prompt("编辑消息", event.content);
+    if (next === null) {
+      return;
+    }
+    await edit(event.sessionId, toBigIntId(event.eventId), next);
+  }, [edit, event.content, event.eventId, event.sessionId]);
+
   if (event.recalled) {
     return (
       <div className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"}`}>
@@ -52,7 +93,6 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
   return (
     <div className={`flex flex-col w-full ${isMe ? "items-end" : "items-start"} group`}>
       <div className={`flex items-end gap-2 max-w-[75%] ${isMe ? "flex-row" : "flex-row-reverse"}`}>
-        {/* 发送状态指示（自己发的消息） */}
         {isMe && sendState ? (
           <div className="flex flex-col items-center justify-center shrink-0 w-6 h-6 mb-1">
             {sendState.status === "sending" ? (
@@ -74,7 +114,17 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
           </div>
         ) : null}
 
-        {/* 撤回按钮：悬浮时出现，在气泡旁侧 */}
+        {canEdit ? (
+          <button
+            type="button"
+            title="编辑消息"
+            onClick={() => void handleEdit()}
+            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        ) : null}
+
         {canRecall ? (
           <button
             type="button"
@@ -97,11 +147,15 @@ export function MessageBubble({ event, sendState }: MessageBubbleProps) {
           <div className="relative z-10 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
             {event.content || "[empty content]"}
           </div>
-          <div className="relative z-10 text-[10px] mt-1.5 opacity-60 flex justify-end">
-            {new Date(Number(event.timestampMs)).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+          <div className="relative z-10 mt-1.5 flex items-center justify-end gap-1.5 text-[10px] opacity-60">
+            {event.edited ? <span>已编辑</span> : null}
+            <span>
+              {new Date(Number(event.timestampMs)).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
+            {readStatus ? <span>{readStatus}</span> : null}
           </div>
         </div>
       </div>

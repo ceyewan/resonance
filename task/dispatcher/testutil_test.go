@@ -54,6 +54,10 @@ func (r *testMessageRepo) RecallMessageWithOutbox(ctx context.Context, eventID i
 	return nil
 }
 
+func (r *testMessageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error {
+	return nil
+}
+
 func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	return nil
 }

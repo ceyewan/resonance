@@ -18,15 +18,16 @@ func newTestIncomingContext(username string) context.Context {
 }
 
 type testSessionRepo struct {
-	getSessionFn      func(ctx context.Context, sessionID string) (*model.Session, error)
-	getUserSessionFn  func(ctx context.Context, username, sessionID string) (*model.SessionMember, error)
-	getUserSessBatch  func(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error)
-	getMembersFn      func(ctx context.Context, sessionID string) ([]*model.SessionMember, error)
-	getContactListFn  func(ctx context.Context, username string) ([]*model.User, error)
-	updateLastReadFn  func(ctx context.Context, sessionID, username string, lastReadSeq int64) error
-	createSessionFn   func(ctx context.Context, session *model.Session) error
-	addMemberFn       func(ctx context.Context, member *model.SessionMember) error
-	getUserSessionLFn func(ctx context.Context, username string) ([]*model.Session, error)
+	getSessionFn                func(ctx context.Context, sessionID string) (*model.Session, error)
+	getUserSessionFn            func(ctx context.Context, username, sessionID string) (*model.SessionMember, error)
+	getUserSessBatch            func(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error)
+	getMembersFn                func(ctx context.Context, sessionID string) ([]*model.SessionMember, error)
+	getContactListFn            func(ctx context.Context, username string) ([]*model.User, error)
+	updateLastReadFn            func(ctx context.Context, sessionID, username string, lastReadSeq int64) error
+	advanceLastReadWithOutboxFn func(ctx context.Context, sessionID, username string, lastReadSeq int64, outbox *model.MessageOutbox) (bool, error)
+	createSessionFn             func(ctx context.Context, session *model.Session) error
+	addMemberFn                 func(ctx context.Context, member *model.SessionMember) error
+	getUserSessionLFn           func(ctx context.Context, username string) ([]*model.Session, error)
 
 	createdSession *model.Session
 	addedMembers   []*model.SessionMember
@@ -101,6 +102,19 @@ func (r *testSessionRepo) UpdateLastReadSeq(ctx context.Context, sessionID, user
 	return nil
 }
 
+func (r *testSessionRepo) AdvanceLastReadSeqWithOutbox(ctx context.Context, sessionID, username string, lastReadSeq int64, outbox *model.MessageOutbox) (bool, error) {
+	if r.advanceLastReadWithOutboxFn != nil {
+		return r.advanceLastReadWithOutboxFn(ctx, sessionID, username, lastReadSeq, outbox)
+	}
+	if r.updateLastReadFn != nil {
+		return true, r.updateLastReadFn(ctx, sessionID, username, lastReadSeq)
+	}
+	if outbox != nil && outbox.ID == 0 {
+		outbox.ID = 3
+	}
+	return true, nil
+}
+
 func (r *testSessionRepo) Close() error { return nil }
 
 type testMessageRepo struct {
@@ -115,10 +129,13 @@ type testMessageRepo struct {
 	saveMessageWithOutboxFn   func(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
 	getMessageByEventIDFn     func(ctx context.Context, eventID int64) (*model.MessageContent, error)
 	recallMessageWithOutboxFn func(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error
+	editMessageWithOutboxFn   func(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error
 
 	savedMessage      *model.MessageContent
 	savedOutbox       *model.MessageOutbox
 	savedRecallOutbox *model.MessageOutbox
+	savedEditOutbox   *model.MessageOutbox
+	editedContent     string
 }
 
 func (r *testMessageRepo) SaveMessageContent(ctx context.Context, msg *model.MessageContent) error {
@@ -190,6 +207,18 @@ func (r *testMessageRepo) RecallMessageWithOutbox(ctx context.Context, eventID i
 	}
 	if outbox != nil && outbox.ID == 0 {
 		outbox.ID = 2
+	}
+	return nil
+}
+
+func (r *testMessageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error {
+	r.savedEditOutbox = outbox
+	r.editedContent = newContent
+	if r.editMessageWithOutboxFn != nil {
+		return r.editMessageWithOutboxFn(ctx, eventID, newContent, editedAt, outbox)
+	}
+	if outbox != nil && outbox.ID == 0 {
+		outbox.ID = 4
 	}
 	return nil
 }

@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { MessageRecallSchema } from "@gen/common/v1/event_pb";
+import { MessageEditSchema, MessageRecallSchema } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType, type Message } from "@gen/common/v1/message_pb";
 import { ChatRequestSchema, WsPacketSchema, type Ack } from "@gen/gateway/v1/packet_pb";
 
@@ -122,6 +122,27 @@ export async function sendRecall(sessionId: string, targetEventId: bigint): Prom
     payload: {
       case: "chatRequest",
       value: create(ChatRequestSchema, { sessionId, recall }),
+    },
+  });
+  return appRuntime.getOutbox().send(sessionId, "", packet);
+}
+
+export async function sendEdit(
+  sessionId: string,
+  targetEventId: bigint,
+  newContent: string,
+): Promise<Ack> {
+  const content = newContent.trim();
+  if (content === "") {
+    throw new Error("Cannot send empty edit");
+  }
+
+  const edit = create(MessageEditSchema, { targetEventId, newContent: content });
+  const packet = create(WsPacketSchema, {
+    clientSeq: "",
+    payload: {
+      case: "chatRequest",
+      value: create(ChatRequestSchema, { sessionId, edit }),
     },
   });
   return appRuntime.getOutbox().send(sessionId, "", packet);

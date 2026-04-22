@@ -96,7 +96,14 @@ Gateway 调用 SendEvent
 
 ### 5.3 当前实现状态
 
-这里必须明确说明现状：虽然协议层已经把 `ChatEvent` 设计成统一载体，但当前 `logic/service/chat.go` 里完整打通的主要还是 `message`。对于 `recall`、`edit` 等其他 payload，系统当前更多是协议预留和后续演进方向，而不是已经完全成熟的业务闭环。因此，当前 Logic 已经不是传统意义上的“纯消息服务”，但也还不是一个所有会话事件都已经同等成熟的统一事件服务。
+当前 `logic/service/chat.go` 已不再只处理 `message`，而是已经接入 `message`、`recall`、`edit` 三类会话事件；与此同时，`logic/service/session.go:UpdateReadPosition` 也会在读位点推进时产出 `read_receipt` 事件。换句话说，统一事件模型在 Logic 层已经不是纯协议预留，而是形成了实际业务闭环：
+
+- `message`：创建消息主事实并发布消息事件
+- `recall`：更新 `recalled_at` 并发布撤回事件
+- `edit`：更新 `content / edited_at / edit_count` 并发布编辑事件
+- `read_receipt`：推进 `last_read_seq` 并发布已读回执事件
+
+这也进一步说明，Logic 当前已经从“消息服务”演进为真正的“会话事件生产中心”。后续新增 payload 时，仍应延续同样模式：先在 Logic 中确立主事实，再通过 Outbox 把统一事件送入异步链路。
 
 ---
 
@@ -146,7 +153,8 @@ Gateway 不了解一条业务什么时候算真正成功，它只能看到接入
 - `logic/server/grpc.go`：gRPC server 注册
 - `logic/server/interceptor_auth.go`：从 `x-username` metadata 恢复身份并写入 context
 - `logic/service/auth.go`：登录、注册与 JWT 签发
-- `logic/service/chat.go`：统一事件入口（`SendEvent`），当前完整打通 `message` payload
+- `logic/service/chat.go`：统一事件入口（`SendEvent`），当前完整打通 `message / recall / edit` payload
+- `logic/service/edit.go`：消息编辑规则校验、主事实更新与事件发布
 - `logic/service/session.go`：会话创建与成员管理
 - `logic/service/history.go`：历史消息拉取
 - `logic/service/inbox.go`：Inbox 增量拉取（`PullInboxDelta`）与未读数统计
@@ -175,4 +183,4 @@ Gateway 不了解一条业务什么时候算真正成功，它只能看到接入
 
 ## 10. 小结
 
-如果用一句话概括 Logic，那么它是 Resonance 的事实判定与事实生产中心。它不负责连接，也不负责推送，但它负责决定事实是否成立、事实如何编号、事实如何持久化，以及事实如何进入可靠的异步链路。只要这个边界持续成立，后续新增事件类型时，系统就只需要在同一套骨架上补齐新的业务处理逻辑，而不需要再创造一层新的核心服务。
+如果用一句话概括 Logic，那么它是 Resonance 的事实判定与事实生产中心。它不负责连接，也不负责推送，但它负责决定事实是否成立、事实如何编号、事实如何持久化，以及事实如何进入可靠的异步链路。当前 message、recall、edit、read_receipt 已经证明这套边界可以承载不同类型的会话变化；后续新增事件类型时，系统仍应继续在同一套骨架上补齐业务处理逻辑，而不是再创造一层新的核心服务。

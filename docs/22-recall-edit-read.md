@@ -94,7 +94,15 @@ Recall 已完整打通端到端闭环：
 
 ### 4.3 当前实现状态
 
-和 Recall 一样，Task 侧已经具备 Edit 事件的处理框架和 Inbox 落地能力，但 Logic 侧并未像 message 那样形成完整业务闭环。因此当前更准确的描述是：协议、异步消费和前端承接骨架已经存在，真正的业务闭环仍在逐步补齐。
+Edit 已在 Phase 6 完整打通端到端闭环：
+
+- **Gateway** — `api/proto/gateway/v1/packet.proto` 的 `ChatRequest` 已加入 `edit` 字段，`gateway/logicclient/services.go` 会把 `edit` payload 转发到 Logic
+- **Logic** — `logic/service/chat.go` 已接入 `edit` 分支，`logic/service/edit.go` 完成业务校验（消息存在、发送者匹配、会话匹配、未撤回、仅文本可编辑、2 分钟窗口、内容实际变化）并构造 `ChatEvent{Edit}`
+- **Repo** — `repo/message.go` 提供 `EditMessageWithOutbox(...)`，在同一事务内更新 `message_content.content / edited_at / edit_count` 并写入 `t_message_outbox`
+- **Task** — `handler_edit.go` 负责写扩散和推送，不改主事实
+- **前端 runtime** — `web/src/sync/applier.ts` 收到 edit 事件后更新目标消息内容并标记 `edited`
+- **前端 UI** — `web/src/services/chat.ts`、`web/src/hooks/useSendMessage.ts`、`web/src/features/chat/MessageBubble.tsx` 已接入编辑动作、展示“已编辑”标记，并为本人消息提供编辑入口
+- **测试** — `logic/service/edit_test.go` 与 `test/integration/edit_test.go` 已覆盖规则校验、实时推送、Inbox 落地与离线补拉
 
 ---
 
@@ -108,17 +116,27 @@ Recall 已完整打通端到端闭环：
 
 ### 5.2 当前实现状态
 
-`logic/service/session.go:UpdateReadPosition` 已经实现了已读位点更新的主链路：
+ReadReceipt 也已在 Phase 6 打通完整闭环：
 
-1. 从 context 中读取已认证 username
-2. 调用 `sessionRepo.UpdateLastReadSeq` 推进 `last_read_seq`
-3. 查询当前未读数并返回给客户端
+1. `logic/service/session.go:UpdateReadPosition` 先校验成员关系，再推进 `t_session_member.last_read_seq`
+2. 当读游标真正前进时，Logic 生成新的 `event_id` / `seq_id`，构造 `ChatEvent{ReadReceipt}`
+3. `repo/session.go` 通过 `AdvanceLastReadSeqWithOutbox(...)` 在同一事务内完成读位点推进和 `t_message_outbox` 写入
+4. 事务提交后异步投递 MQ，由 Task 继续写扩散和在线推送
+5. 客户端仍同步收到 `UpdateReadPositionResponse`，其中带回最新未读数
 
-这说明已读的同步 Ack 语义已经成立：客户端调用 `UpdateReadPosition` 成功后，服务端的权威已读状态已经更新。
+这意味着已读的两层语义都已成立：
 
-与此同时，Task 侧也已经具备 `read_receipt` 事件的写扩散能力：`task/dispatcher/handler_read.go` 会把这类事件写入 Inbox。也就是说，已读事件的异步同步框架已经到位。
+- **权威状态**：`t_session_member.last_read_seq` 是服务端的真实读位点
+- **统一事件同步**：`read_receipt` 会进入 MQ / Inbox / WebSocket 链路，供其他端或其他成员恢复与展示
 
-不过从当前代码可见，`UpdateReadPosition` 这条同步路径主要完成的是权威状态更新和未读数返回；关于它是否已经完整接入统一 MQ 事件闭环，需要谨慎描述为"框架与测试已就位，统一事件闭环仍在继续完善"，而不是简单说成已经完全成熟。
+当前各层实现如下：
+
+- **Logic** — `logic/service/session.go` 仅在读位点单调前进时产出事件，避免重复 read receipt
+- **Repo** — `repo/session.go` 提供原子推进接口，保证“读位点更新 + Outbox”一致性
+- **Task** — `task/dispatcher/handler_read.go` 负责把 read receipt 写入 Inbox 并推送给在线目标
+- **前端 runtime** — `web/src/sync/applier.ts` 在单聊中更新 `readUptoSeqId`，在群聊中更新 `readUptoSeqByUser`
+- **前端 UI** — `web/src/features/chat/MessageBubble.tsx` 展示单聊“已读/未读”和群聊“X 人已读”，`web/src/features/session-detail/SessionDetailPanel.tsx` 展示会话级读状态摘要
+- **测试** — `logic/service/session_update_read_position_test.go` 与 `test/integration/read_receipt_realtime_test.go` 已覆盖单调推进、无重复事件、实时推送、Inbox 落地与离线补拉
 
 ---
 
@@ -156,10 +174,10 @@ Recall 已完整打通端到端闭环：
 | 协议层 | ✅ | ✅ | ✅ | ✅ |
 | Task 写扩散 + 推送 | ✅ | ✅ | ✅ | ✅ |
 | Web 本地状态应用 | ✅ | ✅ | ✅ | ✅ |
-| Logic 业务主链路 | ✅ | ✅ | ❌ 待实现 | 🔶 已读位点更新成立，MQ 闭环待接入 |
-| 前端 UI | ✅ | ✅ | ❌ 待实现 | ❌ 待实现 |
+| Logic 业务主链路 | ✅ | ✅ | ✅ | ✅ |
+| 前端 UI | ✅ | ✅ | ✅ | ✅ |
 
-Recall 在 Phase 5 中已完整闭环。Edit 和 read_receipt 的 Logic 主链路将在 Phase 6 补齐。
+Recall 在 Phase 5 中完成闭环；Edit 与 read_receipt 已在 Phase 6 中补齐为完整事件链路。
 
 ---
 
@@ -176,4 +194,4 @@ Recall 在 Phase 5 中已完整闭环。Edit 和 read_receipt 的 Logic 主链�
 
 ## 10. 小结
 
-撤回、编辑和已读并不是附加在消息链路旁边的零散能力，而是统一事件模型中必须正视的会话变化。当前系统已经把它们接入了统一 `ChatEvent` 骨架，并在 Task 和 Web 侧建立了稳定的处理入口；真正仍在继续补齐的，主要是 Logic 侧不同 payload 的业务闭环成熟度。只要继续坚持"主事实在 Logic 成立，Task 只做扩散，前端只消费统一事件"这条边界，后续把这几类能力补完整并不需要再长出另一套系统。
+撤回、编辑和已读并不是附加在消息链路旁边的零散能力，而是统一事件模型中必须正视的会话变化。当前系统已经把它们全部接入统一 `ChatEvent` 骨架，并在 Logic、Task 与 Web 三层形成稳定闭环：主事实在 Logic 成立，Task 只做写扩散与推送，前端只消费统一事件。后续继续扩展新的会话事件类型时，仍应沿用这条边界，而不是再长出旁路协议或特判链路。

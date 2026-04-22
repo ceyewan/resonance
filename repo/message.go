@@ -339,6 +339,39 @@ func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64
 	})
 }
 
+// EditMessageWithOutbox 事务内编辑消息并写 Outbox。
+// 若消息已撤回则返回 ErrMessageAlreadyRecalled；若消息不存在则返回 ErrMessageNotFound。
+func (r *messageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error {
+	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		result := tx.Model(&model.MessageContent{}).
+			Where("event_id = ? AND recalled_at IS NULL", eventID).
+			Updates(map[string]any{
+				"content":    newContent,
+				"edited_at":  editedAt,
+				"edit_count": gorm.Expr("edit_count + ?", 1),
+			})
+		if result.Error != nil {
+			return fmt.Errorf("edit message: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			var msg model.MessageContent
+			if err := tx.Select("event_id", "recalled_at").Where("event_id = ?", eventID).First(&msg).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrMessageNotFound
+				}
+				return fmt.Errorf("check edited message: %w", err)
+			}
+			if msg.RecalledAt != nil {
+				return ErrMessageAlreadyRecalled
+			}
+		}
+		if err := tx.Create(outbox).Error; err != nil {
+			return fmt.Errorf("save edit outbox: %w", err)
+		}
+		return nil
+	})
+}
+
 // SaveMessageWithOutbox 事务内保存消息并记录本地消息表
 func (r *messageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
 	if msg == nil || outbox == nil {

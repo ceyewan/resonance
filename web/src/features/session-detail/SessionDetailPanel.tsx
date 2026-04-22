@@ -1,16 +1,62 @@
 import { type SessionRow } from "../../db/schema";
 import { GlassCard } from "../../components/GlassCard";
+import { useAuthState } from "../../hooks/useAuthState";
 import { useConnectionState } from "../../hooks/useConnectionState";
 import { useSessionTimeline } from "../../hooks/useSessionTimeline";
 import { SessionType } from "@gen/common/v1/session_pb";
+import { toBigIntId } from "../../lib/id";
+
+function formatSessionReadSummary(
+  session: SessionRow,
+  currentUsername: string | undefined,
+): string {
+  if (session.type === SessionType.DIRECT) {
+    return toBigIntId(session.readUptoSeqId) > 0n
+      ? `对方已读至 #${session.readUptoSeqId}`
+      : "对方尚未回执";
+  }
+  if (session.type === SessionType.GROUP) {
+    const readCount = Object.entries(session.readUptoSeqByUser).filter(
+      ([username, seqId]) => username !== currentUsername && toBigIntId(seqId) > 0n,
+    ).length;
+    return readCount > 0 ? `${readCount} 位成员已有读回执` : "暂无成员读回执";
+  }
+  if (session.type === SessionType.AI) {
+    return "AI 会话不展示已读回执";
+  }
+  return "暂无读回执信息";
+}
+
+function formatSessionType(sessionType: SessionType): string {
+  if (sessionType === SessionType.DIRECT) {
+    return "P2P";
+  }
+  if (sessionType === SessionType.GROUP) {
+    return "GROUP";
+  }
+  if (sessionType === SessionType.AI) {
+    return "AI";
+  }
+  return "UNKNOWN";
+}
+
+function formatReadMap(session: SessionRow, currentUsername: string | undefined): string[] {
+  return Object.entries(session.readUptoSeqByUser)
+    .filter(([username]) => username !== currentUsername)
+    .sort((left, right) => right[1].localeCompare(left[1]))
+    .map(([username, seqId]) => `${username}: #${seqId}`);
+}
 
 interface SessionDetailPanelProps {
   session: SessionRow | null;
 }
 
 export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
+  const auth = useAuthState();
   const connection = useConnectionState();
   const timeline = useSessionTimeline(session?.sessionId) ?? [];
+  const readMap = session ? formatReadMap(session, auth.currentUser?.username) : [];
+  const readSummary = session ? formatSessionReadSummary(session, auth.currentUser?.username) : "";
 
   if (session === null) {
     return (
@@ -71,11 +117,7 @@ export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
             <div className="pt-2 border-t border-[var(--color-border)] flex justify-between items-center">
               <span className="text-[13px] text-[var(--color-text-muted)] opacity-70">Type</span>
               <span className="text-[13px] font-medium text-[var(--color-text)] opacity-90 bg-[var(--glass-surface)] px-2 py-0.5 rounded-md border border-[var(--color-border)]">
-                {session.type === SessionType.DIRECT
-                  ? "P2P"
-                  : session.type === SessionType.GROUP
-                    ? "GROUP"
-                    : "UNKNOWN"}
+                {formatSessionType(session.type)}
               </span>
             </div>
           </div>
@@ -103,6 +145,22 @@ export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
               <span className="text-[var(--color-text-muted)] opacity-70">Timeline Items</span>
               <span className="text-[var(--color-text)] font-medium">{timeline.length}</span>
             </div>
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-[var(--color-text-muted)] opacity-70">Read Status</span>
+              <span className="text-[var(--color-text)] font-medium text-right">{readSummary}</span>
+            </div>
+            {session.type === SessionType.GROUP && readMap.length > 0 ? (
+              <div className="pt-2 border-t border-[var(--color-border)] space-y-1.5">
+                {readMap.map((item) => (
+                  <div
+                    key={item}
+                    className="flex justify-between items-center text-[12px] text-[var(--color-text-muted)]"
+                  >
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </section>
 
