@@ -60,8 +60,8 @@ func NewRouterRepo(redisConn connector.RedisConnector, opts ...RouterRepoOption)
 
 	// 创建 cache 实例，使用 JSON 序列化
 	cacheInstance, err := cache.NewDistributed(&cache.DistributedConfig{
-		Driver:    cache.DriverRedis,
-		KeyPrefix: "resonance:router:",
+		Driver:     cache.DriverRedis,
+		KeyPrefix:  "resonance:router:",
 		Serializer: "json",
 	}, cache.WithRedisConnector(redisConn), cache.WithLogger(options.logger))
 	if err != nil {

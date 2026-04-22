@@ -258,7 +258,7 @@ func (s *testSequencer) Next(ctx context.Context, key string) (int64, error) {
 
 func (s *testSequencer) NextBatch(ctx context.Context, key string, count int) ([]int64, error) {
 	ids := make([]int64, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		v, err := s.Next(ctx, key)
 		if err != nil {
 			return nil, err
