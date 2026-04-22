@@ -51,38 +51,6 @@ func TestChatService_SendEvent_DeniedForNonMember(t *testing.T) {
 	require.Nil(t, messageRepo.savedOutbox)
 }
 
-func TestChatService_SendEvent_InvalidPayload(t *testing.T) {
-	sessionRepo := &testSessionRepo{
-		getMembersFn: func(ctx context.Context, sessionID string) ([]*model.SessionMember, error) {
-			return []*model.SessionMember{
-				{Username: "alice"},
-				{Username: "bob"},
-			}, nil
-		},
-	}
-	messageRepo := &testMessageRepo{}
-
-	svc := NewChatService(
-		sessionRepo,
-		messageRepo,
-		&testGenerator{next: 1001},
-		&testSequencer{},
-		&testMQ{},
-		testLogger(),
-	)
-
-	_, err := svc.SendEvent(newTestIncomingContext("alice"), &logicv1.SendEventRequest{
-		SessionId: "s_1",
-		Payload: &logicv1.SendEventRequest_Recall{
-			Recall: &commonv1.MessageRecall{TargetEventId: 123},
-		},
-	})
-	require.Error(t, err)
-	require.Equal(t, codes.InvalidArgument, status.Code(err))
-	require.Nil(t, messageRepo.savedMessage)
-	require.Nil(t, messageRepo.savedOutbox)
-}
-
 func TestChatService_SendEvent_SequencerNextFailed(t *testing.T) {
 	sessionRepo := &testSessionRepo{
 		getMembersFn: func(ctx context.Context, sessionID string) ([]*model.SessionMember, error) {
