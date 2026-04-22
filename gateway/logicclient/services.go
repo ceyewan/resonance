@@ -42,11 +42,11 @@ func (c *Client) SendEvent(ctx context.Context, username string, msg *gatewayv1.
 		return nil, fmt.Errorf("chat client not initialized")
 	}
 
-	req := &logicv1.SendEventRequest{
-		SessionId: msg.SessionId,
-		Payload: &logicv1.SendEventRequest_Message{
-			Message: msg.Message,
-		},
+	req := &logicv1.SendEventRequest{SessionId: msg.SessionId}
+	if msg.Recall != nil {
+		req.Payload = &logicv1.SendEventRequest_Recall{Recall: msg.Recall}
+	} else {
+		req.Payload = &logicv1.SendEventRequest_Message{Message: msg.Message}
 	}
 
 	return c.chatClient.SendEvent(withUsernameMetadata(ctx, username), req)

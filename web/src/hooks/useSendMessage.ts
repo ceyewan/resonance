@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 
-import { retryPendingMessage, sendTextMessage, type SendMessageInput } from "../services/chat";
+import {
+  retryPendingMessage,
+  sendRecall,
+  sendTextMessage,
+  type SendMessageInput,
+} from "../services/chat";
 
 export function useSendMessage() {
   const send = useCallback(async (input: SendMessageInput) => {
@@ -11,5 +16,9 @@ export function useSendMessage() {
     return retryPendingMessage(sessionId, clientMsgId);
   }, []);
 
-  return { send, retry };
+  const recall = useCallback(async (sessionId: string, targetEventId: bigint) => {
+    return sendRecall(sessionId, targetEventId);
+  }, []);
+
+  return { send, retry, recall };
 }

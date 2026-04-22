@@ -371,6 +371,7 @@ type ChatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	Message       *v1.Message            `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Recall        *v1.MessageRecall      `protobuf:"bytes,3,opt,name=recall,proto3" json:"recall,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -415,6 +416,13 @@ func (x *ChatRequest) GetSessionId() string {
 func (x *ChatRequest) GetMessage() *v1.Message {
 	if x != nil {
 		return x.Message
+	}
+	return nil
+}
+
+func (x *ChatRequest) GetRecall() *v1.MessageRecall {
+	if x != nil {
+		return x.Recall
 	}
 	return nil
 }
@@ -676,11 +684,12 @@ const file_gateway_v1_packet_proto_rawDesc = "" +
 	"\bevent_id\x18\x02 \x01(\x03R\aeventId\x12\x15\n" +
 	"\x06seq_id\x18\x03 \x01(\x03R\x05seqId\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x04 \x01(\tR\tsessionId\"d\n" +
+	"session_id\x18\x04 \x01(\tR\tsessionId\"\xa0\x01\n" +
 	"\vChatRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x126\n" +
-	"\amessage\x18\x02 \x01(\v2\x1c.resonance.common.v1.MessageR\amessage\"y\n" +
+	"\amessage\x18\x02 \x01(\v2\x1c.resonance.common.v1.MessageR\amessage\x12:\n" +
+	"\x06recall\x18\x03 \x01(\v2\".resonance.common.v1.MessageRecallR\x06recall\"y\n" +
 	"\vStreamBegin\x12&\n" +
 	"\x0fparent_event_id\x18\x01 \x01(\x03R\rparentEventId\x12\x1d\n" +
 	"\n" +
@@ -721,17 +730,18 @@ func file_gateway_v1_packet_proto_rawDescGZIP() []byte {
 var file_gateway_v1_packet_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_gateway_v1_packet_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_gateway_v1_packet_proto_goTypes = []any{
-	(StreamFinishReason)(0), // 0: resonance.gateway.v1.StreamFinishReason
-	(*WsPacket)(nil),        // 1: resonance.gateway.v1.WsPacket
-	(*Pulse)(nil),           // 2: resonance.gateway.v1.Pulse
-	(*Ack)(nil),             // 3: resonance.gateway.v1.Ack
-	(*ChatRequest)(nil),     // 4: resonance.gateway.v1.ChatRequest
-	(*StreamBegin)(nil),     // 5: resonance.gateway.v1.StreamBegin
-	(*StreamChunk)(nil),     // 6: resonance.gateway.v1.StreamChunk
-	(*StreamEnd)(nil),       // 7: resonance.gateway.v1.StreamEnd
-	(*TypingSignal)(nil),    // 8: resonance.gateway.v1.TypingSignal
-	(*v1.ChatEvent)(nil),    // 9: resonance.common.v1.ChatEvent
-	(*v1.Message)(nil),      // 10: resonance.common.v1.Message
+	(StreamFinishReason)(0),  // 0: resonance.gateway.v1.StreamFinishReason
+	(*WsPacket)(nil),         // 1: resonance.gateway.v1.WsPacket
+	(*Pulse)(nil),            // 2: resonance.gateway.v1.Pulse
+	(*Ack)(nil),              // 3: resonance.gateway.v1.Ack
+	(*ChatRequest)(nil),      // 4: resonance.gateway.v1.ChatRequest
+	(*StreamBegin)(nil),      // 5: resonance.gateway.v1.StreamBegin
+	(*StreamChunk)(nil),      // 6: resonance.gateway.v1.StreamChunk
+	(*StreamEnd)(nil),        // 7: resonance.gateway.v1.StreamEnd
+	(*TypingSignal)(nil),     // 8: resonance.gateway.v1.TypingSignal
+	(*v1.ChatEvent)(nil),     // 9: resonance.common.v1.ChatEvent
+	(*v1.Message)(nil),       // 10: resonance.common.v1.Message
+	(*v1.MessageRecall)(nil), // 11: resonance.common.v1.MessageRecall
 }
 var file_gateway_v1_packet_proto_depIdxs = []int32{
 	2,  // 0: resonance.gateway.v1.WsPacket.pulse:type_name -> resonance.gateway.v1.Pulse
@@ -743,12 +753,13 @@ var file_gateway_v1_packet_proto_depIdxs = []int32{
 	7,  // 6: resonance.gateway.v1.WsPacket.stream_end:type_name -> resonance.gateway.v1.StreamEnd
 	8,  // 7: resonance.gateway.v1.WsPacket.typing:type_name -> resonance.gateway.v1.TypingSignal
 	10, // 8: resonance.gateway.v1.ChatRequest.message:type_name -> resonance.common.v1.Message
-	0,  // 9: resonance.gateway.v1.StreamEnd.reason:type_name -> resonance.gateway.v1.StreamFinishReason
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	11, // 9: resonance.gateway.v1.ChatRequest.recall:type_name -> resonance.common.v1.MessageRecall
+	0,  // 10: resonance.gateway.v1.StreamEnd.reason:type_name -> resonance.gateway.v1.StreamFinishReason
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_gateway_v1_packet_proto_init() }
