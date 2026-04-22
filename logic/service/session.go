@@ -225,7 +225,10 @@ func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, se
 		return nil
 	}
 
-	eventID := s.msgIDGen.Next()
+	eventID, err := s.msgIDGen.Next()
+	if err != nil {
+		return fmt.Errorf("generate event id: %w", err)
+	}
 	seqID, err := s.sequencer.Next(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("generate seq id: %w", err)
@@ -297,7 +300,8 @@ func generateSingleChatID(user1, user2 string) string {
 }
 
 func (s *SessionService) generateGroupChatID() string {
-	return fmt.Sprintf("group:%d", s.sessionIDGen.Next())
+	id, _ := s.sessionIDGen.Next()
+	return fmt.Sprintf("group:%d", id)
 }
 
 // UpdateReadPosition 实现 SessionService.UpdateReadPosition

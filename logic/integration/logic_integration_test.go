@@ -182,6 +182,7 @@ func setupInfra(t *testing.T, logger clog.Logger) *infra {
 	}, "6379/tcp")
 	natsContainer, natsHost, natsPort := mustStartContainer(t, testcontainers.ContainerRequest{
 		Image:        "nats:2.10-alpine",
+		Cmd:          []string{"-js"},
 		ExposedPorts: []string{"4222/tcp"},
 		WaitingFor:   wait.ForListeningPort("4222/tcp").WithStartupTimeout(60 * time.Second),
 	}, "4222/tcp")
@@ -226,7 +227,8 @@ func setupInfra(t *testing.T, logger clog.Logger) *infra {
 	require.NoError(t, natsConn.Connect(context.Background()))
 
 	mqClient, err := mq.New(&mq.Config{
-		Driver: mq.DriverNATSCore,
+		Driver:    mq.DriverNATSJetStream,
+		JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
 	}, mq.WithNATSConnector(natsConn), mq.WithLogger(logger))
 	require.NoError(t, err)
 

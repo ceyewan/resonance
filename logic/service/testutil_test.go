@@ -235,12 +235,12 @@ type testGenerator struct {
 	next int64
 }
 
-func (g *testGenerator) Next() int64 {
-	return g.next
+func (g *testGenerator) Next() (int64, error) {
+	return g.next, nil
 }
 
-func (g *testGenerator) NextString() string {
-	return fmt.Sprintf("%d", g.next)
+func (g *testGenerator) NextString() (string, error) {
+	return fmt.Sprintf("%d", g.next), nil
 }
 
 type testSequencer struct {
@@ -258,7 +258,7 @@ func (s *testSequencer) Next(ctx context.Context, key string) (int64, error) {
 
 func (s *testSequencer) NextBatch(ctx context.Context, key string, count int) ([]int64, error) {
 	ids := make([]int64, 0, count)
-	for i := 0; i < count; i++ {
+	for range count {
 		v, err := s.Next(ctx, key)
 		if err != nil {
 			return nil, err

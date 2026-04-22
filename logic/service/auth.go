@@ -61,7 +61,7 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 	}
 
 	// 生成 Token
-	token, err := s.authenticator.GenerateToken(ctx, &auth.Claims{
+	tokenPair, err := s.authenticator.GenerateTokenPair(ctx, &auth.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: user.Username,
 		},
@@ -73,7 +73,7 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 	}
 
 	resp := &logicv1.LoginResponse{
-		AccessToken: token,
+		AccessToken: tokenPair.AccessToken,
 		User: &commonv1.User{
 			Username:  user.Username,
 			Nickname:  user.Nickname,
@@ -107,7 +107,7 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 	}
 
 	// 注册成功后自动登录，生成 Token
-	token, err := s.authenticator.GenerateToken(ctx, &auth.Claims{
+	tokenPair, err := s.authenticator.GenerateTokenPair(ctx, &auth.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject: user.Username,
 		},
@@ -125,7 +125,7 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 	}
 
 	resp := &logicv1.RegisterResponse{
-		AccessToken: token,
+		AccessToken: tokenPair.AccessToken,
 		User: &commonv1.User{
 			Username:  user.Username,
 			Nickname:  user.Nickname,
@@ -143,7 +143,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 	}
 
 	// 验证 Token
-	claims, err := s.authenticator.ValidateToken(ctx, req.AccessToken)
+	claims, err := s.authenticator.ValidateAccessToken(ctx, req.AccessToken)
 	if err != nil {
 		s.logger.Debug("invalid token", clog.Error(err))
 		return &logicv1.ValidateTokenResponse{Valid: false}, nil

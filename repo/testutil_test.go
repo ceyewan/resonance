@@ -260,8 +260,7 @@ func setupTestDB(t *testing.T) db.DB {
 		}
 
 		globalDB, err = db.New(&db.Config{
-			Driver:         "postgresql",
-			EnableSharding: false,
+			Driver: "postgresql",
 		}, db.WithPostgreSQLConnector(globalPostgresConn), db.WithLogger(logger))
 		if err != nil {
 			globalDBInitErr = fmt.Errorf("创建 DB 组件失败: %w", err)

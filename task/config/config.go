@@ -82,6 +82,7 @@ type ConsumerConfig struct {
 	WorkerCount   int    `mapstructure:"worker_count"`   // 并发处理协程数
 	MaxRetry      int    `mapstructure:"max_retry"`      // 最大重试次数
 	RetryInterval int    `mapstructure:"retry_interval"` // 重试间隔（秒）
+	DLQTopic      string `mapstructure:"dlq_topic"`      // 死信队列主题（无法解析的消息转投此处）
 }
 
 // GetHTTPAddr 获取 HTTP 健康检查地址，默认 :15092
@@ -132,6 +133,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.Consumer.Topic == "" {
 		cfg.Consumer.Topic = "resonance.chat.event.v1"
+	}
+	if cfg.Consumer.DLQTopic == "" {
+		cfg.Consumer.DLQTopic = cfg.Consumer.Topic + ".dlq"
 	}
 
 	// 在 debug 模式下，打印最终生效的配置

@@ -179,9 +179,9 @@ func (t *Task) initResources() (*resources, error) {
 	if err := natsConn.Connect(t.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	// MQ Client (NATS Core)
 	mqClient, err := mq.New(&mq.Config{
-		Driver: mq.DriverNATSCore,
+		Driver:    mq.DriverNATSJetStream,
+		JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
 	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)

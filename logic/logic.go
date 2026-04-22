@@ -210,7 +210,10 @@ func (l *Logic) initResources() (*resources, error) {
 	if err := natsConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
-	mqClient, err := mq.New(&mq.Config{Driver: mq.DriverNATSCore}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
+	mqClient, err := mq.New(&mq.Config{
+		Driver:    mq.DriverNATSJetStream,
+		JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
+	}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}

@@ -90,7 +90,10 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	}
 
 	// 生成 event ID (Snowflake)
-	eventID := s.idGen.Next()
+	eventID, err := s.idGen.Next()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to generate event id: %v", err)
+	}
 
 	// Redis 计数器初始化
 	// 当 Redis 中没有 session 的 seq key 时，sequencer.Next 会从 1 开始
