@@ -10,85 +10,46 @@
 | Phase | 内容 | 状态 |
 |-------|------|------|
 | 0–4 | 事件驱动骨架（Proto / DB / Task / 身份） | ✅ 完成 |
-| **5** | **消息撤回** | 🔧 进行中 |
+| **5** | **消息撤回** | ✅ 完成 |
 | 6 | 消息编辑 + 多端已读同步 | ⬜ 待开始 |
 | 7 | AI Service V1（非流式） | ⬜ 待开始 |
 | 8 | AI 流式响应 | ⬜ 待开始 |
 
 ---
 
-## Phase 5：消息撤回
+## Phase 5：消息撤回 ✅
 
 ### 目标
 
 验证事件驱动框架对"非消息"事件的端到端处理。撤回是最简单的"修改既有主事实"场景，走通它意味着 Logic → Task → Web 的统一事件链路已完全通用。
 
-### 当前已就位
+### 完成状态
 
 | 层 | 状态 |
 |---|---|
-| Proto `ChatEvent.Recall` | ✅ 已定义 |
-| Task `handler_recall.go` | ✅ 写扩散 + 推送框架完整 |
-| Frontend `sync/applier.ts` | ✅ recall 分支处理已就位 |
-| Logic `chat.go SendEvent` | ❌ recall payload 返回 `codes.InvalidArgument` |
-| Logic recall 业务逻辑 | ❌ 权限校验 / 主表更新 / Outbox 均未实现 |
-| Frontend 撤回 UI | ❓ 需确认是否有右键/长按菜单 |
+| Proto `ChatEvent.Recall` + `ChatRequest.recall` | ✅ |
+| `repo.GetMessageByEventID` / `RecallMessageWithOutbox` | ✅ |
+| `logic/service/recall.go` — 5 条业务校验 + Outbox 事务 | ✅ |
+| `logic/service/chat.go` — SendEvent dispatch 分支 | ✅ |
+| `gateway/logicclient` — 转发 recall payload 到 Logic | ✅ |
+| Task `handler_recall.go` — 写扩散 + 推送 | ✅ |
+| Frontend `sync/applier.ts` — recall 标记目标消息 | ✅ |
+| Frontend 撤回 UI — 悬浮按钮 + 已撤回占位文字 | ✅ |
 
-### 任务清单
+### 关键实现文件
 
-#### 后端
-
-- [ ] **新建 `repo/message.go` 方法：`MarkMessageRecalledWithOutbox`**
-  - 单一事务内：`UPDATE t_message_content SET recalled_at = NOW() WHERE event_id = ? AND sender_username = ?`（权威更新）
-  - 同事务内插入 `t_message_outbox`（Recall 事件的 MQEvent bytes）
-  - 函数签名参考 `SaveMessageWithOutbox`，入参为 `(ctx, recallEventID int64, outbox *model.MessageOutbox)`
-
-- [ ] **新建 `logic/event/recall.go`**（兑现 `logic/event/doc.go` 的 Phase 5 预留承诺）
-
-  ```
-  func HandleRecall(ctx, chatService deps...) error:
-    1. 从 ctx 读取 username
-    2. 查 t_message_content WHERE event_id = req.TargetEventId
-    3. 校验：消息存在 / sender == username / recalled_at IS NULL / 发出时间 < 2 分钟
-    4. 生成 recall event_id（Snowflake）、seq_id（Redis 递增）
-    5. 构造 ChatEvent{Recall{target_event_id}}
-    6. 调用 repo.MarkMessageRecalledWithOutbox（事务）
-    7. 异步发布 MQ
-  ```
-
-  权限错误返回 `codes.PermissionDenied`，时间窗口超限返回 `codes.FailedPrecondition`。
-
-- [ ] **修改 `logic/service/chat.go` SendEvent 分派逻辑**
-
-  ```go
-  // 把当前的 "only message" 改为 switch:
-  switch payload := req.Payload.(type) {
-  case *logicv1.SendEventRequest_Message:
-      // 原有 message 逻辑
-  case *logicv1.SendEventRequest_Recall:
-      return event.HandleRecall(ctx, payload.Recall, ...)
-  default:
-      return nil, status.Errorf(codes.InvalidArgument, "unsupported payload")
-  }
-  ```
-
-- [ ] **验证 `logic/service/chat_send_event_test.go`** 补充 recall 相关测试用例
-
-#### 前端
-
-- [ ] 确认 `web/src/sync/applier.ts` 的 recall 处理已正确标记目标消息为"已撤回"
-- [ ] 在消息气泡上增加"撤回"操作（右键菜单 / 长按菜单）
-  - 只对自己发出的消息显示
-  - 超出 2 分钟的消息不显示（或置灰）
-  - 调用 HTTP `SendEvent{payload: recall{target_event_id}}`
+- `logic/service/recall.go` — handleRecall 主逻辑
+- `logic/service/recall_test.go` — 7 个单元测试
+- `test/integration/recall_test.go` — 3 个集成测试（GoldenPath / PermissionDenied / OfflineSync）
+- `web/src/features/chat/MessageBubble.tsx` — 撤回 UI
 
 ### 验证标准
 
-- [ ] 用户 A 撤回自己的消息 → 会话双方看到"此消息已撤回"
-- [ ] 用户 A 尝试撤回用户 B 的消息 → 收到 `PermissionDenied`
-- [ ] 用户 A 撤回 3 分钟前的消息 → 收到 `FailedPrecondition`
-- [ ] 撤回后重启 → 历史拉取中该消息仍显示"已撤回"（依赖 `recalled_at` 字段）
-- [ ] 断线重连后 PullInboxDelta → 补到 Recall 事件，状态正确恢复
+- [x] 用户 A 撤回自己的消息 → 会话双方看到"此消息已撤回"
+- [x] 用户 A 尝试撤回用户 B 的消息 → 收到 `PermissionDenied`
+- [x] 用户 A 撤回 3 分钟前的消息 → 收到 `FailedPrecondition`
+- [x] 撤回后重启 → 历史拉取中该消息仍显示"已撤回"（依赖 `recalled_at` 字段）
+- [x] 断线重连后 PullInboxDelta → 补到 Recall 事件，状态正确恢复
 
 ---
 

@@ -60,7 +60,12 @@ ChatEvent.payload
 
 ### 3.3 当前实现状态
 
-当前 Task 已具备 Recall 事件的消费、写扩散和推送能力，前端同步模型也已能承接这类事件。但 Logic 主链路当前完整打通的主要还是 `message`，Recall 更接近"异步层框架已就位，业务闭环仍在补齐"的状态。
+Recall 已完整打通端到端闭环：
+
+- **Logic** — `logic/service/recall.go` 实现 5 条业务校验（消息存在、发送者匹配、会话匹配、未撤回、2 分钟窗口），在同一数据库事务内完成 `UPDATE recalled_at` 和写 `t_message_outbox`，并异步投递 MQ
+- **Task** — `handler_recall.go` 完成写扩散和推送
+- **Gateway** — `ChatRequest.recall` 字段已加入 proto，`logicclient.SendEvent` 转发 recall payload
+- **前端** — 已撤回消息显示占位文字；自己发的消息 2 分钟内悬浮出现撤回按钮；`sync/applier.ts` 在收到 recall 事件时标记目标消息 `recalled: true`
 
 ---
 
@@ -146,14 +151,15 @@ ChatEvent.payload
 
 ## 8. 当前实现边界总结
 
-当前阶段最准确的描述是：
+| 层 | message | recall | edit | read_receipt |
+|---|---|---|---|---|
+| 协议层 | ✅ | ✅ | ✅ | ✅ |
+| Task 写扩散 + 推送 | ✅ | ✅ | ✅ | ✅ |
+| Web 本地状态应用 | ✅ | ✅ | ✅ | ✅ |
+| Logic 业务主链路 | ✅ | ✅ | ❌ 待实现 | 🔶 已读位点更新成立，MQ 闭环待接入 |
+| 前端 UI | ✅ | ✅ | ❌ 待实现 | ❌ 待实现 |
 
-- 协议层：三类事件都已进入 `ChatEvent.payload`
-- Task 层：三类事件都已具备写扩散和推送处理入口
-- Web 层：三类事件都已具备本地状态应用入口
-- Logic 层：完整打通最成熟的仍然是 `message`，Recall/Edit 的业务主链路还在补齐，ReadReceipt 的已读位点更新已经成立，但统一异步事件闭环仍在继续完善
-
-这意味着系统已经拥有统一事件骨架，但不同 payload 的成熟度并不完全相同。
+Recall 在 Phase 5 中已完整闭环。Edit 和 read_receipt 的 Logic 主链路将在 Phase 6 补齐。
 
 ---
 
