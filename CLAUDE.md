@@ -169,6 +169,8 @@ type ChatService struct { msgRepo repo.MessageRepo }
 
 本项目常用 scope:`logic` / `gateway` / `task` / `web` / `api` / `docs` / `architecture`。
 
+提交前必须通过 `make format && make lint`。
+
 ---
 
 ## IM 开发八荣八耻
