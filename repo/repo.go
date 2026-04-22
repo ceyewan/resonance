@@ -87,6 +87,8 @@ type MessageRepo interface {
 	// GetUnreadMessageCount 获取用户在会话内的未读"消息"数
 	// 只统计 event_type = InboxEventTypeMessage 的事件，Recall/Edit/ReadReceipt/SessionUpdate 均不计入角标
 	GetUnreadMessageCount(ctx context.Context, username, sessionID string) (int64, error)
+	// GetMessageByEventID 按 event_id 精确查询消息
+	GetMessageByEventID(ctx context.Context, eventID int64) (*model.MessageContent, error)
 	// MarkMessageRecalled 按 event_id 标记撤回
 	MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error
 	// UpdateMessageContent 按 event_id 更新消息内容
@@ -94,6 +96,8 @@ type MessageRepo interface {
 
 	// SaveMessageWithOutbox 事务内保存消息并记录本地消息表
 	SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
+	// RecallMessageWithOutbox 事务内标记撤回并写 Outbox
+	RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error
 	// UpdateOutboxStatus 更新本地消息表状态
 	UpdateOutboxStatus(ctx context.Context, id int64, status int) error
 	// UpdateOutboxRetry 更新本地消息表重试信息

@@ -56,18 +56,12 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		return nil, err
 	}
 
-	s.logger.Debug("handling message",
-		clog.String("from", username),
-		clog.String("session_id", req.SessionId))
-
-	// 获取会话成员
 	members, err := s.sessionRepo.GetMembers(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to get session members", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to get session members")
 	}
 
-	// 检查发送者是否在会话中
 	isMember := false
 	targetUsernames := make([]string, 0, len(members))
 	for _, m := range members {
@@ -83,26 +77,32 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		return nil, status.Errorf(codes.PermissionDenied, "not a session member")
 	}
 
-	// 当前阶段仅落地 message payload
-	msgPayload := req.GetMessage()
-	if msgPayload == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unsupported payload: recall/edit wiring is scheduled for phase 5")
+	switch {
+	case req.GetMessage() != nil:
+		return s.handleMessage(ctx, req, username, targetUsernames)
+	case req.GetRecall() != nil:
+		return s.handleRecall(ctx, req, username, targetUsernames)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported payload")
 	}
+}
 
-	// 生成 event ID (Snowflake)
+func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendEventRequest, username string, targetUsernames []string) (*logicv1.SendEventResponse, error) {
+	msgPayload := req.GetMessage()
+
+	s.logger.Debug("handling message",
+		clog.String("from", username),
+		clog.String("session_id", req.SessionId))
+
 	eventID, err := s.idGen.Next()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate event id: %v", err)
 	}
 
-	// Redis 计数器初始化
-	// 当 Redis 中没有 session 的 seq key 时，sequencer.Next 会从 1 开始
-	// 如果该 session 已有历史消息（MaxSeqID > 0），会导致 seq_id 冲突
-	// 解决方案：在调用 sequencer.Next 之前，检查 session.MaxSeqID
-	// 如果 MaxSeqID > 0 且 Redis key 不存在，使用 sequencer.SetIfNotExists 初始化
+	// Redis 计数器初始化：服务重启后 Redis key 可能为空，但 DB 里有历史 max_seq_id，
+	// 直接递增会从 1 开始导致 seq_id 冲突，所以先用 SetIfNotExists 恢复锚点。
 	session, err := s.sessionRepo.GetSession(ctx, req.SessionId)
 	if err == nil && session.MaxSeqID > 0 {
-		// Session 存在且有历史消息，初始化 Redis 计数器（仅当 key 不存在时）
 		if _, err := s.sequencer.SetIfNotExists(ctx, req.SessionId, session.MaxSeqID); err != nil {
 			s.logger.Warn("failed to initialize session sequence",
 				clog.String("session_id", req.SessionId),
@@ -111,7 +111,6 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		}
 	}
 
-	// 使用 Redis 原子递增获取会话 SeqID，修复并发竞态问题
 	seqID, err := s.sequencer.Next(ctx, req.SessionId)
 	if err != nil {
 		s.logger.Error("failed to generate seq id", clog.Error(err), clog.String("session_id", req.SessionId))
@@ -119,7 +118,6 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 	}
 	timestampMs := time.Now().UnixMilli()
 
-	// 保存消息到数据库
 	msgContent := &model.MessageContent{
 		EventID:        eventID,
 		SessionID:      req.SessionId,
@@ -131,30 +129,25 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 		ClientMsgID:    msgPayload.ClientMsgId,
 	}
 
-	// 准备 MQ 事件
 	chatEvent := &commonv1.ChatEvent{
 		EventId:      eventID,
 		SeqId:        seqID,
 		SessionId:    req.SessionId,
 		FromUsername: username,
 		TimestampMs:  timestampMs,
-		Payload: &commonv1.ChatEvent_Message{
-			Message: msgPayload,
-		},
+		Payload:      &commonv1.ChatEvent_Message{Message: msgPayload},
 	}
-	event := &mqv1.MQEvent{
+	mqEvent := &mqv1.MQEvent{
 		Event:           chatEvent,
 		TargetUsernames: targetUsernames,
 	}
 
-	// 发布消息到 MQ 并保存到 Outbox
-	result, err := mqpublish.PublishMessageToMQ(ctx, s.messageRepo, event, msgContent)
+	result, err := mqpublish.PublishMessageToMQ(ctx, s.messageRepo, mqEvent, msgContent)
 	if err != nil {
 		s.logger.Error("failed to publish message to mq", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to save message")
 	}
 
-	// 立即尝试发布到 MQ (Look-aside 优化)
 	mqpublish.PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
 
 	s.logger.Info("message processed successfully",

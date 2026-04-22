@@ -6,22 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## 架构状态:事件驱动重构进行中
+## 架构状态：Phase 0–4 已完成，Phase 5 开发中
 
-本项目正在从"消息驱动"向"事件驱动"架构迁移。所有协议、数据库、服务职责的设计决策沉淀在 `docs/architecture/`,是改动的**一手依据**:
+事件驱动骨架已完整落地（ChatEvent 统一抽象、Outbox 事务一致性、Task 单消费者串行语义均已稳定）。当前处于功能扩展阶段（Phase 5 起：撤回、已读同步、AI 接入），演进路线详见 `docs/archive/architecture/05-migration.md`。
+
+设计决策的**一手依据**已迁移到 `docs/`：
 
 | 文档 | 用途 |
 |------|------|
-| `00-overview.md` | 架构总览、8 条设计原则、ChatEvent 核心抽象、演进路线 |
-| `01-protocol.md` | Proto 目录重组与消息/RPC 定义 |
-| `02-database.md` | 表结构、迁移 SQL |
-| `03-services.md` | Logic/Gateway/Task 代码组织与模块职责 |
-| `04-flows.md` | 发消息/撤回/已读/离线补偿/AI 流式时序图 |
-| `05-migration.md` | 9 阶段落地计划 (Phase 0~8) |
+| `docs/00-overview.md` | 架构总览、ChatEvent 核心抽象、服务职责与通信方式 |
+| `docs/01-protocol.md` | Proto 分层、契约边界、身份传递与错误处理约定 |
+| `docs/02-database.md` | 表结构、索引策略、事务边界、Redis 键设计 |
+| `docs/10-gateway.md` | Gateway 职责、连接管理、Push 落点 |
+| `docs/11-logic.md` | Logic 业务规则、Outbox 一致性 |
+| `docs/12-task.md` | Task 写扩散、Inbox 语义、消费者处理 |
+| `docs/20-message-flow.md` | 发消息主链路时序 |
+| `docs/21-write-fanout.md` | 写扩散模型与一致性策略 |
+| `docs/22-recall-edit-read.md` | 撤回、编辑、已读事件的统一处理模式（Phase 5–6 依据） |
 
-**动手前必读 `00-overview.md` + 对应 Phase 章节**。功能设计先对照 `01-protocol.md` 和 `04-flows.md` 看是否已有模式可复用,有疑问回到 `00-overview.md` 的设计原则判断。
+**动手前必读 `docs/00-overview.md`**。功能设计先对照 `docs/01-protocol.md` 看是否已有模式可复用，Phase 5+ 具体任务清单见 `DEVELOPMENT.md`。
 
-改完代码要同步更新对应 `docs/architecture/` 章节和 `CHANGELOG.md`(如果存在)。
+改完代码要同步更新 `docs/` 对应章节，并在 `DEVELOPMENT.md` 对应任务上打勾。
 
 ---
 
@@ -59,7 +64,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 
 ## 技术栈
 
-- **后端**:Go 1.26+、[Genesis v0.2.0](github.com/ceyewan/genesis)(本地子模块 `genesis/`)、gRPC、NATS
+- **后端**:Go 1.26+、[Genesis v0.5.0](github.com/ceyewan/genesis)(本地子模块 `genesis/`)、gRPC、NATS
 - **存储**:PostgreSQL 17(消息/用户/会话)、Redis(路由映射、缓存)
 - **前端**:React 18 + TypeScript + Vite + Zustand + ConnectRPC + Dexie(IndexedDB)
 - **协议**:Protobuf(`api/proto/`),`make gen` 生成 Go + TS 代码
@@ -155,7 +160,7 @@ type ChatService struct { msgRepo repo.MessageRepo }
 
 ### 3. 协议优先
 
-新功能涉及"用户可感知的会话事件"时,**优先考虑扩展 `ChatEvent.payload`** 而非新增 RPC。具体落点见 `docs/architecture/01-protocol.md` 和 `04-flows.md`。
+新功能涉及"用户可感知的会话事件"时，**优先考虑扩展 `ChatEvent.payload`** 而非新增 RPC。具体落点见 `docs/01-protocol.md`；Phase 5+ 功能时序见 `docs/22-recall-edit-read.md`。
 
 ### 4. 事务与可靠性
 

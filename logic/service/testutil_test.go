@@ -106,16 +106,19 @@ func (r *testSessionRepo) Close() error { return nil }
 type testMessageRepo struct {
 	historyCalled bool
 
-	saveMessageContentFn    func(ctx context.Context, msg *model.MessageContent) error
-	saveInboxBatchFn        func(ctx context.Context, inboxes []*model.Inbox) error
-	getHistoryMessagesFn    func(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error)
-	getLastMessagesBatchFn  func(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
-	getInboxDeltaFn         func(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error)
-	getUnreadCountFn        func(ctx context.Context, username, sessionID string) (int64, error)
-	saveMessageWithOutboxFn func(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
+	saveMessageContentFn      func(ctx context.Context, msg *model.MessageContent) error
+	saveInboxBatchFn          func(ctx context.Context, inboxes []*model.Inbox) error
+	getHistoryMessagesFn      func(ctx context.Context, sessionID string, beforeSeq int64, limit int) ([]*model.MessageContent, error)
+	getLastMessagesBatchFn    func(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
+	getInboxDeltaFn           func(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error)
+	getUnreadCountFn          func(ctx context.Context, username, sessionID string) (int64, error)
+	saveMessageWithOutboxFn   func(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
+	getMessageByEventIDFn     func(ctx context.Context, eventID int64) (*model.MessageContent, error)
+	recallMessageWithOutboxFn func(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error
 
-	savedMessage *model.MessageContent
-	savedOutbox  *model.MessageOutbox
+	savedMessage      *model.MessageContent
+	savedOutbox       *model.MessageOutbox
+	savedRecallOutbox *model.MessageOutbox
 }
 
 func (r *testMessageRepo) SaveMessageContent(ctx context.Context, msg *model.MessageContent) error {
@@ -165,11 +168,29 @@ func (r *testMessageRepo) GetUnreadMessageCount(ctx context.Context, username, s
 	return 0, nil
 }
 
+func (r *testMessageRepo) GetMessageByEventID(ctx context.Context, eventID int64) (*model.MessageContent, error) {
+	if r.getMessageByEventIDFn != nil {
+		return r.getMessageByEventIDFn(ctx, eventID)
+	}
+	return nil, fmt.Errorf("message not found")
+}
+
 func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	return nil
 }
 
 func (r *testMessageRepo) UpdateMessageContent(ctx context.Context, eventID int64, newContent string, at time.Time) error {
+	return nil
+}
+
+func (r *testMessageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error {
+	r.savedRecallOutbox = outbox
+	if r.recallMessageWithOutboxFn != nil {
+		return r.recallMessageWithOutboxFn(ctx, eventID, recalledAt, outbox)
+	}
+	if outbox != nil && outbox.ID == 0 {
+		outbox.ID = 2
+	}
 	return nil
 }
 

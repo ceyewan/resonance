@@ -46,6 +46,14 @@ func (r *testMessageRepo) GetUnreadMessageCount(ctx context.Context, username, s
 	return 0, nil
 }
 
+func (r *testMessageRepo) GetMessageByEventID(ctx context.Context, eventID int64) (*model.MessageContent, error) {
+	return nil, nil
+}
+
+func (r *testMessageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error {
+	return nil
+}
+
 func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	return nil
 }

@@ -90,7 +90,7 @@ func TestOfflineSync_GoldenPath(t *testing.T) {
 	go func() { _ = logicGRPC.Start() }()
 	t.Cleanup(logicGRPC.Stop)
 
-	logicConn := dialWithRetry(t, logicAddr, 5*time.Second)
+	logicConn := dialWithRetry(t, logicAddr)
 	t.Cleanup(func() { _ = logicConn.Close() })
 	authClient := logicv1.NewAuthServiceClient(logicConn)
 	sessionClient := logicv1.NewSessionServiceClient(logicConn)

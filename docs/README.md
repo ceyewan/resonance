@@ -29,35 +29,35 @@
 ```text
 docs/
 ├── README.md
-├── 00-overview.md
-├── 01-protocol.md
-├── 02-database.md
-├── 03-auth-and-security.md
-├── 04-observability.md
-├── 05-reliability.md
-├── 06-deployment.md
-├── 07-cicd-and-quality.md
-├── 10-gateway.md
-├── 11-logic.md
-├── 12-task.md
-├── 13-web.md
-├── 14-ai-service.md
-├── 20-message-flow.md
-├── 21-write-fanout.md
-├── 22-recall-edit-read.md
-├── 23-offline-sync.md
-├── 24-session-and-membership.md
-├── 25-delivery-and-push.md
-├── 26-failure-recovery.md
-├── 30-adr-index.md
-├── 31-coding-and-module-boundaries.md
-├── 32-api-style-guide.md
-├── 33-db-style-guide.md
-├── 40-developer-onboarding.md
-├── 41-runbook.md
-├── 42-release-guide.md
-├── 43-testing-strategy.md
-└── adr/
+├── 00-overview.md              ✅
+├── 01-protocol.md              ✅
+├── 02-database.md              ✅
+├── 03-auth-and-security.md     ✅
+├── 04-observability.md         ✅
+├── 05-reliability.md           ✅
+├── 06-deployment.md            ✅
+├── 07-cicd-and-quality.md      ✅
+├── 10-gateway.md               ✅
+├── 11-logic.md                 ✅
+├── 12-task.md                  ✅
+├── 13-web.md                   ✅
+├── 14-ai-service.md            🔲 待创建（Phase 7 前补齐）
+├── 20-message-flow.md          ✅
+├── 21-write-fanout.md          ✅
+├── 22-recall-edit-read.md      ✅
+├── 23-offline-sync.md          ✅
+├── 24-session-and-membership.md 🔲 待创建
+├── 25-delivery-and-push.md     🔲 待创建
+├── 26-failure-recovery.md      🔲 待创建
+├── 30-adr-index.md             🔲 待创建
+├── 31-coding-and-module-boundaries.md 🔲 待创建
+├── 32-api-style-guide.md       🔲 待创建
+├── 33-db-style-guide.md        🔲 待创建
+├── 40-developer-onboarding.md  ✅
+├── 41-runbook.md               🔲 待创建
+├── 42-release-guide.md         🔲 待创建
+├── 43-testing-strategy.md      ✅
+└── adr/                        🔲 待创建（有重大设计决策时补）
     ├── ADR-001-chat-event.md
     ├── ADR-002-outbox-pattern.md
     └── ADR-003-write-fanout.md
@@ -81,9 +81,11 @@ docs/
 ## 3.1 总览层
 
 ### `00-overview.md`
+
 唯一总入口，建立系统全局心智。
 
 建议包含：
+
 - 系统目标与非目标
 - 核心业务场景
 - 系统边界与上下游
@@ -98,9 +100,11 @@ docs/
 ## 3.2 横切设计层
 
 ### `01-protocol.md`
+
 统一描述 Proto / API / 事件契约。
 
 建议包含：
+
 - 对外接口与对内接口的边界
 - RPC、推送、事件三类契约的职责划分
 - `ChatEvent` / `PushEvent` 等核心消息模型
@@ -109,9 +113,11 @@ docs/
 - Proto 演进与 breaking change 规则
 
 ### `02-database.md`
+
 统一描述数据模型与持久化策略。
 
 建议包含：
+
 - 核心表结构与关系
 - Inbox / Outbox / Session / Message 等关键模型
 - 索引策略与查询模式
@@ -120,9 +126,11 @@ docs/
 - 分库分表预案
 
 ### `03-auth-and-security.md`
+
 统一描述鉴权和安全边界。
 
 建议包含：
+
 - 登录态与 JWT 约定
 - Web → Gateway → Logic 身份传递
 - 权限模型
@@ -131,9 +139,11 @@ docs/
 - 常见攻击面与防护措施
 
 ### `04-observability.md`
+
 统一描述日志、指标、追踪和告警。
 
 建议包含：
+
 - 日志规范
 - 指标体系
 - Trace 设计
@@ -141,9 +151,11 @@ docs/
 - 排障入口与定位路径
 
 ### `05-reliability.md`
+
 统一描述可靠性设计。
 
 建议包含：
+
 - 幂等
 - 重试
 - 补偿
@@ -153,9 +165,11 @@ docs/
 - 故障降级思路
 
 ### `06-deployment.md`
+
 统一描述部署与环境拓扑。
 
 建议包含：
+
 - 本地 / 测试 / 生产环境拓扑
 - 依赖组件
 - 配置来源
@@ -164,9 +178,11 @@ docs/
 - 扩容与容量规划入口
 
 ### `07-cicd-and-quality.md`
+
 统一描述工程门禁与质量要求。
 
 建议包含：
+
 - format / lint / test / security scan
 - Proto 契约检查
 - DB migration 检查
@@ -179,9 +195,11 @@ docs/
 ## 3.3 服务设计层
 
 ### `10-gateway.md`
+
 描述 Gateway 的职责与边界。
 
 建议包含：
+
 - 协议转换
 - 鉴权
 - 连接管理
@@ -190,9 +208,11 @@ docs/
 - 为什么不承载业务规则
 
 ### `11-logic.md`
+
 描述 Logic 的业务编排与事务边界。
 
 建议包含：
+
 - 核心业务职责
 - 事务模型
 - 领域服务划分
@@ -201,9 +221,11 @@ docs/
 - Repo 接口边界
 
 ### `12-task.md`
+
 描述 Task 的事件消费与落地执行。
 
 建议包含：
+
 - MQ 消费模型
 - 事件分发
 - 写扩散执行
@@ -212,9 +234,11 @@ docs/
 - 幂等与重试策略
 
 ### `13-web.md`
+
 描述前端架构与客户端同步模型。
 
 建议包含：
+
 - 页面和模块划分
 - 状态管理
 - ConnectRPC / WS 使用方式
@@ -223,9 +247,11 @@ docs/
 - 重连同步
 
 ### `14-ai-service.md`
+
 为未来 AI 服务预留。
 
 建议包含：
+
 - 服务职责
 - 消息过滤边界
 - 模型调用边界
@@ -240,27 +266,35 @@ docs/
 ## 3.4 关键域与核心流程层
 
 ### `20-message-flow.md`
+
 发消息主链路。
 
 ### `21-write-fanout.md`
+
 写扩散模型与一致性策略。
 
 ### `22-recall-edit-read.md`
+
 撤回、编辑、已读等事件的统一抽象。
 
 ### `23-offline-sync.md`
+
 离线补偿、重连同步、游标与去重。
 
 ### `24-session-and-membership.md`
+
 会话、成员、权限、群聊 / 单聊差异。
 
 ### `25-delivery-and-push.md`
+
 在线推送、ACK、投递保证、重试机制。
 
 ### `26-failure-recovery.md`
+
 常见故障场景、影响面、恢复流程。
 
 这一层建议全部按统一模板写：
+
 - 背景
 - 参与组件
 - 时序图
@@ -275,24 +309,31 @@ docs/
 ## 3.5 决策与规范层
 
 ### `30-adr-index.md`
+
 ADR 总索引，记录重要设计决策与对应文档。
 
 ### `adr/ADR-001-chat-event.md`
+
 记录为什么采用 `ChatEvent` 作为统一抽象。
 
 ### `adr/ADR-002-outbox-pattern.md`
+
 记录为什么采用 Outbox 保证事务一致性。
 
 ### `adr/ADR-003-write-fanout.md`
+
 记录为什么选择写扩散及其权衡。
 
 ### `31-coding-and-module-boundaries.md`
+
 描述模块边界、依赖方向和编码约束。
 
 ### `32-api-style-guide.md`
+
 描述 Proto / API 设计规范。
 
 ### `33-db-style-guide.md`
+
 描述表、索引、迁移、审计字段等数据库规范。
 
 ---
@@ -300,35 +341,41 @@ ADR 总索引，记录重要设计决策与对应文档。
 ## 3.6 面向使用者的操作文档层
 
 ### `40-developer-onboarding.md`
+
 新开发者本地启动与调试指南。
 
 ### `41-runbook.md`
+
 运维操作与常见故障排查手册。
 
 ### `42-release-guide.md`
+
 发版、回滚、配置变更、数据迁移步骤。
 
 ### `43-testing-strategy.md`
+
 测试分层与测试重点。
 
 ---
 
-## 4. 最小可落地版本（第一批优先补齐）
+## 4. 当前完成状态与下一步
 
-建议先补齐以下 10 份文档，先把系统边界、核心机制和可靠性说清楚：
+### 4.1 已完成文档（18 份）
 
-1. `00-overview.md`
-2. `01-protocol.md`
-3. `02-database.md`
-4. `05-reliability.md`
-5. `06-deployment.md`
-6. `07-cicd-and-quality.md`
-7. `10-gateway.md`
-8. `11-logic.md`
-9. `12-task.md`
-10. `21-write-fanout.md`
+核心架构骨架、横切设计层、服务设计层、发消息主链路、写扩散、撤回编辑已读、离线同步、开发者入门、CI/CD 与测试策略均已覆盖。
 
-这 10 份优先完成后，再逐步展开 `web`、离线同步、已读撤回、运行手册等专题。
+### 4.2 待补齐文档（对应 Phase 5–8 开发节奏）
+
+| 文档 | 建议补齐时机 |
+|------|-------------|
+| `22-recall-edit-read.md` | ✅ 已有（Phase 5–6 前依据） |
+| `24-session-and-membership.md` | Phase 5/6 涉及群成员变化时 |
+| `25-delivery-and-push.md` | Phase 6 多端推送深入前 |
+| `26-failure-recovery.md` | Phase 5 完成后（有第一个完整闭环时） |
+| `14-ai-service.md` | Phase 7 启动前 |
+| `30-adr-index.md` + `adr/` | 有第一个重大决策时即建 |
+| `31~33` 规范文档 | 团队扩大或代码 review 问题反复出现时 |
+| `41-runbook.md` / `42-release-guide.md` | 准备正式上线前 |
 
 ---
 
@@ -350,6 +397,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 ```
 
 补充约定：
+
 - 面向“为什么这样设计”，不是代码逐行解释。
 - 能画时序图的链路，尽量配图。
 - 涉及契约、表结构、事件结构时，尽量给最小示例。
@@ -371,6 +419,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 ## 7. 推荐阅读顺序
 
 ### 新人第一次进入项目
+
 1. `00-overview.md`
 2. `01-protocol.md`
 3. `02-database.md`
@@ -380,6 +429,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 7. `21-write-fanout.md`
 
 ### 做前端 / 同步相关开发
+
 1. `00-overview.md`
 2. `01-protocol.md`
 3. `13-web.md`
@@ -387,6 +437,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 5. `23-offline-sync.md`
 
 ### 做可靠性 / 运维 / 排障
+
 1. `05-reliability.md`
 2. `04-observability.md`
 3. `06-deployment.md`
@@ -397,20 +448,25 @@ ADR 总索引，记录重要设计决策与对应文档。
 
 ## 8. 后续执行建议
 
-建议按下面节奏推进：
+文档体系骨架已就位，当前处于功能扩展期（代码 Phase 5 开始）。
 
-### Phase 1：先定骨架
-- 建立本文档定义的主文档目录
-- 优先补齐前 10 份核心设计文档
-- 为尚未撰写的文档创建占位文件，避免结构反复变化
+### 当前阶段：功能文档随功能推进
 
-### Phase 2：补关键链路
-- 完成发消息、写扩散、离线同步、投递推送等核心流程文档
-- 对高复杂度机制补 ADR
+- Phase 5（撤回）：`22-recall-edit-read.md` 已有，开发中可直接对照
+- Phase 6（已读同步）：同上，ReadReceipt 分支在 `22-recall-edit-read.md` 中
+- Phase 7（AI Service）：启动前先补 `14-ai-service.md`
 
-### Phase 3：补工程治理
-- 完成 CI/CD、质量门禁、测试策略、runbook、release guide
-- 形成“开发—测试—发布—排障”闭环
+### 下一批补齐目标
+
+- 主要故障场景清楚后补 `26-failure-recovery.md`
+- 准备上线时补 `41-runbook.md` / `42-release-guide.md`
+- 有第一个需要长期追溯的架构决策时建 `adr/`
+
+### 长期治理
+
+- 规范文档（`31~33`）在团队协作出现反复摩擦时补
+- 运维文档（`41~42`）在灰度或上线前补
+- 每次重大架构调整同步更新对应的 `docs/` 文档
 
 ---
 
