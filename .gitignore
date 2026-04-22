@@ -41,3 +41,5 @@ genesis/
 # Vite config transpiled artifacts
 web/vite.config.js
 web/vite.config.d.ts
+
+docs/archive/
