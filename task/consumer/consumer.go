@@ -86,7 +86,13 @@ func (c *Consumer) Start() error {
 	}
 
 	// 2. 使用队列订阅（负载均衡）
-	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.receiveMessage, mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck())
+	// WithMaxInflight 限制 JetStream 最多推送 channel 容量条未 Ack 消息，实现背压
+	bufferSize := c.config.WorkerCount * 10
+	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.receiveMessage,
+		mq.WithQueueGroup(c.config.QueueGroup),
+		mq.WithManualAck(),
+		mq.WithMaxInflight(bufferSize),
+	)
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to subscribe to topic %s", c.config.Topic)
 	}
@@ -96,17 +102,8 @@ func (c *Consumer) Start() error {
 	return nil
 }
 
-// receiveMessage 接收消息并放入任务通道
-// TODO: 实现背压机制
-// 当队列满时，当前实现会阻塞在 select 上，可能导致 MQ 的 Subscribe 回调阻塞
-// 改进方案：
-//  1. 添加队列满的显式处理（返回错误或记录指标）
-//  2. 考虑使用可配置的背压策略（如丢弃最旧的消息、拒绝新消息等）
-//
-// 当前不实现的原因：
-//   - NATS Core 模式下没有原生背压支持
-//   - 简单的丢弃策略可能导致消息丢失
-//   - 需要配合 MQ 客户端的流控机制
+// receiveMessage 接收消息并放入任务通道。
+// WithMaxInflight 保证 JetStream 推送量不超过 channel 容量，正常情况下此处不会阻塞。
 func (c *Consumer) receiveMessage(msg mq.Message) error {
 	select {
 	case c.jobsCh <- msg:
@@ -171,16 +168,25 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 	// 1. 解析 MQEvent
 	event := &mqv1.MQEvent{}
 	if err := proto.Unmarshal(msg.Data(), event); err != nil {
-		c.logger.Error("failed to unmarshal mq event",
+		c.logger.Error("failed to unmarshal mq event, routing to DLQ",
+			clog.String("dlq_topic", c.config.DLQTopic),
 			clog.Int("data_len", len(msg.Data())),
 			clog.Error(err))
 
-		// TODO: P0 - 消息解析失败时记录到死信队列或数据库
-		// 当前行为：直接 Ack，消息永久丢失
-		// 等升级到 NATS JetStream 后，可以利用其 Nak + 死信队列功能
-		// 短期改进：可以将无法解析的原始消息记录到数据库的 dead_letter 表
-		if err := msg.Ack(); err != nil {
-			c.logger.Warn("failed to ack malformed mq event", clog.Error(err))
+		// 无法解析的消息重试无意义，转投死信队列保留原始字节供人工排查
+		headers := msg.Headers()
+		if headers == nil {
+			headers = make(mq.Headers)
+		}
+		headers.Set("x-original-topic", msg.Topic())
+		headers.Set("x-error", err.Error())
+		if dlqErr := c.mqClient.Publish(ctx, c.config.DLQTopic, msg.Data(), mq.WithHeaders(headers)); dlqErr != nil {
+			c.logger.Error("failed to publish malformed message to DLQ",
+				clog.String("dlq_topic", c.config.DLQTopic),
+				clog.Error(dlqErr))
+		}
+		if ackErr := msg.Ack(); ackErr != nil {
+			c.logger.Warn("failed to ack malformed mq event", clog.Error(ackErr))
 		}
 		return nil
 	}

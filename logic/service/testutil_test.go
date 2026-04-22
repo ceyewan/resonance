@@ -235,12 +235,12 @@ type testGenerator struct {
 	next int64
 }
 
-func (g *testGenerator) Next() int64 {
-	return g.next
+func (g *testGenerator) Next() (int64, error) {
+	return g.next, nil
 }
 
-func (g *testGenerator) NextString() string {
-	return fmt.Sprintf("%d", g.next)
+func (g *testGenerator) NextString() (string, error) {
+	return fmt.Sprintf("%d", g.next), nil
 }
 
 type testSequencer struct {

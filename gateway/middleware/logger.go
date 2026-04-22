@@ -18,7 +18,11 @@ func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 		// 1. 处理 trace_id
 		traceID := c.GetHeader(TraceIDHeader)
 		if traceID == "" {
-			traceID = fmt.Sprintf("%d", idgen.Next())
+			if id, err := idgen.Next(); err == nil {
+				traceID = fmt.Sprintf("%d", id)
+			} else {
+				traceID = uuid.New().String()
+			}
 		}
 		c.Set("trace_id", traceID)
 		c.Header(TraceIDHeader, traceID)
