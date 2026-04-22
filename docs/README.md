@@ -41,7 +41,8 @@ docs/
 ├── 11-logic.md                 ✅
 ├── 12-task.md                  ✅
 ├── 13-web.md                   ✅
-├── 14-ai-service.md            🔲 待创建（Phase 7 前补齐）
+├── 14-ai-service.md            ✅
+├── 15-agent-harness.md         ✅
 ├── 20-message-flow.md          ✅
 ├── 21-write-fanout.md          ✅
 ├── 22-recall-edit-read.md      ✅
@@ -360,7 +361,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 
 ## 4. 当前完成状态与下一步
 
-### 4.1 已完成文档（18 份）
+### 4.1 已完成文档（20 份）
 
 核心架构骨架、横切设计层、服务设计层、发消息主链路、写扩散、撤回编辑已读、离线同步、开发者入门、CI/CD 与测试策略均已覆盖。
 
@@ -372,7 +373,6 @@ ADR 总索引，记录重要设计决策与对应文档。
 | `24-session-and-membership.md` | Phase 5/6 涉及群成员变化时 |
 | `25-delivery-and-push.md` | Phase 6 多端推送深入前 |
 | `26-failure-recovery.md` | Phase 5 完成后（有第一个完整闭环时） |
-| `14-ai-service.md` | Phase 7 启动前 |
 | `30-adr-index.md` + `adr/` | 有第一个重大决策时即建 |
 | `31~33` 规范文档 | 团队扩大或代码 review 问题反复出现时 |
 | `41-runbook.md` / `42-release-guide.md` | 准备正式上线前 |
@@ -454,7 +454,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 
 - Phase 5（撤回）：`22-recall-edit-read.md` 已有，开发中可直接对照
 - Phase 6（已读同步）：同上，ReadReceipt 分支在 `22-recall-edit-read.md` 中
-- Phase 7（AI Service）：启动前先补 `14-ai-service.md`
+- Phase 7（AI Service）：`14-ai-service.md` + `15-agent-harness.md` 已有，开发前对照两份文档锁定系统契约与 Harness 内部结构
 
 ### 下一批补齐目标
 
