@@ -3,6 +3,7 @@ import "./WallpaperBackground.css";
 
 interface WallpaperBackgroundProps {
   children?: ReactNode;
+  animated?: boolean;
 }
 
 /**
@@ -14,9 +15,9 @@ interface WallpaperBackgroundProps {
  *   3. 噪点纹理覆盖（微妙的颗粒感增加真实性）
  *   4. 微光粒子（极微小的闪烁点）
  */
-export function WallpaperBackground({ children }: WallpaperBackgroundProps) {
+export function WallpaperBackground({ children, animated = false }: WallpaperBackgroundProps) {
   return (
-    <div className="wallpaper">
+    <div className={`wallpaper ${animated ? "wallpaper--animated" : ""}`}>
       {/* Layer 1: 流动渐变壁纸 */}
       <div className="wallpaper__gradient" />
 

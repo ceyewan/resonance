@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useCallback, type MouseEvent } from "react";
 
 /**
  * 液态玻璃物理引擎 Hook
@@ -8,8 +8,7 @@ import { useRef, useEffect, useCallback, useState } from "react";
  *   2. 3D 透视倾斜（基于鼠标在元素上的位置计算 rotateX/Y）
  *   3. 动态光标追踪高光（specular highlight 的位置与强度）
  *
- * 所有运算通过 requestAnimationFrame 驱动，不触发 React re-render，
- * 直接操纵 CSS Custom Properties 实现零 GC 压力的 60fps 动画。
+ * 动画只在交互期间运行，不触发 React re-render，避免空闲页面持续占用 CPU。
  */
 
 export interface LiquidGlassConfig {
@@ -72,13 +71,13 @@ function lerp(current: number, target: number, factor: number): number {
 export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig = {}) {
   const ref = useRef<T>(null);
   const rafId = useRef<number>(0);
+  const isAnimating = useRef(false);
   const isPressed = useRef(false);
   const isHovered = useRef(false);
-
-  const [cfg, setCfg] = useState({ ...DEFAULT_CONFIG, ...config });
+  const cfg = useRef({ ...DEFAULT_CONFIG, ...config });
 
   useEffect(() => {
-    setCfg({ ...DEFAULT_CONFIG, ...config });
+    cfg.current = { ...DEFAULT_CONFIG, ...config };
   }, [
     config.damping,
     config.stiffness,
@@ -114,33 +113,53 @@ export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig 
   // 全局鼠标位置（避免 setState 触发 re-render）
   const mousePos = useRef({ x: -9999, y: -9999 });
 
+  const resetTargets = useCallback(() => {
+    const s = spring.current;
+    s.targetTranslateX = 0;
+    s.targetTranslateY = 0;
+    s.targetTiltX = 0;
+    s.targetTiltY = 0;
+    s.targetScale = 1;
+    s.targetGlowOpacity = 0;
+    s.targetRefractionScale = 0;
+  }, []);
+
+  const isSettled = useCallback(() => {
+    const s = spring.current;
+    return (
+      Math.abs(s.translateX) < 0.01 &&
+      Math.abs(s.translateY) < 0.01 &&
+      Math.abs(s.tiltX) < 0.01 &&
+      Math.abs(s.tiltY) < 0.01 &&
+      Math.abs(s.scale - 1) < 0.001 &&
+      s.glowOpacity < 0.01 &&
+      s.refractionScale < 0.01
+    );
+  }, []);
+
   const updateTargets = useCallback(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !isHovered.current) {
+      resetTargets();
+      return;
+    }
 
     const rect = el.getBoundingClientRect();
     const mx = mousePos.current.x;
     const my = mousePos.current.y;
     const s = spring.current;
+    const currentCfg = cfg.current;
 
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     const deltaX = mx - centerX;
     const deltaY = my - centerY;
 
-    // 计算鼠标到元素边缘的距离
-    const edgeDistX = Math.max(0, Math.abs(deltaX) - rect.width / 2);
-    const edgeDistY = Math.max(0, Math.abs(deltaY) - rect.height / 2);
-    const edgeDist = Math.sqrt(edgeDistX * edgeDistX + edgeDistY * edgeDistY);
-
-    // 激活因子（0 = 离得远，1 = 在元素上/紧贴边缘）
-    const activation = Math.max(0, 1 - edgeDist / cfg.activationRange);
-
     // ── 弹簧位移 ──
     // 元素微微向鼠标方向偏移，像被磁力吸引
     const maxTranslate = 4;
-    s.targetTranslateX = (deltaX / rect.width) * maxTranslate * activation;
-    s.targetTranslateY = (deltaY / rect.height) * maxTranslate * activation;
+    s.targetTranslateX = (deltaX / rect.width) * maxTranslate;
+    s.targetTranslateY = (deltaY / rect.height) * maxTranslate;
 
     // ── 3D 倾斜 ──
     // 鼠标在元素内部时产生倾斜（模拟手持玻璃片倾斜看反光）
@@ -150,8 +169,8 @@ export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig 
       const normalX = ((mx - rect.left) / rect.width - 0.5) * 2;
       const normalY = ((my - rect.top) / rect.height - 0.5) * 2;
       // rotateY: 鼠标向右 → 面板左边抬起；rotateX: 鼠标向下 → 顶部抬起
-      s.targetTiltY = normalX * cfg.tiltMax;
-      s.targetTiltX = -normalY * cfg.tiltMax;
+      s.targetTiltY = normalX * currentCfg.tiltMax;
+      s.targetTiltX = -normalY * currentCfg.tiltMax;
     } else {
       s.targetTiltX = 0;
       s.targetTiltY = 0;
@@ -161,31 +180,32 @@ export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig 
     if (isInside) {
       s.targetGlowX = ((mx - rect.left) / rect.width) * 100;
       s.targetGlowY = ((my - rect.top) / rect.height) * 100;
-      s.targetGlowOpacity = cfg.glowIntensity;
+      s.targetGlowOpacity = currentCfg.glowIntensity;
     } else {
-      s.targetGlowOpacity = Math.max(0, activation * cfg.glowIntensity * 0.3);
+      s.targetGlowOpacity = 0;
     }
 
     // ── 折射强度 ──
-    s.targetRefractionScale = isInside ? 1 : activation * 0.3;
+    s.targetRefractionScale = currentCfg.enableRefraction && isInside ? 1 : 0;
 
     // ── 按压缩放 ──
-    s.targetScale = isPressed.current ? cfg.pressScale : 1;
-  }, [cfg]);
+    s.targetScale = isPressed.current ? currentCfg.pressScale : 1;
+  }, [resetTargets]);
 
   const animate = useCallback(() => {
     const s = spring.current;
     const el = ref.current;
     if (!el) {
-      rafId.current = requestAnimationFrame(animate);
+      isAnimating.current = false;
       return;
     }
 
     updateTargets();
 
     // 弹簧插值
-    const lerpFactor = cfg.stiffness;
-    const dampFactor = cfg.damping;
+    const currentCfg = cfg.current;
+    const lerpFactor = currentCfg.stiffness;
+    const dampFactor = currentCfg.damping;
 
     s.translateX = lerp(s.translateX, s.targetTranslateX, lerpFactor);
     s.translateY = lerp(s.translateY, s.targetTranslateY, lerpFactor);
@@ -209,45 +229,52 @@ export function useLiquidGlass<T extends HTMLElement>(config: LiquidGlassConfig 
     style.setProperty("--lg-glow-opacity", `${s.glowOpacity}`);
     style.setProperty("--lg-refraction", `${s.refractionScale}`);
 
+    if (isHovered.current || isPressed.current || !isSettled()) {
+      rafId.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    isAnimating.current = false;
+  }, [isSettled, updateTargets]);
+
+  const startAnimation = useCallback(() => {
+    if (isAnimating.current) {
+      return;
+    }
+    isAnimating.current = true;
     rafId.current = requestAnimationFrame(animate);
-  }, [cfg, updateTargets]);
+  }, [animate]);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      mousePos.current = { x: e.clientX, y: e.clientY };
-    };
-
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    rafId.current = requestAnimationFrame(animate);
-
     return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
       cancelAnimationFrame(rafId.current);
+      isAnimating.current = false;
     };
-  }, [animate]);
+  }, []);
 
   const handlers = {
     onMouseDown: () => {
       isPressed.current = true;
+      startAnimation();
     },
     onMouseUp: () => {
       isPressed.current = false;
+      startAnimation();
     },
-    onMouseEnter: () => {
+    onMouseEnter: (event: MouseEvent<T>) => {
       isHovered.current = true;
+      mousePos.current = { x: event.clientX, y: event.clientY };
+      startAnimation();
+    },
+    onMouseMove: (event: MouseEvent<T>) => {
+      mousePos.current = { x: event.clientX, y: event.clientY };
+      startAnimation();
     },
     onMouseLeave: () => {
       isPressed.current = false;
       isHovered.current = false;
-      // 归零目标
-      const s = spring.current;
-      s.targetTranslateX = 0;
-      s.targetTranslateY = 0;
-      s.targetTiltX = 0;
-      s.targetTiltY = 0;
-      s.targetScale = 1;
-      s.targetGlowOpacity = 0;
-      s.targetRefractionScale = 0;
+      resetTargets();
+      startAnimation();
     },
   };
 
