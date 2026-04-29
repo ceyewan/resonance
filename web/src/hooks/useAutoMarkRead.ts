@@ -6,9 +6,12 @@ import { type TimelineItem } from "./useSessionTimeline";
 
 const THROTTLE_MS = 500;
 
-function pickHighestSeq(timeline: readonly TimelineItem[]): bigint {
+function pickHighestReadableSeq(timeline: readonly TimelineItem[]): bigint {
   let max = 0n;
   for (const { event } of timeline) {
+    if (event.payloadCase !== "message") {
+      continue;
+    }
     const seq = toBigIntId(event.seqId);
     if (seq > max) {
       max = seq;
@@ -33,7 +36,7 @@ export function useAutoMarkRead(
       return;
     }
 
-    const highest = pickHighestSeq(timeline);
+    const highest = pickHighestReadableSeq(timeline);
     if (highest === 0n) {
       return;
     }

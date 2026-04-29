@@ -76,6 +76,10 @@ func (c *Conn) RemoteAddr() string {
 
 // Send 实现 ws.Connection 接口
 func (c *Conn) Send(packet *gatewayv1.WsPacket) error {
+	if c.ctx.Err() != nil {
+		return fmt.Errorf("connection closed")
+	}
+
 	select {
 	case c.send <- packet:
 		return nil
@@ -90,7 +94,6 @@ func (c *Conn) Send(packet *gatewayv1.WsPacket) error {
 func (c *Conn) Close() error {
 	c.closeOnce.Do(func() {
 		c.cancel()
-		close(c.send)
 		c.conn.Close()
 	})
 	return nil
