@@ -205,11 +205,12 @@ func (r *messageRepo) GetLastMessagesBatch(ctx context.Context, sessionIDs []str
 
 	// 使用子查询获取每个会话的最后一条消息
 	// 子查询：对每个 session_id，获取 seq_id 最大的消息
-	subquery := gormDB.Select("session_id, MAX(seq_id) as max_seq_id").
+	subquery := gormDB.Table(model.MessageContent{}.TableName()).
+		Select("session_id, MAX(seq_id) as max_seq_id").
 		Where("session_id IN ?", sessionIDs).
 		Group("session_id")
 
-	if err := gormDB.Where("(session_id, seq_id) IN (?)",
+	if err := gormDB.Model(&model.MessageContent{}).Where("(session_id, seq_id) IN (?)",
 		gormDB.Select("session_id, max_seq_id").Table("(?) as t", subquery)).
 		Find(&messages).Error; err != nil {
 		r.logger.Error("批量获取最后一条消息失败",
@@ -332,6 +333,9 @@ func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64
 		if result.RowsAffected == 0 {
 			return ErrMessageAlreadyRecalled
 		}
+		if err := advanceSessionMaxSeqFromOutbox(tx, outbox); err != nil {
+			return err
+		}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("save recall outbox: %w", err)
 		}
@@ -364,6 +368,9 @@ func (r *messageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, 
 			if msg.RecalledAt != nil {
 				return ErrMessageAlreadyRecalled
 			}
+		}
+		if err := advanceSessionMaxSeqFromOutbox(tx, outbox); err != nil {
+			return err
 		}
 		if err := tx.Create(outbox).Error; err != nil {
 			return fmt.Errorf("save edit outbox: %w", err)

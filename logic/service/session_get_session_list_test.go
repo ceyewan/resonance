@@ -64,6 +64,11 @@ func TestSessionService_GetSessionList_DirectNicknameUnreadAndLastEvent(t *testi
 				},
 			}, nil
 		},
+		getUnreadCountFn: func(ctx context.Context, username, sessionID string) (int64, error) {
+			require.Equal(t, "alice", username)
+			require.Equal(t, "single:alice:bob", sessionID)
+			return 3, nil
+		},
 	}
 	userRepo := &testUserRepo{
 		getUsersByUsernamesFn: func(ctx context.Context, usernames []string) ([]*model.User, error) {
@@ -129,6 +134,38 @@ func TestSessionService_GetSessionList_FallbackLastEventWhenNoMessage(t *testing
 	require.Equal(t, "group:1", s.LastEvent.SessionId)
 	require.Equal(t, commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED, s.LastEvent.GetMessage().GetType())
 	require.Equal(t, "", s.LastEvent.GetMessage().GetContent())
+}
+
+func TestSessionService_GetSessionList_ClampsUnreadFallback(t *testing.T) {
+	sessionRepo := &testSessionRepo{
+		getUserSessionLFn: func(ctx context.Context, username string) ([]*model.Session, error) {
+			return []*model.Session{
+				{
+					SessionID: "group:1",
+					Type:      int(commonv1.SessionType_SESSION_TYPE_GROUP),
+					Name:      "Dev",
+					MaxSeqID:  1,
+				},
+			}, nil
+		},
+		getUserSessBatch: func(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error) {
+			return []*model.SessionMember{
+				{SessionID: "group:1", Username: "alice", LastReadSeq: 2},
+			}, nil
+		},
+	}
+	messageRepo := &testMessageRepo{
+		getUnreadCountFn: func(ctx context.Context, username, sessionID string) (int64, error) {
+			return 0, errors.New("unread query failed")
+		},
+	}
+	svc := NewSessionService(sessionRepo, messageRepo, &testUserRepo{}, nil, nil, nil, nil, testLogger())
+
+	resp, err := svc.GetSessionList(newTestIncomingContext("alice"), &logicv1.GetSessionListRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Sessions, 1)
+	require.Equal(t, int64(0), resp.Sessions[0].UnreadCount)
+	require.Equal(t, int64(2), resp.Sessions[0].LastReadSeq)
 }
 
 func TestSessionService_GetSessionList_ListFailed(t *testing.T) {

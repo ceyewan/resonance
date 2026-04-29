@@ -54,7 +54,8 @@ services:
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
-      RESONANCE_SERVICE_HOST: ""
+      # Docker 内服务发现必须注册容器可达地址，不能落回 configs/logic.yaml 的 localhost。
+      RESONANCE_SERVICE_HOST: ${RESONANCE_LOGIC_HOSTNAME:-logic-service-001}
       RESONANCE_POSTGRES_HOST: postgres
       RESONANCE_REDIS_ADDR: redis:6379
       RESONANCE_NATS_URL: nats://nats:4222
@@ -113,7 +114,8 @@ services:
     environment:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_GATEWAY_HOSTNAME:-gateway-service-001}
-      RESONANCE_SERVICE_HOST: ""
+      # Task 通过服务发现推送到 Gateway，注册地址必须是容器 hostname。
+      RESONANCE_SERVICE_HOST: ${RESONANCE_GATEWAY_HOSTNAME:-gateway-service-001}
       RESONANCE_REDIS_ADDR: redis:6379
       RESONANCE_ETCD_ENDPOINTS: etcd:2379
     depends_on:
@@ -139,6 +141,8 @@ services:
       <<: *resonance-env
       HOSTNAME: ${RESONANCE_WEB_HOSTNAME:-web-service-001}
       RESONANCE_SERVICE_HOST: 0.0.0.0
+      RESONANCE_WEB_API_BASE_URL: ${RESONANCE_WEB_API_BASE_URL:-http://localhost:8080}
+      RESONANCE_WEB_WS_BASE_URL: ${RESONANCE_WEB_WS_BASE_URL:-ws://localhost:8080/ws}
     depends_on:
       gateway:
         condition: service_started

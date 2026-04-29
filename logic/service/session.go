@@ -136,8 +136,16 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		unread := int64(0)
 		lastReadSeq := int64(0)
 		if userSess != nil {
-			unread = sess.MaxSeqID - userSess.LastReadSeq
 			lastReadSeq = userSess.LastReadSeq
+			if count, err := s.messageRepo.GetUnreadMessageCount(ctx, username, sess.SessionID); err == nil {
+				unread = count
+			} else {
+				s.logger.Warn("failed to get unread message count, fallback to seq delta",
+					clog.String("session_id", sess.SessionID),
+					clog.String("username", username),
+					clog.Error(err))
+				unread = max(sess.MaxSeqID-userSess.LastReadSeq, 0)
+			}
 		}
 
 		sessionName := sess.Name

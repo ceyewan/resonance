@@ -128,6 +128,25 @@ docker compose -p resonance \
 
 这个模式会暴露 Gateway（8080）和 Web（4173）端口到 `127.0.0.1`，适合本地验证 Docker 构建产物。
 
+注意：Docker 模式下 `logic` 和 `gateway` 不能继续使用配置文件中的 `service.host=localhost` 做服务注册。`services.yaml` 会显式注入 `RESONANCE_SERVICE_HOST=<container-hostname>`，让 Logic 注册为 `logic-service-001:15090`、Gateway 注册为 `gateway-service-001:15091`。否则其他容器通过 etcd 做服务发现时会把 `localhost` 解析到自身容器，最终出现 `dial tcp [::1]:15090: connect: connection refused` 这类错误。
+
+本地 Docker 模式下，`services.yaml` 会为 `web` 容器默认注入：
+
+```bash
+RESONANCE_WEB_API_BASE_URL=http://localhost:8080
+RESONANCE_WEB_WS_BASE_URL=ws://localhost:8080/ws
+```
+
+这样浏览器访问 `http://localhost:4173` 时，前端请求会直接命中宿主机暴露的 Gateway，而不会把 `/resonance.gateway.v1.*` 或 `/ws` 误发到静态 Web 服务自身。
+
+本地修复代码后需要把结果应用到 Docker 环境时，直接执行：
+
+```bash
+make update-local
+```
+
+该命令会重新构建镜像、按 `deploy/base.yaml + deploy/services.yaml` 重建业务容器，并输出最新服务状态。
+
 ### 7.2 生产模式
 
 ```bash

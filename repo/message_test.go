@@ -6,7 +6,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
+	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
+	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
 )
 
@@ -97,4 +100,55 @@ func TestMessageRepo_GetUnreadMessageCount(t *testing.T) {
 	count, err := repo.GetUnreadMessageCount(ctx, "bob", "s_1")
 	require.NoError(t, err)
 	require.Equal(t, int64(2), count, "未读角标只统计 event_type = Message 的事件")
+}
+
+func TestMessageRepo_RecallWithOutboxAdvancesSessionMaxSeq(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	t.Cleanup(cleanup)
+	repo, err := NewMessageRepo(database, WithMessageRepoLogger(getTestLogger(t)))
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	gormDB := database.DB(ctx)
+	require.NoError(t, gormDB.Create(&model.Session{
+		SessionID: "s_recall_seq",
+		Type:      2,
+		MaxSeqID:  1,
+	}).Error)
+	require.NoError(t, gormDB.Create(&model.MessageContent{
+		EventID:        2001,
+		SessionID:      "s_recall_seq",
+		SenderUsername: "alice",
+		SeqID:          1,
+		Content:        "hello",
+		MsgType:        int(commonv1.MessageType_MESSAGE_TYPE_TEXT),
+	}).Error)
+
+	payload, err := proto.Marshal(&mqv1.MQEvent{
+		Event: &commonv1.ChatEvent{
+			EventId:      2002,
+			SeqId:        2,
+			SessionId:    "s_recall_seq",
+			FromUsername: "alice",
+			TimestampMs:  time.Now().UnixMilli(),
+			Payload: &commonv1.ChatEvent_Recall{
+				Recall: &commonv1.MessageRecall{TargetEventId: 2001},
+			},
+		},
+		TargetUsernames: []string{"alice"},
+	})
+	require.NoError(t, err)
+
+	err = repo.RecallMessageWithOutbox(ctx, 2001, time.Now(), &model.MessageOutbox{
+		EventID:       2002,
+		Topic:         "resonance.chat.event.v1",
+		Payload:       payload,
+		Status:        model.OutboxStatusPending,
+		NextRetryTime: time.Now(),
+	})
+	require.NoError(t, err)
+
+	var session model.Session
+	require.NoError(t, gormDB.Where("session_id = ?", "s_recall_seq").First(&session).Error)
+	require.Equal(t, int64(2), session.MaxSeqID)
 }

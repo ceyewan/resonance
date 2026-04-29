@@ -140,7 +140,10 @@ func (g *Gateway) initComponents() error {
 	}
 
 	// 7. 创建 ID 生成器 (供其他组件使用)
-	idGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: workerID})
+	idGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
+		Mode:     idgen.GeneratorModeSingleDC,
+		WorkerID: workerID,
+	})
 	if err != nil {
 		return fmt.Errorf("create id generator: %w", err)
 	}

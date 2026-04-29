@@ -46,6 +46,10 @@ function previewFromEvent(event: ChatEvent | undefined): string {
   }
 }
 
+function normalizeUnreadCount(value: bigint): string {
+  return toIdString(value > 0n ? value : 0n);
+}
+
 function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): SessionRow {
   const base = existing ?? createEmptySessionRow(snapshot.sessionId);
   const lastEvent = snapshot.lastEvent;
@@ -56,7 +60,7 @@ function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): 
     name: snapshot.name,
     type: snapshot.type,
     avatarUrl: snapshot.avatarUrl,
-    unreadCount: toIdString(snapshot.unreadCount),
+    unreadCount: normalizeUnreadCount(snapshot.unreadCount),
     lastReadSeq: toIdString(snapshot.lastReadSeq),
     lastEventId: lastEvent === undefined ? "0" : toIdString(lastEvent.eventId),
     lastEventSeqId: lastEvent === undefined ? "0" : toIdString(lastEvent.seqId),

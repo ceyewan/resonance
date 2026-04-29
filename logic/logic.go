@@ -133,13 +133,19 @@ func (l *Logic) initComponents() error {
 	res.instanceIDStop = allocator.Stop
 
 	// 3.1 使用分配到的 instanceID 初始化 ID 生成器
-	msgIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
+	msgIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
+		Mode:     idgen.GeneratorModeSingleDC,
+		WorkerID: instanceID,
+	})
 	if err != nil {
 		return fmt.Errorf("msgID generator init: %w", err)
 	}
 	res.msgIDGen = msgIDGen
 
-	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{WorkerID: instanceID})
+	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
+		Mode:     idgen.GeneratorModeSingleDC,
+		WorkerID: instanceID,
+	})
 	if err != nil {
 		return fmt.Errorf("sessionID generator init: %w", err)
 	}

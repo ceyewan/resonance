@@ -378,6 +378,9 @@ func (r *sessionRepo) AdvanceLastReadSeqWithOutbox(ctx context.Context, sessionI
 
 		advanced = true
 		if outbox != nil {
+			if err := advanceSessionMaxSeqFromOutbox(tx, outbox); err != nil {
+				return err
+			}
 			if err := tx.Create(outbox).Error; err != nil {
 				return fmt.Errorf("save read receipt outbox: %w", err)
 			}

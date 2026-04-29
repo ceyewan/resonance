@@ -339,6 +339,52 @@ describe("applyEvent", () => {
     expect(session?.lastReadSeq).toBe("123");
   });
 
+  test("g4) ReadReceipt 来自本人时重算本地未读数", async () => {
+    const sessionId = "s-read-self-unread";
+    await upsertSession({
+      ...makeBaseSession(sessionId, SessionType.DIRECT),
+      unreadCount: "2",
+    });
+
+    await applyEvent(
+      makeMessageEvent({
+        eventId: 7301n,
+        seqId: 1n,
+        sessionId,
+        fromUsername: "bob",
+        timestampMs: 73001n,
+      }),
+    );
+    await applyEvent(
+      makeMessageEvent({
+        eventId: 7302n,
+        seqId: 2n,
+        sessionId,
+        fromUsername: "bob",
+        timestampMs: 73002n,
+      }),
+    );
+
+    const receipt = create(ChatEventSchema, {
+      eventId: 7303n,
+      seqId: 3n,
+      sessionId,
+      fromUsername: "alice",
+      timestampMs: 73003n,
+      payload: {
+        case: "readReceipt",
+        value: create(ReadReceiptSchema, {
+          readUptoSeqId: 2n,
+        }),
+      },
+    });
+    await applyEvent(receipt);
+
+    const session = await getSession(sessionId);
+    expect(session?.lastReadSeq).toBe("2");
+    expect(session?.unreadCount).toBe("0");
+  });
+
   test("h) SessionUpdate 覆盖会话元信息", async () => {
     const sessionId = "s-session-update";
     await upsertSession(makeBaseSession(sessionId, SessionType.GROUP));

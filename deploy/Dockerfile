@@ -36,16 +36,17 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/resonance .
 # 运行阶段
 # =========================
 
-FROM gcr.io/distroless/static-debian12:nonroot AS final
+FROM alpine:3.20 AS final
 
 # 复制二进制文件
-COPY --from=builder --chown=nonroot:nonroot /app/bin/resonance /app/resonance
+COPY --from=builder /app/bin/resonance /app/resonance
 
 # 复制配置文件
-COPY --from=builder --chown=nonroot:nonroot /app/configs /app/configs
+COPY --from=builder /app/configs /app/configs
 
 # 从前端构建阶段复制静态文件
-COPY --from=frontend-builder --chown=nonroot:nonroot /src/web/dist /app/web/dist
+COPY --from=frontend-builder /src/web/dist /app/web/dist
 
 WORKDIR /app
+USER nobody
 ENTRYPOINT ["/app/resonance"]

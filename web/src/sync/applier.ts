@@ -6,6 +6,7 @@ import {
   deleteEvent,
   findPendingEventByClientMsgId,
   getEventByEventId,
+  getEventsBySession,
   getMeta,
   getSession,
   putEvent,
@@ -196,6 +197,14 @@ async function applyReadReceipt(event: ChatEvent): Promise<void> {
     const incomingLastRead = toBigIntId(readUptoSeqId);
     if (incomingLastRead > currentLastRead) {
       next.lastReadSeq = toIdString(incomingLastRead);
+      const events = await getEventsBySession(event.sessionId);
+      const unread = events.filter(
+        (item) =>
+          item.payloadCase === "message" &&
+          item.fromUsername !== meUsername &&
+          toBigIntId(item.seqId) > incomingLastRead,
+      ).length;
+      next.unreadCount = toIdString(BigInt(unread));
     }
   }
 

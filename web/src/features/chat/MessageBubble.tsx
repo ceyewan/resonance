@@ -65,7 +65,11 @@ export function MessageBubble({ event, sendState, session }: MessageBubbleProps)
   const readStatus = formatReadStatus(isMe, event, session, auth.currentUser?.username);
 
   const handleRecall = useCallback(async () => {
-    await recall(event.sessionId, toBigIntId(event.eventId));
+    try {
+      await recall(event.sessionId, toBigIntId(event.eventId));
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : "撤回失败");
+    }
   }, [recall, event.sessionId, event.eventId]);
 
   const handleEdit = useCallback(async () => {
@@ -73,7 +77,11 @@ export function MessageBubble({ event, sendState, session }: MessageBubbleProps)
     if (next === null) {
       return;
     }
-    await edit(event.sessionId, toBigIntId(event.eventId), next);
+    try {
+      await edit(event.sessionId, toBigIntId(event.eventId), next);
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : "编辑失败");
+    }
   }, [edit, event.content, event.eventId, event.sessionId]);
 
   if (event.recalled) {
@@ -119,7 +127,7 @@ export function MessageBubble({ event, sendState, session }: MessageBubbleProps)
             type="button"
             title="编辑消息"
             onClick={() => void handleEdit()}
-            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
+            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -130,7 +138,7 @@ export function MessageBubble({ event, sendState, session }: MessageBubbleProps)
             type="button"
             title="撤回消息"
             onClick={() => void handleRecall()}
-            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
+            className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-full hover:bg-[var(--glass-input-bg)]"
           >
             <Undo2 className="w-3.5 h-3.5" />
           </button>

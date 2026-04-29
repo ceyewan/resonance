@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up up-prod down down-prod logs logs-prod clean
+.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod down down-prod logs logs-prod clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -191,6 +191,10 @@ logs-infra: ## 查看基础设施日志
 up: ## 启动所有服务（Docker）
 	@chmod +x deploy/scripts/deploy-local.sh
 	@./deploy/scripts/deploy-local.sh
+
+update-local: ## 重新构建并更新本地 Docker 部署
+	@chmod +x deploy/scripts/update-local.sh
+	@./deploy/scripts/update-local.sh
 
 up-prod: ## 启动生产配置（Caddy 反代，不暴露业务端口）
 	@chmod +x deploy/scripts/deploy-production.sh
