@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,6 +60,22 @@ func TestSessionRepo_CreateSession(t *testing.T) {
 		assert.Equal(t, 2, found.Type)
 	})
 
+	t.Run("持久化AI会话权威快照", func(t *testing.T) {
+		session := &model.Session{
+			SessionID: "agent:9001", Type: 1, Kind: model.SessionKindAI,
+			TenantID: "tenant-a", ProfileID: model.AgentProfileIAMAdmin, ProfileVersion: 3,
+			OwnerUsername: "admin",
+		}
+		require.NoError(t, repo.CreateSession(ctx, session))
+
+		found, err := repo.GetSession(ctx, session.SessionID)
+		require.NoError(t, err)
+		assert.Equal(t, model.SessionKindAI, found.Kind)
+		assert.Equal(t, "tenant-a", found.TenantID)
+		assert.Equal(t, model.AgentProfileIAMAdmin, found.ProfileID)
+		assert.Equal(t, int64(3), found.ProfileVersion)
+	})
+
 	t.Run("创建重复会话ID应失败", func(t *testing.T) {
 		session := &model.Session{
 			SessionID: "duplicate_session",
@@ -90,6 +109,120 @@ func TestSessionRepo_CreateSession(t *testing.T) {
 		err := repo.CreateSession(ctx, nil)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "session cannot be nil")
+	})
+}
+
+func TestSessionRepo_CreateSessionWithMembers_AtomicIdempotentAndVersioned(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+
+	sessionRepo, err := NewSessionRepo(database, WithSessionRepoLogger(getTestLogger(t)))
+	require.NoError(t, err)
+	defer sessionRepo.Close()
+	ctx := context.Background()
+
+	t.Run("member insert failure rolls back session", func(t *testing.T) {
+		session := &model.Session{
+			SessionID: "agent:rollback", Type: 1, Kind: model.SessionKindAI, TenantID: "tenant-rollback",
+			OwnerUsername: "alice", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
+		}
+		members := []*model.SessionMember{
+			{SessionID: session.SessionID, Username: "alice", Role: 1},
+			{SessionID: session.SessionID, Username: strings.Repeat("x", 65)},
+		}
+		_, _, err := sessionRepo.CreateSessionWithMembers(ctx, session, members)
+		require.Error(t, err)
+		_, err = sessionRepo.GetSession(ctx, session.SessionID)
+		require.ErrorIs(t, err, ErrSessionNotFound)
+	})
+
+	t.Run("concurrent replay creates one exact session", func(t *testing.T) {
+		session := &model.Session{
+			SessionID: "agent:concurrent", Type: 1, Kind: model.SessionKindAI, TenantID: "tenant-concurrent",
+			OwnerUsername: "alice", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
+		}
+		members := []*model.SessionMember{
+			{SessionID: session.SessionID, Username: "alice", Role: 1},
+			{SessionID: session.SessionID, Username: "resonance-agent"},
+		}
+		var created atomic.Int64
+		errors := make(chan error, 8)
+		var group sync.WaitGroup
+		for range 8 {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				persisted, wasCreated, createErr := sessionRepo.CreateSessionWithMembers(ctx, session, members)
+				if createErr == nil {
+					if persisted == nil || persisted.SessionID != session.SessionID {
+						createErr = fmt.Errorf("unexpected persisted session")
+					}
+					if wasCreated {
+						created.Add(1)
+					}
+				}
+				errors <- createErr
+			}()
+		}
+		group.Wait()
+		close(errors)
+		for createErr := range errors {
+			require.NoError(t, createErr)
+		}
+		require.Equal(t, int64(1), created.Load())
+		persistedMembers, err := sessionRepo.GetMembers(ctx, session.SessionID)
+		require.NoError(t, err)
+		require.Len(t, persistedMembers, 2)
+	})
+
+	t.Run("profile versions coexist", func(t *testing.T) {
+		for version, sessionID := range map[int64]string{1: "agent:version-1", 2: "agent:version-2"} {
+			session := &model.Session{
+				SessionID: sessionID, Type: 1, Kind: model.SessionKindAI, TenantID: "tenant-versioned",
+				OwnerUsername: "alice", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: version,
+			}
+			members := []*model.SessionMember{
+				{SessionID: sessionID, Username: "alice", Role: 1},
+				{SessionID: sessionID, Username: "resonance-agent"},
+			}
+			_, created, err := sessionRepo.CreateSessionWithMembers(ctx, session, members)
+			require.NoError(t, err)
+			require.True(t, created)
+		}
+	})
+
+	t.Run("list and contacts stay inside tenant", func(t *testing.T) {
+		userRepo, err := NewUserRepo(database, WithUserRepoLogger(getTestLogger(t)))
+		require.NoError(t, err)
+		for _, username := range []string{"tenant-list-alice", "tenant-list-bob", "tenant-list-carol"} {
+			require.NoError(t, userRepo.CreateUser(ctx, &model.User{Username: username, Password: "!", Nickname: username}))
+		}
+		createDirect := func(sessionID, tenantID, peer string) {
+			session := &model.Session{
+				SessionID: sessionID, Type: 1, Kind: model.SessionKindStandard, TenantID: tenantID,
+				OwnerUsername: "tenant-list-alice",
+			}
+			members := []*model.SessionMember{
+				{SessionID: sessionID, Username: "tenant-list-alice", Role: 1},
+				{SessionID: sessionID, Username: peer},
+			}
+			_, _, err := sessionRepo.CreateSessionWithMembers(ctx, session, members)
+			require.NoError(t, err)
+		}
+		createDirect("direct:tenant-list-a", "tenant-list-a", "tenant-list-bob")
+		createDirect("direct:tenant-list-b", "tenant-list-b", "tenant-list-carol")
+
+		sessions, err := sessionRepo.GetUserSessionListByTenant(ctx, "tenant-list-a", "tenant-list-alice")
+		require.NoError(t, err)
+		require.Len(t, sessions, 1)
+		require.Equal(t, "direct:tenant-list-a", sessions[0].SessionID)
+		contacts, err := sessionRepo.GetContactListByTenant(ctx, "tenant-list-a", "tenant-list-alice")
+		require.NoError(t, err)
+		require.Len(t, contacts, 1)
+		require.Equal(t, "tenant-list-bob", contacts[0].Username)
+		legacy, err := sessionRepo.FindDirectSessionByMembers(ctx, "tenant-list-a", "tenant-list-alice", "tenant-list-bob")
+		require.NoError(t, err)
+		require.Equal(t, "direct:tenant-list-a", legacy.SessionID)
 	})
 }
 

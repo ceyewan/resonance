@@ -12,6 +12,16 @@ service:
 # Logic 服务名称（用于服务发现）
 logic_service_name: logic-service # Logic 服务名称
 
+# Gateway 只验证 Logic 签发的 JWT；用户 Bearer 不会转发到内部 gRPC。
+auth:
+  secret_key: "" # 与 Logic 的 RESONANCE_AUTH_SECRET_KEY 一致，生产至少 32 字节
+  issuer: resonance-service
+  access_token_ttl: 24h
+
+service_auth:
+  gateway_service_id: gateway-service
+  gateway_secret: "" # RESONANCE_SERVICE_AUTH_GATEWAY_SECRET，生产至少 32 字节
+
 # 基础组件配置
 log:
   level: debug

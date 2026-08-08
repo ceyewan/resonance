@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
@@ -20,6 +22,7 @@ import (
 type AuthService struct {
 	logicv1.UnimplementedAuthServiceServer
 	userRepo      repo.UserRepo
+	identityRepo  repo.IdentityRepo
 	sessionRepo   repo.SessionRepo
 	authenticator auth.Authenticator
 	logger        clog.Logger
@@ -28,12 +31,14 @@ type AuthService struct {
 // NewAuthService 创建认证服务
 func NewAuthService(
 	userRepo repo.UserRepo,
+	identityRepo repo.IdentityRepo,
 	sessionRepo repo.SessionRepo,
 	authenticator auth.Authenticator,
 	logger clog.Logger,
 ) *AuthService {
 	return &AuthService{
 		userRepo:      userRepo,
+		identityRepo:  identityRepo,
 		sessionRepo:   sessionRepo,
 		authenticator: authenticator,
 		logger:        logger,
@@ -52,6 +57,9 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 		// 为了安全，不暴露具体错误
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
+	if user.Kind != model.UserKindHuman {
+		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
+	}
 
 	// 验证密码
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
@@ -60,13 +68,18 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
 	}
 
+	tenantID := strings.TrimSpace(req.TenantId)
+	if tenantID == "" {
+		tenantID = model.DefaultTenantID
+	}
+	authorization, scopes, err := s.loadAuthorization(ctx, tenantID, user.Username)
+	if err != nil {
+		s.logger.Debug("login authorization rejected", clog.Error(err))
+		return nil, status.Errorf(codes.Unauthenticated, "invalid username or password")
+	}
+
 	// 生成 Token
-	tokenPair, err := s.authenticator.GenerateTokenPair(ctx, &auth.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject: user.Username,
-		},
-		Roles: []string{"user"}, // 默认角色
-	})
+	tokenPair, err := s.generateTokenPair(ctx, user.Username, authorization, scopes)
 	if err != nil {
 		s.logger.Error("failed to generate token", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to generate token")
@@ -79,6 +92,9 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 			Nickname:  user.Nickname,
 			AvatarUrl: user.Avatar,
 		},
+		TenantId: tenantID,
+		Roles:    authorization.Roles,
+		Scopes:   scopes,
 	}
 
 	return resp, nil
@@ -101,18 +117,28 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 		Password: string(hashedPassword),
 		Nickname: req.Nickname,
 	}
-	if err := s.userRepo.CreateUser(ctx, user); err != nil {
+	membership := &model.TenantMembership{
+		TenantID: model.DefaultTenantID,
+		Username: user.Username,
+		Status:   model.TenantMembershipStatusActive,
+		Version:  1,
+	}
+	roles := []string{model.SystemRoleUser}
+	if err := s.identityRepo.CreateIdentity(ctx, user, membership, roles); err != nil {
 		s.logger.Error("failed to create user", clog.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to create user: %v", err)
+		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
 	// 注册成功后自动登录，生成 Token
-	tokenPair, err := s.authenticator.GenerateTokenPair(ctx, &auth.Claims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject: user.Username,
-		},
-		Roles: []string{"user"},
-	})
+	scopes, err := ScopesForSystemRoles(roles)
+	if err != nil {
+		s.logger.Error("failed to resolve registration scopes", clog.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to generate token")
+	}
+	tokenPair, err := s.generateTokenPair(ctx, user.Username, &repo.TenantAuthorization{
+		Membership: membership,
+		Roles:      roles,
+	}, scopes)
 	if err != nil {
 		s.logger.Error("failed to generate token", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to generate token")
@@ -131,6 +157,9 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 			Nickname:  user.Nickname,
 			AvatarUrl: user.Avatar,
 		},
+		TenantId: model.DefaultTenantID,
+		Roles:    roles,
+		Scopes:   scopes,
 	}
 
 	return resp, nil
@@ -149,8 +178,12 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 		return &logicv1.ValidateTokenResponse{Valid: false}, nil
 	}
 
-	username := claims.RegisteredClaims.Subject
+	username := claims.Subject
 	if username == "" {
+		return &logicv1.ValidateTokenResponse{Valid: false}, nil
+	}
+	tenantID, membershipVersion, ok := identityClaims(claims)
+	if !ok {
 		return &logicv1.ValidateTokenResponse{Valid: false}, nil
 	}
 
@@ -159,6 +192,16 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 	user, err := s.userRepo.GetUserByUsername(ctx, username)
 	if err != nil {
 		s.logger.Debug("user not found for valid token", clog.String("username", username))
+		return &logicv1.ValidateTokenResponse{Valid: false}, nil
+	}
+	if user.Kind != model.UserKindHuman {
+		return &logicv1.ValidateTokenResponse{Valid: false}, nil
+	}
+	authorization, scopes, err := s.loadAuthorization(ctx, tenantID, username)
+	if err != nil || authorization.Membership.Version != membershipVersion {
+		if err != nil {
+			s.logger.Debug("token authorization rejected", clog.Error(err))
+		}
 		return &logicv1.ValidateTokenResponse{Valid: false}, nil
 	}
 
@@ -170,7 +213,92 @@ func (s *AuthService) ValidateToken(ctx context.Context, req *logicv1.ValidateTo
 			AvatarUrl: user.Avatar,
 		},
 		Username: username,
+		TenantId: tenantID,
+		Roles:    authorization.Roles,
+		Scopes:   scopes,
 	}, nil
+}
+
+func (s *AuthService) loadAuthorization(ctx context.Context, tenantID, username string) (*repo.TenantAuthorization, []string, error) {
+	authorization, err := s.identityRepo.ResolveTenantAuthorization(ctx, tenantID, username)
+	if err != nil {
+		return nil, nil, err
+	}
+	if authorization == nil || authorization.Membership == nil ||
+		authorization.Membership.Status != model.TenantMembershipStatusActive ||
+		authorization.Membership.Version < 1 || len(authorization.Roles) == 0 {
+		return nil, nil, repo.ErrTenantMembershipNotFound
+	}
+	authorization.Roles, err = canonicalSystemRoles(authorization.Roles)
+	if err != nil {
+		return nil, nil, err
+	}
+	scopes, err := ScopesForSystemRoles(authorization.Roles)
+	if err != nil {
+		return nil, nil, err
+	}
+	return authorization, scopes, nil
+}
+
+// ResolveUserPrincipal reloads the authoritative tenant membership, roles and
+// scopes for a Gateway-signed actor. It intentionally does not trust roles or
+// scopes from JWT or gRPC metadata.
+func (s *AuthService) ResolveUserPrincipal(ctx context.Context, tenantID, username string) (*UserPrincipal, error) {
+	user, err := s.userRepo.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil || user.Kind != model.UserKindHuman {
+		return nil, repo.ErrTenantMembershipNotFound
+	}
+	authorization, scopes, err := s.loadAuthorization(ctx, tenantID, username)
+	if err != nil {
+		return nil, err
+	}
+	return &UserPrincipal{
+		TenantID: tenantID,
+		Username: username,
+		Version:  authorization.Membership.Version,
+		Roles:    append([]string(nil), authorization.Roles...),
+		Scopes:   append([]string(nil), scopes...),
+	}, nil
+}
+
+func (s *AuthService) generateTokenPair(
+	ctx context.Context,
+	username string,
+	authorization *repo.TenantAuthorization,
+	scopes []string,
+) (*auth.TokenPair, error) {
+	return s.authenticator.GenerateTokenPair(ctx, &auth.Claims{
+		RegisteredClaims: jwt.RegisteredClaims{Subject: username},
+		Username:         username,
+		Roles:            append([]string(nil), authorization.Roles...),
+		Extra: map[string]any{
+			"tenant_id":          authorization.Membership.TenantID,
+			"scopes":             append([]string(nil), scopes...),
+			"membership_version": strconv.FormatInt(authorization.Membership.Version, 10),
+		},
+	})
+}
+
+func identityClaims(claims *auth.Claims) (tenantID string, membershipVersion int64, ok bool) {
+	if claims == nil || claims.Extra == nil {
+		return "", 0, false
+	}
+	tenantID, ok = claims.Extra["tenant_id"].(string)
+	if !ok || strings.TrimSpace(tenantID) == "" || strings.TrimSpace(tenantID) != tenantID || len(tenantID) > 64 {
+		return "", 0, false
+	}
+	versionText, ok := claims.Extra["membership_version"].(string)
+	if !ok {
+		return "", 0, false
+	}
+	membershipVersion, err := strconv.ParseInt(versionText, 10, 64)
+	if err != nil || membershipVersion < 1 {
+		return "", 0, false
+	}
+	return tenantID, membershipVersion, true
 }
 
 // joinDefaultRoom 让新用户自动加入 Resonance Room 默认群聊

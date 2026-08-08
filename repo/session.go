@@ -3,10 +3,12 @@ package repo
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/db"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ceyewan/resonance/model"
 )
@@ -16,6 +18,101 @@ type SessionRepoOption func(*sessionRepoOptions)
 
 type sessionRepoOptions struct {
 	logger clog.Logger
+}
+
+// CreateSessionWithMembers makes session creation atomic and idempotent. AI
+// sessions use the partial unique key
+// (tenant_id, owner_username, profile_id, profile_version);
+// ordinary direct sessions use their tenant-derived deterministic session_id.
+func (r *sessionRepo) CreateSessionWithMembers(
+	ctx context.Context,
+	session *model.Session,
+	members []*model.SessionMember,
+) (*model.Session, bool, error) {
+	if session == nil || session.SessionID == "" || session.TenantID == "" || len(members) < 2 {
+		return nil, false, fmt.Errorf("session and at least two members are required")
+	}
+	if session.Kind != model.SessionKindStandard && session.Kind != model.SessionKindAI {
+		return nil, false, fmt.Errorf("session kind is invalid")
+	}
+	if session.Kind == model.SessionKindAI &&
+		(session.Type != 1 || len(members) != 2 || session.OwnerUsername == "" || session.ProfileID == "" || session.ProfileVersion < 1) {
+		return nil, false, fmt.Errorf("AI session snapshot is invalid")
+	}
+	if session.Kind == model.SessionKindStandard && (session.ProfileID != "" || session.ProfileVersion != 0) {
+		return nil, false, fmt.Errorf("standard session cannot carry an agent profile")
+	}
+	expectedMembers := make([]string, 0, len(members))
+	candidateMembers := make([]model.SessionMember, 0, len(members))
+	seen := make(map[string]struct{}, len(members))
+	for _, member := range members {
+		if member == nil || member.SessionID != session.SessionID || member.Username == "" {
+			return nil, false, fmt.Errorf("session member snapshot is invalid")
+		}
+		if _, exists := seen[member.Username]; exists {
+			return nil, false, fmt.Errorf("session member snapshot contains duplicates")
+		}
+		seen[member.Username] = struct{}{}
+		expectedMembers = append(expectedMembers, member.Username)
+		candidateMembers = append(candidateMembers, *member)
+	}
+	slices.Sort(expectedMembers)
+
+	var persisted *model.Session
+	created := false
+	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
+		candidate := *session
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&candidate)
+		if result.Error != nil {
+			return fmt.Errorf("create session: %w", result.Error)
+		}
+		if result.RowsAffected == 1 {
+			if err := tx.Create(&candidateMembers).Error; err != nil {
+				return fmt.Errorf("create session members: %w", err)
+			}
+			created = true
+			persisted = &candidate
+			return nil
+		}
+
+		var existing model.Session
+		query := tx.Where("session_id = ?", session.SessionID)
+		if session.Kind == model.SessionKindAI {
+			query = tx.Where("tenant_id = ? AND owner_username = ? AND profile_id = ? AND profile_version = ? AND kind = ?",
+				session.TenantID, session.OwnerUsername, session.ProfileID, session.ProfileVersion, model.SessionKindAI)
+		}
+		if err := query.Take(&existing).Error; err != nil {
+			return fmt.Errorf("load idempotent session: %w", err)
+		}
+		if !sameSessionCreationSnapshot(&existing, session) {
+			return ErrSessionCreateConflict
+		}
+		var existingMembers []model.SessionMember
+		if err := tx.Where("session_id = ?", existing.SessionID).Find(&existingMembers).Error; err != nil {
+			return fmt.Errorf("load idempotent session members: %w", err)
+		}
+		actualMembers := make([]string, 0, len(existingMembers))
+		for _, member := range existingMembers {
+			actualMembers = append(actualMembers, member.Username)
+		}
+		slices.Sort(actualMembers)
+		if !slices.Equal(actualMembers, expectedMembers) {
+			return ErrSessionCreateConflict
+		}
+		persisted = &existing
+		return nil
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return persisted, created, nil
+}
+
+func sameSessionCreationSnapshot(existing, requested *model.Session) bool {
+	return existing != nil && requested != nil &&
+		existing.Type == requested.Type && existing.Kind == requested.Kind &&
+		existing.TenantID == requested.TenantID && existing.ProfileID == requested.ProfileID &&
+		existing.ProfileVersion == requested.ProfileVersion && existing.OwnerUsername == requested.OwnerUsername
 }
 
 // WithSessionRepoLogger 设置日志记录器
@@ -107,6 +204,34 @@ func (r *sessionRepo) GetSession(ctx context.Context, sessionID string) (*model.
 	return &session, nil
 }
 
+// FindDirectSessionByMembers also recognizes pre-tenant-ID direct session IDs,
+// because identity is derived from the authoritative tenant column and exact
+// membership rather than parsing the legacy session_id.
+func (r *sessionRepo) FindDirectSessionByMembers(ctx context.Context, tenantID, username1, username2 string) (*model.Session, error) {
+	if tenantID == "" || username1 == "" || username2 == "" || username1 == username2 {
+		return nil, fmt.Errorf("tenant and two distinct usernames are required")
+	}
+	var sessions []*model.Session
+	err := r.db.DB(ctx).
+		Table(model.Session{}.TableName()+" AS s").
+		Joins("JOIN "+model.SessionMember{}.TableName()+" AS first_member ON first_member.session_id = s.session_id AND first_member.username = ?", username1).
+		Joins("JOIN "+model.SessionMember{}.TableName()+" AS second_member ON second_member.session_id = s.session_id AND second_member.username = ?", username2).
+		Where("s.tenant_id = ? AND s.type = ? AND s.kind = ?", tenantID, 1, model.SessionKindStandard).
+		Where("(SELECT COUNT(*) FROM " + model.SessionMember{}.TableName() + " exact_members WHERE exact_members.session_id = s.session_id) = 2").
+		Limit(2).
+		Find(&sessions).Error
+	if err != nil {
+		return nil, fmt.Errorf("find tenant direct session: %w", err)
+	}
+	if len(sessions) == 0 {
+		return nil, ErrSessionNotFound
+	}
+	if len(sessions) != 1 {
+		return nil, ErrSessionCreateConflict
+	}
+	return sessions[0], nil
+}
+
 // GetUserSession 获取特定用户的特定会话详情（包含最后阅读位置）
 func (r *sessionRepo) GetUserSession(ctx context.Context, username, sessionID string) (*model.SessionMember, error) {
 	if username == "" {
@@ -192,6 +317,24 @@ func (r *sessionRepo) GetUserSessionList(ctx context.Context, username string) (
 		return nil, fmt.Errorf("failed to get session details: %w", err)
 	}
 
+	return sessions, nil
+}
+
+func (r *sessionRepo) GetUserSessionListByTenant(ctx context.Context, tenantID, username string) ([]*model.Session, error) {
+	if tenantID == "" || username == "" {
+		return nil, fmt.Errorf("tenant_id and username are required")
+	}
+	var sessions []*model.Session
+	err := r.db.DB(ctx).
+		Table(model.Session{}.TableName()+" AS s").
+		Joins("JOIN "+model.SessionMember{}.TableName()+" AS sm ON sm.session_id = s.session_id").
+		Where("s.tenant_id = ? AND sm.username = ?", tenantID, username).
+		Order("s.max_seq_id DESC").
+		Order("s.session_id ASC").
+		Find(&sessions).Error
+	if err != nil {
+		return nil, fmt.Errorf("get tenant user session list: %w", err)
+	}
 	return sessions, nil
 }
 
@@ -335,6 +478,26 @@ func (r *sessionRepo) GetContactList(ctx context.Context, username string) ([]*m
 		return nil, fmt.Errorf("failed to get contact details: %w", err)
 	}
 
+	return contacts, nil
+}
+
+func (r *sessionRepo) GetContactListByTenant(ctx context.Context, tenantID, username string) ([]*model.User, error) {
+	if tenantID == "" || username == "" {
+		return nil, fmt.Errorf("tenant_id and username are required")
+	}
+	var contacts []*model.User
+	err := r.db.DB(ctx).
+		Table(model.User{}.TableName()+" AS u").
+		Distinct("u.*").
+		Joins("JOIN "+model.SessionMember{}.TableName()+" AS peer ON peer.username = u.username").
+		Joins("JOIN "+model.Session{}.TableName()+" AS s ON s.session_id = peer.session_id").
+		Joins("JOIN "+model.SessionMember{}.TableName()+" AS mine ON mine.session_id = s.session_id").
+		Where("s.tenant_id = ? AND s.type = ? AND s.kind = ? AND mine.username = ? AND peer.username <> ?",
+			tenantID, 1, model.SessionKindStandard, username, username).
+		Find(&contacts).Error
+	if err != nil {
+		return nil, fmt.Errorf("get tenant contact list: %w", err)
+	}
 	return contacts, nil
 }
 

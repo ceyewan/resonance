@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/idgen"
@@ -19,6 +20,7 @@ import (
 	"github.com/ceyewan/resonance/gateway/transport/httpapi"
 	"github.com/ceyewan/resonance/gateway/transport/ws"
 	"github.com/ceyewan/resonance/pkg/health"
+	"github.com/ceyewan/resonance/pkg/serviceauth"
 )
 
 // Gateway 网关服务生命周期管理器
@@ -45,10 +47,12 @@ type Gateway struct {
 
 // resources 内部资源聚合，方便统一管理
 type resources struct {
-	redisConn   connector.RedisConnector
-	etcdConn    connector.EtcdConnector
-	logicClient *logicclient.Client
-	connMgr     *ws.Manager
+	redisConn     connector.RedisConnector
+	etcdConn      connector.EtcdConnector
+	logicClient   *logicclient.Client
+	connMgr       *ws.Manager
+	authenticator auth.Authenticator
+	userSigner    *serviceauth.Signer
 }
 
 // New 创建 Gateway 实例
@@ -67,7 +71,7 @@ func New() (*Gateway, error) {
 	}
 	// 初始化各个组件
 	if err := g.initComponents(); err != nil {
-		g.Close()
+		_ = g.Close()
 		return nil, err
 	}
 
@@ -101,12 +105,25 @@ func (g *Gateway) initComponents() error {
 		return fmt.Errorf("logger init: %w", err)
 	}
 	g.logger = logger
+	authenticator, err := auth.New(&g.config.Auth, auth.WithLogger(logger))
+	if err != nil {
+		return fmt.Errorf("auth init: %w", err)
+	}
+	userSigner, err := serviceauth.NewSigner(
+		g.config.ServiceAuth.GatewayServiceID,
+		[]byte(g.config.ServiceAuth.GatewaySecret),
+	)
+	if err != nil {
+		return fmt.Errorf("gateway service auth signer: %w", err)
+	}
 
 	// 3. 初始化核心资源 (Redis, Etcd, Registry)
 	res, err := g.initBaseResources()
 	if err != nil {
 		return err
 	}
+	res.authenticator = authenticator
+	res.userSigner = userSigner
 	g.resources = res
 
 	// 4. 使用 Allocator 从 Redis 获取唯一的 workerID
@@ -169,19 +186,19 @@ func (g *Gateway) initBaseResources() (*resources, error) {
 	// Etcd
 	etcdConn, err := connector.NewEtcd(&g.config.Etcd, connector.WithLogger(g.logger))
 	if err != nil {
-		redisConn.Close()
+		_ = redisConn.Close()
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
 	if err := etcdConn.Connect(g.ctx); err != nil {
-		redisConn.Close()
+		_ = redisConn.Close()
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
 
 	// Registry
 	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger))
 	if err != nil {
-		redisConn.Close()
-		etcdConn.Close()
+		_ = redisConn.Close()
+		_ = etcdConn.Close()
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
 	g.registry = reg
@@ -198,7 +215,13 @@ func (g *Gateway) initLogicDependencies() error {
 		return fmt.Errorf("gatewayID not initialized")
 	}
 
-	logicClient, err := logicclient.NewClient(g.config.GetLogicServiceName(), g.gatewayID, g.logger, g.registry)
+	logicClient, err := logicclient.NewClient(
+		g.config.GetLogicServiceName(),
+		g.gatewayID,
+		g.logger,
+		g.registry,
+		logicclient.WithUserServiceSigner(g.resources.userSigner),
+	)
 	if err != nil {
 		return fmt.Errorf("logic client init: %w", err)
 	}
@@ -234,7 +257,7 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 		Driver: ratelimit.DriverStandalone,
 	}, ratelimit.WithLogger(g.logger))
 	middlewares := httpapi.NewMiddlewares(g.logger, limiter, idGen)
-	apiHandler := httpapi.NewHTTPHandler(g.resources.logicClient, g.logger)
+	apiHandler := httpapi.NewHTTPHandler(g.resources.logicClient, g.resources.authenticator, g.logger)
 
 	// Push Service
 	pushService := pushserver.NewService(g.resources.connMgr, g.logger)
@@ -315,7 +338,7 @@ func (g *Gateway) Close() error {
 		if err := g.registry.Deregister(context.Background(), g.gatewayID); err != nil {
 			g.logger.Warn("deregister gateway failed", clog.Error(err))
 		}
-		g.registry.Close()
+		_ = g.registry.Close()
 	}
 
 	// 3. 停止服务实例
@@ -340,16 +363,16 @@ func (g *Gateway) Close() error {
 		done := make(chan struct{})
 		go func() {
 			if g.resources.connMgr != nil {
-				g.resources.connMgr.Close()
+				_ = g.resources.connMgr.Close()
 			}
 			if g.resources.logicClient != nil {
-				g.resources.logicClient.Close()
+				_ = g.resources.logicClient.Close()
 			}
 			if g.resources.redisConn != nil {
-				g.resources.redisConn.Close()
+				_ = g.resources.redisConn.Close()
 			}
 			if g.resources.etcdConn != nil {
-				g.resources.etcdConn.Close()
+				_ = g.resources.etcdConn.Close()
 			}
 			close(done)
 		}()

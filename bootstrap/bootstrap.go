@@ -12,6 +12,7 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ceyewan/resonance/model"
 )
@@ -21,12 +22,18 @@ type Config struct {
 	Log        clog.Config                `mapstructure:"log"`
 	PostgreSQL connector.PostgreSQLConfig `mapstructure:"postgres"`
 	Admin      AdminConfig                `mapstructure:"admin"`
+	AgentBot   AgentBotConfig             `mapstructure:"agent_bot"`
 }
 
 // AdminConfig 管理员初始化配置
 type AdminConfig struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
+	Nickname string `mapstructure:"nickname"`
+}
+
+type AgentBotConfig struct {
+	Username string `mapstructure:"username"`
 	Nickname string `mapstructure:"nickname"`
 }
 
@@ -48,7 +55,7 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("postgresql connector: %w", err)
 	}
-	defer postgresConn.Close()
+	defer func() { _ = postgresConn.Close() }()
 	if err := postgresConn.Connect(context.Background()); err != nil {
 		return fmt.Errorf("postgresql connect: %w", err)
 	}
@@ -57,21 +64,21 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("db init: %w", err)
 	}
-	defer dbInstance.Close()
+	defer func() { _ = dbInstance.Close() }()
 
 	ctx := context.Background()
 	gormDB := dbInstance.DB(ctx)
 
 	// 4. AutoMigrate 建表 + 索引
 	logger.Info("running AutoMigrate...")
-	if err := gormDB.AutoMigrate(model.AllModels()...); err != nil {
-		return fmt.Errorf("auto migrate: %w", err)
+	if err := MigrateSchema(gormDB); err != nil {
+		return err
 	}
 	logger.Info("AutoMigrate completed")
 
 	// 5. Seed 种子数据
 	logger.Info("seeding initial data...")
-	if err := seed(gormDB, &cfg.Admin, logger); err != nil {
+	if err := seed(gormDB, &cfg.Admin, &cfg.AgentBot, logger); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	logger.Info("seed completed")
@@ -81,11 +88,12 @@ func Run() error {
 }
 
 // seed 插入种子数据（幂等）
-func seed(gormDB *gorm.DB, adminCfg *AdminConfig, logger clog.Logger) error {
+func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, logger clog.Logger) error {
 	// 1. 创建默认全员群 (Resonance Room)
 	room := &model.Session{
 		SessionID:     "0",
 		Type:          2, // 群聊
+		TenantID:      model.DefaultTenantID,
 		Name:          "Resonance Room",
 		OwnerUsername: "system",
 	}
@@ -95,10 +103,32 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, logger clog.Logger) error {
 	}
 	logger.Info("default room ready", clog.String("session_id", room.SessionID))
 
-	// 2. 创建管理员账号
+	// 2. 创建不可登录的 Agent Bot 服务账号。
+	if botCfg.Username != "" {
+		nickname := botCfg.Nickname
+		if nickname == "" {
+			nickname = "Resonance Assistant"
+		}
+		bot := &model.User{
+			Username: botCfg.Username,
+			Password: "!", // 非 bcrypt 值；AuthService 还会按 UserKind 拒绝登录。
+			Nickname: nickname,
+			Kind:     model.UserKindAgentBot,
+		}
+		result = gormDB.Where("username = ?", bot.Username).FirstOrCreate(bot)
+		if result.Error != nil {
+			return fmt.Errorf("seed agent bot: %w", result.Error)
+		}
+		if bot.Kind != model.UserKindAgentBot {
+			return fmt.Errorf("configured agent bot username is already owned by a human account")
+		}
+		logger.Info("agent bot ready", clog.String("username", bot.Username))
+	}
+
+	// 3. 创建管理员账号
 	if adminCfg.Username == "" || adminCfg.Password == "" {
 		logger.Info("admin seed skipped: missing username or password in config")
-		return nil
+		return backfillDefaultTenantIdentities(gormDB)
 	}
 	nickname := adminCfg.Nickname
 	if nickname == "" {
@@ -119,9 +149,12 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, logger clog.Logger) error {
 	if result.Error != nil {
 		return fmt.Errorf("seed admin user: %w", result.Error)
 	}
+	if admin.Kind != model.UserKindHuman {
+		return fmt.Errorf("configured admin username is not a human account")
+	}
 	logger.Info("admin user ready", clog.String("username", admin.Username))
 
-	// 3. 将管理员加入默认群
+	// 4. 将管理员加入默认群
 	member := &model.SessionMember{
 		SessionID: "0",
 		Username:  adminCfg.Username,
@@ -133,7 +166,70 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, logger clog.Logger) error {
 	}
 	logger.Info("admin joined default room", clog.String("username", adminCfg.Username))
 
+	// 5. 将升级前的全局真人用户显式迁入默认租户，并赋予最小 user 系统角色。
+	// SessionMember.Role 仅代表会话角色，不能用于这里的系统授权。
+	if err := backfillDefaultTenantIdentities(gormDB); err != nil {
+		return err
+	}
+
+	// 6. 初始管理员同时持有独立的 iam-admin 系统角色。新授权必须推进成员版本，
+	// 防止授权前签发的普通 Token 直接继承管理员权限。
+	if err := ensureBootstrapSystemRole(gormDB, model.DefaultTenantID, adminCfg.Username, model.SystemRoleIAMAdmin); err != nil {
+		return fmt.Errorf("seed admin system role: %w", err)
+	}
+	logger.Info("admin system role ready", clog.String("username", adminCfg.Username))
+
 	return nil
+}
+
+func ensureBootstrapSystemRole(gormDB *gorm.DB, tenantID, username, role string) error {
+	return gormDB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(
+			&model.SystemRoleBinding{TenantID: tenantID, Username: username, Role: role},
+		)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		result = tx.Model(&model.TenantMembership{}).
+			Where("tenant_id = ? AND username = ?", tenantID, username).
+			Update("version", gorm.Expr("version + 1"))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return fmt.Errorf("tenant membership not found")
+		}
+		return nil
+	})
+}
+
+func backfillDefaultTenantIdentities(gormDB *gorm.DB) error {
+	return gormDB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`
+			INSERT INTO t_tenant_membership (tenant_id, username, status, version, created_at, updated_at)
+			SELECT ?, username, ?, 1, NOW(), NOW()
+			FROM t_user
+			WHERE kind = ?
+			ON CONFLICT (tenant_id, username) DO NOTHING`,
+			model.DefaultTenantID, model.TenantMembershipStatusActive, model.UserKindHuman,
+		).Error; err != nil {
+			return fmt.Errorf("backfill default tenant memberships: %w", err)
+		}
+		if err := tx.Exec(`
+			INSERT INTO t_system_role_binding (tenant_id, username, role, created_at, updated_at)
+			SELECT ?, username, ?, NOW(), NOW()
+			FROM t_user
+			WHERE kind = ?
+			ON CONFLICT (tenant_id, username, role) DO NOTHING`,
+			model.DefaultTenantID, model.SystemRoleUser, model.UserKindHuman,
+		).Error; err != nil {
+			return fmt.Errorf("backfill default tenant user roles: %w", err)
+		}
+		return nil
+	})
 }
 
 // loadConfig 加载配置（复用 logic.yaml）

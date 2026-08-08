@@ -11,6 +11,23 @@ enum SessionType {
   SESSION_TYPE_AI = 3;
 }
 
+// SessionKind separates ordinary user conversations from explicitly-created AI
+// conversations. It is independent of SessionType: an AI conversation is still
+// a direct conversation with exactly one human and one configured agent bot.
+enum SessionKind {
+  SESSION_KIND_UNSPECIFIED = 0;
+  SESSION_KIND_STANDARD = 1;
+  SESSION_KIND_AI = 2;
+}
+
+// AgentProfile is the only client-selectable input when creating an AI session.
+// Tenant, bot identity and pinned profile version are always server-owned.
+enum AgentProfile {
+  AGENT_PROFILE_UNSPECIFIED = 0;
+  AGENT_PROFILE_USER_ASSISTANT = 1;
+  AGENT_PROFILE_IAM_ADMIN = 2;
+}
+
 message SessionMeta {
   string name = 1;
   SessionType type = 2;

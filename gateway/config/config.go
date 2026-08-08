@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
@@ -32,6 +33,9 @@ type Config struct {
 	Log   clog.Config           `mapstructure:"log"`   // 日志配置
 	Redis connector.RedisConfig `mapstructure:"redis"` // Redis 配置
 	Etcd  connector.EtcdConfig  `mapstructure:"etcd"`  // Etcd 配置
+	Auth  auth.Config           `mapstructure:"auth"`
+
+	ServiceAuth ServiceAuthConfig `mapstructure:"service_auth"`
 
 	// 服务注册发现配置
 	Registry RegistryConfig `mapstructure:"registry"`
@@ -47,6 +51,11 @@ type Config struct {
 
 	// StatusBatcher 配置
 	StatusBatcher StatusBatcherConfig `mapstructure:"status_batcher"`
+}
+
+type ServiceAuthConfig struct {
+	GatewayServiceID string `mapstructure:"gateway_service_id"`
+	GatewaySecret    string `mapstructure:"gateway_secret"`
 }
 
 // StatusBatcherConfig 状态批量同步器配置
@@ -207,6 +216,15 @@ func Load() (*Config, error) {
 	if err := loader.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	if len(cfg.Auth.SecretKey) < 32 {
+		return nil, fmt.Errorf("auth requires at least 32 secret bytes")
+	}
+	if cfg.ServiceAuth.GatewayServiceID == "" || len(cfg.ServiceAuth.GatewaySecret) < 32 {
+		return nil, fmt.Errorf("service_auth requires gateway_service_id and at least 32 secret bytes")
+	}
+	if cfg.Auth.SecretKey == cfg.ServiceAuth.GatewaySecret {
+		return nil, fmt.Errorf("JWT and Gateway service auth secrets must be distinct")
+	}
 
 	// 在 debug 模式下，打印最终生效的配置
 	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {
@@ -222,6 +240,12 @@ func dumpConfig(cfg *Config) {
 	sanitized := *cfg
 	if sanitized.Redis.Password != "" {
 		sanitized.Redis.Password = "***"
+	}
+	if sanitized.Auth.SecretKey != "" {
+		sanitized.Auth.SecretKey = "***"
+	}
+	if sanitized.ServiceAuth.GatewaySecret != "" {
+		sanitized.ServiceAuth.GatewaySecret = "***"
 	}
 
 	data, _ := json.MarshalIndent(sanitized, "", "  ")

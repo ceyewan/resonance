@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package resonance.logic.v1;
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
+
+// AgentApprovalService 暴露由 Logic 持有的审批事实。它不执行 Tool；
+// 决定事件由 Pilot/Tool Broker 消费。
+service AgentApprovalService {
+  rpc CreateApproval(CreateApprovalRequest) returns (CreateApprovalResponse);
+  rpc DecideApproval(DecideApprovalRequest) returns (DecideApprovalResponse);
+  rpc GetApproval(GetApprovalRequest) returns (GetApprovalResponse);
+  rpc ListApprovals(ListApprovalsRequest) returns (ListApprovalsResponse);
+}
+
+enum AgentApprovalStatus {
+  AGENT_APPROVAL_STATUS_UNSPECIFIED = 0;
+  AGENT_APPROVAL_STATUS_PENDING = 1;
+  AGENT_APPROVAL_STATUS_APPROVED = 2;
+  AGENT_APPROVAL_STATUS_REJECTED = 3;
+  AGENT_APPROVAL_STATUS_REVOKED = 4;
+  AGENT_APPROVAL_STATUS_EXPIRED = 5;
+}
+
+enum AgentApprovalDecision {
+  AGENT_APPROVAL_DECISION_UNSPECIFIED = 0;
+  AGENT_APPROVAL_DECISION_APPROVE = 1;
+  AGENT_APPROVAL_DECISION_REJECT = 2;
+}
+
+message AgentApproval {
+  int64 id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string call_id = 4;
+  string tool_name = 5;
+  string requester_id = 6;
+  string args_hash = 7;
+  string args_summary = 8;
+  AgentApprovalStatus status = 9;
+  AgentApprovalDecision decision = 10;
+  string decision_by = 11;
+  string decision_reason = 12;
+  int64 decided_at_ms = 13;
+  int64 expires_at_ms = 14;
+  int64 version = 15;
+  int64 created_at_ms = 16;
+  int64 updated_at_ms = 17;
+}
+
+message CreateApprovalRequest {
+  string tenant_id = 1;
+  string run_id = 2;
+  string call_id = 3;
+  string tool_name = 4;
+  string requester_id = 5;
+  string args_hash = 6;
+  string args_summary = 7;
+  int64 expires_at_ms = 8;
+}
+
+message CreateApprovalResponse {
+  AgentApproval approval = 1;
+  bool created = 2;
+}
+
+message DecideApprovalRequest {
+  string tenant_id = 1;
+  string call_id = 2;
+  string args_hash = 3;
+  int64 expected_version = 4;
+  AgentApprovalDecision decision = 5;
+  string reason = 6;
+}
+
+message DecideApprovalResponse {
+  AgentApproval approval = 1;
+  bool changed = 2;
+}
+
+message GetApprovalRequest {
+  string tenant_id = 1;
+  string call_id = 2;
+}
+
+message GetApprovalResponse {
+  AgentApproval approval = 1;
+}
+
+message ListApprovalsRequest {
+  string tenant_id = 1;
+  AgentApprovalStatus status = 2;
+  int64 before_id = 3;
+  int32 page_size = 4;
+}
+
+message ListApprovalsResponse {
+  repeated AgentApproval approvals = 1;
+  int64 next_before_id = 2;
+}

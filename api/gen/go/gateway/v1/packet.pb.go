@@ -436,12 +436,19 @@ func (x *ChatRequest) GetEdit() *v1.MessageEdit {
 }
 
 type StreamBegin struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ParentEventId int64                  `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
-	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	FromUsername  string                 `protobuf:"bytes,3,opt,name=from_username,json=fromUsername,proto3" json:"from_username,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: source_event_id/run_id are the authoritative correlation keys.
+	//
+	// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
+	ParentEventId    int64  `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
+	SessionId        string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	FromUsername     string `protobuf:"bytes,3,opt,name=from_username,json=fromUsername,proto3" json:"from_username,omitempty"`
+	RunId            string `protobuf:"bytes,4,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	StreamId         string `protobuf:"bytes,5,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	SourceEventId    int64  `protobuf:"varint,6,opt,name=source_event_id,json=sourceEventId,proto3" json:"source_event_id,omitempty"`
+	FinalClientMsgId string `protobuf:"bytes,7,opt,name=final_client_msg_id,json=finalClientMsgId,proto3" json:"final_client_msg_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *StreamBegin) Reset() {
@@ -474,6 +481,7 @@ func (*StreamBegin) Descriptor() ([]byte, []int) {
 	return file_gateway_v1_packet_proto_rawDescGZIP(), []int{4}
 }
 
+// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
 func (x *StreamBegin) GetParentEventId() int64 {
 	if x != nil {
 		return x.ParentEventId
@@ -495,13 +503,49 @@ func (x *StreamBegin) GetFromUsername() string {
 	return ""
 }
 
+func (x *StreamBegin) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *StreamBegin) GetStreamId() string {
+	if x != nil {
+		return x.StreamId
+	}
+	return ""
+}
+
+func (x *StreamBegin) GetSourceEventId() int64 {
+	if x != nil {
+		return x.SourceEventId
+	}
+	return 0
+}
+
+func (x *StreamBegin) GetFinalClientMsgId() string {
+	if x != nil {
+		return x.FinalClientMsgId
+	}
+	return ""
+}
+
 type StreamChunk struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ParentEventId int64                  `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
-	Sequence      int32                  `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Delta         string                 `protobuf:"bytes,3,opt,name=delta,proto3" json:"delta,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: retained for wire compatibility with older clients.
+	//
+	// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
+	ParentEventId int64 `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
+	// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
+	Sequence       int32  `protobuf:"varint,2,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Delta          string `protobuf:"bytes,3,opt,name=delta,proto3" json:"delta,omitempty"`
+	RunId          string `protobuf:"bytes,4,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	StreamId       string `protobuf:"bytes,5,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	StreamSequence uint64 `protobuf:"varint,6,opt,name=stream_sequence,json=streamSequence,proto3" json:"stream_sequence,omitempty"`
+	SessionId      string `protobuf:"bytes,7,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *StreamChunk) Reset() {
@@ -534,6 +578,7 @@ func (*StreamChunk) Descriptor() ([]byte, []int) {
 	return file_gateway_v1_packet_proto_rawDescGZIP(), []int{5}
 }
 
+// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
 func (x *StreamChunk) GetParentEventId() int64 {
 	if x != nil {
 		return x.ParentEventId
@@ -541,6 +586,7 @@ func (x *StreamChunk) GetParentEventId() int64 {
 	return 0
 }
 
+// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
 func (x *StreamChunk) GetSequence() int32 {
 	if x != nil {
 		return x.Sequence
@@ -555,12 +601,48 @@ func (x *StreamChunk) GetDelta() string {
 	return ""
 }
 
+func (x *StreamChunk) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *StreamChunk) GetStreamId() string {
+	if x != nil {
+		return x.StreamId
+	}
+	return ""
+}
+
+func (x *StreamChunk) GetStreamSequence() uint64 {
+	if x != nil {
+		return x.StreamSequence
+	}
+	return 0
+}
+
+func (x *StreamChunk) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
 type StreamEnd struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ParentEventId int64                  `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
-	Reason        StreamFinishReason     `protobuf:"varint,2,opt,name=reason,proto3,enum=resonance.gateway.v1.StreamFinishReason" json:"reason,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Deprecated: retained for wire compatibility with older clients.
+	//
+	// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
+	ParentEventId    int64              `protobuf:"varint,1,opt,name=parent_event_id,json=parentEventId,proto3" json:"parent_event_id,omitempty"`
+	Reason           StreamFinishReason `protobuf:"varint,2,opt,name=reason,proto3,enum=resonance.gateway.v1.StreamFinishReason" json:"reason,omitempty"`
+	RunId            string             `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	StreamId         string             `protobuf:"bytes,4,opt,name=stream_id,json=streamId,proto3" json:"stream_id,omitempty"`
+	StreamSequence   uint64             `protobuf:"varint,5,opt,name=stream_sequence,json=streamSequence,proto3" json:"stream_sequence,omitempty"`
+	SessionId        string             `protobuf:"bytes,6,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	FinalClientMsgId string             `protobuf:"bytes,7,opt,name=final_client_msg_id,json=finalClientMsgId,proto3" json:"final_client_msg_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *StreamEnd) Reset() {
@@ -593,6 +675,7 @@ func (*StreamEnd) Descriptor() ([]byte, []int) {
 	return file_gateway_v1_packet_proto_rawDescGZIP(), []int{6}
 }
 
+// Deprecated: Marked as deprecated in gateway/v1/packet.proto.
 func (x *StreamEnd) GetParentEventId() int64 {
 	if x != nil {
 		return x.ParentEventId
@@ -605,6 +688,41 @@ func (x *StreamEnd) GetReason() StreamFinishReason {
 		return x.Reason
 	}
 	return StreamFinishReason_STREAM_FINISH_REASON_UNSPECIFIED
+}
+
+func (x *StreamEnd) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *StreamEnd) GetStreamId() string {
+	if x != nil {
+		return x.StreamId
+	}
+	return ""
+}
+
+func (x *StreamEnd) GetStreamSequence() uint64 {
+	if x != nil {
+		return x.StreamSequence
+	}
+	return 0
+}
+
+func (x *StreamEnd) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *StreamEnd) GetFinalClientMsgId() string {
+	if x != nil {
+		return x.FinalClientMsgId
+	}
+	return ""
 }
 
 type TypingSignal struct {
@@ -698,19 +816,34 @@ const file_gateway_v1_packet_proto_rawDesc = "" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x126\n" +
 	"\amessage\x18\x02 \x01(\v2\x1c.resonance.common.v1.MessageR\amessage\x12:\n" +
 	"\x06recall\x18\x03 \x01(\v2\".resonance.common.v1.MessageRecallR\x06recall\x124\n" +
-	"\x04edit\x18\x04 \x01(\v2 .resonance.common.v1.MessageEditR\x04edit\"y\n" +
-	"\vStreamBegin\x12&\n" +
-	"\x0fparent_event_id\x18\x01 \x01(\x03R\rparentEventId\x12\x1d\n" +
+	"\x04edit\x18\x04 \x01(\v2 .resonance.common.v1.MessageEditR\x04edit\"\x88\x02\n" +
+	"\vStreamBegin\x12*\n" +
+	"\x0fparent_event_id\x18\x01 \x01(\x03B\x02\x18\x01R\rparentEventId\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x02 \x01(\tR\tsessionId\x12#\n" +
-	"\rfrom_username\x18\x03 \x01(\tR\ffromUsername\"g\n" +
-	"\vStreamChunk\x12&\n" +
-	"\x0fparent_event_id\x18\x01 \x01(\x03R\rparentEventId\x12\x1a\n" +
-	"\bsequence\x18\x02 \x01(\x05R\bsequence\x12\x14\n" +
-	"\x05delta\x18\x03 \x01(\tR\x05delta\"u\n" +
-	"\tStreamEnd\x12&\n" +
-	"\x0fparent_event_id\x18\x01 \x01(\x03R\rparentEventId\x12@\n" +
-	"\x06reason\x18\x02 \x01(\x0e2(.resonance.gateway.v1.StreamFinishReasonR\x06reason\"o\n" +
+	"\rfrom_username\x18\x03 \x01(\tR\ffromUsername\x12\x15\n" +
+	"\x06run_id\x18\x04 \x01(\tR\x05runId\x12\x1b\n" +
+	"\tstream_id\x18\x05 \x01(\tR\bstreamId\x12&\n" +
+	"\x0fsource_event_id\x18\x06 \x01(\x03R\rsourceEventId\x12-\n" +
+	"\x13final_client_msg_id\x18\a \x01(\tR\x10finalClientMsgId\"\xeb\x01\n" +
+	"\vStreamChunk\x12*\n" +
+	"\x0fparent_event_id\x18\x01 \x01(\x03B\x02\x18\x01R\rparentEventId\x12\x1e\n" +
+	"\bsequence\x18\x02 \x01(\x05B\x02\x18\x01R\bsequence\x12\x14\n" +
+	"\x05delta\x18\x03 \x01(\tR\x05delta\x12\x15\n" +
+	"\x06run_id\x18\x04 \x01(\tR\x05runId\x12\x1b\n" +
+	"\tstream_id\x18\x05 \x01(\tR\bstreamId\x12'\n" +
+	"\x0fstream_sequence\x18\x06 \x01(\x04R\x0estreamSequence\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\a \x01(\tR\tsessionId\"\xa4\x02\n" +
+	"\tStreamEnd\x12*\n" +
+	"\x0fparent_event_id\x18\x01 \x01(\x03B\x02\x18\x01R\rparentEventId\x12@\n" +
+	"\x06reason\x18\x02 \x01(\x0e2(.resonance.gateway.v1.StreamFinishReasonR\x06reason\x12\x15\n" +
+	"\x06run_id\x18\x03 \x01(\tR\x05runId\x12\x1b\n" +
+	"\tstream_id\x18\x04 \x01(\tR\bstreamId\x12'\n" +
+	"\x0fstream_sequence\x18\x05 \x01(\x04R\x0estreamSequence\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x06 \x01(\tR\tsessionId\x12-\n" +
+	"\x13final_client_msg_id\x18\a \x01(\tR\x10finalClientMsgId\"o\n" +
 	"\fTypingSignal\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12#\n" +

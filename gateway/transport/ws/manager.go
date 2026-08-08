@@ -44,7 +44,7 @@ func (m *Manager) AddConnection(username string, conn *Conn) error {
 	if oldConn, ok := m.connections.Load(username); ok {
 		m.logger.Warn("user already connected, closing old connection",
 			clog.String("username", username))
-		oldConn.(*Conn).Close()
+		_ = oldConn.(*Conn).Close()
 	}
 
 	m.connections.Store(username, conn)
@@ -72,7 +72,7 @@ func (m *Manager) AddConnection(username string, conn *Conn) error {
 // RemoveConnection 移除连接
 func (m *Manager) RemoveConnection(username string) {
 	if conn, ok := m.connections.LoadAndDelete(username); ok {
-		conn.(*Conn).Close()
+		_ = conn.(*Conn).Close()
 		m.logger.Info("user disconnected", clog.String("username", username))
 
 		// 更新在线连接数
@@ -135,7 +135,7 @@ func (m *Manager) OnlineCount() int {
 func (m *Manager) Close() error {
 	m.connections.Range(func(key, value any) bool {
 		conn := value.(*Conn)
-		conn.Close()
+		_ = conn.Close()
 		return true
 	})
 	return nil

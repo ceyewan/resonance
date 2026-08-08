@@ -39,6 +39,9 @@ const (
 	// SessionServiceCreateSessionProcedure is the fully-qualified name of the SessionService's
 	// CreateSession RPC.
 	SessionServiceCreateSessionProcedure = "/resonance.gateway.v1.SessionService/CreateSession"
+	// SessionServiceCreateAgentSessionProcedure is the fully-qualified name of the SessionService's
+	// CreateAgentSession RPC.
+	SessionServiceCreateAgentSessionProcedure = "/resonance.gateway.v1.SessionService/CreateAgentSession"
 	// SessionServiceGetHistoryEventsProcedure is the fully-qualified name of the SessionService's
 	// GetHistoryEvents RPC.
 	SessionServiceGetHistoryEventsProcedure = "/resonance.gateway.v1.SessionService/GetHistoryEvents"
@@ -60,6 +63,7 @@ const (
 type SessionServiceClient interface {
 	GetSessionList(context.Context, *connect.Request[v1.GetSessionListRequest]) (*connect.Response[v1.GetSessionListResponse], error)
 	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
+	CreateAgentSession(context.Context, *connect.Request[v1.CreateAgentSessionRequest]) (*connect.Response[v1.CreateAgentSessionResponse], error)
 	GetHistoryEvents(context.Context, *connect.Request[v1.GetHistoryEventsRequest]) (*connect.Response[v1.GetHistoryEventsResponse], error)
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
@@ -88,6 +92,12 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			httpClient,
 			baseURL+SessionServiceCreateSessionProcedure,
 			connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
+			connect.WithClientOptions(opts...),
+		),
+		createAgentSession: connect.NewClient[v1.CreateAgentSessionRequest, v1.CreateAgentSessionResponse](
+			httpClient,
+			baseURL+SessionServiceCreateAgentSessionProcedure,
+			connect.WithSchema(sessionServiceMethods.ByName("CreateAgentSession")),
 			connect.WithClientOptions(opts...),
 		),
 		getHistoryEvents: connect.NewClient[v1.GetHistoryEventsRequest, v1.GetHistoryEventsResponse](
@@ -127,6 +137,7 @@ func NewSessionServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 type sessionServiceClient struct {
 	getSessionList     *connect.Client[v1.GetSessionListRequest, v1.GetSessionListResponse]
 	createSession      *connect.Client[v1.CreateSessionRequest, v1.CreateSessionResponse]
+	createAgentSession *connect.Client[v1.CreateAgentSessionRequest, v1.CreateAgentSessionResponse]
 	getHistoryEvents   *connect.Client[v1.GetHistoryEventsRequest, v1.GetHistoryEventsResponse]
 	getContactList     *connect.Client[v1.GetContactListRequest, v1.GetContactListResponse]
 	searchUser         *connect.Client[v1.SearchUserRequest, v1.SearchUserResponse]
@@ -142,6 +153,11 @@ func (c *sessionServiceClient) GetSessionList(ctx context.Context, req *connect.
 // CreateSession calls resonance.gateway.v1.SessionService.CreateSession.
 func (c *sessionServiceClient) CreateSession(ctx context.Context, req *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error) {
 	return c.createSession.CallUnary(ctx, req)
+}
+
+// CreateAgentSession calls resonance.gateway.v1.SessionService.CreateAgentSession.
+func (c *sessionServiceClient) CreateAgentSession(ctx context.Context, req *connect.Request[v1.CreateAgentSessionRequest]) (*connect.Response[v1.CreateAgentSessionResponse], error) {
+	return c.createAgentSession.CallUnary(ctx, req)
 }
 
 // GetHistoryEvents calls resonance.gateway.v1.SessionService.GetHistoryEvents.
@@ -173,6 +189,7 @@ func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, req *connect.
 type SessionServiceHandler interface {
 	GetSessionList(context.Context, *connect.Request[v1.GetSessionListRequest]) (*connect.Response[v1.GetSessionListResponse], error)
 	CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error)
+	CreateAgentSession(context.Context, *connect.Request[v1.CreateAgentSessionRequest]) (*connect.Response[v1.CreateAgentSessionResponse], error)
 	GetHistoryEvents(context.Context, *connect.Request[v1.GetHistoryEventsRequest]) (*connect.Response[v1.GetHistoryEventsResponse], error)
 	GetContactList(context.Context, *connect.Request[v1.GetContactListRequest]) (*connect.Response[v1.GetContactListResponse], error)
 	SearchUser(context.Context, *connect.Request[v1.SearchUserRequest]) (*connect.Response[v1.SearchUserResponse], error)
@@ -197,6 +214,12 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 		SessionServiceCreateSessionProcedure,
 		svc.CreateSession,
 		connect.WithSchema(sessionServiceMethods.ByName("CreateSession")),
+		connect.WithHandlerOptions(opts...),
+	)
+	sessionServiceCreateAgentSessionHandler := connect.NewUnaryHandler(
+		SessionServiceCreateAgentSessionProcedure,
+		svc.CreateAgentSession,
+		connect.WithSchema(sessionServiceMethods.ByName("CreateAgentSession")),
 		connect.WithHandlerOptions(opts...),
 	)
 	sessionServiceGetHistoryEventsHandler := connect.NewUnaryHandler(
@@ -235,6 +258,8 @@ func NewSessionServiceHandler(svc SessionServiceHandler, opts ...connect.Handler
 			sessionServiceGetSessionListHandler.ServeHTTP(w, r)
 		case SessionServiceCreateSessionProcedure:
 			sessionServiceCreateSessionHandler.ServeHTTP(w, r)
+		case SessionServiceCreateAgentSessionProcedure:
+			sessionServiceCreateAgentSessionHandler.ServeHTTP(w, r)
 		case SessionServiceGetHistoryEventsProcedure:
 			sessionServiceGetHistoryEventsHandler.ServeHTTP(w, r)
 		case SessionServiceGetContactListProcedure:
@@ -260,6 +285,10 @@ func (UnimplementedSessionServiceHandler) GetSessionList(context.Context, *conne
 
 func (UnimplementedSessionServiceHandler) CreateSession(context.Context, *connect.Request[v1.CreateSessionRequest]) (*connect.Response[v1.CreateSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.CreateSession is not implemented"))
+}
+
+func (UnimplementedSessionServiceHandler) CreateAgentSession(context.Context, *connect.Request[v1.CreateAgentSessionRequest]) (*connect.Response[v1.CreateAgentSessionResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("resonance.gateway.v1.SessionService.CreateAgentSession is not implemented"))
 }
 
 func (UnimplementedSessionServiceHandler) GetHistoryEvents(context.Context, *connect.Request[v1.GetHistoryEventsRequest]) (*connect.Response[v1.GetHistoryEventsResponse], error) {

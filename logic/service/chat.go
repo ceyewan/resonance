@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -28,6 +29,13 @@ type ChatService struct {
 	sequencer   idgen.Sequencer
 	mqClient    mq.MQ
 	logger      clog.Logger
+	allowLegacy bool
+}
+
+type ChatServiceOption func(*ChatService)
+
+func WithLegacyGlobalChatAuthorizationForTests() ChatServiceOption {
+	return func(service *ChatService) { service.allowLegacy = true }
 }
 
 // NewChatService 创建聊天服务
@@ -38,8 +46,9 @@ func NewChatService(
 	sequencer idgen.Sequencer,
 	mqClient mq.MQ,
 	logger clog.Logger,
+	options ...ChatServiceOption,
 ) *ChatService {
-	return &ChatService{
+	service := &ChatService{
 		sessionRepo: sessionRepo,
 		messageRepo: messageRepo,
 		idGen:       idGen,
@@ -47,12 +56,21 @@ func NewChatService(
 		mqClient:    mqClient,
 		logger:      logger,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 // SendEvent 实现 ChatService.SendEvent（Unary 调用）
 func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventRequest) (*logicv1.SendEventResponse, error) {
 	username, err := MustUsernameFromCtx(ctx)
 	if err != nil {
+		return nil, err
+	}
+	if err := requireSessionTenant(ctx, s.sessionRepo, req.SessionId, s.allowLegacy); err != nil {
 		return nil, err
 	}
 
@@ -90,7 +108,34 @@ func (s *ChatService) SendEvent(ctx context.Context, req *logicv1.SendEventReque
 }
 
 func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendEventRequest, username string, targetUsernames []string) (*logicv1.SendEventResponse, error) {
-	msgPayload := req.GetMessage()
+	msgPayload, err := canonicalMessage(req.GetMessage())
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	idempotencyHash := ""
+	if msgPayload.GetClientMsgId() != "" {
+		idempotencyHash, err = messageIdempotencyHash(req.GetSessionId(), username, msgPayload)
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to prepare message")
+		}
+
+		existing, lookupErr := s.messageRepo.GetMessageByIdempotencyKey(
+			ctx, req.GetSessionId(), username, msgPayload.GetClientMsgId(),
+		)
+		switch {
+		case lookupErr == nil:
+			if existing.IdempotencyHash == "" || existing.IdempotencyHash != idempotencyHash {
+				return nil, status.Error(codes.AlreadyExists, "client_msg_id is already used by another message")
+			}
+			return messageResponse(existing), nil
+		case errors.Is(lookupErr, repo.ErrMessageNotFound):
+			// 首次请求，继续进入数据库唯一约束保护的原子写路径。
+		default:
+			s.logger.Error("failed to check message idempotency", clog.Error(lookupErr))
+			return nil, status.Error(codes.Internal, "failed to check message idempotency")
+		}
+	}
 
 	s.logger.Debug("handling message",
 		clog.String("from", username),
@@ -118,17 +163,20 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendEventR
 		s.logger.Error("failed to generate seq id", clog.Error(err), clog.String("session_id", req.SessionId))
 		return nil, status.Errorf(codes.Unavailable, "server busy: failed to generate sequence")
 	}
-	timestampMs := time.Now().UnixMilli()
+	createdAt := time.Now().UTC()
+	timestampMs := createdAt.UnixMilli()
 
 	msgContent := &model.MessageContent{
-		EventID:        eventID,
-		SessionID:      req.SessionId,
-		SenderUsername: username,
-		SeqID:          seqID,
-		Content:        msgPayload.Content,
-		MsgType:        event.FormatMessageType(msgPayload.Type),
-		ReplyToEventID: msgPayload.ReplyToEventId,
-		ClientMsgID:    msgPayload.ClientMsgId,
+		EventID:         eventID,
+		SessionID:       req.SessionId,
+		SenderUsername:  username,
+		SeqID:           seqID,
+		Content:         msgPayload.Content,
+		MsgType:         event.FormatMessageType(msgPayload.Type),
+		ReplyToEventID:  msgPayload.ReplyToEventId,
+		ClientMsgID:     msgPayload.ClientMsgId,
+		IdempotencyHash: idempotencyHash,
+		CreatedAt:       createdAt,
 	}
 
 	chatEvent := &commonv1.ChatEvent{
@@ -146,19 +194,31 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendEventR
 
 	result, err := mqpublish.PublishMessageToMQ(ctx, s.messageRepo, mqEvent, msgContent)
 	if err != nil {
+		if errors.Is(err, repo.ErrMessageIdempotencyConflict) {
+			return nil, status.Error(codes.AlreadyExists, "client_msg_id is already used by another message")
+		}
+		if errors.Is(err, repo.ErrAgentFinalMessageNotCommittable) {
+			return nil, status.Error(codes.Aborted, "agent result is no longer committable")
+		}
 		s.logger.Error("failed to publish message to mq", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to save message")
 	}
 
-	mqpublish.PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
+	if result.Created {
+		mqpublish.PublishMessageToMQAsync(s.mqClient, result.OutboxID, result.Topic, result.EventData, s.logger)
+	}
 
 	s.logger.Info("message processed successfully",
-		clog.Int64("event_id", eventID),
-		clog.Int64("seq_id", seqID))
+		clog.Int64("event_id", result.Message.EventID),
+		clog.Int64("seq_id", result.Message.SeqID))
 
+	return messageResponse(result.Message), nil
+}
+
+func messageResponse(message *model.MessageContent) *logicv1.SendEventResponse {
 	return &logicv1.SendEventResponse{
-		EventId:     eventID,
-		SeqId:       seqID,
-		TimestampMs: timestampMs,
-	}, nil
+		EventId:     message.EventID,
+		SeqId:       message.SeqID,
+		TimestampMs: message.CreatedAt.UnixMilli(),
+	}
 }

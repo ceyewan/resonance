@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 	"github.com/ceyewan/resonance/task/pusher"
 )
 
@@ -50,6 +51,10 @@ func (r *testMessageRepo) GetMessageByEventID(ctx context.Context, eventID int64
 	return nil, nil
 }
 
+func (r *testMessageRepo) GetMessageByIdempotencyKey(ctx context.Context, sessionID, senderUsername, clientMsgID string) (*model.MessageContent, error) {
+	return nil, repo.ErrMessageNotFound
+}
+
 func (r *testMessageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error {
 	return nil
 }
@@ -66,8 +71,8 @@ func (r *testMessageRepo) UpdateMessageContent(ctx context.Context, eventID int6
 	return nil
 }
 
-func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
-	return nil
+func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) (*repo.MessageSaveResult, error) {
+	return &repo.MessageSaveResult{Message: msg, Outbox: outbox, Created: true}, nil
 }
 
 func (r *testMessageRepo) UpdateOutboxStatus(ctx context.Context, id int64, status int) error {
@@ -108,12 +113,12 @@ func (r *testRouterRepo) BatchGetUsersGateway(ctx context.Context, usernames []s
 func (r *testRouterRepo) Close() error { return nil }
 
 type testPusherManager struct {
-	getFn func(gatewayID string) (*pusher.GatewayClient, error)
+	getFn func(gatewayID string) (pusher.Client, error)
 }
 
 func (m *testPusherManager) Start() error { return nil }
 
-func (m *testPusherManager) GetClient(gatewayID string) (*pusher.GatewayClient, error) {
+func (m *testPusherManager) GetClient(gatewayID string) (pusher.Client, error) {
 	if m.getFn != nil {
 		return m.getFn(gatewayID)
 	}

@@ -1,0 +1,54 @@
+service:
+  name: pilot-runtime
+  http_port: 15095
+
+log:
+  level: info
+  format: console
+  output: stdout
+
+runtime:
+  binary: /opt/resonance/bridge/node_modules/.bin/pi
+  expected_version: 0.84.1
+  extension_path: /opt/resonance/bridge/src/index.ts
+  work_dir: /var/lib/resonance-pilot/work
+  # Runtime host atomically pins Pi's retry policy here. SDK-level Provider
+  # retries stay at zero so each HTTP attempt consumes a Bridge budget decision.
+  agent_dir: /var/lib/resonance-pilot/pi-agent
+  # Fixed fail-closed allowlist. The Runtime container receives no DB, NATS,
+  # Etcd, Logic, service-auth or Capability signing credentials.
+  provider_env_allowlist:
+    - PATH
+    - ANTHROPIC_API_KEY
+    - HTTP_PROXY
+    - HTTPS_PROXY
+    - NO_PROXY
+    - PI_OFFLINE
+    - PI_TELEMETRY
+  provider_proxy_url: http://provider-egress-proxy:18080
+  max_frame_bytes: 8388608
+  max_output_bytes: 67108864
+  max_stderr_bytes: 65536
+  event_queue_size: 256
+  startup_event_limit: 1024
+  event_offer_timeout: 2s
+  command_timeout: 5s
+  probe_timeout: 5s
+  abort_grace: 2s
+  term_grace: 2s
+  kill_grace: 2s
+
+remote:
+  socket_path: /run/resonance-agent/runtime.sock
+  session_root: /var/lib/resonance-pilot/sessions
+  max_request_bytes: 1048576
+  max_frame_bytes: 8388608
+  header_timeout: 2s
+
+tool_relay:
+  listen_address: 127.0.0.1:15094
+  broker_socket: /run/resonance-agent/broker.sock
+  max_request_bytes: 65536
+  max_response_bytes: 65536
+  request_timeout: 5s
+  max_concurrent: 32

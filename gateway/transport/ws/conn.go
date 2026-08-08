@@ -11,7 +11,16 @@ import (
 
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	"github.com/ceyewan/resonance/gateway/middleware"
+	"github.com/ceyewan/resonance/pkg/userauth"
 )
+
+type ConnOption func(*Conn)
+
+func WithUserPrincipal(principal *userauth.Principal) ConnOption {
+	return func(conn *Conn) {
+		conn.ctx = userauth.WithPrincipal(conn.ctx, principal)
+	}
+}
 
 // Conn 表示一个 WebSocket 连接
 type Conn struct {
@@ -42,13 +51,14 @@ func NewConn(
 	maxMessageSize int64,
 	pingInterval time.Duration,
 	pongTimeout time.Duration,
+	options ...ConnOption,
 ) *Conn {
 	ctx, cancel := context.WithCancel(context.Background())
 	// 将 trace_id 注入到 Context
 	if traceID != "" {
 		ctx = middleware.WithTraceID(ctx, traceID)
 	}
-	return &Conn{
+	wrapped := &Conn{
 		username:       username,
 		traceID:        traceID,
 		conn:           conn,
@@ -62,6 +72,10 @@ func NewConn(
 		pingInterval:   pingInterval,
 		pongTimeout:    pongTimeout,
 	}
+	for _, option := range options {
+		option(wrapped)
+	}
+	return wrapped
 }
 
 // Username 实现 ws.Connection 接口
@@ -94,7 +108,7 @@ func (c *Conn) Send(packet *gatewayv1.WsPacket) error {
 func (c *Conn) Close() error {
 	c.closeOnce.Do(func() {
 		c.cancel()
-		c.conn.Close()
+		_ = c.conn.Close()
 	})
 	return nil
 }
@@ -107,7 +121,7 @@ func (c *Conn) Run() {
 
 // readPump 从 WebSocket 读取消息
 func (c *Conn) readPump() {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	c.conn.SetReadLimit(c.maxMessageSize)
 	if err := c.conn.SetReadDeadline(time.Now().Add(c.pongTimeout)); err != nil {
@@ -155,7 +169,7 @@ func (c *Conn) writePump() {
 	ticker := time.NewTicker(c.pingInterval)
 	defer func() {
 		ticker.Stop()
-		c.Close()
+		_ = c.Close()
 	}()
 
 	for {

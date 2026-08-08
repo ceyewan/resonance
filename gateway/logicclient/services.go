@@ -4,20 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"google.golang.org/grpc/metadata"
-
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 )
-
-const usernameMetadataKey = "x-username"
-
-func withUsernameMetadata(ctx context.Context, username string) context.Context {
-	if username == "" {
-		return ctx
-	}
-	return metadata.AppendToOutgoingContext(ctx, usernameMetadataKey, username)
-}
 
 // ==================== AuthService 接口 ====================
 
@@ -37,7 +26,7 @@ func (c *Client) ValidateToken(ctx context.Context, token string) (*logicv1.Vali
 
 // ==================== ChatService 接口 ====================
 
-func (c *Client) SendEvent(ctx context.Context, username string, msg *gatewayv1.ChatRequest) (*logicv1.SendEventResponse, error) {
+func (c *Client) SendEvent(ctx context.Context, _ string, msg *gatewayv1.ChatRequest) (*logicv1.SendEventResponse, error) {
 	if c.chatClient == nil {
 		return nil, fmt.Errorf("chat client not initialized")
 	}
@@ -52,39 +41,57 @@ func (c *Client) SendEvent(ctx context.Context, username string, msg *gatewayv1.
 		req.Payload = &logicv1.SendEventRequest_Message{Message: msg.Message}
 	}
 
-	return c.chatClient.SendEvent(withUsernameMetadata(ctx, username), req)
+	return c.chatClient.SendEvent(ctx, req)
 }
 
 // ==================== SessionService 接口 ====================
 
-func (c *Client) GetSessionList(ctx context.Context, username string) (*logicv1.GetSessionListResponse, error) {
-	return c.sessionSvc().GetSessionList(withUsernameMetadata(ctx, username), &logicv1.GetSessionListRequest{})
+func (c *Client) GetSessionList(ctx context.Context, _ string) (*logicv1.GetSessionListResponse, error) {
+	return c.sessionSvc().GetSessionList(ctx, &logicv1.GetSessionListRequest{})
 }
 
-func (c *Client) CreateSession(ctx context.Context, username string, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error) {
-	return c.sessionSvc().CreateSession(withUsernameMetadata(ctx, username), req)
+func (c *Client) CreateSession(ctx context.Context, _ string, req *logicv1.CreateSessionRequest) (*logicv1.CreateSessionResponse, error) {
+	return c.sessionSvc().CreateSession(ctx, req)
 }
 
-func (c *Client) GetHistoryEvents(ctx context.Context, username string, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error) {
-	return c.sessionSvc().GetHistoryEvents(withUsernameMetadata(ctx, username), req)
+func (c *Client) CreateAgentSession(ctx context.Context, _ string, req *logicv1.CreateAgentSessionRequest) (*logicv1.CreateAgentSessionResponse, error) {
+	return c.sessionSvc().CreateAgentSession(ctx, req)
 }
 
-func (c *Client) GetContactList(ctx context.Context, username string) (*logicv1.GetContactListResponse, error) {
-	return c.sessionSvc().GetContactList(withUsernameMetadata(ctx, username), &logicv1.GetContactListRequest{})
+func (c *Client) GetHistoryEvents(ctx context.Context, _ string, req *logicv1.GetHistoryEventsRequest) (*logicv1.GetHistoryEventsResponse, error) {
+	return c.sessionSvc().GetHistoryEvents(ctx, req)
 }
 
-func (c *Client) SearchUser(ctx context.Context, username string, query string) (*logicv1.SearchUserResponse, error) {
-	return c.sessionSvc().SearchUser(withUsernameMetadata(ctx, username), &logicv1.SearchUserRequest{
+func (c *Client) GetContactList(ctx context.Context, _ string) (*logicv1.GetContactListResponse, error) {
+	return c.sessionSvc().GetContactList(ctx, &logicv1.GetContactListRequest{})
+}
+
+func (c *Client) SearchUser(ctx context.Context, _ string, query string) (*logicv1.SearchUserResponse, error) {
+	return c.sessionSvc().SearchUser(ctx, &logicv1.SearchUserRequest{
 		Query: query,
 	})
 }
 
-func (c *Client) UpdateReadPosition(ctx context.Context, username string, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
-	return c.sessionSvc().UpdateReadPosition(withUsernameMetadata(ctx, username), req)
+func (c *Client) UpdateReadPosition(ctx context.Context, _ string, req *logicv1.UpdateReadPositionRequest) (*logicv1.UpdateReadPositionResponse, error) {
+	return c.sessionSvc().UpdateReadPosition(ctx, req)
 }
 
-func (c *Client) PullInboxDelta(ctx context.Context, username string, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
-	return c.sessionSvc().PullInboxDelta(withUsernameMetadata(ctx, username), req)
+func (c *Client) PullInboxDelta(ctx context.Context, _ string, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
+	return c.sessionSvc().PullInboxDelta(ctx, req)
+}
+
+// ==================== AgentApprovalService 接口 ====================
+
+func (c *Client) GetAgentApproval(ctx context.Context, req *logicv1.GetApprovalRequest) (*logicv1.GetApprovalResponse, error) {
+	return c.approvalSvc().GetApproval(ctx, req)
+}
+
+func (c *Client) ListAgentApprovals(ctx context.Context, req *logicv1.ListApprovalsRequest) (*logicv1.ListApprovalsResponse, error) {
+	return c.approvalSvc().ListApprovals(ctx, req)
+}
+
+func (c *Client) DecideAgentApproval(ctx context.Context, req *logicv1.DecideApprovalRequest) (*logicv1.DecideApprovalResponse, error) {
+	return c.approvalSvc().DecideApproval(ctx, req)
 }
 
 // ==================== PresenceService 接口 ====================

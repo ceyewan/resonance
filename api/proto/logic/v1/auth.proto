@@ -21,11 +21,16 @@ service AuthService {
 message LoginRequest {
   string username = 1;
   string password = 2;
+  // tenant_id 为空时使用服务端显式默认租户，保留现有客户端兼容性。
+  string tenant_id = 3;
 }
 
 message LoginResponse {
   string access_token = 1;
   resonance.common.v1.User user = 2;
+  string tenant_id = 3;
+  repeated string roles = 4;
+  repeated string scopes = 5;
 }
 
 message RegisterRequest {
@@ -37,6 +42,9 @@ message RegisterRequest {
 message RegisterResponse {
   string access_token = 1;
   resonance.common.v1.User user = 2;
+  string tenant_id = 3;
+  repeated string roles = 4;
+  repeated string scopes = 5;
 }
 
 message ValidateTokenRequest {
@@ -47,4 +55,7 @@ message ValidateTokenResponse {
   bool valid = 1;
   resonance.common.v1.User user = 2;
   string username = 3;
+  string tenant_id = 4;
+  repeated string roles = 5;
+  repeated string scopes = 6;
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
@@ -46,8 +48,21 @@ func TestService_PushStream_UnsupportedPayload(t *testing.T) {
 	resp, err := svc.PushStream(context.Background(), &gatewayv1.PushStreamRequest{
 		ToUsernames: []string{"alice"},
 	})
-	require.NoError(t, err)
-	require.Empty(t, resp.GetFailedUsernames())
+	require.Error(t, err)
+	require.Nil(t, resp)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestService_PushStream_RejectsLegacyOnlyChunk(t *testing.T) {
+	connMgr := ws.NewManager(clog.Discard(), nil, nil, nil)
+	svc := NewService(connMgr, clog.Discard())
+	_, err := svc.PushStream(context.Background(), &gatewayv1.PushStreamRequest{
+		ToUsernames: []string{"alice"},
+		Payload: &gatewayv1.PushStreamRequest_StreamChunk{StreamChunk: &gatewayv1.StreamChunk{
+			ParentEventId: 1, Sequence: 1, Delta: "unsafe without run correlation",
+		}},
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func newWSConnForTest(t *testing.T, username string) (*ws.Conn, func()) {

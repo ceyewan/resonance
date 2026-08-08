@@ -13,12 +13,15 @@ import (
 	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
 
+	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/logic/config"
 	"github.com/ceyewan/resonance/logic/job"
 	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
+	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/health"
+	"github.com/ceyewan/resonance/pkg/serviceauth"
 	"github.com/ceyewan/resonance/repo"
 )
 
@@ -57,10 +60,13 @@ type resources struct {
 	instanceIDStop func() // 实例 ID 保活停止函数
 
 	// Repos
-	userRepo    repo.UserRepo
-	sessionRepo repo.SessionRepo
-	messageRepo repo.MessageRepo
-	routerRepo  repo.RouterRepo
+	userRepo             repo.UserRepo
+	identityRepo         repo.IdentityRepo
+	sessionRepo          repo.SessionRepo
+	messageRepo          repo.MessageRepo
+	routerRepo           repo.RouterRepo
+	agentApprovalRepo    repo.AgentApprovalRepo
+	agentIAMMutationRepo repo.AgentIAMMutationRepo
 }
 
 // New 创建 Logic 实例
@@ -78,7 +84,7 @@ func New() (*Logic, error) {
 	}
 
 	if err := l.initComponents(); err != nil {
-		l.Close()
+		_ = l.Close()
 		return nil, err
 	}
 
@@ -160,15 +166,114 @@ func (l *Logic) initComponents() error {
 	}()
 
 	// 4. 服务层
-	authSvc := service.NewAuthService(res.userRepo, res.sessionRepo, res.authenticator, logger)
-	sessionSvc := service.NewSessionService(res.sessionRepo, res.messageRepo, res.userRepo, res.sessionIDGen, res.msgIDGen, res.sequencer, res.mqClient, logger)
+	authSvc := service.NewAuthService(res.userRepo, res.identityRepo, res.sessionRepo, res.authenticator, logger)
+	sessionSvc := service.NewSessionService(
+		res.sessionRepo,
+		res.messageRepo,
+		res.userRepo,
+		res.sessionIDGen,
+		res.msgIDGen,
+		res.sequencer,
+		res.mqClient,
+		logger,
+		service.WithTenantMembershipReader(res.identityRepo),
+		service.WithAgentSessionPolicy(service.AgentSessionPolicy{
+			BotUsername:          l.config.AgentBot.Username,
+			BotNickname:          l.config.AgentBot.Nickname,
+			UserAssistantVersion: l.config.AgentSessions.UserAssistantProfileVersion,
+			IAMAdminVersion:      l.config.AgentSessions.IAMAdminProfileVersion,
+		}),
+	)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.msgIDGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
+	agentApprovalSvc := service.NewAgentApprovalService(
+		res.agentApprovalRepo,
+		service.NewIdentitySystemScopeAuthorizer(res.identityRepo),
+		res.msgIDGen,
+		res.mqClient,
+		logger,
+		service.AgentApprovalPolicy{
+			PilotServiceID:   l.config.ServiceAuth.IAMPilotServiceID,
+			ReadScope:        l.config.AgentApproval.ReadScope,
+			DecideScope:      l.config.AgentApproval.DecideScope,
+			AllowSelfApprove: l.config.AgentApproval.AllowSelfApprove,
+		},
+	)
+	agentIAMMutationSvc := service.NewAgentIAMMutationService(
+		res.agentApprovalRepo,
+		res.agentIAMMutationRepo,
+		service.NewIdentitySystemScopeAuthorizer(res.identityRepo),
+		logger,
+		service.AgentIAMMutationPolicy{
+			PilotServiceID: l.config.ServiceAuth.IAMPilotServiceID,
+			WriteScope:     model.ScopeIAMUsersWrite,
+			DecideScope:    model.ScopeAgentApprovalDecide,
+		},
+	)
 
 	// 5. 后台任务
 	l.outboxRelay = job.NewOutboxRelay(res.messageRepo, res.mqClient, logger, &l.config.Outbox)
 
 	// 6. gRPC Server
+	serverOptions := []server.Option{
+		server.WithProtectedActor(l.config.AgentBot.Username),
+		server.WithAgentApprovalService(agentApprovalSvc),
+		server.WithAgentIAMMutationService(agentIAMMutationSvc),
+		server.WithGatewayServiceID(l.config.ServiceAuth.GatewayServiceID),
+	}
+	if l.config.ServiceAuth.PilotSecret != "" {
+		serverOptions = append(serverOptions, server.WithServiceProfile(
+			l.config.ServiceAuth.PilotServiceID,
+			model.AgentProfileUserAssistant,
+			l.config.AgentSessions.UserAssistantProfileVersion,
+		))
+	}
+	if l.config.ServiceAuth.IAMPilotSecret != "" {
+		serverOptions = append(serverOptions, server.WithServiceProfile(
+			l.config.ServiceAuth.IAMPilotServiceID,
+			model.AgentProfileIAMAdmin,
+			l.config.AgentSessions.IAMAdminProfileVersion,
+		))
+	}
+	servicePolicies := map[string]serviceauth.ServicePolicy{
+		l.config.ServiceAuth.GatewayServiceID: {
+			Secret:                  []byte(l.config.ServiceAuth.GatewaySecret),
+			AllowAnyActor:           true,
+			AllowedMethods:          gatewayServiceMethods(),
+			AllowAnyTenant:          true,
+			RequirePrincipalVersion: true,
+		},
+	}
+	if l.config.ServiceAuth.PilotSecret != "" {
+		servicePolicies[l.config.ServiceAuth.PilotServiceID] = serviceauth.ServicePolicy{
+			Secret:         []byte(l.config.ServiceAuth.PilotSecret),
+			AllowedActors:  map[string]struct{}{l.config.AgentBot.Username: {}},
+			AllowedMethods: userPilotServiceMethods(),
+			AllowedTenants: map[string]struct{}{l.config.ServiceAuth.PilotTenantID: {}},
+		}
+	}
+	if l.config.ServiceAuth.IAMPilotSecret != "" {
+		servicePolicies[l.config.ServiceAuth.IAMPilotServiceID] = serviceauth.ServicePolicy{
+			Secret:         []byte(l.config.ServiceAuth.IAMPilotSecret),
+			AllowedActors:  map[string]struct{}{l.config.AgentBot.Username: {}},
+			AllowedMethods: iamPilotServiceMethods(),
+			AllowedTenants: map[string]struct{}{l.config.ServiceAuth.IAMPilotTenantID: {}},
+		}
+	}
+	nonceStore, err := serviceauth.NewRedisNonceStore(
+		res.redisConn.GetClient(), l.config.ServiceAuth.NonceKeyPrefix,
+	)
+	if err != nil {
+		return fmt.Errorf("service auth nonce store: %w", err)
+	}
+	verifier, err := serviceauth.NewVerifier(serviceauth.VerifierConfig{
+		MaxSkew:  l.config.ServiceAuth.MaxSkew,
+		Services: servicePolicies,
+	}, serviceauth.WithNonceStore(nonceStore))
+	if err != nil {
+		return fmt.Errorf("service auth verifier: %w", err)
+	}
+	serverOptions = append(serverOptions, server.WithServiceAuth(verifier))
 	l.grpcServer = server.NewGRPCServer(
 		l.config.GetServerAddr(),
 		logger,
@@ -176,12 +281,46 @@ func (l *Logic) initComponents() error {
 		sessionSvc,
 		chatSvc,
 		presenceSvc,
+		serverOptions...,
 	)
 
 	// 7. 健康检查 Server
 	l.healthServer = health.NewServer(l.config.GetHTTPAddr(), logger)
 
 	return nil
+}
+
+func gatewayServiceMethods() map[string]struct{} {
+	return map[string]struct{}{
+		logicv1.ChatService_SendEvent_FullMethodName:               {},
+		logicv1.SessionService_GetSessionList_FullMethodName:       {},
+		logicv1.SessionService_CreateSession_FullMethodName:        {},
+		logicv1.SessionService_CreateAgentSession_FullMethodName:   {},
+		logicv1.SessionService_GetHistoryEvents_FullMethodName:     {},
+		logicv1.SessionService_GetContactList_FullMethodName:       {},
+		logicv1.SessionService_SearchUser_FullMethodName:           {},
+		logicv1.SessionService_UpdateReadPosition_FullMethodName:   {},
+		logicv1.SessionService_PullInboxDelta_FullMethodName:       {},
+		logicv1.AgentApprovalService_DecideApproval_FullMethodName: {},
+		logicv1.AgentApprovalService_GetApproval_FullMethodName:    {},
+		logicv1.AgentApprovalService_ListApprovals_FullMethodName:  {},
+	}
+}
+
+func userPilotServiceMethods() map[string]struct{} {
+	return map[string]struct{}{
+		logicv1.ChatService_SendEvent_FullMethodName:           {},
+		logicv1.SessionService_GetHistoryEvents_FullMethodName: {},
+	}
+}
+
+func iamPilotServiceMethods() map[string]struct{} {
+	methods := userPilotServiceMethods()
+	methods[logicv1.AgentApprovalService_CreateApproval_FullMethodName] = struct{}{}
+	methods[logicv1.AgentIAMMutationService_PreviewTenantMembershipStatus_FullMethodName] = struct{}{}
+	methods[logicv1.AgentIAMMutationService_GetExecutionApproval_FullMethodName] = struct{}{}
+	methods[logicv1.AgentIAMMutationService_ExecuteTenantMembershipStatus_FullMethodName] = struct{}{}
+	return methods
 }
 
 // initResources 初始化资源
@@ -260,6 +399,10 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("user repo init: %w", err)
 	}
+	identityRepo, err := repo.NewIdentityRepo(dbInstance)
+	if err != nil {
+		return nil, fmt.Errorf("identity repo init: %w", err)
+	}
 	messageRepo, err := repo.NewMessageRepo(dbInstance) // 需要确认签名
 	if err != nil {
 		return nil, fmt.Errorf("message repo init: %w", err)
@@ -272,22 +415,33 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("router repo init: %w", err)
 	}
+	agentApprovalRepo, err := repo.NewAgentApprovalRepo(dbInstance)
+	if err != nil {
+		return nil, fmt.Errorf("agent approval repo init: %w", err)
+	}
+	agentIAMMutationRepo, err := repo.NewAgentIAMMutationRepo(dbInstance, l.config.AgentBot.Username)
+	if err != nil {
+		return nil, fmt.Errorf("agent IAM mutation repo init: %w", err)
+	}
 
 	return &resources{
-		postgresConn:  postgresConn,
-		redisConn:     redisConn,
-		natsConn:      natsConn,
-		etcdConn:      etcdConn,
-		mqClient:      mqClient,
-		dbInstance:    dbInstance,
-		authenticator: authenticator,
-		msgIDGen:      msgIDGen,
-		sessionIDGen:  sessionIDGen,
-		sequencer:     sequencer,
-		userRepo:      userRepo,
-		sessionRepo:   sessionRepo,
-		messageRepo:   messageRepo,
-		routerRepo:    routerRepo,
+		postgresConn:         postgresConn,
+		redisConn:            redisConn,
+		natsConn:             natsConn,
+		etcdConn:             etcdConn,
+		mqClient:             mqClient,
+		dbInstance:           dbInstance,
+		authenticator:        authenticator,
+		msgIDGen:             msgIDGen,
+		sessionIDGen:         sessionIDGen,
+		sequencer:            sequencer,
+		userRepo:             userRepo,
+		identityRepo:         identityRepo,
+		sessionRepo:          sessionRepo,
+		messageRepo:          messageRepo,
+		routerRepo:           routerRepo,
+		agentApprovalRepo:    agentApprovalRepo,
+		agentIAMMutationRepo: agentIAMMutationRepo,
 	}, nil
 }
 
@@ -359,7 +513,7 @@ func (l *Logic) Close() error {
 		if err := l.registry.Deregister(context.Background(), l.serviceID); err != nil {
 			l.logger.Warn("deregister logic service failed", clog.Error(err))
 		}
-		l.registry.Close()
+		_ = l.registry.Close()
 	}
 
 	// 3. 停止 gRPC 服务器
@@ -382,15 +536,18 @@ func (l *Logic) Close() error {
 			}
 
 			// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
-			l.resources.routerRepo.Close()
-			l.resources.sessionRepo.Close()
-			l.resources.userRepo.Close()
-			l.resources.messageRepo.Close()
+			_ = l.resources.routerRepo.Close()
+			_ = l.resources.sessionRepo.Close()
+			_ = l.resources.userRepo.Close()
+			_ = l.resources.identityRepo.Close()
+			_ = l.resources.messageRepo.Close()
+			_ = l.resources.agentApprovalRepo.Close()
+			_ = l.resources.agentIAMMutationRepo.Close()
 
-			l.resources.etcdConn.Close()
-			l.resources.natsConn.Close()
-			l.resources.redisConn.Close()
-			l.resources.postgresConn.Close()
+			_ = l.resources.etcdConn.Close()
+			_ = l.resources.natsConn.Close()
+			_ = l.resources.redisConn.Close()
+			_ = l.resources.postgresConn.Close()
 			close(done)
 		}()
 

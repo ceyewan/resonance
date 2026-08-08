@@ -15,7 +15,8 @@ import (
 )
 
 type testPushServiceClient struct {
-	pushEventFn func(ctx context.Context, in *gatewayv1.PushEventRequest, opts ...grpc.CallOption) (*gatewayv1.PushEventResponse, error)
+	pushEventFn  func(ctx context.Context, in *gatewayv1.PushEventRequest, opts ...grpc.CallOption) (*gatewayv1.PushEventResponse, error)
+	pushStreamFn func(ctx context.Context, in *gatewayv1.PushStreamRequest, opts ...grpc.CallOption) (*gatewayv1.PushStreamResponse, error)
 }
 
 func (c *testPushServiceClient) PushEvent(ctx context.Context, in *gatewayv1.PushEventRequest, opts ...grpc.CallOption) (*gatewayv1.PushEventResponse, error) {
@@ -26,6 +27,9 @@ func (c *testPushServiceClient) PushEvent(ctx context.Context, in *gatewayv1.Pus
 }
 
 func (c *testPushServiceClient) PushStream(ctx context.Context, in *gatewayv1.PushStreamRequest, opts ...grpc.CallOption) (*gatewayv1.PushStreamResponse, error) {
+	if c.pushStreamFn != nil {
+		return c.pushStreamFn(ctx, in, opts...)
+	}
 	return &gatewayv1.PushStreamResponse{}, nil
 }
 
@@ -74,6 +78,40 @@ func TestGatewayClient_Enqueue_QueueFull(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "queue full")
+}
+
+func TestGatewayClient_PushStreamUsesDedicatedRPC(t *testing.T) {
+	c := newTestGatewayClient(t, 1)
+	var captured *gatewayv1.PushStreamRequest
+	c.client = &testPushServiceClient{
+		pushEventFn: func(context.Context, *gatewayv1.PushEventRequest, ...grpc.CallOption) (*gatewayv1.PushEventResponse, error) {
+			t.Fatal("stream task must not use PushEvent")
+			return nil, nil
+		},
+		pushStreamFn: func(_ context.Context, input *gatewayv1.PushStreamRequest, _ ...grpc.CallOption) (*gatewayv1.PushStreamResponse, error) {
+			captured = input
+			return &gatewayv1.PushStreamResponse{}, nil
+		},
+	}
+	c.doPush(&PushTask{
+		ToUsernames: []string{"alice"},
+		Stream: &gatewayv1.PushStreamRequest{Payload: &gatewayv1.PushStreamRequest_StreamChunk{
+			StreamChunk: &gatewayv1.StreamChunk{RunId: "run-1", StreamId: "stream-1", StreamSequence: 1, Delta: "hello"},
+		}},
+	})
+	require.NotNil(t, captured)
+	require.Equal(t, []string{"alice"}, captured.GetToUsernames())
+	require.Equal(t, "run-1", captured.GetStreamChunk().GetRunId())
+	require.Equal(t, uint64(1), captured.GetStreamChunk().GetStreamSequence())
+}
+
+func TestGatewayClient_RejectsAmbiguousPushTask(t *testing.T) {
+	c := newTestGatewayClient(t, 1)
+	err := c.Enqueue(&PushTask{
+		ToUsernames: []string{"alice"}, Event: &commonv1.ChatEvent{EventId: 1},
+		Stream: &gatewayv1.PushStreamRequest{Payload: &gatewayv1.PushStreamRequest_StreamEnd{StreamEnd: &gatewayv1.StreamEnd{}}},
+	})
+	require.ErrorContains(t, err, "exactly one")
 }
 
 func TestGatewayClient_Enqueue_WhenClosing(t *testing.T) {

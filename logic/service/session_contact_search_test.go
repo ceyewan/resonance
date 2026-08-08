@@ -20,10 +20,11 @@ func TestSessionService_GetContactList_Success(t *testing.T) {
 			return []*model.User{
 				{Username: "bob", Nickname: "Bobby", Avatar: "https://a/b.png"},
 				{Username: "carol", Nickname: "Carol", Avatar: ""},
+				{Username: "resonance-agent", Nickname: "Agent", Kind: model.UserKindAgentBot},
 			}, nil
 		},
 	}
-	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger())
+	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger(), withTestTenantMemberships())
 
 	resp, err := svc.GetContactList(newTestIncomingContext("alice"), &logicv1.GetContactListRequest{})
 	require.NoError(t, err)
@@ -40,7 +41,7 @@ func TestSessionService_GetContactList_Failed(t *testing.T) {
 			return nil, errors.New("db failed")
 		},
 	}
-	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger())
+	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger(), withTestTenantMemberships())
 
 	_, err := svc.GetContactList(newTestIncomingContext("alice"), &logicv1.GetContactListRequest{})
 	require.Error(t, err)
@@ -54,7 +55,7 @@ func TestSessionService_SearchUser_Unauthenticated(t *testing.T) {
 			return nil, nil
 		},
 	}
-	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger())
+	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger(), withTestTenantMemberships())
 
 	_, err := svc.SearchUser(context.Background(), &logicv1.SearchUserRequest{Query: "bob"})
 	require.Error(t, err)
@@ -67,10 +68,11 @@ func TestSessionService_SearchUser_Success(t *testing.T) {
 			require.Equal(t, "bo", query)
 			return []*model.User{
 				{Username: "bob", Nickname: "Bobby", Avatar: "a.png"},
+				{Username: "resonance-agent", Nickname: "Agent", Kind: model.UserKindAgentBot},
 			}, nil
 		},
 	}
-	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger())
+	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger(), withTestTenantMemberships())
 
 	resp, err := svc.SearchUser(newTestIncomingContext("alice"), &logicv1.SearchUserRequest{Query: "bo"})
 	require.NoError(t, err)
@@ -86,7 +88,7 @@ func TestSessionService_SearchUser_Failed(t *testing.T) {
 			return nil, errors.New("db failed")
 		},
 	}
-	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger())
+	svc := NewSessionService(&testSessionRepo{}, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger(), withTestTenantMemberships())
 
 	_, err := svc.SearchUser(newTestIncomingContext("alice"), &logicv1.SearchUserRequest{Query: "x"})
 	require.Error(t, err)

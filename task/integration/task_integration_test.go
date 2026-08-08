@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/ceyewan/resonance/task/consumer"
 	"github.com/ceyewan/resonance/task/dispatcher"
 	"github.com/ceyewan/resonance/task/pusher"
+	"github.com/ceyewan/resonance/task/streaming"
 )
 
 func TestTaskIntegration_ConsumeEvent_PersistInbox(t *testing.T) {
@@ -120,15 +122,80 @@ func TestTaskIntegration_ConsumeEvent_PersistInbox(t *testing.T) {
 	}
 	require.True(t, found, "bob 的 inbox 中应包含 event_id=9001")
 	require.True(t, pushMgr.getClientCalled, "应尝试走在线推送路径（即使 client 不存在）")
+
+	var inboxCountBefore int64
+	require.NoError(t, dbInstance.DB(ctx).Model(&model.Inbox{}).Count(&inboxCountBefore).Error)
+	streamClient := &capturePushClient{}
+	streamPushers := &capturePusherManager{client: streamClient}
+	streamDispatcher, err := streaming.NewDispatcher(routerRepo, streamPushers, logger)
+	require.NoError(t, err)
+	streamConsumer, err := streaming.NewConsumer(infra.mqClient, streamDispatcher.Handle, config.ConsumerConfig{
+		Topic: "resonance.agent.stream.v1", QueueGroup: "task-it-agent-stream",
+		DLQTopic: "resonance.agent.stream.v1.dlq", WorkerCount: 1, MaxRetry: 1,
+	}, 64<<10, logger)
+	require.NoError(t, err)
+	require.NoError(t, streamConsumer.Start())
+	t.Cleanup(func() { _ = streamConsumer.Stop() })
+
+	streamEvent := &mqv1.AgentStreamEvent{
+		TenantId: "default", RunId: "run-it-1", StreamId: "run-it-1", SessionId: "s_task_it_1",
+		FromUsername: "resonance-agent", TargetUsernames: []string{"bob"}, Sequence: 1,
+		SourceEventId: 9001, FinalClientMsgId: "agent:run-it-1:final",
+		Payload: &mqv1.AgentStreamEvent_Chunk{Chunk: &mqv1.AgentStreamChunk{Delta: "ephemeral"}},
+	}
+	streamRaw, err := proto.Marshal(streamEvent)
+	require.NoError(t, err)
+	require.NoError(t, infra.mqClient.Publish(ctx, "resonance.agent.stream.v1", streamRaw))
+	require.Eventually(t, func() bool { return streamClient.count() == 1 }, 5*time.Second, 50*time.Millisecond)
+	task := streamClient.first()
+	require.Equal(t, "ephemeral", task.Stream.GetStreamChunk().GetDelta())
+	require.Equal(t, uint64(1), task.Stream.GetStreamChunk().GetStreamSequence())
+	var inboxCountAfter int64
+	require.NoError(t, dbInstance.DB(ctx).Model(&model.Inbox{}).Count(&inboxCountAfter).Error)
+	require.Equal(t, inboxCountBefore, inboxCountAfter, "Agent Stream must never write Inbox")
 }
 
 type fakePusherManager struct {
 	getClientCalled bool
 }
 
+type capturePusherManager struct{ client pusher.Client }
+
+func (m *capturePusherManager) Start() error { return nil }
+func (m *capturePusherManager) Close()       {}
+func (m *capturePusherManager) GetClient(string) (pusher.Client, error) {
+	return m.client, nil
+}
+
+type capturePushClient struct {
+	mu    sync.Mutex
+	tasks []*pusher.PushTask
+}
+
+func (c *capturePushClient) Enqueue(task *pusher.PushTask) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.tasks = append(c.tasks, task)
+	return nil
+}
+func (c *capturePushClient) QueueSize() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.tasks)
+}
+func (c *capturePushClient) count() int { return c.QueueSize() }
+func (c *capturePushClient) first() *pusher.PushTask {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.tasks) == 0 {
+		return nil
+	}
+	return c.tasks[0]
+}
+
 func (m *fakePusherManager) Start() error { return nil }
 func (m *fakePusherManager) Close()       {}
-func (m *fakePusherManager) GetClient(gatewayID string) (*pusher.GatewayClient, error) {
+func (m *fakePusherManager) GetClient(gatewayID string) (pusher.Client, error) {
 	m.getClientCalled = true
 	return nil, fmt.Errorf("gateway client not found: %s", gatewayID)
 }

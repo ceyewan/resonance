@@ -14,6 +14,7 @@ option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc CreateAgentSession(CreateAgentSessionRequest) returns (CreateAgentSessionResponse);
   rpc GetHistoryEvents(GetHistoryEventsRequest) returns (GetHistoryEventsResponse);
   rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
@@ -34,6 +35,14 @@ message CreateSessionRequest {
 }
 
 message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message CreateAgentSessionRequest {
+  resonance.common.v1.AgentProfile profile = 1;
+}
+
+message CreateAgentSessionResponse {
   string session_id = 1;
 }
 

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package resonance.mq.v1;
+
+import "common/v1/options.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/mq/v1;mqv1";
+
+// AgentStreamEvent is an ephemeral transport event. It must never be written
+// to the chat Inbox or treated as the authoritative assistant response.
+message AgentStreamEvent {
+  option (resonance.common.v1.default_topic) = "resonance.agent.stream.v1";
+
+  string tenant_id = 1;
+  string run_id = 2;
+  string stream_id = 3;
+  string session_id = 4;
+  string from_username = 5;
+  repeated string target_usernames = 6;
+  uint64 sequence = 7;
+  int64 source_event_id = 8;
+  string final_client_msg_id = 9;
+  map<string, string> trace_headers = 10;
+
+  oneof payload {
+    AgentStreamBegin begin = 20;
+    AgentStreamChunk chunk = 21;
+    AgentStreamEnd end = 22;
+  }
+}
+
+message AgentStreamBegin {}
+
+message AgentStreamChunk {
+  string delta = 1;
+}
+
+message AgentStreamEnd {
+  AgentStreamFinishReason reason = 1;
+}
+
+enum AgentStreamFinishReason {
+  AGENT_STREAM_FINISH_REASON_UNSPECIFIED = 0;
+  AGENT_STREAM_FINISH_REASON_STOP = 1;
+  AGENT_STREAM_FINISH_REASON_ERROR = 2;
+}

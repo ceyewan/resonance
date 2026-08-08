@@ -23,9 +23,11 @@ const (
 )
 
 type LoginRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
-	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
+	Password string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	// tenant_id 为空时使用服务端显式默认租户，保留现有客户端兼容性。
+	TenantId      string `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -74,10 +76,20 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
+func (x *LoginRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
 type LoginResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	User          *v1.User               `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	TenantId      string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Roles         []string               `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty"`
+	Scopes        []string               `protobuf:"bytes,5,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -122,6 +134,27 @@ func (x *LoginResponse) GetAccessToken() string {
 func (x *LoginResponse) GetUser() *v1.User {
 	if x != nil {
 		return x.User
+	}
+	return nil
+}
+
+func (x *LoginResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *LoginResponse) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *LoginResponse) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
 	}
 	return nil
 }
@@ -190,6 +223,9 @@ type RegisterResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	User          *v1.User               `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
+	TenantId      string                 `protobuf:"bytes,3,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Roles         []string               `protobuf:"bytes,4,rep,name=roles,proto3" json:"roles,omitempty"`
+	Scopes        []string               `protobuf:"bytes,5,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -234,6 +270,27 @@ func (x *RegisterResponse) GetAccessToken() string {
 func (x *RegisterResponse) GetUser() *v1.User {
 	if x != nil {
 		return x.User
+	}
+	return nil
+}
+
+func (x *RegisterResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *RegisterResponse) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *RegisterResponse) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
 	}
 	return nil
 }
@@ -287,6 +344,9 @@ type ValidateTokenResponse struct {
 	Valid         bool                   `protobuf:"varint,1,opt,name=valid,proto3" json:"valid,omitempty"`
 	User          *v1.User               `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	Username      string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	TenantId      string                 `protobuf:"bytes,4,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	Roles         []string               `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
+	Scopes        []string               `protobuf:"bytes,6,rep,name=scopes,proto3" json:"scopes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -342,30 +402,61 @@ func (x *ValidateTokenResponse) GetUsername() string {
 	return ""
 }
 
+func (x *ValidateTokenResponse) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *ValidateTokenResponse) GetRoles() []string {
+	if x != nil {
+		return x.Roles
+	}
+	return nil
+}
+
+func (x *ValidateTokenResponse) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
 var File_logic_v1_auth_proto protoreflect.FileDescriptor
 
 const file_logic_v1_auth_proto_rawDesc = "" +
 	"\n" +
-	"\x13logic/v1/auth.proto\x12\x12resonance.logic.v1\x1a\x15common/v1/types.proto\"F\n" +
+	"\x13logic/v1/auth.proto\x12\x12resonance.logic.v1\x1a\x15common/v1/types.proto\"c\n" +
 	"\fLoginRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\"a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1b\n" +
+	"\ttenant_id\x18\x03 \x01(\tR\btenantId\"\xac\x01\n" +
 	"\rLoginResponse\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12-\n" +
-	"\x04user\x18\x02 \x01(\v2\x19.resonance.common.v1.UserR\x04user\"e\n" +
+	"\x04user\x18\x02 \x01(\v2\x19.resonance.common.v1.UserR\x04user\x12\x1b\n" +
+	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x14\n" +
+	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x16\n" +
+	"\x06scopes\x18\x05 \x03(\tR\x06scopes\"e\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
-	"\bnickname\x18\x03 \x01(\tR\bnickname\"d\n" +
+	"\bnickname\x18\x03 \x01(\tR\bnickname\"\xaf\x01\n" +
 	"\x10RegisterResponse\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12-\n" +
-	"\x04user\x18\x02 \x01(\v2\x19.resonance.common.v1.UserR\x04user\"9\n" +
+	"\x04user\x18\x02 \x01(\v2\x19.resonance.common.v1.UserR\x04user\x12\x1b\n" +
+	"\ttenant_id\x18\x03 \x01(\tR\btenantId\x12\x14\n" +
+	"\x05roles\x18\x04 \x03(\tR\x05roles\x12\x16\n" +
+	"\x06scopes\x18\x05 \x03(\tR\x06scopes\"9\n" +
 	"\x14ValidateTokenRequest\x12!\n" +
-	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"x\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"\xc3\x01\n" +
 	"\x15ValidateTokenResponse\x12\x14\n" +
 	"\x05valid\x18\x01 \x01(\bR\x05valid\x12-\n" +
 	"\x04user\x18\x02 \x01(\v2\x19.resonance.common.v1.UserR\x04user\x12\x1a\n" +
-	"\busername\x18\x03 \x01(\tR\busername2\x98\x02\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x1b\n" +
+	"\ttenant_id\x18\x04 \x01(\tR\btenantId\x12\x14\n" +
+	"\x05roles\x18\x05 \x03(\tR\x05roles\x12\x16\n" +
+	"\x06scopes\x18\x06 \x03(\tR\x06scopes2\x98\x02\n" +
 	"\vAuthService\x12L\n" +
 	"\x05Login\x12 .resonance.logic.v1.LoginRequest\x1a!.resonance.logic.v1.LoginResponse\x12U\n" +
 	"\bRegister\x12#.resonance.logic.v1.RegisterRequest\x1a$.resonance.logic.v1.RegisterResponse\x12d\n" +

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -296,6 +297,25 @@ func (r *messageRepo) GetMessageByEventID(ctx context.Context, eventID int64) (*
 	return &msg, nil
 }
 
+// GetMessageByIdempotencyKey 按 (session_id, sender_username, client_msg_id) 查询消息。
+func (r *messageRepo) GetMessageByIdempotencyKey(ctx context.Context, sessionID, senderUsername, clientMsgID string) (*model.MessageContent, error) {
+	if sessionID == "" || senderUsername == "" || clientMsgID == "" {
+		return nil, fmt.Errorf("session_id, sender_username and client_msg_id cannot be empty")
+	}
+
+	var msg model.MessageContent
+	if err := r.db.DB(ctx).Where(
+		"session_id = ? AND sender_username = ? AND client_msg_id = ?",
+		sessionID, senderUsername, clientMsgID,
+	).Take(&msg).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrMessageNotFound
+		}
+		return nil, fmt.Errorf("get message by idempotency key: %w", err)
+	}
+	return &msg, nil
+}
+
 // MarkMessageRecalled 按 event_id 标记撤回
 func (r *messageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	if eventID == 0 {
@@ -323,7 +343,22 @@ func (r *messageRepo) UpdateMessageContent(ctx context.Context, eventID int64, n
 // RecallMessageWithOutbox 事务内标记撤回并写 Outbox
 // 若 recalled_at 已被设置（消息已撤回），返回 ErrMessageAlreadyRecalled。
 func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error {
+	if eventID == 0 || recalledAt.IsZero() || outbox == nil {
+		return fmt.Errorf("event_id, recalled_at and outbox are required")
+	}
 	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		var target model.MessageContent
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("event_id", "session_id", "recalled_at").
+			Where("event_id = ?", eventID).Take(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMessageNotFound
+			}
+			return fmt.Errorf("lock recalled message: %w", err)
+		}
+		if target.RecalledAt != nil {
+			return ErrMessageAlreadyRecalled
+		}
 		result := tx.Model(&model.MessageContent{}).
 			Where("event_id = ? AND recalled_at IS NULL", eventID).
 			Update("recalled_at", recalledAt)
@@ -332,6 +367,9 @@ func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64
 		}
 		if result.RowsAffected == 0 {
 			return ErrMessageAlreadyRecalled
+		}
+		if err := invalidateAgentConversation(tx, target.SessionID, recalledAt); err != nil {
+			return err
 		}
 		if err := advanceSessionMaxSeqFromOutbox(tx, outbox); err != nil {
 			return err
@@ -346,7 +384,22 @@ func (r *messageRepo) RecallMessageWithOutbox(ctx context.Context, eventID int64
 // EditMessageWithOutbox 事务内编辑消息并写 Outbox。
 // 若消息已撤回则返回 ErrMessageAlreadyRecalled；若消息不存在则返回 ErrMessageNotFound。
 func (r *messageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error {
+	if eventID == 0 || editedAt.IsZero() || outbox == nil {
+		return fmt.Errorf("event_id, edited_at and outbox are required")
+	}
 	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		var target model.MessageContent
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("event_id", "session_id", "recalled_at").
+			Where("event_id = ?", eventID).Take(&target).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrMessageNotFound
+			}
+			return fmt.Errorf("lock edited message: %w", err)
+		}
+		if target.RecalledAt != nil {
+			return ErrMessageAlreadyRecalled
+		}
 		result := tx.Model(&model.MessageContent{}).
 			Where("event_id = ? AND recalled_at IS NULL", eventID).
 			Updates(map[string]any{
@@ -358,16 +411,10 @@ func (r *messageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, 
 			return fmt.Errorf("edit message: %w", result.Error)
 		}
 		if result.RowsAffected == 0 {
-			var msg model.MessageContent
-			if err := tx.Select("event_id", "recalled_at").Where("event_id = ?", eventID).First(&msg).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return ErrMessageNotFound
-				}
-				return fmt.Errorf("check edited message: %w", err)
-			}
-			if msg.RecalledAt != nil {
-				return ErrMessageAlreadyRecalled
-			}
+			return ErrMessageNotFound
+		}
+		if err := invalidateAgentConversation(tx, target.SessionID, editedAt); err != nil {
+			return err
 		}
 		if err := advanceSessionMaxSeqFromOutbox(tx, outbox); err != nil {
 			return err
@@ -379,16 +426,181 @@ func (r *messageRepo) EditMessageWithOutbox(ctx context.Context, eventID int64, 
 	})
 }
 
-// SaveMessageWithOutbox 事务内保存消息并记录本地消息表
-func (r *messageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
-	if msg == nil || outbox == nil {
-		return fmt.Errorf("message and outbox cannot be nil")
+// invalidateAgentConversation is part of the same transaction as Recall/Edit.
+// It invalidates every non-terminal Run that could have observed the old
+// history, then dirties the opaque Runtime Session. A Run whose final message
+// already exists is not cancelled: that user-visible fact is immutable, but
+// SessionInvalidatedAt prevents its stale Candidate from becoming the binding.
+func invalidateAgentConversation(tx *gorm.DB, sessionID string, invalidatedAt time.Time) error {
+	var session model.Session
+	if err := tx.Select("session_id", "tenant_id", "kind").Where("session_id = ?", sessionID).Take(&session).Error; err != nil {
+		return fmt.Errorf("load session for agent history invalidation: %w", err)
+	}
+	if session.Kind != model.SessionKindAI {
+		return nil
+	}
+	if session.TenantID == "" {
+		return fmt.Errorf("AI session tenant is missing")
+	}
+	statuses := append(append([]string{}, agentRunPendingStatuses...), agentRunCancellableStatuses...)
+	finalFactMissing := `final_event_id = 0 AND NOT EXISTS (
+		SELECT 1 FROM t_message_content AS final_message
+		WHERE final_message.session_id = t_agent_run.conversation_id
+		  AND t_agent_run.final_client_msg_id <> ''
+		  AND final_message.client_msg_id = t_agent_run.final_client_msg_id
+	)`
+	cancelled := tx.Model(&model.AgentRun{}).
+		Where("tenant_id = ? AND conversation_id = ? AND status IN ?", session.TenantID, sessionID, statuses).
+		Where(finalFactMissing).
+		Updates(map[string]any{
+			"status":                 model.AgentRunStatusCancelled,
+			"session_invalidated_at": invalidatedAt.UTC(),
+			"lease_owner":            "",
+			"lease_token":            "",
+			"lease_expires_at":       nil,
+			"completed_at":           invalidatedAt.UTC(),
+			"last_error_code":        "history_invalidated",
+			"last_error_summary":     "authoritative conversation history changed",
+			"last_error_retryable":   false,
+			"version":                gorm.Expr("version + 1"),
+			"updated_at":             invalidatedAt.UTC(),
+		})
+	if cancelled.Error != nil {
+		return fmt.Errorf("cancel runs using invalidated history: %w", cancelled.Error)
+	}
+	acknowledged := tx.Model(&model.AgentRun{}).
+		Where("tenant_id = ? AND conversation_id = ? AND status IN ? AND session_invalidated_at IS NULL",
+			session.TenantID, sessionID, statuses).
+		Update("session_invalidated_at", invalidatedAt.UTC())
+	if acknowledged.Error != nil {
+		return fmt.Errorf("mark acknowledged runs using invalidated history: %w", acknowledged.Error)
+	}
+	binding := tx.Model(&model.AgentSessionBinding{}).
+		Where("tenant_id = ? AND conversation_id = ? AND status IN ?", session.TenantID, sessionID,
+			[]string{model.AgentSessionBindingStatusActive, model.AgentSessionBindingStatusDirty}).
+		Updates(map[string]any{
+			"status":     model.AgentSessionBindingStatusDirty,
+			"version":    gorm.Expr("version + 1"),
+			"updated_at": invalidatedAt.UTC(),
+		})
+	if binding.Error != nil {
+		return fmt.Errorf("dirty session binding after history mutation: %w", binding.Error)
+	}
+	return nil
+}
+
+func validateAgentFinalMessageCommit(tx *gorm.DB, message *model.MessageContent) error {
+	if !strings.HasPrefix(message.ClientMsgID, "agent:") {
+		return nil
+	}
+	const prefix, suffix = "agent:", ":final"
+	if !strings.HasSuffix(message.ClientMsgID, suffix) {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	runID := strings.TrimSuffix(strings.TrimPrefix(message.ClientMsgID, prefix), suffix)
+	if !validBoundedString(runID, 52) || message.SessionID == "" || message.SenderUsername == "" {
+		return ErrAgentFinalMessageNotCommittable
 	}
 
-	return r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
-		// 1. 保存消息内容
-		if err := tx.Create(msg).Error; err != nil {
-			return fmt.Errorf("failed to save message: %w", err)
+	var session model.Session
+	if err := tx.Select("session_id", "tenant_id", "kind", "profile_id", "profile_version").
+		Where("session_id = ?", message.SessionID).Take(&session).Error; err != nil {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	if session.Kind != model.SessionKindAI || session.TenantID == "" {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	run, err := lockAgentRun(tx, session.TenantID, runID)
+	if err != nil {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	if run.Status != model.AgentRunStatusCommitting || run.SessionInvalidatedAt != nil ||
+		run.ConversationID != message.SessionID || run.ProfileID != session.ProfileID ||
+		run.ProfileVersion != session.ProfileVersion || run.FinalClientMsgID != message.ClientMsgID ||
+		run.FrozenFinalText == "" || run.FrozenFinalText != message.Content {
+		return ErrAgentFinalMessageNotCommittable
+	}
+
+	var sender model.User
+	if err := tx.Select("username", "kind").Where("username = ?", message.SenderUsername).Take(&sender).Error; err != nil ||
+		sender.Kind != model.UserKindAgentBot {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	var memberCount int64
+	if err := tx.Model(&model.SessionMember{}).
+		Where("session_id = ? AND username = ?", message.SessionID, message.SenderUsername).
+		Count(&memberCount).Error; err != nil || memberCount != 1 {
+		return ErrAgentFinalMessageNotCommittable
+	}
+
+	var binding model.AgentSessionBinding
+	bindingErr := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("tenant_id = ? AND conversation_id = ?", session.TenantID, message.SessionID).
+		Take(&binding).Error
+	if run.BaseSessionGeneration == 0 {
+		if bindingErr == nil || !errors.Is(bindingErr, gorm.ErrRecordNotFound) {
+			return ErrAgentFinalMessageNotCommittable
+		}
+		return nil
+	}
+	if bindingErr != nil || binding.Generation != run.BaseSessionGeneration ||
+		(binding.Status != model.AgentSessionBindingStatusActive && binding.Status != model.AgentSessionBindingStatusDirty) {
+		return ErrAgentFinalMessageNotCommittable
+	}
+	return nil
+}
+
+// SaveMessageWithOutbox 事务内幂等保存消息并记录本地消息表。
+// 非空 ClientMsgID 使用 (session, sender, client_msg_id) 唯一键；同键重试只返回第一次结果。
+func (r *messageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) (*MessageSaveResult, error) {
+	if msg == nil || outbox == nil {
+		return nil, fmt.Errorf("message and outbox cannot be nil")
+	}
+	if msg.ClientMsgID != "" && msg.IdempotencyHash == "" {
+		return nil, fmt.Errorf("idempotency_hash is required when client_msg_id is set")
+	}
+
+	var saved *MessageSaveResult
+	err := r.db.Transaction(ctx, func(ctx context.Context, tx *gorm.DB) error {
+		if err := validateAgentFinalMessageCommit(tx, msg); err != nil {
+			return err
+		}
+		// 1. 保存消息内容。非空 ClientMsgID 只允许部分唯一索引上的冲突降级为查询。
+		var createResult *gorm.DB
+		if msg.ClientMsgID != "" {
+			createResult = tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{
+					{Name: "session_id"},
+					{Name: "sender_username"},
+					{Name: "client_msg_id"},
+				},
+				TargetWhere: clause.Where{Exprs: []clause.Expression{
+					clause.Expr{SQL: "client_msg_id <> ''"},
+				}},
+				DoNothing: true,
+			}).Create(msg)
+		} else {
+			createResult = tx.Create(msg)
+		}
+		if createResult.Error != nil {
+			return fmt.Errorf("failed to save message: %w", createResult.Error)
+		}
+		if createResult.RowsAffected == 0 {
+			var existing model.MessageContent
+			if err := tx.Where(
+				"session_id = ? AND sender_username = ? AND client_msg_id = ?",
+				msg.SessionID, msg.SenderUsername, msg.ClientMsgID,
+			).Take(&existing).Error; err != nil {
+				return fmt.Errorf("load idempotent message: %w", err)
+			}
+			if existing.IdempotencyHash == "" || existing.IdempotencyHash != msg.IdempotencyHash {
+				return ErrMessageIdempotencyConflict
+			}
+			saved = &MessageSaveResult{Message: &existing, Created: false}
+			return nil
+		}
+		if createResult.RowsAffected != 1 {
+			return fmt.Errorf("unexpected inserted message count: %d", createResult.RowsAffected)
 		}
 
 		// 2. 更新会话 MaxSeqID (使用 CAS 乐观锁防止回退)
@@ -404,8 +616,16 @@ func (r *messageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.Mess
 			return fmt.Errorf("failed to save outbox: %w", err)
 		}
 
+		saved = &MessageSaveResult{Message: msg, Outbox: outbox, Created: true}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	if saved == nil || saved.Message == nil {
+		return nil, fmt.Errorf("message transaction returned no result")
+	}
+	return saved, nil
 }
 
 // UpdateOutboxStatus 更新本地消息表状态

@@ -163,7 +163,7 @@ func (m *Manager) addClient(svc *registry.ServiceInstance) {
 }
 
 // GetClient 获取指定 Gateway 的客户端
-func (m *Manager) GetClient(gatewayID string) (*GatewayClient, error) {
+func (m *Manager) GetClient(gatewayID string) (Client, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

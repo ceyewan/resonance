@@ -17,6 +17,9 @@ message SessionInfo {
   int64 unread_count = 5;
   int64 last_read_seq = 6;
   ChatEvent last_event = 7;
+  SessionKind kind = 8;
+  AgentProfile agent_profile = 9;
+  int64 agent_profile_version = 10;
 }
 
 // ContactInfo 是联系人列表/用户搜索的跨层视图对象

@@ -206,6 +206,94 @@ func (x *CreateSessionResponse) GetSessionId() string {
 	return ""
 }
 
+type CreateAgentSessionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Profile       v1.AgentProfile        `protobuf:"varint,1,opt,name=profile,proto3,enum=resonance.common.v1.AgentProfile" json:"profile,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAgentSessionRequest) Reset() {
+	*x = CreateAgentSessionRequest{}
+	mi := &file_gateway_v1_session_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAgentSessionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAgentSessionRequest) ProtoMessage() {}
+
+func (x *CreateAgentSessionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_session_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAgentSessionRequest.ProtoReflect.Descriptor instead.
+func (*CreateAgentSessionRequest) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CreateAgentSessionRequest) GetProfile() v1.AgentProfile {
+	if x != nil {
+		return x.Profile
+	}
+	return v1.AgentProfile(0)
+}
+
+type CreateAgentSessionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateAgentSessionResponse) Reset() {
+	*x = CreateAgentSessionResponse{}
+	mi := &file_gateway_v1_session_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateAgentSessionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateAgentSessionResponse) ProtoMessage() {}
+
+func (x *CreateAgentSessionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_v1_session_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAgentSessionResponse.ProtoReflect.Descriptor instead.
+func (*CreateAgentSessionResponse) Descriptor() ([]byte, []int) {
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CreateAgentSessionResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
 type GetHistoryEventsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -217,7 +305,7 @@ type GetHistoryEventsRequest struct {
 
 func (x *GetHistoryEventsRequest) Reset() {
 	*x = GetHistoryEventsRequest{}
-	mi := &file_gateway_v1_session_proto_msgTypes[4]
+	mi := &file_gateway_v1_session_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -229,7 +317,7 @@ func (x *GetHistoryEventsRequest) String() string {
 func (*GetHistoryEventsRequest) ProtoMessage() {}
 
 func (x *GetHistoryEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[4]
+	mi := &file_gateway_v1_session_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -242,7 +330,7 @@ func (x *GetHistoryEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHistoryEventsRequest.ProtoReflect.Descriptor instead.
 func (*GetHistoryEventsRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{4}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetHistoryEventsRequest) GetSessionId() string {
@@ -275,7 +363,7 @@ type GetHistoryEventsResponse struct {
 
 func (x *GetHistoryEventsResponse) Reset() {
 	*x = GetHistoryEventsResponse{}
-	mi := &file_gateway_v1_session_proto_msgTypes[5]
+	mi := &file_gateway_v1_session_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +375,7 @@ func (x *GetHistoryEventsResponse) String() string {
 func (*GetHistoryEventsResponse) ProtoMessage() {}
 
 func (x *GetHistoryEventsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[5]
+	mi := &file_gateway_v1_session_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +388,7 @@ func (x *GetHistoryEventsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHistoryEventsResponse.ProtoReflect.Descriptor instead.
 func (*GetHistoryEventsResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{5}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GetHistoryEventsResponse) GetEvents() []*v1.ChatEvent {
@@ -318,7 +406,7 @@ type GetContactListRequest struct {
 
 func (x *GetContactListRequest) Reset() {
 	*x = GetContactListRequest{}
-	mi := &file_gateway_v1_session_proto_msgTypes[6]
+	mi := &file_gateway_v1_session_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -330,7 +418,7 @@ func (x *GetContactListRequest) String() string {
 func (*GetContactListRequest) ProtoMessage() {}
 
 func (x *GetContactListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[6]
+	mi := &file_gateway_v1_session_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -343,7 +431,7 @@ func (x *GetContactListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactListRequest.ProtoReflect.Descriptor instead.
 func (*GetContactListRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{6}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{8}
 }
 
 type GetContactListResponse struct {
@@ -355,7 +443,7 @@ type GetContactListResponse struct {
 
 func (x *GetContactListResponse) Reset() {
 	*x = GetContactListResponse{}
-	mi := &file_gateway_v1_session_proto_msgTypes[7]
+	mi := &file_gateway_v1_session_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -367,7 +455,7 @@ func (x *GetContactListResponse) String() string {
 func (*GetContactListResponse) ProtoMessage() {}
 
 func (x *GetContactListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[7]
+	mi := &file_gateway_v1_session_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -380,7 +468,7 @@ func (x *GetContactListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContactListResponse.ProtoReflect.Descriptor instead.
 func (*GetContactListResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{7}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetContactListResponse) GetContacts() []*v1.ContactInfo {
@@ -399,7 +487,7 @@ type SearchUserRequest struct {
 
 func (x *SearchUserRequest) Reset() {
 	*x = SearchUserRequest{}
-	mi := &file_gateway_v1_session_proto_msgTypes[8]
+	mi := &file_gateway_v1_session_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -411,7 +499,7 @@ func (x *SearchUserRequest) String() string {
 func (*SearchUserRequest) ProtoMessage() {}
 
 func (x *SearchUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[8]
+	mi := &file_gateway_v1_session_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -424,7 +512,7 @@ func (x *SearchUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUserRequest.ProtoReflect.Descriptor instead.
 func (*SearchUserRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{8}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *SearchUserRequest) GetQuery() string {
@@ -443,7 +531,7 @@ type SearchUserResponse struct {
 
 func (x *SearchUserResponse) Reset() {
 	*x = SearchUserResponse{}
-	mi := &file_gateway_v1_session_proto_msgTypes[9]
+	mi := &file_gateway_v1_session_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -455,7 +543,7 @@ func (x *SearchUserResponse) String() string {
 func (*SearchUserResponse) ProtoMessage() {}
 
 func (x *SearchUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[9]
+	mi := &file_gateway_v1_session_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -468,7 +556,7 @@ func (x *SearchUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchUserResponse.ProtoReflect.Descriptor instead.
 func (*SearchUserResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{9}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SearchUserResponse) GetUsers() []*v1.ContactInfo {
@@ -488,7 +576,7 @@ type UpdateReadPositionRequest struct {
 
 func (x *UpdateReadPositionRequest) Reset() {
 	*x = UpdateReadPositionRequest{}
-	mi := &file_gateway_v1_session_proto_msgTypes[10]
+	mi := &file_gateway_v1_session_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -500,7 +588,7 @@ func (x *UpdateReadPositionRequest) String() string {
 func (*UpdateReadPositionRequest) ProtoMessage() {}
 
 func (x *UpdateReadPositionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[10]
+	mi := &file_gateway_v1_session_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -513,7 +601,7 @@ func (x *UpdateReadPositionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateReadPositionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateReadPositionRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{10}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *UpdateReadPositionRequest) GetSessionId() string {
@@ -539,7 +627,7 @@ type UpdateReadPositionResponse struct {
 
 func (x *UpdateReadPositionResponse) Reset() {
 	*x = UpdateReadPositionResponse{}
-	mi := &file_gateway_v1_session_proto_msgTypes[11]
+	mi := &file_gateway_v1_session_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +639,7 @@ func (x *UpdateReadPositionResponse) String() string {
 func (*UpdateReadPositionResponse) ProtoMessage() {}
 
 func (x *UpdateReadPositionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[11]
+	mi := &file_gateway_v1_session_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -564,7 +652,7 @@ func (x *UpdateReadPositionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateReadPositionResponse.ProtoReflect.Descriptor instead.
 func (*UpdateReadPositionResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{11}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *UpdateReadPositionResponse) GetUnreadCount() int64 {
@@ -584,7 +672,7 @@ type PullInboxDeltaRequest struct {
 
 func (x *PullInboxDeltaRequest) Reset() {
 	*x = PullInboxDeltaRequest{}
-	mi := &file_gateway_v1_session_proto_msgTypes[12]
+	mi := &file_gateway_v1_session_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -596,7 +684,7 @@ func (x *PullInboxDeltaRequest) String() string {
 func (*PullInboxDeltaRequest) ProtoMessage() {}
 
 func (x *PullInboxDeltaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[12]
+	mi := &file_gateway_v1_session_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -609,7 +697,7 @@ func (x *PullInboxDeltaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PullInboxDeltaRequest.ProtoReflect.Descriptor instead.
 func (*PullInboxDeltaRequest) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{12}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PullInboxDeltaRequest) GetCursorId() int64 {
@@ -637,7 +725,7 @@ type PullInboxDeltaResponse struct {
 
 func (x *PullInboxDeltaResponse) Reset() {
 	*x = PullInboxDeltaResponse{}
-	mi := &file_gateway_v1_session_proto_msgTypes[13]
+	mi := &file_gateway_v1_session_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -649,7 +737,7 @@ func (x *PullInboxDeltaResponse) String() string {
 func (*PullInboxDeltaResponse) ProtoMessage() {}
 
 func (x *PullInboxDeltaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_gateway_v1_session_proto_msgTypes[13]
+	mi := &file_gateway_v1_session_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -662,7 +750,7 @@ func (x *PullInboxDeltaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PullInboxDeltaResponse.ProtoReflect.Descriptor instead.
 func (*PullInboxDeltaResponse) Descriptor() ([]byte, []int) {
-	return file_gateway_v1_session_proto_rawDescGZIP(), []int{13}
+	return file_gateway_v1_session_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PullInboxDeltaResponse) GetEvents() []*v1.InboxEvent {
@@ -700,6 +788,11 @@ const file_gateway_v1_session_proto_rawDesc = "" +
 	"\x04type\x18\x03 \x01(\x0e2 .resonance.common.v1.SessionTypeR\x04type\"6\n" +
 	"\x15CreateSessionResponse\x12\x1d\n" +
 	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"X\n" +
+	"\x19CreateAgentSessionRequest\x12;\n" +
+	"\aprofile\x18\x01 \x01(\x0e2!.resonance.common.v1.AgentProfileR\aprofile\";\n" +
+	"\x1aCreateAgentSessionResponse\x12\x1d\n" +
+	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"m\n" +
 	"\x17GetHistoryEventsRequest\x12\x1d\n" +
 	"\n" +
@@ -728,10 +821,11 @@ const file_gateway_v1_session_proto_rawDesc = "" +
 	"\x16PullInboxDeltaResponse\x127\n" +
 	"\x06events\x18\x01 \x03(\v2\x1f.resonance.common.v1.InboxEventR\x06events\x12$\n" +
 	"\x0enext_cursor_id\x18\x02 \x01(\x03R\fnextCursorId\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore2\x8e\x06\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore2\x87\a\n" +
 	"\x0eSessionService\x12k\n" +
 	"\x0eGetSessionList\x12+.resonance.gateway.v1.GetSessionListRequest\x1a,.resonance.gateway.v1.GetSessionListResponse\x12h\n" +
-	"\rCreateSession\x12*.resonance.gateway.v1.CreateSessionRequest\x1a+.resonance.gateway.v1.CreateSessionResponse\x12q\n" +
+	"\rCreateSession\x12*.resonance.gateway.v1.CreateSessionRequest\x1a+.resonance.gateway.v1.CreateSessionResponse\x12w\n" +
+	"\x12CreateAgentSession\x12/.resonance.gateway.v1.CreateAgentSessionRequest\x1a0.resonance.gateway.v1.CreateAgentSessionResponse\x12q\n" +
 	"\x10GetHistoryEvents\x12-.resonance.gateway.v1.GetHistoryEventsRequest\x1a..resonance.gateway.v1.GetHistoryEventsResponse\x12k\n" +
 	"\x0eGetContactList\x12+.resonance.gateway.v1.GetContactListRequest\x1a,.resonance.gateway.v1.GetContactListResponse\x12_\n" +
 	"\n" +
@@ -752,54 +846,60 @@ func file_gateway_v1_session_proto_rawDescGZIP() []byte {
 	return file_gateway_v1_session_proto_rawDescData
 }
 
-var file_gateway_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_gateway_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_gateway_v1_session_proto_goTypes = []any{
 	(*GetSessionListRequest)(nil),      // 0: resonance.gateway.v1.GetSessionListRequest
 	(*GetSessionListResponse)(nil),     // 1: resonance.gateway.v1.GetSessionListResponse
 	(*CreateSessionRequest)(nil),       // 2: resonance.gateway.v1.CreateSessionRequest
 	(*CreateSessionResponse)(nil),      // 3: resonance.gateway.v1.CreateSessionResponse
-	(*GetHistoryEventsRequest)(nil),    // 4: resonance.gateway.v1.GetHistoryEventsRequest
-	(*GetHistoryEventsResponse)(nil),   // 5: resonance.gateway.v1.GetHistoryEventsResponse
-	(*GetContactListRequest)(nil),      // 6: resonance.gateway.v1.GetContactListRequest
-	(*GetContactListResponse)(nil),     // 7: resonance.gateway.v1.GetContactListResponse
-	(*SearchUserRequest)(nil),          // 8: resonance.gateway.v1.SearchUserRequest
-	(*SearchUserResponse)(nil),         // 9: resonance.gateway.v1.SearchUserResponse
-	(*UpdateReadPositionRequest)(nil),  // 10: resonance.gateway.v1.UpdateReadPositionRequest
-	(*UpdateReadPositionResponse)(nil), // 11: resonance.gateway.v1.UpdateReadPositionResponse
-	(*PullInboxDeltaRequest)(nil),      // 12: resonance.gateway.v1.PullInboxDeltaRequest
-	(*PullInboxDeltaResponse)(nil),     // 13: resonance.gateway.v1.PullInboxDeltaResponse
-	(*v1.SessionInfo)(nil),             // 14: resonance.common.v1.SessionInfo
-	(v1.SessionType)(0),                // 15: resonance.common.v1.SessionType
-	(*v1.ChatEvent)(nil),               // 16: resonance.common.v1.ChatEvent
-	(*v1.ContactInfo)(nil),             // 17: resonance.common.v1.ContactInfo
-	(*v1.InboxEvent)(nil),              // 18: resonance.common.v1.InboxEvent
+	(*CreateAgentSessionRequest)(nil),  // 4: resonance.gateway.v1.CreateAgentSessionRequest
+	(*CreateAgentSessionResponse)(nil), // 5: resonance.gateway.v1.CreateAgentSessionResponse
+	(*GetHistoryEventsRequest)(nil),    // 6: resonance.gateway.v1.GetHistoryEventsRequest
+	(*GetHistoryEventsResponse)(nil),   // 7: resonance.gateway.v1.GetHistoryEventsResponse
+	(*GetContactListRequest)(nil),      // 8: resonance.gateway.v1.GetContactListRequest
+	(*GetContactListResponse)(nil),     // 9: resonance.gateway.v1.GetContactListResponse
+	(*SearchUserRequest)(nil),          // 10: resonance.gateway.v1.SearchUserRequest
+	(*SearchUserResponse)(nil),         // 11: resonance.gateway.v1.SearchUserResponse
+	(*UpdateReadPositionRequest)(nil),  // 12: resonance.gateway.v1.UpdateReadPositionRequest
+	(*UpdateReadPositionResponse)(nil), // 13: resonance.gateway.v1.UpdateReadPositionResponse
+	(*PullInboxDeltaRequest)(nil),      // 14: resonance.gateway.v1.PullInboxDeltaRequest
+	(*PullInboxDeltaResponse)(nil),     // 15: resonance.gateway.v1.PullInboxDeltaResponse
+	(*v1.SessionInfo)(nil),             // 16: resonance.common.v1.SessionInfo
+	(v1.SessionType)(0),                // 17: resonance.common.v1.SessionType
+	(v1.AgentProfile)(0),               // 18: resonance.common.v1.AgentProfile
+	(*v1.ChatEvent)(nil),               // 19: resonance.common.v1.ChatEvent
+	(*v1.ContactInfo)(nil),             // 20: resonance.common.v1.ContactInfo
+	(*v1.InboxEvent)(nil),              // 21: resonance.common.v1.InboxEvent
 }
 var file_gateway_v1_session_proto_depIdxs = []int32{
-	14, // 0: resonance.gateway.v1.GetSessionListResponse.sessions:type_name -> resonance.common.v1.SessionInfo
-	15, // 1: resonance.gateway.v1.CreateSessionRequest.type:type_name -> resonance.common.v1.SessionType
-	16, // 2: resonance.gateway.v1.GetHistoryEventsResponse.events:type_name -> resonance.common.v1.ChatEvent
-	17, // 3: resonance.gateway.v1.GetContactListResponse.contacts:type_name -> resonance.common.v1.ContactInfo
-	17, // 4: resonance.gateway.v1.SearchUserResponse.users:type_name -> resonance.common.v1.ContactInfo
-	18, // 5: resonance.gateway.v1.PullInboxDeltaResponse.events:type_name -> resonance.common.v1.InboxEvent
-	0,  // 6: resonance.gateway.v1.SessionService.GetSessionList:input_type -> resonance.gateway.v1.GetSessionListRequest
-	2,  // 7: resonance.gateway.v1.SessionService.CreateSession:input_type -> resonance.gateway.v1.CreateSessionRequest
-	4,  // 8: resonance.gateway.v1.SessionService.GetHistoryEvents:input_type -> resonance.gateway.v1.GetHistoryEventsRequest
-	6,  // 9: resonance.gateway.v1.SessionService.GetContactList:input_type -> resonance.gateway.v1.GetContactListRequest
-	8,  // 10: resonance.gateway.v1.SessionService.SearchUser:input_type -> resonance.gateway.v1.SearchUserRequest
-	10, // 11: resonance.gateway.v1.SessionService.UpdateReadPosition:input_type -> resonance.gateway.v1.UpdateReadPositionRequest
-	12, // 12: resonance.gateway.v1.SessionService.PullInboxDelta:input_type -> resonance.gateway.v1.PullInboxDeltaRequest
-	1,  // 13: resonance.gateway.v1.SessionService.GetSessionList:output_type -> resonance.gateway.v1.GetSessionListResponse
-	3,  // 14: resonance.gateway.v1.SessionService.CreateSession:output_type -> resonance.gateway.v1.CreateSessionResponse
-	5,  // 15: resonance.gateway.v1.SessionService.GetHistoryEvents:output_type -> resonance.gateway.v1.GetHistoryEventsResponse
-	7,  // 16: resonance.gateway.v1.SessionService.GetContactList:output_type -> resonance.gateway.v1.GetContactListResponse
-	9,  // 17: resonance.gateway.v1.SessionService.SearchUser:output_type -> resonance.gateway.v1.SearchUserResponse
-	11, // 18: resonance.gateway.v1.SessionService.UpdateReadPosition:output_type -> resonance.gateway.v1.UpdateReadPositionResponse
-	13, // 19: resonance.gateway.v1.SessionService.PullInboxDelta:output_type -> resonance.gateway.v1.PullInboxDeltaResponse
-	13, // [13:20] is the sub-list for method output_type
-	6,  // [6:13] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	16, // 0: resonance.gateway.v1.GetSessionListResponse.sessions:type_name -> resonance.common.v1.SessionInfo
+	17, // 1: resonance.gateway.v1.CreateSessionRequest.type:type_name -> resonance.common.v1.SessionType
+	18, // 2: resonance.gateway.v1.CreateAgentSessionRequest.profile:type_name -> resonance.common.v1.AgentProfile
+	19, // 3: resonance.gateway.v1.GetHistoryEventsResponse.events:type_name -> resonance.common.v1.ChatEvent
+	20, // 4: resonance.gateway.v1.GetContactListResponse.contacts:type_name -> resonance.common.v1.ContactInfo
+	20, // 5: resonance.gateway.v1.SearchUserResponse.users:type_name -> resonance.common.v1.ContactInfo
+	21, // 6: resonance.gateway.v1.PullInboxDeltaResponse.events:type_name -> resonance.common.v1.InboxEvent
+	0,  // 7: resonance.gateway.v1.SessionService.GetSessionList:input_type -> resonance.gateway.v1.GetSessionListRequest
+	2,  // 8: resonance.gateway.v1.SessionService.CreateSession:input_type -> resonance.gateway.v1.CreateSessionRequest
+	4,  // 9: resonance.gateway.v1.SessionService.CreateAgentSession:input_type -> resonance.gateway.v1.CreateAgentSessionRequest
+	6,  // 10: resonance.gateway.v1.SessionService.GetHistoryEvents:input_type -> resonance.gateway.v1.GetHistoryEventsRequest
+	8,  // 11: resonance.gateway.v1.SessionService.GetContactList:input_type -> resonance.gateway.v1.GetContactListRequest
+	10, // 12: resonance.gateway.v1.SessionService.SearchUser:input_type -> resonance.gateway.v1.SearchUserRequest
+	12, // 13: resonance.gateway.v1.SessionService.UpdateReadPosition:input_type -> resonance.gateway.v1.UpdateReadPositionRequest
+	14, // 14: resonance.gateway.v1.SessionService.PullInboxDelta:input_type -> resonance.gateway.v1.PullInboxDeltaRequest
+	1,  // 15: resonance.gateway.v1.SessionService.GetSessionList:output_type -> resonance.gateway.v1.GetSessionListResponse
+	3,  // 16: resonance.gateway.v1.SessionService.CreateSession:output_type -> resonance.gateway.v1.CreateSessionResponse
+	5,  // 17: resonance.gateway.v1.SessionService.CreateAgentSession:output_type -> resonance.gateway.v1.CreateAgentSessionResponse
+	7,  // 18: resonance.gateway.v1.SessionService.GetHistoryEvents:output_type -> resonance.gateway.v1.GetHistoryEventsResponse
+	9,  // 19: resonance.gateway.v1.SessionService.GetContactList:output_type -> resonance.gateway.v1.GetContactListResponse
+	11, // 20: resonance.gateway.v1.SessionService.SearchUser:output_type -> resonance.gateway.v1.SearchUserResponse
+	13, // 21: resonance.gateway.v1.SessionService.UpdateReadPosition:output_type -> resonance.gateway.v1.UpdateReadPositionResponse
+	15, // 22: resonance.gateway.v1.SessionService.PullInboxDelta:output_type -> resonance.gateway.v1.PullInboxDeltaResponse
+	15, // [15:23] is the sub-list for method output_type
+	7,  // [7:15] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_gateway_v1_session_proto_init() }
@@ -813,7 +913,7 @@ func file_gateway_v1_session_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gateway_v1_session_proto_rawDesc), len(file_gateway_v1_session_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

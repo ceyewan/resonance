@@ -1,0 +1,17 @@
+address: 0.0.0.0:18080
+
+# Exact lower-case ASCII IDNA A-labels only. This list is deliberately explicit:
+# removing it must make startup fail rather than silently restoring access.
+allowed_hosts:
+  - api.anthropic.com
+
+dns_timeout: 2s
+dial_timeout: 5s
+client_hello_timeout: 3s
+idle_timeout: 45s
+max_connection_duration: 10m
+read_header_timeout: 3s
+max_header_bytes: 8192
+max_client_hello_bytes: 65536
+max_connections: 128
+max_connections_per_client: 8

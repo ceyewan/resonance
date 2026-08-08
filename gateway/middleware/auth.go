@@ -5,30 +5,39 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/gin-gonic/gin"
 
-	"github.com/ceyewan/resonance/gateway/logicclient"
+	"github.com/ceyewan/resonance/pkg/userauth"
 )
 
 const (
 	// UsernameKey 是上下文中存储用户名的键
 	UsernameKey = "username"
+	TenantIDKey = "tenant_id"
 )
 
 type usernameRequestCtxKey struct{}
+type principalRequestCtxKey struct{}
+
+type Principal struct {
+	Username          string
+	TenantID          string
+	MembershipVersion int64
+}
 
 // AuthConfig 认证中间件配置
 type AuthConfig struct {
-	logicClient *logicclient.Client
-	logger      clog.Logger
+	authenticator auth.Authenticator
+	logger        clog.Logger
 }
 
 // NewAuthConfig 创建认证配置
-func NewAuthConfig(logicClient *logicclient.Client, logger clog.Logger) *AuthConfig {
+func NewAuthConfig(authenticator auth.Authenticator, logger clog.Logger) *AuthConfig {
 	return &AuthConfig{
-		logicClient: logicClient,
-		logger:      logger,
+		authenticator: authenticator,
+		logger:        logger,
 	}
 }
 
@@ -36,7 +45,7 @@ func NewAuthConfig(logicClient *logicclient.Client, logger clog.Logger) *AuthCon
 // 从请求头或查询参数中获取 token 并验证
 func (a *AuthConfig) RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username, err := a.extractAndValidate(c)
+		principal, err := a.extractAndValidate(c)
 		if err != nil {
 			a.logger.Warn("authentication failed",
 				clog.String("client_ip", c.ClientIP()),
@@ -49,10 +58,16 @@ func (a *AuthConfig) RequireAuth() gin.HandlerFunc {
 		}
 
 		// 将用户名存入 Gin 上下文
-		c.Set(UsernameKey, username)
+		c.Set(UsernameKey, principal.Username)
+		c.Set(TenantIDKey, principal.TenantID)
 
 		// 将用户名注入 http.Request Context，以便 ConnectRPC Handler 获取
-		ctx := WithUsername(c.Request.Context(), username)
+		ctx := WithPrincipal(c.Request.Context(), principal)
+		ctx = userauth.WithPrincipal(ctx, &userauth.Principal{
+			TenantID:          principal.TenantID,
+			Username:          principal.Username,
+			MembershipVersion: principal.MembershipVersion,
+		})
 		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
@@ -63,11 +78,17 @@ func (a *AuthConfig) RequireAuth() gin.HandlerFunc {
 // 如果提供了 token 则验证，没有则跳过
 func (a *AuthConfig) OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		username, err := a.extractAndValidate(c)
-		if err == nil && username != "" {
-			c.Set(UsernameKey, username)
+		principal, err := a.extractAndValidate(c)
+		if err == nil && principal != nil && principal.Username != "" {
+			c.Set(UsernameKey, principal.Username)
+			c.Set(TenantIDKey, principal.TenantID)
 			// 同时注入 http.Context
-			ctx := WithUsername(c.Request.Context(), username)
+			ctx := WithPrincipal(c.Request.Context(), principal)
+			ctx = userauth.WithPrincipal(ctx, &userauth.Principal{
+				TenantID:          principal.TenantID,
+				Username:          principal.Username,
+				MembershipVersion: principal.MembershipVersion,
+			})
 			c.Request = c.Request.WithContext(ctx)
 		}
 		c.Next()
@@ -75,8 +96,32 @@ func (a *AuthConfig) OptionalAuth() gin.HandlerFunc {
 }
 
 // extractAndValidate 从请求中提取并验证 token
-func (a *AuthConfig) extractAndValidate(c *gin.Context) (string, error) {
-	// 从请求头获取 token
+func (a *AuthConfig) extractAndValidate(c *gin.Context) (*Principal, error) {
+	token := tokenFromRequest(c)
+
+	if token == "" {
+		return nil, ErrMissingToken
+	}
+
+	if a.authenticator == nil {
+		return nil, ErrInvalidToken
+	}
+	claims, err := a.authenticator.ValidateAccessToken(c.Request.Context(), token)
+	if err != nil {
+		return nil, ErrInvalidToken
+	}
+	verified, ok := userauth.FromClaims(claims)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
+	return &Principal{
+		Username:          verified.Username,
+		TenantID:          verified.TenantID,
+		MembershipVersion: verified.MembershipVersion,
+	}, nil
+}
+
+func tokenFromRequest(c *gin.Context) string {
 	token := c.GetHeader("Authorization")
 	if token != "" {
 		// 支持 "Bearer <token>" 格式
@@ -88,21 +133,7 @@ func (a *AuthConfig) extractAndValidate(c *gin.Context) (string, error) {
 		token = c.Query("token")
 	}
 
-	if token == "" {
-		return "", ErrMissingToken
-	}
-
-	// 调用 Logic 服务验证 token
-	resp, err := a.logicClient.ValidateToken(c.Request.Context(), token)
-	if err != nil {
-		return "", ErrInvalidToken
-	}
-
-	if !resp.Valid {
-		return "", ErrInvalidToken
-	}
-
-	return resp.Username, nil
+	return token
 }
 
 // GetUsername 从上下文获取用户名
@@ -124,12 +155,38 @@ func MustGetUsername(c *gin.Context) string {
 }
 
 func WithUsername(ctx context.Context, username string) context.Context {
-	return context.WithValue(ctx, usernameRequestCtxKey{}, username)
+	return WithPrincipal(ctx, &Principal{Username: username})
 }
 
 func UsernameFromRequestContext(ctx context.Context) (string, bool) {
 	username, ok := ctx.Value(usernameRequestCtxKey{}).(string)
 	return username, ok && username != ""
+}
+
+func WithPrincipal(ctx context.Context, principal *Principal) context.Context {
+	if principal == nil {
+		return ctx
+	}
+	copy := &Principal{
+		Username:          principal.Username,
+		TenantID:          principal.TenantID,
+		MembershipVersion: principal.MembershipVersion,
+	}
+	ctx = context.WithValue(ctx, principalRequestCtxKey{}, copy)
+	return context.WithValue(ctx, usernameRequestCtxKey{}, copy.Username)
+}
+
+func PrincipalFromRequestContext(ctx context.Context) (*Principal, bool) {
+	principal, ok := ctx.Value(principalRequestCtxKey{}).(*Principal)
+	if !ok || principal == nil || principal.Username == "" {
+		return nil, false
+	}
+	copy := &Principal{
+		Username:          principal.Username,
+		TenantID:          principal.TenantID,
+		MembershipVersion: principal.MembershipVersion,
+	}
+	return copy, true
 }
 
 // 错误定义
