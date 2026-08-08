@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file gateway/v1/packet.proto.
  */
 export const file_gateway_v1_packet: GenFile = /*@__PURE__*/
-  fileDesc("ChdnYXRld2F5L3YxL3BhY2tldC5wcm90bxIUcmVzb25hbmNlLmdhdGV3YXkudjEi0AMKCFdzUGFja2V0EhIKCmNsaWVudF9zZXEYASABKAkSLAoFcHVsc2UYCiABKAsyGy5yZXNvbmFuY2UuZ2F0ZXdheS52MS5QdWxzZUgAEigKA2FjaxgLIAEoCzIZLnJlc29uYW5jZS5nYXRld2F5LnYxLkFja0gAEjkKDGNoYXRfcmVxdWVzdBgUIAEoCzIhLnJlc29uYW5jZS5nYXRld2F5LnYxLkNoYXRSZXF1ZXN0SAASLwoFZXZlbnQYHiABKAsyHi5yZXNvbmFuY2UuY29tbW9uLnYxLkNoYXRFdmVudEgAEjkKDHN0cmVhbV9iZWdpbhgoIAEoCzIhLnJlc29uYW5jZS5nYXRld2F5LnYxLlN0cmVhbUJlZ2luSAASOQoMc3RyZWFtX2NodW5rGCkgASgLMiEucmVzb25hbmNlLmdhdGV3YXkudjEuU3RyZWFtQ2h1bmtIABI1CgpzdHJlYW1fZW5kGCogASgLMh8ucmVzb25hbmNlLmdhdGV3YXkudjEuU3RyZWFtRW5kSAASNAoGdHlwaW5nGCsgASgLMiIucmVzb25hbmNlLmdhdGV3YXkudjEuVHlwaW5nU2lnbmFsSABCCQoHcGF5bG9hZCIHCgVQdWxzZSJTCgNBY2sSFgoOcmVmX2NsaWVudF9zZXEYASABKAkSEAoIZXZlbnRfaWQYAiABKAMSDgoGc2VxX2lkGAMgASgDEhIKCnNlc3Npb25faWQYBCABKAkitAEKC0NoYXRSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSLQoHbWVzc2FnZRgCIAEoCzIcLnJlc29uYW5jZS5jb21tb24udjEuTWVzc2FnZRIyCgZyZWNhbGwYAyABKAsyIi5yZXNvbmFuY2UuY29tbW9uLnYxLk1lc3NhZ2VSZWNhbGwSLgoEZWRpdBgEIAEoCzIgLnJlc29uYW5jZS5jb21tb24udjEuTWVzc2FnZUVkaXQiUQoLU3RyZWFtQmVnaW4SFwoPcGFyZW50X2V2ZW50X2lkGAEgASgDEhIKCnNlc3Npb25faWQYAiABKAkSFQoNZnJvbV91c2VybmFtZRgDIAEoCSJHCgtTdHJlYW1DaHVuaxIXCg9wYXJlbnRfZXZlbnRfaWQYASABKAMSEAoIc2VxdWVuY2UYAiABKAUSDQoFZGVsdGEYAyABKAkiXgoJU3RyZWFtRW5kEhcKD3BhcmVudF9ldmVudF9pZBgBIAEoAxI4CgZyZWFzb24YAiABKA4yKC5yZXNvbmFuY2UuZ2F0ZXdheS52MS5TdHJlYW1GaW5pc2hSZWFzb24iTAoMVHlwaW5nU2lnbmFsEhIKCnNlc3Npb25faWQYASABKAkSFQoNZnJvbV91c2VybmFtZRgCIAEoCRIRCglpc190eXBpbmcYAyABKAgqvgEKElN0cmVhbUZpbmlzaFJlYXNvbhIkCiBTVFJFQU1fRklOSVNIX1JFQVNPTl9VTlNQRUNJRklFRBAAEh0KGVNUUkVBTV9GSU5JU0hfUkVBU09OX1NUT1AQARIfChtTVFJFQU1fRklOSVNIX1JFQVNPTl9MRU5HVEgQAhIiCh5TVFJFQU1fRklOSVNIX1JFQVNPTl9UT09MX0NBTEwQAxIeChpTVFJFQU1fRklOSVNIX1JFQVNPTl9FUlJPUhAEQtcBChhjb20ucmVzb25hbmNlLmdhdGV3YXkudjFCC1BhY2tldFByb3RvUAFaPGdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9nYXRld2F5L3YxO2dhdGV3YXl2MaICA1JHWKoCFFJlc29uYW5jZS5HYXRld2F5LlYxygIUUmVzb25hbmNlXEdhdGV3YXlcVjHiAiBSZXNvbmFuY2VcR2F0ZXdheVxWMVxHUEJNZXRhZGF0YeoCFlJlc29uYW5jZTo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_common_v1_event, file_common_v1_message]);
+  fileDesc("ChdnYXRld2F5L3YxL3BhY2tldC5wcm90bxIUcmVzb25hbmNlLmdhdGV3YXkudjEi0AMKCFdzUGFja2V0EhIKCmNsaWVudF9zZXEYASABKAkSLAoFcHVsc2UYCiABKAsyGy5yZXNvbmFuY2UuZ2F0ZXdheS52MS5QdWxzZUgAEigKA2FjaxgLIAEoCzIZLnJlc29uYW5jZS5nYXRld2F5LnYxLkFja0gAEjkKDGNoYXRfcmVxdWVzdBgUIAEoCzIhLnJlc29uYW5jZS5nYXRld2F5LnYxLkNoYXRSZXF1ZXN0SAASLwoFZXZlbnQYHiABKAsyHi5yZXNvbmFuY2UuY29tbW9uLnYxLkNoYXRFdmVudEgAEjkKDHN0cmVhbV9iZWdpbhgoIAEoCzIhLnJlc29uYW5jZS5nYXRld2F5LnYxLlN0cmVhbUJlZ2luSAASOQoMc3RyZWFtX2NodW5rGCkgASgLMiEucmVzb25hbmNlLmdhdGV3YXkudjEuU3RyZWFtQ2h1bmtIABI1CgpzdHJlYW1fZW5kGCogASgLMh8ucmVzb25hbmNlLmdhdGV3YXkudjEuU3RyZWFtRW5kSAASNAoGdHlwaW5nGCsgASgLMiIucmVzb25hbmNlLmdhdGV3YXkudjEuVHlwaW5nU2lnbmFsSABCCQoHcGF5bG9hZCIHCgVQdWxzZSJTCgNBY2sSFgoOcmVmX2NsaWVudF9zZXEYASABKAkSEAoIZXZlbnRfaWQYAiABKAMSDgoGc2VxX2lkGAMgASgDEhIKCnNlc3Npb25faWQYBCABKAkitAEKC0NoYXRSZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSLQoHbWVzc2FnZRgCIAEoCzIcLnJlc29uYW5jZS5jb21tb24udjEuTWVzc2FnZRIyCgZyZWNhbGwYAyABKAsyIi5yZXNvbmFuY2UuY29tbW9uLnYxLk1lc3NhZ2VSZWNhbGwSLgoEZWRpdBgEIAEoCzIgLnJlc29uYW5jZS5jb21tb24udjEuTWVzc2FnZUVkaXQirgEKC1N0cmVhbUJlZ2luEhsKD3BhcmVudF9ldmVudF9pZBgBIAEoA0ICGAESEgoKc2Vzc2lvbl9pZBgCIAEoCRIVCg1mcm9tX3VzZXJuYW1lGAMgASgJEg4KBnJ1bl9pZBgEIAEoCRIRCglzdHJlYW1faWQYBSABKAkSFwoPc291cmNlX2V2ZW50X2lkGAYgASgDEhsKE2ZpbmFsX2NsaWVudF9tc2dfaWQYByABKAkinwEKC1N0cmVhbUNodW5rEhsKD3BhcmVudF9ldmVudF9pZBgBIAEoA0ICGAESFAoIc2VxdWVuY2UYAiABKAVCAhgBEg0KBWRlbHRhGAMgASgJEg4KBnJ1bl9pZBgEIAEoCRIRCglzdHJlYW1faWQYBSABKAkSFwoPc3RyZWFtX3NlcXVlbmNlGAYgASgEEhIKCnNlc3Npb25faWQYByABKAkizwEKCVN0cmVhbUVuZBIbCg9wYXJlbnRfZXZlbnRfaWQYASABKANCAhgBEjgKBnJlYXNvbhgCIAEoDjIoLnJlc29uYW5jZS5nYXRld2F5LnYxLlN0cmVhbUZpbmlzaFJlYXNvbhIOCgZydW5faWQYAyABKAkSEQoJc3RyZWFtX2lkGAQgASgJEhcKD3N0cmVhbV9zZXF1ZW5jZRgFIAEoBBISCgpzZXNzaW9uX2lkGAYgASgJEhsKE2ZpbmFsX2NsaWVudF9tc2dfaWQYByABKAkiTAoMVHlwaW5nU2lnbmFsEhIKCnNlc3Npb25faWQYASABKAkSFQoNZnJvbV91c2VybmFtZRgCIAEoCRIRCglpc190eXBpbmcYAyABKAgqvgEKElN0cmVhbUZpbmlzaFJlYXNvbhIkCiBTVFJFQU1fRklOSVNIX1JFQVNPTl9VTlNQRUNJRklFRBAAEh0KGVNUUkVBTV9GSU5JU0hfUkVBU09OX1NUT1AQARIfChtTVFJFQU1fRklOSVNIX1JFQVNPTl9MRU5HVEgQAhIiCh5TVFJFQU1fRklOSVNIX1JFQVNPTl9UT09MX0NBTEwQAxIeChpTVFJFQU1fRklOSVNIX1JFQVNPTl9FUlJPUhAEQtcBChhjb20ucmVzb25hbmNlLmdhdGV3YXkudjFCC1BhY2tldFByb3RvUAFaPGdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9nYXRld2F5L3YxO2dhdGV3YXl2MaICA1JHWKoCFFJlc29uYW5jZS5HYXRld2F5LlYxygIUUmVzb25hbmNlXEdhdGV3YXlcVjHiAiBSZXNvbmFuY2VcR2F0ZXdheVxWMVxHUEJNZXRhZGF0YeoCFlJlc29uYW5jZTo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_common_v1_event, file_common_v1_message]);
 
 /**
  * @generated from message resonance.gateway.v1.WsPacket
@@ -168,7 +168,10 @@ export const ChatRequestSchema: GenMessage<ChatRequest> = /*@__PURE__*/
  */
 export type StreamBegin = Message<"resonance.gateway.v1.StreamBegin"> & {
   /**
-   * @generated from field: int64 parent_event_id = 1;
+   * Deprecated: source_event_id/run_id are the authoritative correlation keys.
+   *
+   * @generated from field: int64 parent_event_id = 1 [deprecated = true];
+   * @deprecated
    */
   parentEventId: bigint;
 
@@ -181,6 +184,26 @@ export type StreamBegin = Message<"resonance.gateway.v1.StreamBegin"> & {
    * @generated from field: string from_username = 3;
    */
   fromUsername: string;
+
+  /**
+   * @generated from field: string run_id = 4;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string stream_id = 5;
+   */
+  streamId: string;
+
+  /**
+   * @generated from field: int64 source_event_id = 6;
+   */
+  sourceEventId: bigint;
+
+  /**
+   * @generated from field: string final_client_msg_id = 7;
+   */
+  finalClientMsgId: string;
 };
 
 /**
@@ -195,12 +218,16 @@ export const StreamBeginSchema: GenMessage<StreamBegin> = /*@__PURE__*/
  */
 export type StreamChunk = Message<"resonance.gateway.v1.StreamChunk"> & {
   /**
-   * @generated from field: int64 parent_event_id = 1;
+   * Deprecated: retained for wire compatibility with older clients.
+   *
+   * @generated from field: int64 parent_event_id = 1 [deprecated = true];
+   * @deprecated
    */
   parentEventId: bigint;
 
   /**
-   * @generated from field: int32 sequence = 2;
+   * @generated from field: int32 sequence = 2 [deprecated = true];
+   * @deprecated
    */
   sequence: number;
 
@@ -208,6 +235,26 @@ export type StreamChunk = Message<"resonance.gateway.v1.StreamChunk"> & {
    * @generated from field: string delta = 3;
    */
   delta: string;
+
+  /**
+   * @generated from field: string run_id = 4;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string stream_id = 5;
+   */
+  streamId: string;
+
+  /**
+   * @generated from field: uint64 stream_sequence = 6;
+   */
+  streamSequence: bigint;
+
+  /**
+   * @generated from field: string session_id = 7;
+   */
+  sessionId: string;
 };
 
 /**
@@ -222,7 +269,10 @@ export const StreamChunkSchema: GenMessage<StreamChunk> = /*@__PURE__*/
  */
 export type StreamEnd = Message<"resonance.gateway.v1.StreamEnd"> & {
   /**
-   * @generated from field: int64 parent_event_id = 1;
+   * Deprecated: retained for wire compatibility with older clients.
+   *
+   * @generated from field: int64 parent_event_id = 1 [deprecated = true];
+   * @deprecated
    */
   parentEventId: bigint;
 
@@ -230,6 +280,31 @@ export type StreamEnd = Message<"resonance.gateway.v1.StreamEnd"> & {
    * @generated from field: resonance.gateway.v1.StreamFinishReason reason = 2;
    */
   reason: StreamFinishReason;
+
+  /**
+   * @generated from field: string run_id = 3;
+   */
+  runId: string;
+
+  /**
+   * @generated from field: string stream_id = 4;
+   */
+  streamId: string;
+
+  /**
+   * @generated from field: uint64 stream_sequence = 5;
+   */
+  streamSequence: bigint;
+
+  /**
+   * @generated from field: string session_id = 6;
+   */
+  sessionId: string;
+
+  /**
+   * @generated from field: string final_client_msg_id = 7;
+   */
+  finalClientMsgId: string;
 };
 
 /**

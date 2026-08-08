@@ -1,5 +1,5 @@
 import type { ContactInfo } from "@gen/common/v1/view_pb";
-import { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionType } from "@gen/common/v1/session_pb";
 
 import { syncSessionList } from "./session";
 
@@ -52,6 +52,16 @@ export async function createGroupSession(name: string, members: string[]): Promi
     name: normalizedName,
     type: SessionType.GROUP,
   });
+  await syncSessionList();
+  return response.sessionId;
+}
+
+export async function createAgentSession(profile: AgentProfile): Promise<string> {
+  if (profile !== AgentProfile.USER_ASSISTANT && profile !== AgentProfile.IAM_ADMIN) {
+    throw new Error("Unsupported AI profile");
+  }
+  const { sessionClient } = await import("../api/clients");
+  const response = await sessionClient.createAgentSession({ profile });
   await syncSessionList();
   return response.sessionId;
 }

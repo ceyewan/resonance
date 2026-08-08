@@ -1,10 +1,18 @@
 import { create } from "@bufbuild/protobuf";
 import { ChatEventSchema } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
-import { WsPacketSchema, type WsPacket } from "@gen/gateway/v1/packet_pb";
+import {
+  StreamBeginSchema,
+  StreamChunkSchema,
+  StreamEndSchema,
+  StreamFinishReason,
+  WsPacketSchema,
+  type WsPacket,
+} from "@gen/gateway/v1/packet_pb";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { useConnectionStore } from "../stores/connection";
+import { useAgentStreamStore } from "../stores/agentStream";
 import { AppRuntime } from "./runtime";
 
 type PacketListener = (packet: WsPacket) => void;
@@ -100,6 +108,7 @@ function makeEventPacket() {
 }
 
 beforeEach(() => {
+  useAgentStreamStore.getState().reset();
   useConnectionStore.getState().reset();
 });
 
@@ -163,5 +172,64 @@ describe("AppRuntime", () => {
 
     expect(useConnectionStore.getState().status).toBe("offline");
     expect(useConnectionStore.getState().lastError).toBe("event failed");
+  });
+
+  test("接收 StreamBegin/Chunk/End 并在 stop 时清空临时态", async () => {
+    const fakeWs = new FakeWsClient();
+    const runtime = new AppRuntime({
+      createWsClient: () => fakeWs,
+      syncSessionList: async () => {},
+      runInboxSyncThenFlushOutbox: async () => {},
+    });
+    await runtime.start("token-stream");
+
+    fakeWs.emitPacket(
+      create(WsPacketSchema, {
+        payload: {
+          case: "streamBegin",
+          value: create(StreamBeginSchema, {
+            sessionId: "s-stream",
+            streamId: "stream-runtime",
+            runId: "run-runtime",
+            fromUsername: "assistant",
+          }),
+        },
+      }),
+    );
+    fakeWs.emitPacket(
+      create(WsPacketSchema, {
+        payload: {
+          case: "streamChunk",
+          value: create(StreamChunkSchema, {
+            sessionId: "s-stream",
+            streamId: "stream-runtime",
+            runId: "run-runtime",
+            streamSequence: 1n,
+            delta: "hello",
+          }),
+        },
+      }),
+    );
+    fakeWs.emitPacket(
+      create(WsPacketSchema, {
+        payload: {
+          case: "streamEnd",
+          value: create(StreamEndSchema, {
+            sessionId: "s-stream",
+            streamId: "stream-runtime",
+            runId: "run-runtime",
+            streamSequence: 2n,
+            reason: StreamFinishReason.STOP,
+          }),
+        },
+      }),
+    );
+
+    expect(Object.values(useAgentStreamStore.getState().streamsByKey)).toMatchObject([
+      { content: "hello", status: "ended" },
+    ]);
+
+    runtime.stop();
+    expect(Object.values(useAgentStreamStore.getState().streamsByKey)).toHaveLength(0);
   });
 });

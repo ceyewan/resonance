@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file common/v1/session.proto.
  */
 export const file_common_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("Chdjb21tb24vdjEvc2Vzc2lvbi5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSJfCgtTZXNzaW9uTWV0YRIMCgRuYW1lGAEgASgJEi4KBHR5cGUYAiABKA4yIC5yZXNvbmFuY2UuY29tbW9uLnYxLlNlc3Npb25UeXBlEhIKCmF2YXRhcl91cmwYAyABKAkqcQoLU2Vzc2lvblR5cGUSHAoYU0VTU0lPTl9UWVBFX1VOU1BFQ0lGSUVEEAASFwoTU0VTU0lPTl9UWVBFX0RJUkVDVBABEhYKElNFU1NJT05fVFlQRV9HUk9VUBACEhMKD1NFU1NJT05fVFlQRV9BSRADQtEBChdjb20ucmVzb25hbmNlLmNvbW1vbi52MUIMU2Vzc2lvblByb3RvUAFaOmdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9jb21tb24vdjE7Y29tbW9udjGiAgNSQ1iqAhNSZXNvbmFuY2UuQ29tbW9uLlYxygITUmVzb25hbmNlXENvbW1vblxWMeICH1Jlc29uYW5jZVxDb21tb25cVjFcR1BCTWV0YWRhdGHqAhVSZXNvbmFuY2U6OkNvbW1vbjo6VjFiBnByb3RvMw");
+  fileDesc("Chdjb21tb24vdjEvc2Vzc2lvbi5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSJfCgtTZXNzaW9uTWV0YRIMCgRuYW1lGAEgASgJEi4KBHR5cGUYAiABKA4yIC5yZXNvbmFuY2UuY29tbW9uLnYxLlNlc3Npb25UeXBlEhIKCmF2YXRhcl91cmwYAyABKAkqcQoLU2Vzc2lvblR5cGUSHAoYU0VTU0lPTl9UWVBFX1VOU1BFQ0lGSUVEEAASFwoTU0VTU0lPTl9UWVBFX0RJUkVDVBABEhYKElNFU1NJT05fVFlQRV9HUk9VUBACEhMKD1NFU1NJT05fVFlQRV9BSRADKlsKC1Nlc3Npb25LaW5kEhwKGFNFU1NJT05fS0lORF9VTlNQRUNJRklFRBAAEhkKFVNFU1NJT05fS0lORF9TVEFOREFSRBABEhMKD1NFU1NJT05fS0lORF9BSRACKmwKDEFnZW50UHJvZmlsZRIdChlBR0VOVF9QUk9GSUxFX1VOU1BFQ0lGSUVEEAASIAocQUdFTlRfUFJPRklMRV9VU0VSX0FTU0lTVEFOVBABEhsKF0FHRU5UX1BST0ZJTEVfSUFNX0FETUlOEAJC0QEKF2NvbS5yZXNvbmFuY2UuY29tbW9uLnYxQgxTZXNzaW9uUHJvdG9QAVo6Z2l0aHViLmNvbS9jZXlld2FuL3Jlc29uYW5jZS9hcGkvZ2VuL2dvL2NvbW1vbi92MTtjb21tb252MaICA1JDWKoCE1Jlc29uYW5jZS5Db21tb24uVjHKAhNSZXNvbmFuY2VcQ29tbW9uXFYx4gIfUmVzb25hbmNlXENvbW1vblxWMVxHUEJNZXRhZGF0YeoCFVJlc29uYW5jZTo6Q29tbW9uOjpWMWIGcHJvdG8z");
 
 /**
  * @generated from message resonance.common.v1.SessionMeta
@@ -69,4 +69,63 @@ export enum SessionType {
  */
 export const SessionTypeSchema: GenEnum<SessionType> = /*@__PURE__*/
   enumDesc(file_common_v1_session, 0);
+
+/**
+ * SessionKind separates ordinary user conversations from explicitly-created AI
+ * conversations. It is independent of SessionType: an AI conversation is still
+ * a direct conversation with exactly one human and one configured agent bot.
+ *
+ * @generated from enum resonance.common.v1.SessionKind
+ */
+export enum SessionKind {
+  /**
+   * @generated from enum value: SESSION_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: SESSION_KIND_STANDARD = 1;
+   */
+  STANDARD = 1,
+
+  /**
+   * @generated from enum value: SESSION_KIND_AI = 2;
+   */
+  AI = 2,
+}
+
+/**
+ * Describes the enum resonance.common.v1.SessionKind.
+ */
+export const SessionKindSchema: GenEnum<SessionKind> = /*@__PURE__*/
+  enumDesc(file_common_v1_session, 1);
+
+/**
+ * AgentProfile is the only client-selectable input when creating an AI session.
+ * Tenant, bot identity and pinned profile version are always server-owned.
+ *
+ * @generated from enum resonance.common.v1.AgentProfile
+ */
+export enum AgentProfile {
+  /**
+   * @generated from enum value: AGENT_PROFILE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: AGENT_PROFILE_USER_ASSISTANT = 1;
+   */
+  USER_ASSISTANT = 1,
+
+  /**
+   * @generated from enum value: AGENT_PROFILE_IAM_ADMIN = 2;
+   */
+  IAM_ADMIN = 2,
+}
+
+/**
+ * Describes the enum resonance.common.v1.AgentProfile.
+ */
+export const AgentProfileSchema: GenEnum<AgentProfile> = /*@__PURE__*/
+  enumDesc(file_common_v1_session, 2);
 

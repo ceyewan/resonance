@@ -3,7 +3,13 @@ import type { ChatEvent } from "@gen/common/v1/event_pb";
 import { dispatchWsPacket } from "../api/ws/dispatcher";
 import { OutboxManager } from "../api/ws/outbox";
 import { WsClient, buildWsUrl, type WsConnectionStatus } from "../api/ws/client";
+import { useAgentStreamStore } from "../stores/agentStream";
 import { useConnectionStore } from "../stores/connection";
+import {
+  handleAgentStreamBegin,
+  handleAgentStreamChunk,
+  handleAgentStreamEnd,
+} from "../sync/agentStream";
 import { runInboxSyncThenFlushOutbox } from "../sync/inbox";
 import { reconcileWsEvent } from "../sync/reconcile";
 import { syncSessionList } from "../services/session";
@@ -88,6 +94,7 @@ export class AppRuntime {
     this.currentToken = "";
     this.startInFlight = null;
     this.startToken = "";
+    useAgentStreamStore.getState().reset();
     useConnectionStore.getState().reset();
   }
 
@@ -119,6 +126,7 @@ export class AppRuntime {
         dispatchWsPacket(packet, {
           onEvent: (event) => {
             void this.handleWsEvent(event).catch((cause: unknown) => {
+              useAgentStreamStore.getState().reset();
               useConnectionStore
                 .getState()
                 .setOffline(
@@ -126,12 +134,16 @@ export class AppRuntime {
                 );
             });
           },
+          onStreamBegin: handleAgentStreamBegin,
+          onStreamChunk: handleAgentStreamChunk,
+          onStreamEnd: handleAgentStreamEnd,
         });
       }),
       ws.onStatus((status) => {
         this.handleWsStatus(status, outbox);
       }),
       ws.onError((error) => {
+        useAgentStreamStore.getState().reset();
         useConnectionStore.getState().setOffline(error.message);
       }),
     );
@@ -141,6 +153,7 @@ export class AppRuntime {
     const store = useConnectionStore.getState();
     switch (status) {
       case "idle":
+        useAgentStreamStore.getState().reset();
         store.reset();
         return;
       case "connecting":
@@ -153,6 +166,7 @@ export class AppRuntime {
         });
         return;
       case "offline":
+        useAgentStreamStore.getState().reset();
         store.setOffline("WebSocket disconnected");
         return;
     }

@@ -10,7 +10,19 @@ import { persistCurrentUsername } from "./session";
 
 const CURRENT_USER_KEY = "resonance_current_user";
 
-function storeCurrentUser(user: User | null): void {
+type StoredAuthDisplay = {
+  user: User | null;
+  tenantId: string;
+  roles: string[];
+  scopes: string[];
+};
+
+function storeCurrentUser(
+  user: User | null,
+  tenantId = "",
+  roles: string[] = [],
+  scopes: string[] = [],
+): void {
   if (user === null) {
     localStorage.removeItem(CURRENT_USER_KEY);
     return;
@@ -21,14 +33,17 @@ function storeCurrentUser(user: User | null): void {
       username: user.username,
       nickname: user.nickname,
       avatarUrl: user.avatarUrl,
+      tenantId,
+      roles,
+      scopes,
     }),
   );
 }
 
-function readStoredUser(): User | null {
+function readStoredUser(): StoredAuthDisplay {
   const raw = localStorage.getItem(CURRENT_USER_KEY);
   if (raw === null || raw.trim() === "") {
-    return null;
+    return { user: null, tenantId: "", roles: [], scopes: [] };
   }
 
   try {
@@ -36,19 +51,27 @@ function readStoredUser(): User | null {
       username?: string;
       nickname?: string;
       avatarUrl?: string;
+      tenantId?: string;
+      roles?: string[];
+      scopes?: string[];
     };
     if (parsed.username === undefined || parsed.username.trim() === "") {
-      return null;
+      return { user: null, tenantId: "", roles: [], scopes: [] };
     }
     return {
-      username: parsed.username,
-      nickname: parsed.nickname ?? "",
-      avatarUrl: parsed.avatarUrl ?? "",
-      $typeName: "resonance.common.v1.User",
-    } as User;
+      user: {
+        username: parsed.username,
+        nickname: parsed.nickname ?? "",
+        avatarUrl: parsed.avatarUrl ?? "",
+        $typeName: "resonance.common.v1.User",
+      } as User,
+      tenantId: parsed.tenantId ?? "",
+      roles: Array.isArray(parsed.roles) ? parsed.roles : [],
+      scopes: Array.isArray(parsed.scopes) ? parsed.scopes : [],
+    };
   } catch {
     localStorage.removeItem(CURRENT_USER_KEY);
-    return null;
+    return { user: null, tenantId: "", roles: [], scopes: [] };
   }
 }
 
@@ -57,13 +80,19 @@ function isUnauthenticatedError(cause: unknown): boolean {
   return error.code === Code.Unauthenticated;
 }
 
-async function persistAuthenticatedState(token: string, user: User | null): Promise<void> {
+async function persistAuthenticatedState(
+  token: string,
+  user: User | null,
+  tenantId: string,
+  roles: string[],
+  scopes: string[],
+): Promise<void> {
   setAccessToken(token);
-  storeCurrentUser(user);
+  storeCurrentUser(user, tenantId, roles, scopes);
   if (user !== null && user.username.trim() !== "") {
     await persistCurrentUsername(user.username);
   }
-  useAuthStore.getState().setAuthenticated(token, user);
+  useAuthStore.getState().setAuthenticated(token, user, tenantId, roles, scopes);
 }
 
 export async function login(username: string, password: string): Promise<void> {
@@ -71,7 +100,13 @@ export async function login(username: string, password: string): Promise<void> {
     username: username.trim(),
     password,
   });
-  await persistAuthenticatedState(response.accessToken, response.user ?? null);
+  await persistAuthenticatedState(
+    response.accessToken,
+    response.user ?? null,
+    response.tenantId,
+    response.roles,
+    response.scopes,
+  );
   await appRuntime.start(response.accessToken);
 }
 
@@ -86,8 +121,9 @@ export async function restoreAuthSession(): Promise<void> {
   }
 
   authStore.startBootstrap();
-  const user = readStoredUser();
-  authStore.setAuthenticated(token, user);
+  const stored = readStoredUser();
+  const user = stored.user;
+  authStore.setAuthenticated(token, user, stored.tenantId, stored.roles, stored.scopes);
   if (user !== null && user.username.trim() !== "") {
     await persistCurrentUsername(user.username);
   }

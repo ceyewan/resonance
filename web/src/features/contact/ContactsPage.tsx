@@ -4,7 +4,9 @@ import { GlassCard } from "../../components/GlassCard";
 import { WallpaperBackground } from "../../components/WallpaperBackground";
 import { useAuthGuard } from "../../hooks/useAuthGuard";
 import { useContactDirectory } from "../../hooks/useContactDirectory";
-import { Users, Search, Plus, ArrowLeft } from "lucide-react";
+import { AgentProfile } from "@gen/common/v1/session_pb";
+import { createAgentSession } from "../../services/contact";
+import { Users, Search, Plus, ArrowLeft, Bot } from "lucide-react";
 
 export function ContactsPage() {
   const auth = useAuthGuard();
@@ -15,6 +17,8 @@ export function ContactsPage() {
   const [busyAction, setBusyAction] = useState("");
   const [actionError, setActionError] = useState("");
   const directory = useContactDirectory();
+  const assistantHint = auth.scopes.includes("chat:use");
+  const iamAdminHint = auth.roles.includes("iam-admin") && auth.scopes.includes("iam:users:read");
 
   const visibleResults = useMemo(
     () => (query.trim() === "" ? directory.contacts : directory.searchResults),
@@ -46,6 +50,13 @@ export function ContactsPage() {
       .filter(Boolean);
     await runAction("create-group", async () => {
       const sessionId = await directory.startGroupSession(groupName, members);
+      void navigate({ to: "/chat/$sessionId", params: { sessionId } });
+    });
+  };
+
+  const onCreateAgent = async (profile: AgentProfile) => {
+    await runAction(`create-agent:${profile}`, async () => {
+      const sessionId = await createAgentSession(profile);
       void navigate({ to: "/chat/$sessionId", params: { sessionId } });
     });
   };
@@ -163,6 +174,40 @@ export function ContactsPage() {
             enableTilt={false}
           >
             <div className="max-w-xl relative z-10">
+              <section className="mb-8 rounded-[24px] border border-[var(--color-border)] bg-[var(--glass-surface)] p-6 shadow-sm backdrop-blur-md">
+                <h2 className="text-[24px] font-semibold text-[var(--color-text)] tracking-tight flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-[var(--color-primary)]" />
+                  新建 AI 聊天
+                </h2>
+                <p className="mt-2 text-[13px] text-[var(--color-text-muted)] opacity-75">
+                  下方权限状态仅来自本地登录信息，用于提示；最终由服务端按当前租户、角色和权限判定。
+                </p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <button
+                    className="rounded-[16px] border border-[var(--color-border)] bg-[var(--glass-input-bg)] p-4 text-left hover:bg-[var(--glass-surface-hover)] disabled:opacity-50"
+                    disabled={busyAction.startsWith("create-agent:")}
+                    onClick={() => void onCreateAgent(AgentProfile.USER_ASSISTANT)}
+                    type="button"
+                  >
+                    <span className="block font-medium text-[var(--color-text)]">普通用户助手</span>
+                    <span className="mt-1 block text-[12px] text-[var(--color-text-muted)] opacity-70">
+                      {assistantHint ? "登录提示：可能可用" : "登录提示：可能缺少 chat:use"}
+                    </span>
+                  </button>
+                  <button
+                    className="rounded-[16px] border border-[var(--color-border)] bg-[var(--glass-input-bg)] p-4 text-left hover:bg-[var(--glass-surface-hover)] disabled:opacity-50"
+                    disabled={busyAction.startsWith("create-agent:")}
+                    onClick={() => void onCreateAgent(AgentProfile.IAM_ADMIN)}
+                    type="button"
+                  >
+                    <span className="block font-medium text-[var(--color-text)]">IAM 管理助手</span>
+                    <span className="mt-1 block text-[12px] text-[var(--color-text-muted)] opacity-70">
+                      {iamAdminHint ? "登录提示：可能可用" : "登录提示：可能缺少 IAM 管理权限"}
+                    </span>
+                  </button>
+                </div>
+              </section>
+
               <header className="mb-8">
                 <h2 className="text-[24px] font-semibold text-[var(--color-text)] tracking-tight flex items-center gap-2">
                   <Plus className="w-5 h-5 text-[var(--color-primary)]" />

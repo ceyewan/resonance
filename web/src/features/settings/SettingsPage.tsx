@@ -9,6 +9,9 @@ export function SettingsPage() {
   const auth = useAuthGuard();
   const connection = useConnectionState();
   const navigate = useNavigate();
+  const approvalEntryHint =
+    auth.roles.includes("iam-admin") &&
+    (auth.scopes.includes("agent:approval:read") || auth.scopes.includes("agent:approval:decide"));
 
   if (auth.bootstrapping) {
     return (
@@ -94,6 +97,16 @@ export function SettingsPage() {
           </div>
 
           <div className="mt-10 pt-8 border-t border-[var(--color-border)] flex flex-wrap gap-4 relative z-10">
+            {approvalEntryHint ? (
+              <button
+                className="rounded-full border border-[var(--color-border)] bg-[var(--glass-surface)] px-6 py-2.5 text-[15px] font-medium text-[var(--color-text)] hover:bg-[var(--glass-surface-hover)] transition-colors shadow-sm"
+                onClick={() => void navigate({ to: "/approvals" })}
+                title="本地权限仅用于显示入口，服务端会重新校验"
+                type="button"
+              >
+                Agent Approvals
+              </button>
+            ) : null}
             <button
               className="rounded-full border border-[var(--color-border)] bg-[var(--glass-surface)] px-6 py-2.5 text-[15px] font-medium text-[var(--color-text)] hover:bg-[var(--glass-surface-hover)] transition-colors shadow-sm"
               onClick={() => void navigate({ to: "/contacts" })}

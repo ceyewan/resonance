@@ -4,9 +4,18 @@ import { create } from "zustand";
 type AuthState = {
   accessToken: string;
   currentUser: User | null;
+  tenantId: string;
+  roles: string[];
+  scopes: string[];
   bootstrapping: boolean;
   bootstrapError: string;
-  setAuthenticated: (token: string, user: User | null) => void;
+  setAuthenticated: (
+    token: string,
+    user: User | null,
+    tenantId?: string,
+    roles?: string[],
+    scopes?: string[],
+  ) => void;
   startBootstrap: () => void;
   finishBootstrap: () => void;
   failBootstrap: (error: string) => void;
@@ -16,12 +25,18 @@ type AuthState = {
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: "",
   currentUser: null,
+  tenantId: "",
+  roles: [],
+  scopes: [],
   bootstrapping: false,
   bootstrapError: "",
-  setAuthenticated: (token, user) => {
+  setAuthenticated: (token, user, tenantId = "", roles = [], scopes = []) => {
     set({
       accessToken: token,
       currentUser: user,
+      tenantId,
+      roles: [...roles],
+      scopes: [...scopes],
       bootstrapError: "",
     });
   },
@@ -47,6 +62,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({
       accessToken: "",
       currentUser: null,
+      tenantId: "",
+      roles: [],
+      scopes: [],
       bootstrapping: false,
       bootstrapError: "",
     });

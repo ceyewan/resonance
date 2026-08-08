@@ -1,5 +1,7 @@
 export { useAuthGuard } from "./useAuthGuard";
 export { useAuthState } from "./useAuthState";
+export { useAgentStreams } from "./useAgentStreams";
+export { useApprovals } from "./useApprovals";
 export { useAutoMarkRead } from "./useAutoMarkRead";
 export { useConnectionState } from "./useConnectionState";
 export { useContactDirectory } from "./useContactDirectory";
