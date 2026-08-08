@@ -51,7 +51,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic
 | ---- | ---- |
 | 协议适配 | 把 HTTP/ConnectRPC、WebSocket、内部 Push 转成合适的内部调用或客户端下行包 |
 | 鉴权 | 校验 token，识别当前用户身份 |
-| 身份传递 | 把已认证用户名通过 `x-username` metadata 传给 Logic |
+| 身份传递 | 把最小 Principal 通过逐请求、载荷绑定的 Gateway 服务签名传给 Logic，不透传用户 Bearer |
 | 连接管理 | 维护 WebSocket 连接、心跳、读写循环和本地在线连接索引 |
 | 请求转发 | 把客户端的业务请求转成对 Logic 的 gRPC 调用 |
 | 推送落地 | 接收 Task 的 Push 调用，把事件投递给本机在线连接 |
@@ -90,12 +90,12 @@ Task 在完成写扩散之后，会根据在线路由把目标用户分组到对
 
 ## 6. 身份与连接管理
 
-Gateway 在系统里最重要的一项基础职责，是把鉴权和连接管理放在同一层解决。当前实现中，认证中间件会优先从 `Authorization` 头读取 Bearer token，也兼容查询参数中的 token。Gateway 自己不持有最终鉴权真相，而是通过内部逻辑客户端调用 Logic 的鉴权服务确认 token 是否有效，并拿到对应用户名。认证成功后，Gateway 把用户名放进请求上下文，后续 handler 和 WebSocket 分发逻辑都只使用这个已认证身份。
+Gateway 在系统里最重要的一项基础职责，是把客户端凭证验证和连接管理放在同一层解决。认证中间件优先从 `Authorization` 头读取 Bearer token，也兼容 WebSocket 查询参数中的 token。Gateway 使用与 Logic 签发端一致的配置在本地验证 JWT，只保留 tenant、subject 和成员版本；角色与 Scope 不作为 Gateway 授权依据。后续 handler 和 WebSocket 分发逻辑使用该最小 Principal，原 token 不进入长连接上下文。
 
 ### 6.1 身份传递链路
 
 ```text
-Web ── token ──▶ Gateway ── x-username metadata ──▶ Logic
+Web ── token ──▶ Gateway ── payload-bound Gateway serviceauth ──▶ Logic ── IAM Repo 回查
 ```
 
 ### 6.2 为什么身份要在 Gateway 收敛

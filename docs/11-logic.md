@@ -151,7 +151,7 @@ Gateway 不了解一条业务什么时候算真正成功，它只能看到接入
 
 - `logic/logic.go`：服务装配与生命周期管理
 - `logic/server/grpc.go`：gRPC server 注册
-- `logic/server/interceptor_auth.go`：从 `x-username` metadata 恢复身份并写入 context
+- `logic/server/interceptor_auth.go`：验证 Gateway/Pilot 服务签名；Gateway 用户调用再经 IAM Repo 回查后写入 `UserPrincipal`
 - `logic/service/auth.go`：登录、注册与 JWT 签发
 - `logic/service/chat.go`：统一事件入口（`SendEvent`），当前完整打通 `message / recall / edit` payload
 - `logic/service/edit.go`：消息编辑规则校验、主事实更新与事件发布

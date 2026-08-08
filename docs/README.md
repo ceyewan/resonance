@@ -43,6 +43,7 @@ docs/
 ├── 13-web.md                   ✅
 ├── 14-ai-service.md            ✅
 ├── 15-agent-harness.md         ✅
+├── 16-agent-operations.md       ✅
 ├── 20-message-flow.md          ✅
 ├── 21-write-fanout.md          ✅
 ├── 22-recall-edit-read.md      ✅
@@ -50,7 +51,7 @@ docs/
 ├── 24-session-and-membership.md 🔲 待创建
 ├── 25-delivery-and-push.md     🔲 待创建
 ├── 26-failure-recovery.md      🔲 待创建
-├── 30-adr-index.md             🔲 待创建
+├── 30-adr-index.md             ✅
 ├── 31-coding-and-module-boundaries.md 🔲 待创建
 ├── 32-api-style-guide.md       🔲 待创建
 ├── 33-db-style-guide.md        🔲 待创建
@@ -58,10 +59,8 @@ docs/
 ├── 41-runbook.md               🔲 待创建
 ├── 42-release-guide.md         🔲 待创建
 ├── 43-testing-strategy.md      ✅
-└── adr/                        🔲 待创建（有重大设计决策时补）
-    ├── ADR-001-chat-event.md
-    ├── ADR-002-outbox-pattern.md
-    └── ADR-003-write-fanout.md
+└── adr/                        ✅
+    └── ADR-001-pilot-pi-runtime.md
 ```
 
 说明：
@@ -249,18 +248,23 @@ docs/
 
 ### `14-ai-service.md`
 
-为未来 AI 服务预留。
+描述 Pilot Go 控制面的系统边界：事件接入、身份与多租户、Run 队列、Session 映射、Tool Broker、持久审批、幂等恢复和生产门槛。
+
+### `15-agent-harness.md`
+
+描述 Pi Harness Runtime 的具体接入：JSONL RPC、子进程、可信 TypeScript Bridge、Session prepare-then-commit、安全启动参数、契约测试与升级回滚。
 
 建议包含：
 
-- 服务职责
-- 消息过滤边界
-- 模型调用边界
-- Bot 身份模型
-- 流式消息链路
-- 安全与审计要求
+- Pilot、Pi Runtime 与 Tool Broker 的职责
+- Actor、Service、Bot 身份和多租户前置条件
+- Run Queue、Session 快照、幂等和故障恢复
+- Tool Manifest、Capability、持久审批和审计
+- 非编码 Prompt、流式消息与 Runtime 升级门槛
 
-如果短期不做，可以先建占位文档说明“暂未启用”。
+### `16-agent-operations.md`
+
+定义 Agent Service 的发布单元、CI 门禁、Canary、排空、回滚、Session 恢复与 Egress 运维边界。
 
 ---
 
@@ -313,17 +317,89 @@ docs/
 
 ADR 总索引，记录重要设计决策与对应文档。
 
-### `adr/ADR-001-chat-event.md`
+### `adr/ADR-001-pilot-pi-runtime.md`
 
-记录为什么采用 `ChatEvent` 作为统一抽象。
+记录为什么采用 Go 控制面 + Pi Runtime + Go Tool Broker，以及为什么不选择自研 Harness 或 Docker Agent。
 
-### `adr/ADR-002-outbox-pattern.md`
+### `verification/01-pi-runtime-adapter.md`
 
-记录为什么采用 Outbox 保证事务一致性。
+记录首个 Loop Engineering 切片的验收条件、可复现命令、已证明结论和剩余风险。
 
-### `adr/ADR-003-write-fanout.md`
+### `verification/02-message-idempotency.md`
 
-记录为什么选择写扩散及其权衡。
+记录 Logic 消息幂等切片的数据库契约、并发/迁移故障测试和生产迁移限制。
+
+### `verification/03-pi-runtime-hardening.md`
+
+记录 Pi Runtime 复审 P1 的修复、真实 OS helper-process 覆盖、Race 结果与残余隔离边界。
+
+### `verification/04-agent-approval-execution-audit.md`
+
+记录 Agent 审批、冻结参数执行和追加式审计聚合的 PostgreSQL 并发、幂等、状态转换与篡改检测证据。
+
+### `verification/05-agent-streaming.md`
+
+记录 Agent 临时流、最终消息对账、背压和浏览器状态回收的验证证据。
+
+### `verification/06-agent-observability.md`
+
+记录 Pilot 指标、Trace 上下文恢复和安全标签约束的验证证据。
+
+### `verification/07-agent-session-gc.md`
+
+记录多实例 Session 引用快照、集群锁和孤儿对象回收的验证证据。
+
+### `verification/08-agent-identity.md`
+
+记录 Gateway→Logic 可信 Principal、共享 Redis nonce 防重放和 Pilot 权威 IAM 解析的验证证据。
+
+### `verification/09-agent-iam-mutation.md`
+
+记录冻结参数、持久审批、幂等 IAM Mutation receipt 与崩溃/响应丢失恢复的验证证据。
+
+### `verification/10-agent-workload-isolation.md`
+
+记录 user-assistant/iam-admin 独立工作负载身份、方法/Tenant allowlist 与 Session Profile 绑定的验证证据。
+
+### `verification/11-agent-budget-ledger.md`
+
+记录租户 UTC 日/月 Token 与 micro-USD 预算、Attempt reservation/UNKNOWN hold、Provider 前置硬上限和并发账本证据。
+
+### `verification/12-provider-egress-proxy.md`
+
+记录严格 CONNECT、DNS rebinding/private range、TLS SNI/ALPN 和有界 tunnel 的出口代理证据。
+
+### `verification/13-agent-runtime-isolation.md`
+
+记录 control/runtime 镜像、私有 UDS、profile volume、凭证/网络分离和真实 Pi+Bridge 契约证据。
+
+### `verification/14-agent-business-eval.md`
+
+记录版本化业务 Eval 数据集、Tool/拒绝/真实副作用评分器及每个候选镜像必须执行的 Provider Gate。
+
+### `verification/15-agent-multitenant-isolation.md`
+
+记录多工作负载并发下 Session、Capability、Tool Result、配置日志和指标标签无跨租户串扰的可重现证据。
+
+### `verification/16-agent-release-rollback-gate.md`
+
+记录 Agent control/runtime 不变 digest 发布产物、生产准入、回滚顺序和失败后保持停止摄入的机器门禁，并明确区分尚未完成的候选环境实操。
+
+### `verification/17-agent-profile-revocation.md`
+
+记录 Agent Profile 权威准入、运行前/settled 后/最终事实前再授权、queued/active Run 取消、Session Binding 失效和已确认最终消息不可回滚的验证证据。
+
+### `verification/18-agent-history-invalidation.md`
+
+记录 Edit/Recall 与 Agent Run/Session Binding 的同事务失效、最终消息事实边界、迟到提交拒绝和崩溃恢复验证证据。
+
+### `verification/19-agent-session-rollover.md`
+
+记录 Pi JSONL 字节/entry 双阈值、持久容量字段、安全 Run 边界重建和硬上限行为的验证证据。
+
+### `verification/20-go126-lint-gate.md`
+
+记录 Go 1.26 对应的 golangci-lint v2 固定版本、配置迁移、全仓真实 package 加载和回归证据。
 
 ### `31-coding-and-module-boundaries.md`
 
@@ -361,11 +437,11 @@ ADR 总索引，记录重要设计决策与对应文档。
 
 ## 4. 当前完成状态与下一步
 
-### 4.1 已完成文档（20 份）
+### 4.1 已完成文档（22 份）
 
 核心架构骨架、横切设计层、服务设计层、发消息主链路、写扩散、撤回编辑已读、离线同步、开发者入门、CI/CD 与测试策略均已覆盖。
 
-### 4.2 待补齐文档（对应 Phase 5–8 开发节奏）
+### 4.2 待补齐文档（对应 Phase 5–9 开发节奏）
 
 | 文档 | 建议补齐时机 |
 |------|-------------|
@@ -373,7 +449,7 @@ ADR 总索引，记录重要设计决策与对应文档。
 | `24-session-and-membership.md` | Phase 5/6 涉及群成员变化时 |
 | `25-delivery-and-push.md` | Phase 6 多端推送深入前 |
 | `26-failure-recovery.md` | Phase 5 完成后（有第一个完整闭环时） |
-| `30-adr-index.md` + `adr/` | 有第一个重大决策时即建 |
+| `30-adr-index.md` + `adr/` | ✅ 已建，首条记录 Pilot Runtime 选型 |
 | `31~33` 规范文档 | 团队扩大或代码 review 问题反复出现时 |
 | `41-runbook.md` / `42-release-guide.md` | 准备正式上线前 |
 
@@ -454,13 +530,15 @@ ADR 总索引，记录重要设计决策与对应文档。
 
 - Phase 5（撤回）：`22-recall-edit-read.md` 已有，开发中可直接对照
 - Phase 6（已读同步）：同上，ReadReceipt 分支在 `22-recall-edit-read.md` 中
-- Phase 7（AI Service）：`14-ai-service.md` + `15-agent-harness.md` 已有，开发前对照两份文档锁定系统契约与 Harness 内部结构
+- Phase 7（Pilot + Pi Runtime）：`14-ai-service.md` + `15-agent-harness.md` 已按“Go 控制面 + Pi Runtime + Go Tool Broker”重构，先完成单租户只读闭环
+- Phase 8（多租户 IAM Tool）：必须先完成 Tenant、系统 Role/Scope、服务身份和持久审批，不能只靠 Prompt/Profile
+- Phase 9（流式与生产加固）：Delta 与 ChatEvent 主事实分离，并完成容量、故障注入、灰度和回滚
 
 ### 下一批补齐目标
 
 - 主要故障场景清楚后补 `26-failure-recovery.md`
 - 准备上线时补 `41-runbook.md` / `42-release-guide.md`
-- 有第一个需要长期追溯的架构决策时建 `adr/`
+- Runtime、Session 一致性或 Tool 授权边界发生变化时新增 ADR，不覆盖旧记录
 
 ### 长期治理
 

@@ -44,7 +44,7 @@ type User struct {
 }
 ```
 
-用户名是系统内唯一身份标识，也是跨服务传递身份的载体（gRPC metadata `x-username`）。密码字段存储 bcrypt 哈希，不存明文。
+当前用户名仍是系统内全局唯一标识，但跨服务用户身份由 Gateway 的 payload-bound 服务签名携带，并由 Logic 按 `tenant_id + username` 权威回查；明文 `x-username` 不是生产身份来源。密码字段存储 bcrypt 哈希，不存明文。
 
 ### 3.2 `t_session`
 
@@ -52,7 +52,10 @@ type User struct {
 type Session struct {
     SessionID     string // PK, varchar(64)
     Type          int    // 1-单聊, 2-群聊
-    Kind          int    // 0-普通, 预留扩展
+    Kind          int    // 0-普通, 1-AI
+    TenantID      string // AI 准入的权威租户
+    ProfileID     string // AI Profile，不接受客户端自由输入
+    ProfileVersion int64 // 创建时固定的不可变版本
     Name          string // 群聊名称
     AvatarURL     string // 群头像
     OwnerUsername string // 创建者
@@ -61,6 +64,30 @@ type Session struct {
     UpdatedAt     time.Time
 }
 ```
+
+普通 direct/group 会话的 `Kind=0` 且 Profile 字段为空。AI 会话的 Type 仍为
+direct，但 `Kind=1`，并持久化 `tenant_id + profile_id + profile_version`。AI 会话
+与普通直聊分别使用 tenant 派生的 `agent:<sha256-prefix>` 和
+`direct:<sha256-prefix>` ID，输入采用长度无歧义的固定顺序，结果不超过 64 字节。
+AI ID 还包含 Profile Version，
+因此升级后可新建隔离上下文；普通直聊也不会因同一全局用户名组合跨租户复用。
+Pilot 在消费事件时必须用这些字段核对自己的固定 tenant/profile
+快照；只凭成员中存在 Bot 不足以获得 AI 准入。
+
+历史 `single:<user>:<user>` 会话不会依赖 ID 解析继续扩散：Logic 先按
+`tenant_id + type + kind + 精确两名成员` 查找并复用旧会话；只有不存在时才创建
+新的 tenant-derived direct ID。若历史数据在同一租户存在多个相同成员直聊，则
+创建请求 fail closed，必须先消除歧义。
+
+新增列的数据库默认值 `default` 只用于原单租户数据的兼容升级。已有多租户环境必须
+在启用新 Logic 前，根据权威租户归属审计并回填每条历史 Session；无法唯一确定租户的
+会话必须隔离处理并阻止上线，不能把列默认值当作多租户迁移结果。
+
+AI 会话还有部分唯一索引
+`uniq_ai_session_profile(tenant_id, owner_username, profile_id, profile_version) WHERE kind = 1`。
+Logic 在一个数据库事务里写 Session 与全部成员；完全相同的并发重投返回已存在
+Session，任一成员写入失败则整体回滚。上线前若历史数据违反该键，AutoMigrate 会
+失败，必须先审计并制定迁移方案，不能静默合并不同安全上下文。
 
 `MaxSeqID` 是会话序列号的持久化锚点。Logic 在事务内通过 CAS 更新它，Redis 中的原子计数器以它为初始值。当 Redis 键不存在时，Logic 会先用 `MaxSeqID` 初始化计数器，再递增，避免序列号从 1 开始导致冲突。
 
@@ -92,7 +119,8 @@ type MessageContent struct {
     Content        string     // text
     MsgType        int        // 消息类型枚举
     ReplyToEventID int64      // 引用回复
-    ClientMsgID    string     // 客户端幂等 ID, index: idx_client_msg_id
+    ClientMsgID    string     // 客户端幂等 ID
+    IdempotencyHash string    // 规范化请求的 SHA-256，创建后不可变
     RecalledAt     *time.Time // 撤回时间，NULL 表示未撤回
     EditedAt       *time.Time // 最后编辑时间
     EditCount      int        // 编辑次数
@@ -102,13 +130,16 @@ type MessageContent struct {
 
 这张表是消息的主事实存储。撤回和编辑通过 `RecalledAt`/`EditedAt` 字段软标记，历史拉取时客户端根据这些字段决定渲染方式。编辑内容不保留历史版本（V1 简化处理）。
 
-`ClientMsgID` 用于客户端幂等去重：客户端重发同一条消息时，Logic 可以通过这个字段检测到重复并返回已有的 `event_id`，而不是写入两条记录。
+`ClientMsgID` 与权威发送者、会话共同组成发送端幂等键。Logic 对已知字段规范化后计算版本化 SHA-256：同键同 Hash 返回第一次的 `event_id`、`seq_id` 和时间戳；同键不同 Hash 返回 `AlreadyExists`，不会把两条不同消息错误地折叠为一次成功。
 
 **索引设计：**
 
 - `PK(event_id)`：按事件 ID 精确查询
 - `idx_sess_seq(session_id, seq_id)`：会话历史拉取，支持 `seq_id` 游标分页
-- `idx_client_msg_id(client_msg_id)`：客户端幂等查询
+- `uniq_message_client_id(session_id, sender_username, client_msg_id) WHERE client_msg_id <> ''`：非空发送端幂等键；空 ID 的系统/兼容消息不参与约束
+- `idx_client_msg_id(client_msg_id)`：迁移期保留的旧查询索引，不承担唯一性保证
+
+索引创建前，`init` 会检查历史重复键；发现重复时 fail closed，不会自动删除或改写消息事实。创建后还会核对 PostgreSQL 索引的列顺序、Predicate、`indisunique`、`indisvalid` 和 `indisready`，避免同名错误/失效索引被当作迁移成功。
 
 ### 3.5 `t_inbox`
 

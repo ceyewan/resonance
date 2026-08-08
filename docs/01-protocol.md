@@ -97,14 +97,20 @@ Logic 与 Task 之间的边界由 `mq/v1/event.proto` 定义。这里的 `MQEven
 
 ## 5. 身份传递约定
 
-在身份设计上，系统坚持一个简单但重要的约束：身份不进入业务 body。对外层面，Web 到 Gateway 使用 `Authorization: Bearer <token>` 完成认证；在部分连接场景下，也会兼容查询参数中的 token。Gateway 完成鉴权之后，不继续向下游传播原始 token，而是只传播已经确认过的用户名。
+AI 会话必须通过 `CreateAgentSession` 显式创建。请求体只有
+`AgentProfile` 枚举（`USER_ASSISTANT` 或 `IAM_ADMIN`），不包含
+`tenant_id`、Bot 用户名、Role、Scope 或 Profile Version。Logic 从已验签并完成
+IAM 回查的 `UserPrincipal` 取得租户与当前授权，再写入服务端配置固定的 Profile
+ID/Version。普通 `CreateSession` 只接受真人成员，不能用 Agent Bot 绕过这条入口。
+
+在身份设计上，系统坚持一个简单但重要的约束：业务 body 不能决定 Actor。对外层面，Web 到 Gateway 使用 `Authorization: Bearer <token>` 完成认证；在 WebSocket 握手场景下，也兼容查询参数中的 token。Gateway 本地验 JWT 后不向下游传播原始 token，而是传播由 Gateway 工作负载密钥签名的最小 Principal。
 
 ### 5.1 身份传递链路
 
 ```text
 Web ── Authorization: Bearer <token> ──▶ Gateway
-Gateway ── gRPC metadata: x-username ──▶ Logic
-Logic ── context 中读取已认证用户名 ──▶ 业务服务
+Gateway ── payload-bound serviceauth(tenant, actor, member_version) ──▶ Logic
+Logic ── 验签、防重放、IAM Repo 回查 ──▶ context UserPrincipal ──▶ 业务服务
 ```
 
 ### 5.2 为什么这样设计

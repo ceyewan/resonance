@@ -22,7 +22,7 @@ Web(A)              Gateway             Logic               NATS            Task
   │    message payload}│                   │                   │               │                │
   │───────────────────▶│                   │                   │               │                │
   │                    │ 2. gRPC SendEvent  │                   │               │                │
-  │                    │   md: x-username=A│                   │               │                │
+  │                    │   signed actor=A   │                   │               │                │
   │                    │──────────────────▶│                   │               │                │
   │                    │                   │ 3. 查会话成员      │               │                │
   │                    │                   │ 4. 校验发送权限    │               │                │
@@ -63,7 +63,7 @@ Web(A)              Gateway             Logic               NATS            Task
 
 ### 3.1 Gateway 接入（步骤 1-2）
 
-客户端通过 WebSocket 发送 `ChatRequest`，Gateway 的 WS dispatcher 解析包格式，从连接上下文中取出已认证的用户名，构造 gRPC `SendEvent` 请求，通过 `x-username` metadata 把身份传给 Logic。Gateway 不做任何业务判断，只负责协议转换和身份传递。
+客户端通过 WebSocket 发送 `ChatRequest`，Gateway 的 WS dispatcher 解析包格式，从连接上下文取出本地验 JWT 得到的 tenant、用户名和成员版本，构造 gRPC `SendEvent` 请求。Logic client 对 method、payload hash 和该 Principal 做逐请求服务签名；Logic 验签、防重放并回查当前 IAM 状态后才构造业务上下文。Gateway 不做会话成员等业务判断。
 
 ### 3.2 Logic 业务处理（步骤 3-8）
 

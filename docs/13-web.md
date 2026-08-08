@@ -161,7 +161,7 @@ WebSocket 重连后，前端会触发 `InboxSyncManager.run()`，从本地存储
   └── 更新 outbox 记录（status = "failed"，可重试）
 ```
 
-`clientMsgId` 同时用于服务端幂等去重：如果客户端重发同一条消息，Logic 通过 `client_msg_id` 检测到重复并返回已有的 `event_id`，不会产生重复记录。
+`clientMsgId` 同时用于服务端幂等去重，最长 64 字节且应视为不透明值。客户端重试必须复用同一个 ID 和完全相同的消息字段；Logic 会返回第一次的 `event_id` / `seq_id` / 时间戳，不产生第二条 Message 或 Outbox。同一个 ID 携带不同 payload 会收到 `AlreadyExists`，客户端必须生成新 ID，而不是继续重试。
 
 ---
 
@@ -172,6 +172,8 @@ Zustand 管理两类全局运行时状态，不持久化到 IndexedDB：
 **`useAuthStore`**：认证状态，包含 `accessToken`、`currentUser`、`bootstrapping` 标志。应用启动时从 `localStorage` 恢复 token，验证有效性后进入已认证状态。
 
 **`useConnectionStore`**：连接状态，包含 WS 连接状态（`idle / connecting / open / offline`）和 Inbox 同步状态（`inboxSyncing`、`lastInboxSyncError`）。UI 根据这些状态显示连接指示器和同步进度。
+
+**`useAgentStreamStore`**：只保存 Agent 的临时文本气泡。它按 `session_id + stream_id` 隔离，校验 `run_id` 和严格递增的 `uint64 sequence`，对重复、乱序、容量超限和 TTL 超时 fail bounded。Stream End 只关闭临时状态；最终 ChatEvent 成功写入 IndexedDB 后，再用 `final_client_msg_id` 对账删除临时气泡。该 Store 不持久化 thinking、Tool 原始参数或 Tool Result。
 
 ---
 
@@ -186,6 +188,9 @@ Zustand 管理两类全局运行时状态，不持久化到 IndexedDB：
 | `web/src/sync/applier.ts` | ChatEvent → 本地 DB |
 | `web/src/sync/inbox.ts` | InboxSyncManager |
 | `web/src/stores/` | Zustand 全局状态 |
+| `web/src/stores/agentStream.ts` | 有界 Agent 临时流状态与序号检查 |
+| `web/src/sync/agentStream.ts` | StreamBegin/Chunk/End 与最终 ChatEvent 对账 |
+| `web/src/features/chat/AgentStreamBubble.tsx` | 纯文本临时气泡 |
 | `web/src/features/` | 业务功能模块 |
 
 ---
