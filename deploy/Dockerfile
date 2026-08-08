@@ -50,3 +50,45 @@ COPY --from=frontend-builder /src/web/dist /app/web/dist
 WORKDIR /app
 USER nobody
 ENTRYPOINT ["/app/resonance"]
+
+# =========================
+# Pilot 控制面运行阶段：明确不包含 Node、Pi 或 Provider 凭证运行时。
+# =========================
+FROM alpine:3.20 AS pilot-control-final
+
+RUN addgroup -S -g 10001 resonance \
+    && adduser -S -D -H -u 10001 -G resonance resonance \
+    && mkdir -p /app /run/resonance-agent /var/lib/resonance-pilot/sessions \
+    && chown -R resonance:resonance /run/resonance-agent /var/lib/resonance-pilot
+
+COPY --from=builder /app/bin/resonance /app/resonance
+COPY --from=builder /app/configs /app/configs
+
+WORKDIR /app
+USER resonance
+ENTRYPOINT ["/app/resonance"]
+
+# =========================
+# 隔离 Pi Runtime 阶段
+# =========================
+# Pi 0.84.1 要求 Node >= 22.19；Bridge 的 package-lock 固定所有 npm 依赖。
+FROM node:22-alpine AS pilot-runtime-final
+
+RUN addgroup -S -g 10001 resonance \
+    && adduser -S -D -H -u 10001 -G resonance resonance \
+    && mkdir -p /app /opt/resonance/bridge /run/resonance-agent /home/resonance \
+       /var/lib/resonance-pilot/work /var/lib/resonance-pilot/sessions \
+    && chown -R resonance:resonance /run/resonance-agent /home/resonance /var/lib/resonance-pilot
+
+COPY --from=builder /app/bin/resonance /app/resonance
+COPY --from=builder /app/configs /app/configs
+
+WORKDIR /opt/resonance/bridge
+COPY pilot/bridge/package.json pilot/bridge/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts \
+    && test "$(./node_modules/.bin/pi --version)" = "0.84.1"
+COPY pilot/bridge/src ./src
+
+WORKDIR /app
+USER resonance
+ENTRYPOINT ["/app/resonance"]

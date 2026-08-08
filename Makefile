@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod down down-prod logs logs-prod clean
+.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod rollback-agent-validate down down-prod logs logs-prod clean
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -16,6 +16,7 @@ COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f de
 COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
 PRETTIER := ./tools/node_modules/.bin/prettier
 MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2
+GOLANGCI_LINT_VERSION ?= 2.12.2
 
 # ============================================================================
 # 帮助信息
@@ -34,8 +35,8 @@ help: ## 显示帮助信息
 gen: ## 生成 protobuf 代码
 	@echo "🔧 生成 protobuf 代码..."
 	@cd api && buf generate --template buf.gen.go.yaml
-	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
-	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/agent_approval.proto
+	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/agent_approval.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ 代码生成完成"
 
 tidy: ## 整理 Go 依赖
@@ -87,7 +88,12 @@ lint: lint-go lint-proto lint-prettier lint-markdown lint-web ## 一键执行 Go
 lint-go: ## Go 静态检查（golangci-lint）
 	@echo "🔍 Go lint (golangci-lint)..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "❌ 未安装 golangci-lint，请先执行: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8"; \
+		echo "❌ 未安装 golangci-lint，请先执行: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)"; \
+		exit 1; \
+	fi
+	@if ! golangci-lint version 2>/dev/null | grep -Fq "version $(GOLANGCI_LINT_VERSION)"; then \
+		echo "❌ golangci-lint 版本不匹配，需要 $(GOLANGCI_LINT_VERSION)"; \
+		echo "   安装命令: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)"; \
 		exit 1; \
 	fi
 	@golangci-lint run --config .golangci.yaml ./...
@@ -199,6 +205,9 @@ update-local: ## 重新构建并更新本地 Docker 部署
 up-prod: ## 启动生产配置（Caddy 反代，不暴露业务端口）
 	@chmod +x deploy/scripts/deploy-production.sh
 	@./deploy/scripts/deploy-production.sh latest
+
+rollback-agent-validate: ## 只校验 Agent 回滚的 control/runtime 不变 digest 组合
+	@./deploy/scripts/rollback-agent.sh --validate-only
 
 down: ## 停止所有服务
 	@echo "🛑 停止服务..."

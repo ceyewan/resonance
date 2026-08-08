@@ -10,6 +10,7 @@
 - `Dockerfile`：统一镜像构建文件
 - `scripts/deploy-local.sh`：本地全 Docker 启动脚本
 - `scripts/deploy-production.sh`：生产部署脚本
+- `scripts/rollback-agent.sh`：Agent control/runtime 不变 digest 组合校验与回滚
 - `scripts/build-push.sh`：镜像构建与推送脚本
 
 ## 前置条件
@@ -59,8 +60,13 @@ make down
 - `RESONANCE_AUTH_SECRET_KEY`
 - `RESONANCE_POSTGRES_PASSWORD`
 - `RESONANCE_ADMIN_PASSWORD`
+- `RESONANCE_GATEWAY_SERVICE_AUTH_SECRET`
+- 两个 Profile 各自独立的 Capability/service-auth Secret
+- `ANTHROPIC_API_KEY`
+- `RESONANCE_PILOT_IMAGE=repository@sha256:<64 hex>`
+- `RESONANCE_PILOT_RUNTIME_IMAGE=repository@sha256:<64 hex>`
 
-使用默认 `latest` 镜像部署：
+主应用可按 tag 部署，Agent control/runtime 不论主应用 tag 为何都必须使用同一发布产物记录的不变 digest 组合：
 
 ```bash
 make up-prod
@@ -71,6 +77,16 @@ make up-prod
 ```bash
 ./deploy/scripts/deploy-production.sh v0.1.0
 ```
+
+GitHub 发布工作流会生成 `agent-release-<tag>` artifact，记录两个 digest、Pi/Bridge/Remote Runtime 协议版本和源码 SHA；两个镜像同时发布 SBOM 与 provenance attestation。该组合必须成对保留。回滚时先只做校验：
+
+```bash
+PILOT_PREVIOUS_IMAGE_DIGEST='registry/resonance-pilot@sha256:<64 hex>' \
+PILOT_RUNTIME_PREVIOUS_IMAGE_DIGEST='registry/resonance-pilot-runtime@sha256:<64 hex>' \
+./deploy/scripts/rollback-agent.sh --validate-only
+```
+
+实际操作必须显式改为 `--execute`。脚本先停 Pilot ingress，再恢复两个 Runtime 并等待健康，最后恢复两个 control 并核对实际镜像引用。脚本会生成不覆盖的 `0600` JSON 证据；恢复更广的 Tenant admission 前仍必须记录已有旧 Session fixture 的实际恢复结果。
 
 查看生产日志：
 

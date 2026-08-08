@@ -33,13 +33,93 @@ jobs:
             type=ref,event=tag
             type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
 
+      - name: Extract Pilot image metadata
+        id: meta-pilot
+        uses: docker/metadata-action@v5
+        with:
+          images: ceyewan/resonance-pilot
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
+
+      - name: Extract Pilot runtime image metadata
+        id: meta-pilot-runtime
+        uses: docker/metadata-action@v5
+        with:
+          images: ceyewan/resonance-pilot-runtime
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./deploy/Dockerfile
+          target: final
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Build and push Pilot control plane
+        id: build-pilot
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/Dockerfile
+          target: pilot-control-final
+          push: true
+          tags: ${{ steps.meta-pilot.outputs.tags }}
+          labels: ${{ steps.meta-pilot.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Build and push isolated Pilot runtime
+        id: build-pilot-runtime
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./deploy/Dockerfile
+          target: pilot-runtime-final
+          push: true
+          tags: ${{ steps.meta-pilot-runtime.outputs.tags }}
+          labels: ${{ steps.meta-pilot-runtime.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: mode=max
+          sbom: true
+
+      - name: Record immutable Agent release pair
+        env:
+          CONTROL_DIGEST: ${{ steps.build-pilot.outputs.digest }}
+          RUNTIME_DIGEST: ${{ steps.build-pilot-runtime.outputs.digest }}
+          SOURCE_REF: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          [[ "$CONTROL_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "$RUNTIME_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          PI_VERSION="$(jq -r '.packages["node_modules/@earendil-works/pi-coding-agent"].version' pilot/bridge/package-lock.json)"
+          BRIDGE_VERSION="$(jq -r '.version' pilot/bridge/package.json)"
+          test "$PI_VERSION" = "0.84.1"
+          test "$BRIDGE_VERSION" = "0.1.0"
+          printf '%s\n' \
+            "RESONANCE_PILOT_IMAGE=ceyewan/resonance-pilot@$CONTROL_DIGEST" \
+            "RESONANCE_PILOT_RUNTIME_IMAGE=ceyewan/resonance-pilot-runtime@$RUNTIME_DIGEST" \
+            "PI_VERSION=$PI_VERSION" \
+            "BRIDGE_VERSION=$BRIDGE_VERSION" \
+            "REMOTE_RUNTIME_PROTOCOL_VERSION=1" \
+            "SOURCE_REF=$SOURCE_REF" \
+            "SOURCE_SHA=$SOURCE_SHA" \
+            > agent-release.env
+
+      - name: Upload immutable Agent release pair
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-release-${{ github.ref_name }}
+          path: agent-release.env
+          if-no-files-found: error
+          retention-days: 90
