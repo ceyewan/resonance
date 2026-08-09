@@ -14,6 +14,8 @@ import (
 	"github.com/ceyewan/genesis/metrics"
 	genesistrace "github.com/ceyewan/genesis/trace"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ceyewan/resonance/model"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
@@ -181,12 +183,18 @@ func (t *Telemetry) recordUsage(ctx context.Context, usage *pilotruntime.Usage) 
 // durable AgentRun carrier. User-controlled arbitrary headers are ignored.
 func ExtractPersistedTraceContext(ctx context.Context, encoded []byte) context.Context {
 	if len(encoded) == 0 || len(encoded) > 16*1024 {
-		return ctx
+		return clearUntrustedTraceContext(ctx)
 	}
 	var source map[string]string
 	if err := json.Unmarshal(encoded, &source); err != nil {
-		return ctx
+		return clearUntrustedTraceContext(ctx)
 	}
+	return ExtractTraceContext(ctx, source)
+}
+
+// ExtractTraceContext treats source as a durable, service-authored carrier. It
+// replaces any transport context and restores only bounded W3C trace headers.
+func ExtractTraceContext(ctx context.Context, source map[string]string) context.Context {
 	carrier := map[string]string{}
 	for _, key := range []string{"traceparent", "tracestate"} {
 		value := strings.TrimSpace(source[key])
@@ -194,7 +202,12 @@ func ExtractPersistedTraceContext(ctx context.Context, encoded []byte) context.C
 			carrier[key] = value
 		}
 	}
-	return genesistrace.Extract(ctx, carrier)
+	return genesistrace.Extract(clearUntrustedTraceContext(ctx), carrier)
+}
+
+func clearUntrustedTraceContext(ctx context.Context) context.Context {
+	ctx = trace.ContextWithSpanContext(ctx, trace.SpanContext{})
+	return baggage.ContextWithBaggage(ctx, baggage.Baggage{})
 }
 
 func StartSpan(ctx context.Context, name string) (context.Context, func()) {

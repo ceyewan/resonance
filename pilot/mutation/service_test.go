@@ -302,6 +302,7 @@ type fakeLogicClient struct {
 	executeCalls      int
 	commits           int
 	previewCalls      int
+	observeExecute    func(context.Context)
 }
 
 func (c *fakeLogicClient) PreviewTenantMembershipStatus(_ context.Context, args agentmutation.MembershipStatusArgs) (*MutationPreview, error) {
@@ -356,7 +357,10 @@ func (c *fakeLogicClient) GetExecutionApproval(_ context.Context, tenantID, call
 	return &copy, nil
 }
 
-func (c *fakeLogicClient) ExecuteTenantMembershipStatus(_ context.Context, args agentmutation.MembershipStatusArgs, idempotencyKey string, approvalVersion int64) (*MutationReceipt, error) {
+func (c *fakeLogicClient) ExecuteTenantMembershipStatus(ctx context.Context, args agentmutation.MembershipStatusArgs, idempotencyKey string, approvalVersion int64) (*MutationReceipt, error) {
+	if c.observeExecute != nil {
+		c.observeExecute(ctx)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.executeCalls++
