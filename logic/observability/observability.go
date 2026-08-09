@@ -4,19 +4,17 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 )
 
 const (
@@ -29,9 +27,10 @@ const (
 
 var (
 	// 全局组件
-	meter     metrics.Meter
-	traceOnce sync.Once
-	shutdown  func(context.Context) error
+	meter    metrics.Meter
+	initOnce sync.Once
+	initErr  error
+	shutdown func(context.Context) error
 
 	// 业务指标
 	loginDuration                metrics.Histogram
@@ -43,9 +42,11 @@ var (
 
 // Init 初始化可观测性组件
 func Init(cfg *Config) error {
-	var initErr error
-
-	traceOnce.Do(func() {
+	if cfg == nil {
+		return fmt.Errorf("observability config is required")
+	}
+	applyResourceDefaults(cfg)
+	initOnce.Do(func() {
 		// 1. 初始化 Trace
 		shutdownFunc, err := initTrace(cfg)
 		if err != nil {
@@ -57,7 +58,9 @@ func Init(cfg *Config) error {
 		// 2. 初始化 Metrics
 		meter, err = initMetrics(cfg)
 		if err != nil {
-			initErr = fmt.Errorf("init metrics: %w", err)
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			initErr = errors.Join(fmt.Errorf("init metrics: %w", err), shutdown(cleanupCtx))
+			cancel()
 			return
 		}
 
@@ -70,87 +73,49 @@ func Init(cfg *Config) error {
 
 // Shutdown 优雅关闭
 func Shutdown(ctx context.Context) error {
+	var traceErr, metricsErr error
 	if shutdown != nil {
-		return shutdown(ctx)
+		traceErr = shutdown(ctx)
 	}
 	if meter != nil {
-		return meter.Shutdown(ctx)
+		metricsErr = meter.Shutdown(ctx)
 	}
-	return nil
+	return errors.Join(traceErr, metricsErr)
 }
 
 // initTrace 初始化 Trace
 func initTrace(cfg *Config) (func(context.Context) error, error) {
 	if cfg.Trace.Disable {
-		// 禁用 Trace，只生成 TraceID 不上报
-		tp := sdktrace.NewTracerProvider(
-			sdktrace.WithResource(resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String(ServiceName),
-			)),
-		)
-		otel.SetTracerProvider(tp)
-		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-			propagation.TraceContext{},
-			propagation.Baggage{},
-		))
-		return tp.Shutdown, nil
+		return genesistrace.InstallLocalProvider(ServiceName)
 	}
+	return genesistrace.Init(&genesistrace.Config{ServiceName: ServiceName, Version: cfg.Version, InstanceID: cfg.InstanceID,
+		Environment: cfg.Environment, Endpoint: cfg.Trace.Endpoint, Sampler: cfg.Trace.Sampler,
+		Batcher: genesistrace.BatcherBatch, Insecure: cfg.Trace.Insecure})
+}
 
-	// 配置 OTLP Exporter
-	endpoint := cfg.Trace.Endpoint
-	if endpoint == "" {
-		endpoint = "localhost:4317"
+func applyResourceDefaults(cfg *Config) {
+	if cfg.Version == "" {
+		cfg.Version = "dev"
 	}
-
-	sampler := cfg.Trace.Sampler
-	if sampler == 0 {
-		sampler = 1.0
+	if cfg.InstanceID == "" {
+		cfg.InstanceID, _ = os.Hostname()
 	}
-
-	opts := []otlptracegrpc.Option{
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithTimeout(5 * time.Second),
+	if cfg.Environment == "" {
+		cfg.Environment = "development"
 	}
-	if cfg.Trace.Insecure {
-		opts = append(opts, otlptracegrpc.WithInsecure())
+	if cfg.Trace.Endpoint == "" {
+		cfg.Trace.Endpoint = "localhost:4317"
 	}
-
-	ctx := context.Background()
-	exporter, err := otlptracegrpc.New(ctx, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("create otlp exporter: %w", err)
+	if cfg.Trace.Sampler == 0 {
+		cfg.Trace.Sampler = 1
 	}
-
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(ServiceName),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create resource: %w", err)
-	}
-
-	tpOpts := []sdktrace.TracerProviderOption{
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampler))),
-	}
-	tpOpts = append(tpOpts, sdktrace.WithBatcher(exporter))
-
-	tp := sdktrace.NewTracerProvider(tpOpts...)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
-
-	return tp.Shutdown, nil
 }
 
 // initMetrics 初始化 Metrics
 func initMetrics(cfg *Config) (metrics.Meter, error) {
 	metricsCfg := &metrics.Config{
-		ServiceName:   ServiceName,
+		ServiceName: ServiceName,
+		Version:     cfg.Version, InstanceID: cfg.InstanceID, Environment: cfg.Environment,
 		Port:          cfg.Metrics.Port,
 		Path:          cfg.Metrics.Path,
 		EnableRuntime: cfg.Metrics.EnableRuntime,
@@ -226,7 +191,7 @@ func ExtractTraceContext(ctx context.Context, traceHeaders map[string]string) co
 	if len(traceHeaders) == 0 {
 		return ctx
 	}
-	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(traceHeaders))
+	return genesistrace.Extract(ctx, traceHeaders)
 }
 
 // InjectTraceContext 将当前 Context 的 Trace 信息注入到 map
@@ -234,7 +199,7 @@ func InjectTraceContext(ctx context.Context, carrier map[string]string) {
 	if carrier == nil {
 		return
 	}
-	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(carrier))
+	genesistrace.Inject(ctx, carrier)
 }
 
 // ============================================================================

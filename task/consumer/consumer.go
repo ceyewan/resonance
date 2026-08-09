@@ -33,6 +33,8 @@ type Consumer struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup // 等待所有 worker 退出
+	stopOnce     sync.Once
+	stopErr      error
 
 	// 指标
 	processDuration metrics.Histogram // 处理耗时
@@ -92,6 +94,7 @@ func (c *Consumer) Start() error {
 		mq.WithQueueGroup(c.config.QueueGroup),
 		mq.WithManualAck(),
 		mq.WithMaxInflight(bufferSize),
+		mq.FromBeginning(),
 	)
 	if err != nil {
 		return xerrors.Wrapf(err, "failed to subscribe to topic %s", c.config.Topic)
@@ -303,21 +306,17 @@ func (c *Consumer) recordMetrics(ctx context.Context, start time.Time, status st
 
 // Stop 停止消费者
 func (c *Consumer) Stop() error {
-	c.logger.Info("stopping consumer")
-
-	// 1. 取消 context，通知回调和 worker 停止接收新消息
-	c.cancel()
-
-	// 2. 取消订阅，停止接收新消息
-	if c.subscription != nil {
-		if err := c.subscription.Unsubscribe(); err != nil {
-			c.logger.Error("failed to unsubscribe", clog.Error(err))
+	c.stopOnce.Do(func() {
+		c.logger.Info("stopping consumer")
+		if c.subscription != nil {
+			drainCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			c.stopErr = c.subscription.Drain(drainCtx)
+			cancel()
 		}
-	}
-
-	// 3. 等待所有 worker 处理完剩余任务
-	c.wg.Wait()
-
-	c.logger.Info("consumer stopped")
-	return nil
+		close(c.jobsCh)
+		c.wg.Wait()
+		c.cancel()
+		c.logger.Info("consumer stopped")
+	})
+	return c.stopErr
 }

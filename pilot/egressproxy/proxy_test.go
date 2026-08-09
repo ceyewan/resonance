@@ -35,10 +35,7 @@ func TestServerLoopbackPinsValidatedIPAndRelaysOpaqueTLS(t *testing.T) {
 		backendHello <- payload
 	}()
 	for offset := 0; offset < len(hello); {
-		end := offset + 7
-		if end > len(hello) {
-			end = len(hello)
-		}
+		end := min(offset+7, len(hello))
 		_, err := client.Write(hello[offset:end])
 		require.NoError(t, err)
 		offset = end

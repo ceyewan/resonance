@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -256,12 +257,7 @@ func (b *Broker) executeSetTenantMemberStatus(
 }
 
 func containsExact(values []string, expected string) bool {
-	for _, value := range values {
-		if value == expected {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, expected)
 }
 
 func closedObjectSchema(properties map[string]any, required []string) map[string]any {

@@ -2,8 +2,11 @@ package observability
 
 // Config 可观测性配置
 type Config struct {
-	Trace   TraceConfig
-	Metrics MetricsConfig
+	Version     string `mapstructure:"version"`
+	InstanceID  string `mapstructure:"instance"`
+	Environment string `mapstructure:"environment"`
+	Trace       TraceConfig
+	Metrics     MetricsConfig
 }
 
 // TraceConfig Trace 配置

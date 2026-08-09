@@ -47,15 +47,13 @@ func TestAgentMutationPreparationRepo_FreezesArgsAndExecutionAtomically(t *testi
 	var wait sync.WaitGroup
 	errorsCh := make(chan error, workers)
 	for range workers {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			result, prepareErr := preparations.PrepareAgentMutation(ctx, frozen, execution)
 			if prepareErr == nil && result.Created {
 				created.Add(1)
 			}
 			errorsCh <- prepareErr
-		}()
+		})
 	}
 	wait.Wait()
 	close(errorsCh)

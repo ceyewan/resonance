@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ceyewan/genesis/mq"
 	"google.golang.org/protobuf/proto"
@@ -50,6 +51,7 @@ func (c *Consumer) Start() error {
 		mq.WithQueueGroup(c.config.QueueGroup),
 		mq.WithManualAck(),
 		mq.WithMaxInflight(c.config.MaxInflight),
+		mq.FromBeginning(),
 	)
 	if err != nil {
 		return fmt.Errorf("subscribe agent ingress: %w", err)
@@ -113,7 +115,9 @@ func (c *Consumer) Stop() error {
 
 	var unsubscribeErr error
 	if subscription != nil {
-		unsubscribeErr = subscription.Unsubscribe()
+		drainCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		unsubscribeErr = subscription.Drain(drainCtx)
+		cancel()
 	}
 	c.cancel()
 	c.inflight.Wait()

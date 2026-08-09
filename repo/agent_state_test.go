@@ -28,9 +28,7 @@ func TestAgentApprovalRepo_CreateConcurrentIdempotentAndConflict(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			result, createErr := repository.CreateAgentApproval(ctx, newTestAgentApproval("tenant-a", "run-1", "call-1", testHash("a"), expiresAt))
 			if createErr == nil {
 				if result.Created {
@@ -39,7 +37,7 @@ func TestAgentApprovalRepo_CreateConcurrentIdempotentAndConflict(t *testing.T) {
 				require.Equal(t, model.AgentApprovalStatusPending, result.Approval.Status)
 			}
 			errs <- createErr
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)

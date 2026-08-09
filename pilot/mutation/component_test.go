@@ -3,6 +3,7 @@ package mutation
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ceyewan/genesis/mq"
 	"github.com/stretchr/testify/require"
@@ -40,10 +41,11 @@ type fakeMQMessage struct {
 	naks int
 }
 
-func (*fakeMQMessage) Context() context.Context { return context.Background() }
-func (*fakeMQMessage) Topic() string            { return "resonance.agent.approval.decided.v1" }
-func (m *fakeMQMessage) Data() []byte           { return m.data }
-func (*fakeMQMessage) Headers() mq.Headers      { return nil }
-func (m *fakeMQMessage) Ack() error             { m.acks++; return nil }
-func (m *fakeMQMessage) Nak() error             { m.naks++; return nil }
-func (*fakeMQMessage) ID() string               { return "message-1" }
+func (*fakeMQMessage) Context() context.Context           { return context.Background() }
+func (*fakeMQMessage) Topic() string                      { return "resonance.agent.approval.decided.v1" }
+func (m *fakeMQMessage) Data() []byte                     { return m.data }
+func (*fakeMQMessage) Headers() mq.Headers                { return nil }
+func (m *fakeMQMessage) Ack() error                       { m.acks++; return nil }
+func (m *fakeMQMessage) Nak() error                       { m.naks++; return nil }
+func (m *fakeMQMessage) NakWithDelay(time.Duration) error { return m.Nak() }
+func (*fakeMQMessage) ID() string                         { return "message-1" }

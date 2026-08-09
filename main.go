@@ -21,7 +21,7 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run() (exitCode int) {
 	var module string
 	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task, pilot, pilot-runtime, egress-proxy, web")
 	flag.Parse()
@@ -49,7 +49,12 @@ func run() int {
 			fmt.Printf("❌ Failed to start gateway: %v\n", err)
 			return 1
 		}
-		defer func() { _ = g.Close() }()
+		defer func() {
+			if err := g.Close(); err != nil {
+				fmt.Printf("❌ Gateway shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := g.Run(); err != nil {
 			fmt.Printf("❌ Gateway error: %v\n", err)
 			return 1
@@ -62,7 +67,12 @@ func run() int {
 			fmt.Printf("❌ Failed to start logic: %v\n", err)
 			return 1
 		}
-		defer func() { _ = l.Close() }()
+		defer func() {
+			if err := l.Close(); err != nil {
+				fmt.Printf("❌ Logic shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := l.Run(); err != nil {
 			fmt.Printf("❌ Logic error: %v\n", err)
 			return 1
@@ -75,7 +85,12 @@ func run() int {
 			fmt.Printf("❌ Failed to start task: %v\n", err)
 			return 1
 		}
-		defer func() { _ = t.Close() }()
+		defer func() {
+			if err := t.Close(); err != nil {
+				fmt.Printf("❌ Task shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := t.Run(); err != nil {
 			fmt.Printf("❌ Task error: %v\n", err)
 			return 1
@@ -88,7 +103,12 @@ func run() int {
 			fmt.Printf("❌ Failed to start pilot: %v\n", err)
 			return 1
 		}
-		defer func() { _ = p.Close() }()
+		defer func() {
+			if err := p.Close(); err != nil {
+				fmt.Printf("❌ Pilot shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := p.Run(); err != nil {
 			fmt.Printf("❌ Pilot error: %v\n", err)
 			return 1
@@ -104,7 +124,12 @@ func run() int {
 			fmt.Printf("❌ Failed to create isolated Pilot runtime: %v\n", err)
 			return 1
 		}
-		defer func() { _ = host.Close() }()
+		defer func() {
+			if err := host.Close(); err != nil {
+				fmt.Printf("❌ Pilot runtime shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := host.Run(); err != nil {
 			fmt.Printf("❌ Pilot runtime error: %v\n", err)
 			return 1
@@ -124,7 +149,12 @@ func run() int {
 			fmt.Printf("❌ Failed to create egress proxy: %v\n", err)
 			return 1
 		}
-		defer func() { _ = proxy.Close() }()
+		defer func() {
+			if err := proxy.Close(); err != nil {
+				fmt.Printf("❌ Egress proxy shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := proxy.Run(); err != nil {
 			fmt.Printf("❌ Egress proxy error: %v\n", err)
 			return 1
@@ -140,7 +170,12 @@ func run() int {
 			fmt.Printf("❌ Failed to start web server: %v\n", err)
 			return 1
 		}
-		defer func() { _ = w.Close() }()
+		defer func() {
+			if err := w.Close(); err != nil {
+				fmt.Printf("❌ Web shutdown error: %v\n", err)
+				exitCode = 1
+			}
+		}()
 		if err := w.Run(); err != nil {
 			fmt.Printf("❌ Web server error: %v\n", err)
 			return 1

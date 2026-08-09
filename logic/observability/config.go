@@ -17,6 +17,9 @@ type MetricsConfig struct {
 
 // Config 可观测性配置
 type Config struct {
-	Trace   TraceConfig   `mapstructure:"trace"`
-	Metrics MetricsConfig `mapstructure:"metrics"`
+	Version     string        `mapstructure:"version"`
+	InstanceID  string        `mapstructure:"instance"`
+	Environment string        `mapstructure:"environment"`
+	Trace       TraceConfig   `mapstructure:"trace"`
+	Metrics     MetricsConfig `mapstructure:"metrics"`
 }

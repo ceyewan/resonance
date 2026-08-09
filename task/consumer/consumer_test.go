@@ -31,7 +31,8 @@ func (m *testMQ) Subscribe(ctx context.Context, topic string, handler mq.Handler
 	return &testSubscription{done: make(chan struct{})}, nil
 }
 
-func (m *testMQ) Close() error { return nil }
+func (m *testMQ) Close() error                { return nil }
+func (m *testMQ) Drain(context.Context) error { return nil }
 
 type testSubscription struct {
 	unsubscribed bool
@@ -49,6 +50,7 @@ func (s *testSubscription) Unsubscribe() error {
 func (s *testSubscription) Done() <-chan struct{} {
 	return s.done
 }
+func (s *testSubscription) Drain(context.Context) error { return s.Unsubscribe() }
 
 type testMessage struct {
 	data      []byte
@@ -74,6 +76,7 @@ func (m *testMessage) Nak() error {
 	m.nacked = true
 	return m.nakErr
 }
+func (m *testMessage) NakWithDelay(time.Duration) error { return m.Nak() }
 
 func TestNewConsumer_DefaultWorkerCount(t *testing.T) {
 	c := NewConsumer(

@@ -50,10 +50,7 @@ func TestReadClientHelloAcceptsTLSRecordAndTCPFragmentation(t *testing.T) {
 	t.Cleanup(func() { _ = reader.Close(); _ = writer.Close() })
 	go func() {
 		for offset := 0; offset < len(fragmented); {
-			end := offset + 3
-			if end > len(fragmented) {
-				end = len(fragmented)
-			}
+			end := min(offset+3, len(fragmented))
 			_, _ = writer.Write(fragmented[offset:end])
 			offset = end
 		}

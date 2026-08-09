@@ -2,7 +2,9 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -37,6 +39,8 @@ type Task struct {
 	consumer       consumerComponent
 	streamConsumer consumerComponent
 	healthServer   healthComponent
+	closeOnce      sync.Once
+	closeErr       error
 }
 
 // resources 内部资源聚合
@@ -50,6 +54,7 @@ type resources struct {
 	routerRepo   repo.RouterRepo
 	sessionRepo  repo.SessionRepo
 	messageRepo  repo.MessageRepo
+	dbInstance   closeable
 }
 
 type closeable interface {
@@ -94,7 +99,8 @@ func New() (*Task, error) {
 func (t *Task) initComponents() error {
 	// 1. 初始化可观测性（Trace + Metrics）
 	obsConfig := &observability.Config{
-		Trace:   t.config.Observability.Trace,
+		Version: t.config.Observability.Version, InstanceID: t.config.Observability.InstanceID,
+		Environment: t.config.Observability.Environment, Trace: t.config.Observability.Trace,
 		Metrics: t.config.Observability.Metrics,
 	}
 	if err := observability.Init(obsConfig); err != nil {
@@ -169,12 +175,22 @@ func (t *Task) initComponents() error {
 }
 
 // initResources 初始化外部连接和 Repo
-func (t *Task) initResources() (*resources, error) {
+func (t *Task) initResources() (_ *resources, returnedErr error) {
+	cleanup := make([]func() error, 0, 12)
+	defer func() {
+		if returnedErr == nil {
+			return
+		}
+		for index := len(cleanup) - 1; index >= 0; index-- {
+			returnedErr = errors.Join(returnedErr, cleanup[index]())
+		}
+	}()
 	// PostgreSQL
 	postgresConn, err := connector.NewPostgreSQL(&t.config.PostgreSQL)
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
+	cleanup = append(cleanup, postgresConn.Close)
 	if err := postgresConn.Connect(t.ctx); err != nil {
 		return nil, fmt.Errorf("postgresql connect: %w", err)
 	}
@@ -184,6 +200,7 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
+	cleanup = append(cleanup, redisConn.Close)
 	if err := redisConn.Connect(t.ctx); err != nil {
 		return nil, fmt.Errorf("redis connect: %w", err)
 	}
@@ -193,22 +210,25 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nats init: %w", err)
 	}
+	cleanup = append(cleanup, natsConn.Close)
 	if err := natsConn.Connect(t.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 	mqClient, err := mq.New(&mq.Config{
 		Driver:    mq.DriverNATSJetStream,
-		JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
+		JetStream: &t.config.JetStream,
 	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
+	cleanup = append(cleanup, mqClient.Close)
 
 	// Etcd (用于服务发现)
 	etcdConn, err := connector.NewEtcd(&t.config.Etcd, connector.WithLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
+	cleanup = append(cleanup, etcdConn.Close)
 	if err := etcdConn.Connect(t.ctx); err != nil {
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
@@ -218,6 +238,7 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
+	cleanup = append(cleanup, reg.Close)
 
 	// Repos
 	// NewRouterRepo 需要 RedisConnector 接口
@@ -225,6 +246,7 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("router repo init: %w", err)
 	}
+	cleanup = append(cleanup, routerRepo.Close)
 
 	// NewSessionRepo 需要 db.DB 接口
 	// 使用 genesis/db 封装 PostgreSQLConnector
@@ -234,16 +256,19 @@ func (t *Task) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}
+	cleanup = append(cleanup, dbInstance.Close)
 
 	sessionRepo, err := repo.NewSessionRepo(dbInstance, repo.WithSessionRepoLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("session repo init: %w", err)
 	}
+	cleanup = append(cleanup, sessionRepo.Close)
 
 	messageRepo, err := repo.NewMessageRepo(dbInstance, repo.WithMessageRepoLogger(t.logger))
 	if err != nil {
 		return nil, fmt.Errorf("message repo init: %w", err)
 	}
+	cleanup = append(cleanup, messageRepo.Close)
 
 	return &resources{
 		postgresConn: postgresConn,
@@ -255,6 +280,7 @@ func (t *Task) initResources() (*resources, error) {
 		sessionRepo:  sessionRepo,
 		messageRepo:  messageRepo,
 		routerRepo:   routerRepo,
+		dbInstance:   dbInstance,
 	}, nil
 }
 
@@ -269,11 +295,18 @@ func (t *Task) Run() error {
 
 	// 启动 Pusher Manager (开始服务发现)
 	if err := t.pusherMgr.Start(); err != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = t.healthServer.Stop(shutdownCtx)
+		cancel()
 		return fmt.Errorf("pusher manager start: %w", err)
 	}
 
 	// 启动 Consumer (开始消费消息)
 	if err := t.consumer.Start(); err != nil {
+		t.pusherMgr.Close()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = t.healthServer.Stop(shutdownCtx)
+		cancel()
 		return fmt.Errorf("consumer start: %w", err)
 	}
 	if t.streamConsumer != nil {
@@ -291,7 +324,15 @@ func (t *Task) Run() error {
 
 // Close 优雅关闭
 func (t *Task) Close() error {
-	t.logger.Info("shutting down task service...")
+	t.closeOnce.Do(func() { t.closeErr = t.close() })
+	return t.closeErr
+}
+
+func (t *Task) close() error {
+	var result error
+	if t.logger != nil {
+		t.logger.Info("shutting down task service...")
+	}
 
 	// 标记服务未就绪
 	if t.healthServer != nil {
@@ -303,19 +344,25 @@ func (t *Task) Close() error {
 	// 1. 停止健康检查服务器
 	if t.healthServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = t.healthServer.Stop(shutdownCtx)
+		result = errors.Join(result, t.healthServer.Stop(shutdownCtx))
 		cancel()
 	}
 
 	// 2. 停止临时流与持久消息摄入
 	if t.streamConsumer != nil {
 		if err := t.streamConsumer.Stop(); err != nil {
-			t.logger.Warn("stop agent stream consumer failed", clog.Error(err))
+			if t.logger != nil {
+				t.logger.Warn("stop agent stream consumer failed", clog.Error(err))
+			}
+			result = errors.Join(result, err)
 		}
 	}
 	if t.consumer != nil {
 		if err := t.consumer.Stop(); err != nil {
-			t.logger.Warn("stop consumer failed", clog.Error(err))
+			if t.logger != nil {
+				t.logger.Warn("stop consumer failed", clog.Error(err))
+			}
+			result = errors.Join(result, err)
 		}
 	}
 
@@ -324,37 +371,47 @@ func (t *Task) Close() error {
 		t.pusherMgr.Close()
 	}
 
-	// 4. 释放资源（带超时控制）
+	// 4. 按依赖逆序释放资源
 	if t.resources != nil {
-		// 创建带超时的 context，用于控制资源关闭的最大等待时间
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		// 使用 goroutine 并发关闭，监听超时
-		done := make(chan struct{})
-		go func() {
-			// 按依赖关系逆序关闭
-			_ = t.resources.registry.Close()
-			_ = t.resources.etcdConn.Close()
-			_ = t.resources.natsConn.Close()
-			_ = t.resources.redisConn.Close()
-			_ = t.resources.postgresConn.Close()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// 正常关闭完成
-		case <-shutdownCtx.Done():
-			// 超时，记录警告但继续
-			t.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
+		if t.resources.routerRepo != nil {
+			result = errors.Join(result, t.resources.routerRepo.Close())
+		}
+		if t.resources.sessionRepo != nil {
+			result = errors.Join(result, t.resources.sessionRepo.Close())
+		}
+		if t.resources.messageRepo != nil {
+			result = errors.Join(result, t.resources.messageRepo.Close())
+		}
+		mqCtx, cancelMQ := context.WithTimeout(context.Background(), 10*time.Second)
+		if t.resources.mqClient != nil {
+			result = errors.Join(result, t.resources.mqClient.Drain(mqCtx), t.resources.mqClient.Close())
+		}
+		cancelMQ()
+		if t.resources.registry != nil {
+			registryCtx, cancelRegistry := context.WithTimeout(context.Background(), 5*time.Second)
+			result = errors.Join(result, t.resources.registry.Shutdown(registryCtx))
+			cancelRegistry()
+		}
+		if t.resources.dbInstance != nil {
+			result = errors.Join(result, t.resources.dbInstance.Close())
+		}
+		if t.resources.etcdConn != nil {
+			result = errors.Join(result, t.resources.etcdConn.Close())
+		}
+		if t.resources.natsConn != nil {
+			result = errors.Join(result, t.resources.natsConn.Close())
+		}
+		if t.resources.redisConn != nil {
+			result = errors.Join(result, t.resources.redisConn.Close())
+		}
+		if t.resources.postgresConn != nil {
+			result = errors.Join(result, t.resources.postgresConn.Close())
 		}
 	}
 
 	// 5. 关闭可观测性组件
-	if err := observability.Shutdown(context.Background()); err != nil {
-		t.logger.Error("observability shutdown failed", clog.Error(err))
-	}
-
-	return nil
+	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
+	result = errors.Join(result, observability.Shutdown(observabilityCtx))
+	cancelObservability()
+	return result
 }

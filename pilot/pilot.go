@@ -70,7 +70,7 @@ type maintenanceComponent interface {
 
 type mutationComponent interface {
 	Start(context.Context) error
-	Stop()
+	Stop() error
 	Errors() <-chan error
 }
 
@@ -145,6 +145,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	if err != nil {
 		return nil, fmt.Errorf("pilot database: %w", err)
 	}
+	cleanup.add(database.Close)
 
 	nats, err := connector.NewNATS(&cfg.NATS, connector.WithLogger(logger))
 	if err != nil {
@@ -155,12 +156,16 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 		return nil, fmt.Errorf("pilot nats connect: %w", err)
 	}
 	mqClient, err := mq.New(&mq.Config{
-		Driver: mq.DriverNATSJetStream, JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
+		Driver: mq.DriverNATSJetStream, JetStream: &cfg.JetStream,
 	}, mq.WithNATSConnector(nats), mq.WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("pilot MQ: %w", err)
 	}
-	cleanup.add(mqClient.Close)
+	cleanup.add(func() error {
+		drainContext, cancelDrain := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelDrain()
+		return errors.Join(mqClient.Drain(drainContext), mqClient.Close())
+	})
 
 	etcd, err := connector.NewEtcd(&cfg.Etcd, connector.WithLogger(logger))
 	if err != nil {
@@ -174,7 +179,11 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	if err != nil {
 		return nil, fmt.Errorf("pilot registry: %w", err)
 	}
-	cleanup.add(serviceRegistry.Close)
+	cleanup.add(func() error {
+		shutdownContext, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelShutdown()
+		return serviceRegistry.Shutdown(shutdownContext)
+	})
 
 	dialContext, cancelDial := context.WithTimeout(ctx, 5*time.Second)
 	logicConnection, err := serviceRegistry.GetConnection(dialContext, cfg.LogicServiceName,
@@ -441,37 +450,38 @@ func (p *Pilot) Run() error {
 
 	healthStarted, brokerStarted, workersStarted, ingressStarted, maintenanceStarted, mutationsStarted := false, false, false, false, false, false
 	rollback := func(cause error) error {
+		result := cause
 		p.health.SetReady(false)
 		if ingressStarted {
-			_ = p.ingress.Stop()
+			result = errors.Join(result, p.ingress.Stop())
 		}
 		if workersStarted {
 			p.workers.StopClaiming()
 			p.workers.AbortActive()
 			rollbackContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = p.workers.Drain(rollbackContext)
+			result = errors.Join(result, p.workers.Drain(rollbackContext))
 			cancel()
 		}
 		if mutationsStarted {
-			p.mutations.Stop()
+			result = errors.Join(result, p.mutations.Stop())
 		}
 		if maintenanceStarted {
 			p.maintenance.Stop()
 		}
 		runtimeContext, cancelRuntime := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = p.runtime.Shutdown(runtimeContext)
+		result = errors.Join(result, p.runtime.Shutdown(runtimeContext))
 		cancelRuntime()
 		if brokerStarted {
 			brokerContext, cancelBroker := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = p.broker.Close(brokerContext)
+			result = errors.Join(result, p.broker.Close(brokerContext))
 			cancelBroker()
 		}
 		if healthStarted {
 			healthContext, cancelHealth := context.WithTimeout(context.Background(), 5*time.Second)
-			_ = p.health.Stop(healthContext)
+			result = errors.Join(result, p.health.Stop(healthContext))
 			cancelHealth()
 		}
-		return cause
+		return result
 	}
 
 	if err := p.health.Start(); err != nil {
@@ -527,9 +537,7 @@ func (p *Pilot) startWatchers() {
 		}
 	}()
 	if p.maintenance != nil {
-		p.watchWG.Add(1)
-		go func() {
-			defer p.watchWG.Done()
+		p.watchWG.Go(func() {
 			for {
 				select {
 				case err := <-p.maintenance.Errors():
@@ -540,12 +548,10 @@ func (p *Pilot) startWatchers() {
 					return
 				}
 			}
-		}()
+		})
 	}
 	if p.mutations != nil {
-		p.watchWG.Add(1)
-		go func() {
-			defer p.watchWG.Done()
+		p.watchWG.Go(func() {
 			for {
 				select {
 				case err := <-p.mutations.Errors():
@@ -556,7 +562,7 @@ func (p *Pilot) startWatchers() {
 					return
 				}
 			}
-		}()
+		})
 	}
 	go func() {
 		defer p.watchWG.Done()
@@ -610,7 +616,7 @@ func (p *Pilot) Close() error {
 			cancelRuntime()
 		}
 		if p.mutations != nil {
-			p.mutations.Stop()
+			closeErr = errors.Join(closeErr, p.mutations.Stop())
 		}
 		if p.maintenance != nil {
 			p.maintenance.Stop()

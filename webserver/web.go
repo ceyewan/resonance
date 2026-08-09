@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -26,6 +27,8 @@ type Web struct {
 	health    *health.Probe
 	distDir   string
 	indexPath string
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // New 创建 Web 模块实例
@@ -35,7 +38,10 @@ func New() (*Web, error) {
 		return nil, err
 	}
 
-	logger, _ := clog.New(&cfg.Log, clog.WithTraceContext())
+	logger, err := clog.New(&cfg.Log, clog.WithTraceContext())
+	if err != nil {
+		return nil, fmt.Errorf("logger init: %w", err)
+	}
 
 	dist := cfg.Static.GetDistDir()
 	if err := validateDistDir(dist); err != nil {
@@ -89,11 +95,14 @@ func (w *Web) Run() error {
 
 // Close 优雅退出
 func (w *Web) Close() error {
-	w.health.SetReady(false)
-	w.health.SetShutdown(true)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return w.server.Shutdown(ctx)
+	w.closeOnce.Do(func() {
+		w.health.SetReady(false)
+		w.health.SetShutdown(true)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		w.closeErr = w.server.Shutdown(ctx)
+	})
+	return w.closeErr
 }
 
 func (w *Web) staticHandler() http.Handler {

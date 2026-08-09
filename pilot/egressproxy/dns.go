@@ -61,7 +61,7 @@ func canonicalDNSName(host string) (string, error) {
 	if len(ascii) > 253 || ascii == "" {
 		return "", fmt.Errorf("host length is invalid")
 	}
-	for _, label := range strings.Split(ascii, ".") {
+	for label := range strings.SplitSeq(ascii, ".") {
 		if len(label) == 0 || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
 			return "", fmt.Errorf("host label is invalid")
 		}

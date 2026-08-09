@@ -40,6 +40,17 @@ nats:
   max_reconnect: 10
   reconnect_delay: 1s
 
+jetstream:
+  auto_create_stream: true
+  stream_prefix: S-
+  ack_wait: 30s
+  max_deliver: 5
+  retention: limits
+  storage: file
+  max_age: 168h
+  max_bytes: 1073741824
+  replicas: 1
+
 etcd:
   name: logic-etcd
   endpoints:
@@ -109,6 +120,8 @@ worker_id:
 
 # 可观测性配置
 observability:
+  version: dev
+  environment: development
   trace:
     disable: false # 开发环境启用 Trace
     endpoint: localhost:4317 # OTLP Collector 地址

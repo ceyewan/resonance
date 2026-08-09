@@ -54,10 +54,7 @@ func NewLocalManager(config LocalConfig) (*LocalManager, error) {
 	if config.RolloverBytes == 0 {
 		config.RolloverBytes = defaultRolloverBytes
 		if config.RolloverBytes > config.MaxSnapshotBytes {
-			config.RolloverBytes = config.MaxSnapshotBytes / 2
-			if config.RolloverBytes < 1 {
-				config.RolloverBytes = 1
-			}
+			config.RolloverBytes = max(config.MaxSnapshotBytes/2, 1)
 		}
 	}
 	if config.RolloverEntryCount == 0 {
@@ -461,7 +458,7 @@ func ensurePathInside(root, path string) error {
 	if relative == "." {
 		return nil
 	}
-	for _, component := range strings.Split(relative, string(filepath.Separator)) {
+	for component := range strings.SplitSeq(relative, string(filepath.Separator)) {
 		current = filepath.Join(current, component)
 		info, statErr := os.Lstat(current)
 		if statErr != nil {

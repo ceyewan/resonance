@@ -216,7 +216,7 @@ func TestAgentBudgetRepo_ConcurrentReservationsPreventOverspendAndIsolateTenants
 	require.NoError(t, err)
 
 	reservations := make([]AgentBudgetReservation, 0, 8)
-	for index := 0; index < 8; index++ {
+	for index := range 8 {
 		_, reservation := startBudgetTestRun(t, ctx, runRepo, tenantID,
 			fmt.Sprintf("run-budget-concurrent-%d", index), fmt.Sprintf("conversation-budget-concurrent-%d", index),
 			int64(30_000+index), base.Add(time.Duration(index)*time.Millisecond), time.Hour)
@@ -227,14 +227,11 @@ func TestAgentBudgetRepo_ConcurrentReservationsPreventOverspendAndIsolateTenants
 	errorsByWorker := make(chan error, len(reservations))
 	var workers sync.WaitGroup
 	for _, reservation := range reservations {
-		reservation := reservation
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			<-start
 			_, reserveErr := runRepo.ReserveAgentBudget(ctx, reservation)
 			errorsByWorker <- reserveErr
-		}()
+		})
 	}
 	close(start)
 	workers.Wait()
@@ -282,12 +279,10 @@ func TestAgentBudgetRepo_ConcurrentReservationsPreventOverspendAndIsolateTenants
 	idempotentErrors := make(chan error, 8)
 	workers = sync.WaitGroup{}
 	for range 8 {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			_, reserveErr := runRepo.ReserveAgentBudget(ctx, idempotentReservation)
 			idempotentErrors <- reserveErr
-		}()
+		})
 	}
 	workers.Wait()
 	close(idempotentErrors)

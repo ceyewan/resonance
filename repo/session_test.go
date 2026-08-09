@@ -149,9 +149,7 @@ func TestSessionRepo_CreateSessionWithMembers_AtomicIdempotentAndVersioned(t *te
 		errors := make(chan error, 8)
 		var group sync.WaitGroup
 		for range 8 {
-			group.Add(1)
-			go func() {
-				defer group.Done()
+			group.Go(func() {
 				persisted, wasCreated, createErr := sessionRepo.CreateSessionWithMembers(ctx, session, members)
 				if createErr == nil {
 					if persisted == nil || persisted.SessionID != session.SessionID {
@@ -162,7 +160,7 @@ func TestSessionRepo_CreateSessionWithMembers_AtomicIdempotentAndVersioned(t *te
 					}
 				}
 				errors <- createErr
-			}()
+			})
 		}
 		group.Wait()
 		close(errors)

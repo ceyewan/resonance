@@ -64,7 +64,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 
 ## 技术栈
 
-- **后端**:Go 1.26+、[Genesis v0.5.0](github.com/ceyewan/genesis)(本地子模块 `genesis/`)、gRPC、NATS
+- **后端**:Go 1.26+、[Genesis v1.0.0-rc.1](https://github.com/ceyewan/genesis/releases/tag/v1.0.0-rc.1)（已发布 Go module，禁止本地 `replace`）、gRPC、NATS
 - **存储**:PostgreSQL 17(消息/用户/会话)、Redis(路由映射、缓存)
 - **前端**:React 18 + TypeScript + Vite + Zustand + ConnectRPC + Dexie(IndexedDB)
 - **协议**:Protobuf(`api/proto/`),`make gen` 生成 Go + TS 代码

@@ -5,6 +5,7 @@ package iam
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/ceyewan/resonance/model"
@@ -90,10 +91,5 @@ func AuthorizeAgentProfile(profileID string, roles, scopes []string) error {
 }
 
 func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }

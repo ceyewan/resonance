@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/ratelimit"
 	"github.com/ceyewan/genesis/registry"
 
 	"github.com/ceyewan/resonance/gateway/observability"
@@ -51,6 +53,29 @@ type Config struct {
 
 	// StatusBatcher 配置
 	StatusBatcher StatusBatcherConfig `mapstructure:"status_batcher"`
+
+	RateLimit RateLimitConfig `mapstructure:"rate_limit"`
+}
+
+type RateLimitConfig struct {
+	Driver ratelimit.DriverType `mapstructure:"driver"`
+	Prefix string               `mapstructure:"prefix"`
+}
+
+func (c RateLimitConfig) ToGenesisConfig() *ratelimit.Config {
+	driver := c.Driver
+	if driver == "" {
+		driver = ratelimit.DriverStandalone
+	}
+	cfg := &ratelimit.Config{Driver: driver}
+	if driver == ratelimit.DriverDistributed {
+		prefix := c.Prefix
+		if prefix == "" {
+			prefix = "resonance:gateway:ratelimit:"
+		}
+		cfg.Distributed = &ratelimit.DistributedConfig{Prefix: prefix}
+	}
+	return cfg
 }
 
 type ServiceAuthConfig struct {
@@ -209,12 +234,15 @@ func Load() (*Config, error) {
 	// 必须先 Load 才能读取配置
 	ctx := context.Background()
 	if err := loader.Load(ctx); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close gateway config loader: %w", err)
 	}
 	if len(cfg.Auth.SecretKey) < 32 {
 		return nil, fmt.Errorf("auth requires at least 32 secret bytes")

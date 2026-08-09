@@ -1,5 +1,8 @@
 name: Check Generated Code
 
+env:
+  GOWORK: "off"
+
 on:
   pull_request:
     branches: [main, master]

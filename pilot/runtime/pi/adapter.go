@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -456,10 +457,8 @@ func (a *Adapter) monitor(run *activeRun, initialEvents []WireEvent) {
 		}
 		return false
 	}
-	for _, event := range initialEvents {
-		if consume(event) {
-			return
-		}
+	if slices.ContainsFunc(initialEvents, consume) {
+		return
 	}
 
 	for {
@@ -919,10 +918,7 @@ func (c *boundedCapture) Write(data []byte) (int, error) {
 	c.total += int64(len(data))
 	remaining := c.limit - c.buf.Len()
 	if remaining > 0 {
-		keep := len(data)
-		if keep > remaining {
-			keep = remaining
-		}
+		keep := min(len(data), remaining)
 		_, _ = c.buf.Write(data[:keep])
 	}
 	if c.total > int64(c.limit) {

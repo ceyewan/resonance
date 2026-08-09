@@ -250,7 +250,8 @@ func (m *fakeMQ) Subscribe(_ context.Context, _ string, handler mq.Handler, _ ..
 	m.handler = handler
 	return &fakeSubscription{done: make(chan struct{})}, nil
 }
-func (*fakeMQ) Close() error { return nil }
+func (*fakeMQ) Close() error                { return nil }
+func (*fakeMQ) Drain(context.Context) error { return nil }
 
 type fakeSubscription struct {
 	once sync.Once
@@ -261,7 +262,8 @@ func (s *fakeSubscription) Unsubscribe() error {
 	s.once.Do(func() { close(s.done) })
 	return nil
 }
-func (s *fakeSubscription) Done() <-chan struct{} { return s.done }
+func (s *fakeSubscription) Done() <-chan struct{}       { return s.done }
+func (s *fakeSubscription) Drain(context.Context) error { return s.Unsubscribe() }
 
 type fakeMessage struct {
 	data     []byte
@@ -286,7 +288,8 @@ func (m *fakeMessage) Nak() error {
 	m.recorder.add("nak")
 	return nil
 }
-func (*fakeMessage) ID() string { return "test:1" }
+func (m *fakeMessage) NakWithDelay(time.Duration) error { return m.Nak() }
+func (*fakeMessage) ID() string                         { return "test:1" }
 
 type ingressRecorder struct {
 	mu    sync.Mutex

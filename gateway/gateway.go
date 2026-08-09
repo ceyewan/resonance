@@ -2,7 +2,9 @@ package gateway
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/auth"
@@ -42,7 +44,9 @@ type Gateway struct {
 	cancel    context.CancelFunc
 
 	// workerID 保活停止函数
-	stopWorkerIDKeepAlive func()
+	stopWorkerIDKeepAlive func() error
+	closeOnce             sync.Once
+	closeErr              error
 }
 
 // resources 内部资源聚合，方便统一管理
@@ -53,6 +57,7 @@ type resources struct {
 	connMgr       *ws.Manager
 	authenticator auth.Authenticator
 	userSigner    *serviceauth.Signer
+	limiter       ratelimit.Limiter
 }
 
 // New 创建 Gateway 实例
@@ -82,6 +87,8 @@ func New() (*Gateway, error) {
 func (g *Gateway) initComponents() error {
 	// 1. 初始化可观测性（Trace + Metrics）
 	obsCfg := &observability.Config{
+		Version: g.config.Observability.Version, InstanceID: g.config.Observability.InstanceID,
+		Environment: g.config.Observability.Environment,
 		Trace: observability.TraceConfig{
 			Disable:  g.config.Observability.Trace.Disable,
 			Endpoint: g.config.Observability.Trace.Endpoint,
@@ -128,21 +135,23 @@ func (g *Gateway) initComponents() error {
 
 	// 4. 使用 Allocator 从 Redis 获取唯一的 workerID
 	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
-		Driver: "redis",
-		MaxID:  g.config.WorkerID.GetMaxID(),
+		Driver:    idgen.DriverRedis,
+		KeyPrefix: g.config.WorkerID.GetKey(),
+		MaxID:     g.config.WorkerID.GetMaxID(),
 	}, idgen.WithRedisConnector(res.redisConn))
 	if err != nil {
 		return fmt.Errorf("create allocator: %w", err)
 	}
 	workerID, err := allocator.Allocate(g.ctx)
 	if err != nil {
-		return fmt.Errorf("allocate workerID: %w", err)
+		return errors.Join(fmt.Errorf("allocate workerID: %w", err), allocator.Stop())
 	}
 	g.workerID = workerID
+	g.stopWorkerIDKeepAlive = allocator.Stop
 
 	// 监听 workerID 保活失败
 	go func() {
-		if err := <-allocator.KeepAlive(g.ctx); err != nil {
+		if err, ok := <-allocator.KeepAlive(g.ctx); ok && err != nil {
 			g.logger.Error("workerID keepalive failed, shutting down", clog.String("error", err.Error()))
 			g.cancel()
 		}
@@ -167,18 +176,32 @@ func (g *Gateway) initComponents() error {
 
 	// 8. 初始化服务接口 (Servers)
 	g.healthProbe = health.NewProbe()
-	g.initServers(idGen)
+	if err := g.initServers(idGen); err != nil {
+		return err
+	}
+
+	go g.monitorRegistryLeaseFailures()
 
 	return nil
 }
 
 // initBaseResources 初始化外部连接 (Redis、Etcd、Registry)
-func (g *Gateway) initBaseResources() (*resources, error) {
+func (g *Gateway) initBaseResources() (_ *resources, returnedErr error) {
+	cleanup := make([]func() error, 0, 3)
+	defer func() {
+		if returnedErr == nil {
+			return
+		}
+		for index := len(cleanup) - 1; index >= 0; index-- {
+			returnedErr = errors.Join(returnedErr, cleanup[index]())
+		}
+	}()
 	// Redis
 	redisConn, err := connector.NewRedis(&g.config.Redis, connector.WithLogger(g.logger))
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
+	cleanup = append(cleanup, redisConn.Close)
 	if err := redisConn.Connect(g.ctx); err != nil {
 		return nil, fmt.Errorf("redis connect: %w", err)
 	}
@@ -186,21 +209,19 @@ func (g *Gateway) initBaseResources() (*resources, error) {
 	// Etcd
 	etcdConn, err := connector.NewEtcd(&g.config.Etcd, connector.WithLogger(g.logger))
 	if err != nil {
-		_ = redisConn.Close()
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
+	cleanup = append(cleanup, etcdConn.Close)
 	if err := etcdConn.Connect(g.ctx); err != nil {
-		_ = redisConn.Close()
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
 
 	// Registry
 	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger))
 	if err != nil {
-		_ = redisConn.Close()
-		_ = etcdConn.Close()
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
+	cleanup = append(cleanup, reg.Close)
 	g.registry = reg
 
 	return &resources{
@@ -246,16 +267,22 @@ func (g *Gateway) initLogicDependencies() error {
 }
 
 // initServers 初始化各个协议的服务端
-func (g *Gateway) initServers(idGen idgen.Generator) {
+func (g *Gateway) initServers(idGen idgen.Generator) error {
 	// WebSocket Handler
 	dispatcher := ws.NewDispatcher(g.logger, g.resources.logicClient)
 	wsHandler := ws.NewUpgrader(g.logger, g.resources.connMgr, dispatcher, g.config.WSConfig)
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares
-	limiter, _ := ratelimit.New(&ratelimit.Config{
-		Driver: ratelimit.DriverStandalone,
-	}, ratelimit.WithLogger(g.logger))
+	limiterOptions := []ratelimit.Option{ratelimit.WithLogger(g.logger)}
+	if g.config.RateLimit.Driver == ratelimit.DriverDistributed {
+		limiterOptions = append(limiterOptions, ratelimit.WithRedisConnector(g.resources.redisConn))
+	}
+	limiter, err := ratelimit.New(g.config.RateLimit.ToGenesisConfig(), limiterOptions...)
+	if err != nil {
+		return fmt.Errorf("rate limiter init: %w", err)
+	}
+	g.resources.limiter = limiter
 	middlewares := httpapi.NewMiddlewares(g.logger, limiter, idGen)
 	apiHandler := httpapi.NewHTTPHandler(g.resources.logicClient, g.resources.authenticator, g.logger)
 
@@ -265,6 +292,25 @@ func (g *Gateway) initServers(idGen idgen.Generator) {
 	// Servers
 	g.httpServer = server.NewHTTPServer(g.config, g.logger, apiHandler, middlewares, wsHandler, g.healthProbe)
 	g.grpcServer = server.NewGRPCServer(fmt.Sprintf(":%d", g.config.GetGRPCPort()), g.logger, pushService)
+	return nil
+}
+
+func (g *Gateway) monitorRegistryLeaseFailures() {
+	for {
+		select {
+		case failure, ok := <-g.registry.LeaseFailures():
+			if !ok {
+				return
+			}
+			g.logger.Error("gateway registry lease lost", clog.String("service_id", failure.ServiceID), clog.Error(failure.Err))
+			if g.healthProbe != nil {
+				g.healthProbe.SetReady(false)
+			}
+			g.cancel()
+		case <-g.ctx.Done():
+			return
+		}
+	}
 }
 
 // Run 启动所有服务并注册
@@ -319,6 +365,12 @@ func (g *Gateway) registerService() error {
 
 // Close 优雅关闭资源
 func (g *Gateway) Close() error {
+	g.closeOnce.Do(func() { g.closeErr = g.close() })
+	return g.closeErr
+}
+
+func (g *Gateway) close() error {
+	var result error
 	if g.logger != nil {
 		g.logger.Info("shutting down gateway...")
 	}
@@ -330,15 +382,20 @@ func (g *Gateway) Close() error {
 
 	// 1. 停止 workerID 保活
 	if g.stopWorkerIDKeepAlive != nil {
-		g.stopWorkerIDKeepAlive()
+		result = errors.Join(result, g.stopWorkerIDKeepAlive())
 	}
 
 	// 2. 注销服务
 	if g.registry != nil {
-		if err := g.registry.Deregister(context.Background(), g.gatewayID); err != nil {
-			g.logger.Warn("deregister gateway failed", clog.Error(err))
+		registryCtx, cancelRegistry := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelRegistry()
+		if g.gatewayID != "" {
+			if err := g.registry.Deregister(registryCtx, g.gatewayID); err != nil {
+				g.logger.Warn("deregister gateway failed", clog.Error(err))
+				result = errors.Join(result, fmt.Errorf("deregister gateway: %w", err))
+			}
 		}
-		_ = g.registry.Close()
+		result = errors.Join(result, g.registry.Shutdown(registryCtx))
 	}
 
 	// 3. 停止服务实例
@@ -355,43 +412,28 @@ func (g *Gateway) Close() error {
 		}
 	}
 
-	// 4. 释放核心资源（带超时控制）
+	// 4. 按依赖逆序释放核心资源。每个组件自身负责有界关闭。
 	if g.resources != nil {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		done := make(chan struct{})
-		go func() {
-			if g.resources.connMgr != nil {
-				_ = g.resources.connMgr.Close()
-			}
-			if g.resources.logicClient != nil {
-				_ = g.resources.logicClient.Close()
-			}
-			if g.resources.redisConn != nil {
-				_ = g.resources.redisConn.Close()
-			}
-			if g.resources.etcdConn != nil {
-				_ = g.resources.etcdConn.Close()
-			}
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// 正常关闭完成
-		case <-shutdownCtx.Done():
-			// 超时，记录警告但继续
-			if g.logger != nil {
-				g.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
-			}
+		if g.resources.connMgr != nil {
+			result = errors.Join(result, g.resources.connMgr.Close())
+		}
+		if g.resources.logicClient != nil {
+			result = errors.Join(result, g.resources.logicClient.Close())
+		}
+		if g.resources.limiter != nil {
+			result = errors.Join(result, g.resources.limiter.Close())
+		}
+		if g.resources.etcdConn != nil {
+			result = errors.Join(result, g.resources.etcdConn.Close())
+		}
+		if g.resources.redisConn != nil {
+			result = errors.Join(result, g.resources.redisConn.Close())
 		}
 	}
 
 	// 5. 关闭可观测性组件
-	if err := observability.Shutdown(context.Background()); err != nil && g.logger != nil {
-		g.logger.Error("observability shutdown failed", clog.Error(err))
-	}
-
-	return nil
+	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelObservability()
+	result = errors.Join(result, observability.Shutdown(observabilityCtx))
+	return result
 }

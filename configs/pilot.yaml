@@ -30,6 +30,17 @@ nats:
   max_reconnect: 10
   reconnect_delay: 1s
 
+jetstream:
+  auto_create_stream: true
+  stream_prefix: S-
+  ack_wait: 30s
+  max_deliver: 5
+  retention: limits
+  storage: file
+  max_age: 168h
+  max_bytes: 1073741824
+  replicas: 1
+
 etcd:
   name: pilot-etcd
   endpoints:
@@ -137,6 +148,8 @@ mutation:
   max_inflight: 16
 
 observability:
+  version: dev
+  environment: development
   trace:
     disable: false
     endpoint: 127.0.0.1:4317

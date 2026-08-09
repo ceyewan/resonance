@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	genesisconfig "github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
 
 	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
@@ -38,6 +40,7 @@ type Config struct {
 	NATS       connector.NATSConfig       `mapstructure:"nats"`
 	Etcd       connector.EtcdConfig       `mapstructure:"etcd"`
 	Registry   RegistryConfig             `mapstructure:"registry"`
+	JetStream  mq.JetStreamConfig         `mapstructure:"jetstream"`
 
 	Ingress       IngressConfig             `mapstructure:"ingress"`
 	Stream        StreamConfig              `mapstructure:"stream"`
@@ -173,11 +176,14 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if err := loader.Load(context.Background()); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close pilot config loader: %w", err)
 	}
 	cfg.setDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -295,10 +301,7 @@ func (c *Config) setDefaults() {
 	if c.Session.RolloverBytes == 0 {
 		c.Session.RolloverBytes = 32 << 20
 		if c.Session.RolloverBytes > c.Session.MaxSnapshotBytes {
-			c.Session.RolloverBytes = c.Session.MaxSnapshotBytes / 2
-			if c.Session.RolloverBytes < 1 {
-				c.Session.RolloverBytes = 1
-			}
+			c.Session.RolloverBytes = max(c.Session.MaxSnapshotBytes/2, 1)
 		}
 	}
 	if c.Session.RolloverEntryCount == 0 {
@@ -449,8 +452,8 @@ func validPrivateSocketPath(path string) bool {
 }
 
 func validateBrokerAddress(address string) (port int, unix bool, err error) {
-	if strings.HasPrefix(address, "unix://") {
-		if !validPrivateSocketPath(strings.TrimPrefix(address, "unix://")) {
+	if after, ok := strings.CutPrefix(address, "unix://"); ok {
+		if !validPrivateSocketPath(after) {
 			return 0, true, fmt.Errorf("invalid broker Unix socket")
 		}
 		return 0, true, nil

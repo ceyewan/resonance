@@ -4,6 +4,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ceyewan/genesis/clog"
@@ -53,7 +54,7 @@ type AgentBudgetConfig struct {
 }
 
 // Run 执行数据库初始化：建表 + 种子数据
-func Run() error {
+func Run() (returnedErr error) {
 	// 1. 加载配置（复用 logic.yaml）
 	cfg, err := loadConfig()
 	if err != nil {
@@ -61,7 +62,10 @@ func Run() error {
 	}
 
 	// 2. 初始化日志
-	logger, _ := clog.New(&cfg.Log)
+	logger, err := clog.New(&cfg.Log)
+	if err != nil {
+		return fmt.Errorf("logger init: %w", err)
+	}
 
 	logger.Info("starting database initialization...")
 
@@ -70,7 +74,7 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("postgresql connector: %w", err)
 	}
-	defer func() { _ = postgresConn.Close() }()
+	defer func() { returnedErr = errors.Join(returnedErr, postgresConn.Close()) }()
 	if err := postgresConn.Connect(context.Background()); err != nil {
 		return fmt.Errorf("postgresql connect: %w", err)
 	}
@@ -79,7 +83,7 @@ func Run() error {
 	if err != nil {
 		return fmt.Errorf("db init: %w", err)
 	}
-	defer func() { _ = dbInstance.Close() }()
+	defer func() { returnedErr = errors.Join(returnedErr, dbInstance.Close()) }()
 
 	ctx := context.Background()
 	gormDB := dbInstance.DB(ctx)
@@ -298,12 +302,15 @@ func loadConfig() (*Config, error) {
 	}
 
 	if err := loader.Load(context.Background()); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close bootstrap config loader: %w", err)
 	}
 	return &cfg, nil
 }
