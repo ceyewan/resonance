@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ceyewan/resonance/model"
+	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
 )
 
@@ -367,6 +368,9 @@ func (b *Broker) handleExecute(writer http.ResponseWriter, request *http.Request
 	if !ok {
 		return
 	}
+	executionContext := pilotobservability.ExtractPersistedTraceContext(request.Context(), authorization.traceContext)
+	executionContext, endSpan := pilotobservability.StartSpan(executionContext, "agent.tool.execute")
+	defer endSpan()
 	request.Body = http.MaxBytesReader(writer, request.Body, b.config.MaxRequestBytes)
 	decoder := json.NewDecoder(request.Body)
 	decoder.DisallowUnknownFields()
@@ -380,7 +384,7 @@ func (b *Broker) handleExecute(writer http.ResponseWriter, request *http.Request
 		b.writeError(writer, http.StatusBadRequest, "invalid tool request")
 		return
 	}
-	output, err := b.registry.execute(request.Context(), ToolName(execution.ToolName), execution.ToolCallID, authorization, execution.Args)
+	output, err := b.registry.execute(executionContext, ToolName(execution.ToolName), execution.ToolCallID, authorization, execution.Args)
 	if err != nil {
 		switch {
 		case errors.Is(err, errToolNotAuthorized):
@@ -420,6 +424,9 @@ func validToolResultStatus(value string) bool {
 type requestAuthorization struct {
 	claims    CapabilityClaims
 	principal pilotruntime.ActorPrincipal
+	// traceContext comes only from the AgentRun that passed the capability/run
+	// binding checks. Runtime-supplied HTTP headers are never used as a carrier.
+	traceContext []byte
 }
 
 func (b *Broker) authorize(writer http.ResponseWriter, request *http.Request) (requestAuthorization, bool) {
@@ -448,7 +455,9 @@ func (b *Broker) authorize(writer http.ResponseWriter, request *http.Request) (r
 		b.writeError(writer, http.StatusUnauthorized, "capability is no longer active")
 		return requestAuthorization{}, false
 	}
-	return requestAuthorization{claims: claims, principal: principal}, true
+	return requestAuthorization{
+		claims: claims, principal: principal, traceContext: append([]byte(nil), run.TraceContext...),
+	}, true
 }
 
 type userBackedPrincipalReader struct{ users UserReader }

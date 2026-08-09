@@ -10,6 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
+	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
 )
 
 type ComponentConfig struct {
@@ -69,7 +70,10 @@ func (c *Component) handleMessage(message mq.Message) error {
 	if event.GetTenantId() != c.service.config.TenantID {
 		return message.Ack()
 	}
-	if err := c.service.ProcessCall(message.Context(), event.GetTenantId(), event.GetCallId()); err != nil {
+	processContext := pilotobservability.ExtractTraceContext(message.Context(), event.GetTraceHeaders())
+	processContext, endSpan := pilotobservability.StartSpan(processContext, "agent.mutation.consume")
+	defer endSpan()
+	if err := c.service.ProcessCall(processContext, event.GetTenantId(), event.GetCallId()); err != nil {
 		if nakErr := message.Nak(); nakErr != nil {
 			return fmt.Errorf("process approval decision: %v; nak: %w", err, nakErr)
 		}

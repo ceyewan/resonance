@@ -15,10 +15,17 @@ import (
 	"testing"
 	"time"
 
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pilot/runtime"
+	"github.com/ceyewan/resonance/pkg/grpctrace"
 	"github.com/ceyewan/resonance/repo"
 )
 
@@ -159,6 +166,81 @@ func TestBroker_GetMyProfileIsSelfScopedAndCapabilityBoundToActiveRun(t *testing
 	expiredRunResponse := brokerRequest(t, http.MethodPost, broker.Endpoint()+"/v1/execute", token.Reveal(), executeBody)
 	require.Equal(t, http.StatusUnauthorized, expiredRunResponse.StatusCode)
 	require.NoError(t, expiredRunResponse.Body.Close())
+}
+
+func TestBroker_AgentRunToolLogicApprovalParentContinuity(t *testing.T) {
+	previousProvider := otel.GetTracerProvider()
+	previousPropagator := otel.GetTextMapPropagator()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		otel.SetTracerProvider(previousProvider)
+		otel.SetTextMapPropagator(previousPropagator)
+	})
+
+	tracer := provider.Tracer("phase-two-agent-continuity")
+	runContext, runSpan := tracer.Start(context.Background(), "agent.run")
+	carrier := make(map[string]string, 4)
+	genesistrace.Inject(runContext, carrier)
+	carrier["baggage"] = "tenant_id=must-not-propagate"
+	carrier["authorization"] = "must-not-propagate"
+	encoded, err := json.Marshal(carrier)
+	require.NoError(t, err)
+
+	run := toolBrokerRun()
+	run.ProfileID = iamAdminProfile
+	run.TraceContext = encoded
+	capability, err := NewCapabilityManager(
+		[]byte("0123456789abcdef0123456789abcdef"), 5*time.Minute,
+		WithCapabilityNonceSource(func() (string, error) { return "nonce-trace", nil }),
+	)
+	require.NoError(t, err)
+	principal := runtime.ActorPrincipal{
+		TenantID: run.TenantID, ActorID: run.ActorID, Username: run.ActorUsername,
+		Roles: []string{iamAdminRole}, Scopes: []string{iamUserWriteScope},
+	}
+	preparer := &fakeMutationPreparer{observe: func(ctx context.Context) {
+		outgoing := grpctrace.InjectOutgoing(ctx)
+		outgoingMetadata, _ := metadata.FromOutgoingContext(outgoing)
+		logicContext := grpctrace.ExtractIncoming(metadata.NewIncomingContext(context.Background(), outgoingMetadata))
+		_, span := tracer.Start(logicContext, "logic.approval.create")
+		span.End()
+	}}
+	broker, err := New(Config{
+		Address: "127.0.0.1:0", ProfileID: run.ProfileID, ProfileVersion: run.ProfileVersion,
+		MaxRequestBytes: 2048, MaxResponseBytes: 8192, RequestTimeout: time.Second,
+	}, capability, &fakeRunReader{run: run}, &fakeBrokerUserReader{user: &model.User{
+		Username: run.ActorID, Kind: model.UserKindHuman,
+	}}, WithPrincipalReader(&fakePrincipalReader{principal: principal}), WithMutationPreparer(preparer))
+	require.NoError(t, err)
+	require.NoError(t, broker.Start())
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, broker.Close(ctx))
+	})
+	token, err := capability.IssueCapability(context.Background(), run, principal)
+	require.NoError(t, err)
+
+	response := executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-trace",
+		`{"target_username":"bob","desired_status":"DISABLED","expected_version":4,"dry_run":false}`)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.NoError(t, response.Body.Close())
+	runSpan.End()
+
+	spans := make(map[string]sdktrace.ReadOnlySpan)
+	for _, span := range recorder.Ended() {
+		spans[span.Name()] = span
+	}
+	require.Contains(t, spans, "agent.run")
+	require.Contains(t, spans, "agent.tool.execute")
+	require.Contains(t, spans, "logic.approval.create")
+	require.Equal(t, spans["agent.run"].SpanContext().TraceID(), spans["agent.tool.execute"].SpanContext().TraceID())
+	require.Equal(t, spans["agent.run"].SpanContext().SpanID(), spans["agent.tool.execute"].Parent().SpanID())
+	require.Equal(t, spans["agent.tool.execute"].SpanContext().SpanID(), spans["logic.approval.create"].Parent().SpanID())
 }
 
 func TestToolRegistry_ManifestSeparatesProfilesAndCurrentPermissions(t *testing.T) {
@@ -566,9 +648,13 @@ type fakeMutationPreparer struct {
 	request MembershipMutationPrepareRequest
 	calls   int
 	result  *MembershipMutationPrepareResult
+	observe func(context.Context)
 }
 
-func (p *fakeMutationPreparer) PrepareTenantMembershipStatus(_ context.Context, request MembershipMutationPrepareRequest) (*MembershipMutationPrepareResult, error) {
+func (p *fakeMutationPreparer) PrepareTenantMembershipStatus(ctx context.Context, request MembershipMutationPrepareRequest) (*MembershipMutationPrepareResult, error) {
+	if p.observe != nil {
+		p.observe(ctx)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.request = request

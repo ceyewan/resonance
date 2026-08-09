@@ -108,8 +108,13 @@ func TestExtractPersistedTraceContext_RestoresOnlyBoundedW3CHeaders(t *testing.T
 	require.True(t, span.IsRemote())
 	require.Zero(t, baggage.FromContext(ctx).Len())
 
-	malformed := ExtractPersistedTraceContext(context.Background(), []byte(`{"traceparent":"bad\r\nheader"}`))
+	attackerContext := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{9}, SpanID: trace.SpanID{8}, TraceFlags: trace.FlagsSampled,
+	}))
+	malformed := ExtractPersistedTraceContext(attackerContext, []byte(`{"traceparent":"bad\r\nheader"}`))
 	require.False(t, trace.SpanContextFromContext(malformed).IsValid())
+	empty := ExtractPersistedTraceContext(attackerContext, nil)
+	require.False(t, trace.SpanContextFromContext(empty).IsValid())
 }
 
 type testRuntimeSink struct{ err error }
