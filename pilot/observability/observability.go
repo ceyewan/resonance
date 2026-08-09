@@ -6,17 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/metrics"
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 
 	"github.com/ceyewan/resonance/model"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
@@ -47,12 +44,13 @@ type Telemetry struct {
 }
 
 func New(config Config) (*Telemetry, error) {
-	traceShutdown, err := initTrace(config.Trace)
+	applyResourceDefaults(&config)
+	traceShutdown, err := initTrace(config)
 	if err != nil {
 		return nil, fmt.Errorf("pilot trace: %w", err)
 	}
 	meter, err := metrics.New(&metrics.Config{
-		ServiceName: serviceName, Version: "dev", Port: config.Metrics.Port,
+		ServiceName: serviceName, Version: config.Version, InstanceID: config.InstanceID, Environment: config.Environment, Port: config.Metrics.Port,
 		Path: config.Metrics.Path, EnableRuntime: config.Metrics.EnableRuntime,
 	})
 	if err != nil {
@@ -117,42 +115,31 @@ func newWithMeter(meter metrics.Meter, traceShutdown func(context.Context) error
 	return telemetry, nil
 }
 
-func initTrace(config TraceConfig) (func(context.Context) error, error) {
-	res, err := resource.New(context.Background(), resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
-	if err != nil {
-		return nil, err
+func initTrace(config Config) (func(context.Context) error, error) {
+	if config.Trace.Disable {
+		return genesistrace.InstallLocalProvider(serviceName)
 	}
-	options := []sdktrace.TracerProviderOption{sdktrace.WithResource(res)}
-	if !config.Disable {
-		if config.Sampler < 0 || config.Sampler > 1 {
-			return nil, fmt.Errorf("trace sampler must be between zero and one")
-		}
-		sampler := config.Sampler
-		if sampler == 0 {
-			sampler = 1
-		}
-		exporterOptions := []otlptracegrpc.Option{otlptracegrpc.WithTimeout(5 * time.Second)}
-		if config.Endpoint != "" {
-			exporterOptions = append(exporterOptions, otlptracegrpc.WithEndpoint(config.Endpoint))
-		}
-		if config.Insecure {
-			exporterOptions = append(exporterOptions, otlptracegrpc.WithInsecure())
-		}
-		exporter, exporterErr := otlptracegrpc.New(context.Background(), exporterOptions...)
-		if exporterErr != nil {
-			return nil, exporterErr
-		}
-		options = append(options,
-			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(sampler))),
-			sdktrace.WithBatcher(exporter),
-		)
+	return genesistrace.Init(&genesistrace.Config{ServiceName: serviceName, Version: config.Version,
+		InstanceID: config.InstanceID, Environment: config.Environment, Endpoint: config.Trace.Endpoint,
+		Sampler: config.Trace.Sampler, Batcher: genesistrace.BatcherBatch, Insecure: config.Trace.Insecure})
+}
+
+func applyResourceDefaults(config *Config) {
+	if config.Version == "" {
+		config.Version = "dev"
 	}
-	provider := sdktrace.NewTracerProvider(options...)
-	otel.SetTracerProvider(provider)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{}, propagation.Baggage{},
-	))
-	return provider.Shutdown, nil
+	if config.InstanceID == "" {
+		config.InstanceID, _ = os.Hostname()
+	}
+	if config.Environment == "" {
+		config.Environment = "development"
+	}
+	if config.Trace.Endpoint == "" {
+		config.Trace.Endpoint = "localhost:4317"
+	}
+	if config.Trace.Sampler == 0 {
+		config.Trace.Sampler = 1
+	}
 }
 
 func (t *Telemetry) Close(ctx context.Context) error {
@@ -197,14 +184,14 @@ func ExtractPersistedTraceContext(ctx context.Context, encoded []byte) context.C
 	if err := json.Unmarshal(encoded, &source); err != nil {
 		return ctx
 	}
-	carrier := propagation.MapCarrier{}
+	carrier := map[string]string{}
 	for _, key := range []string{"traceparent", "tracestate"} {
 		value := strings.TrimSpace(source[key])
 		if value != "" && len(value) <= 512 && !strings.ContainsAny(value, "\r\n\x00") {
 			carrier[key] = value
 		}
 	}
-	return otel.GetTextMapPropagator().Extract(ctx, carrier)
+	return genesistrace.Extract(ctx, carrier)
 }
 
 func StartSpan(ctx context.Context, name string) (context.Context, func()) {

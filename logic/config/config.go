@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/config"
 	"github.com/ceyewan/genesis/connector"
+	"github.com/ceyewan/genesis/mq"
 	"github.com/ceyewan/genesis/registry"
 )
 
@@ -32,6 +34,7 @@ type Config struct {
 	Redis      connector.RedisConfig      `mapstructure:"redis"`    // Redis 配置
 	NATS       connector.NATSConfig       `mapstructure:"nats"`     // NATS 配置
 	Etcd       connector.EtcdConfig       `mapstructure:"etcd"`     // Etcd 配置
+	JetStream  mq.JetStreamConfig         `mapstructure:"jetstream"`
 
 	// 服务注册发现配置
 	Registry RegistryConfig `mapstructure:"registry"`
@@ -51,7 +54,10 @@ type Config struct {
 
 	// 可观测性配置
 	Observability struct {
-		Trace struct {
+		Version     string `mapstructure:"version"`
+		InstanceID  string `mapstructure:"instance"`
+		Environment string `mapstructure:"environment"`
+		Trace       struct {
 			Disable  bool    `mapstructure:"disable"`  // 是否禁用 Trace
 			Endpoint string  `mapstructure:"endpoint"` // OTLP Collector 地址
 			Insecure bool    `mapstructure:"insecure"` // 是否使用不安全连接
@@ -270,12 +276,15 @@ func Load() (*Config, error) {
 	// 必须先 Load 才能读取配置
 	ctx := context.Background()
 	if err := loader.Load(ctx); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close logic config loader: %w", err)
 	}
 	if cfg.ServiceAuth.MaxSkew <= 0 {
 		cfg.ServiceAuth.MaxSkew = 30 * time.Second

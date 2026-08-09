@@ -140,9 +140,13 @@ func (r *fakeRegistryCloser) Watch(ctx context.Context, serviceName string) (<-c
 	return nil, nil
 }
 
+func (r *fakeRegistryCloser) LeaseFailures() <-chan registry.LeaseFailure { return nil }
+
 func (r *fakeRegistryCloser) GetConnection(ctx context.Context, serviceName string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return nil, nil
 }
+
+func (r *fakeRegistryCloser) Shutdown(context.Context) error { return r.Close() }
 
 func newTestTask() *Task {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -255,12 +259,12 @@ func TestTask_Close_OrderAndResourceClose(t *testing.T) {
 	}, calls)
 }
 
-func TestTask_Close_IgnoreConsumerStopError(t *testing.T) {
+func TestTask_Close_ReturnsConsumerStopError(t *testing.T) {
 	task := newTestTask()
 	task.healthServer = &fakeHealthServer{}
 	task.consumer = &fakeConsumer{stopErr: errors.New("stop failed")}
 	task.pusherMgr = &fakePusherManager{}
 
 	err := task.Close()
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "stop failed")
 }

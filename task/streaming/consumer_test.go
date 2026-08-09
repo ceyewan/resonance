@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
@@ -95,7 +96,8 @@ func (m *fakeMQ) Publish(_ context.Context, topic string, _ []byte, _ ...mq.Publ
 func (m *fakeMQ) Subscribe(context.Context, string, mq.Handler, ...mq.SubscribeOption) (mq.Subscription, error) {
 	return &fakeSubscription{}, nil
 }
-func (m *fakeMQ) Close() error { return nil }
+func (m *fakeMQ) Close() error                { return nil }
+func (m *fakeMQ) Drain(context.Context) error { return nil }
 func (m *fakeMQ) publishedTopics() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -104,8 +106,9 @@ func (m *fakeMQ) publishedTopics() []string {
 
 type fakeSubscription struct{}
 
-func (*fakeSubscription) Unsubscribe() error    { return nil }
-func (*fakeSubscription) Done() <-chan struct{} { return make(chan struct{}) }
+func (*fakeSubscription) Unsubscribe() error          { return nil }
+func (*fakeSubscription) Done() <-chan struct{}       { return make(chan struct{}) }
+func (*fakeSubscription) Drain(context.Context) error { return nil }
 
 type fakeMessage struct {
 	topic  string
@@ -114,10 +117,11 @@ type fakeMessage struct {
 	nacked bool
 }
 
-func (m *fakeMessage) Context() context.Context { return context.Background() }
-func (m *fakeMessage) Topic() string            { return m.topic }
-func (m *fakeMessage) Data() []byte             { return m.data }
-func (m *fakeMessage) Headers() mq.Headers      { return nil }
-func (m *fakeMessage) ID() string               { return "id" }
-func (m *fakeMessage) Ack() error               { m.acked = true; return nil }
-func (m *fakeMessage) Nak() error               { m.nacked = true; return nil }
+func (m *fakeMessage) Context() context.Context         { return context.Background() }
+func (m *fakeMessage) Topic() string                    { return m.topic }
+func (m *fakeMessage) Data() []byte                     { return m.data }
+func (m *fakeMessage) Headers() mq.Headers              { return nil }
+func (m *fakeMessage) ID() string                       { return "id" }
+func (m *fakeMessage) Ack() error                       { m.acked = true; return nil }
+func (m *fakeMessage) Nak() error                       { m.nacked = true; return nil }
+func (m *fakeMessage) NakWithDelay(time.Duration) error { return m.Nak() }

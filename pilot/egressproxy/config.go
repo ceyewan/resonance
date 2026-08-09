@@ -2,6 +2,7 @@ package egressproxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -42,11 +43,14 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if err := loader.Load(context.Background()); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close egress proxy config loader: %w", err)
 	}
 	cfg.setDefaults()
 	if err := cfg.Validate(); err != nil {

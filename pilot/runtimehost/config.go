@@ -2,6 +2,7 @@ package runtimehost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -75,11 +76,14 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 	if err := loader.Load(context.Background()); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 	var config Config
 	if err := loader.Unmarshal(&config); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close pilot runtime config loader: %w", err)
 	}
 	config.setDefaults()
 	if err := config.Validate(); err != nil {

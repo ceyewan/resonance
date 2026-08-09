@@ -10,10 +10,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  GOWORK: "off"
   GO_VERSION: "1.26.5"
   NODE_VERSION: "22"
   BUF_VERSION: "1.66.1"
   GOLANGCI_LINT_VERSION: "v2.12.2"
+  GOVULNCHECK_VERSION: "v1.2.0"
 
 jobs:
   go-lint:
@@ -45,6 +47,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Verify published Genesis module identity
+        run: |
+          go mod verify
+          test "$(go list -m -f '{{.Version}} {{.Sum}} {{.GoModSum}}' github.com/ceyewan/genesis)" = "v1.0.0-rc.1 h1:X3VK5VpPxIrgyzQsPPPSHQHaiNvMhhT/wcGCWkuFS8U= h1:VUPsG33Toz8lKJk2tEkgeWd7SFMIDjYtwvzYOuQmRU4="
+
       # repo/ 层测试依赖 testcontainers 自动拉起 postgres/redis 镜像，
       # ubuntu-latest runner 自带 Docker daemon，无需额外 services。
       - name: Run Go tests
@@ -55,7 +62,6 @@ jobs:
 
   go-security:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,7 +72,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@${{ env.GOVULNCHECK_VERSION }}
 
       - name: Run Go vulnerability scan
         run: make lint-security
@@ -171,11 +177,13 @@ jobs:
 
       - name: Build Pilot control and pinned Runtime images
         run: |
+          docker build --target final -t resonance:ci -f deploy/Dockerfile .
           docker build --target pilot-control-final -t resonance-pilot:ci -f deploy/Dockerfile .
           docker build --target pilot-runtime-final -t resonance-pilot-runtime:ci -f deploy/Dockerfile .
 
       - name: Verify control image excludes Node and Runtime pins Pi
         run: |
+          test "$(docker image inspect resonance:ci --format '{{.Config.User}}')" = "nobody"
           test "$(docker image inspect resonance-pilot:ci --format '{{.Config.User}}')" = "resonance"
           docker run --rm --entrypoint /bin/sh resonance-pilot:ci -ec '! command -v node && ! test -e /opt/resonance/bridge/node_modules/.bin/pi'
           test "$(docker image inspect resonance-pilot-runtime:ci --format '{{.Config.User}}')" = "resonance"

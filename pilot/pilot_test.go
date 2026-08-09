@@ -211,7 +211,7 @@ func (f *fakeMutations) Start(context.Context) error {
 	f.recorder.add("mutations.start")
 	return nil
 }
-func (f *fakeMutations) Stop()                { f.recorder.add("mutations.stop") }
+func (f *fakeMutations) Stop() error          { f.recorder.add("mutations.stop"); return nil }
 func (f *fakeMutations) Errors() <-chan error { return f.errors }
 
 func (f *fakeMaintenance) Start(context.Context) error {

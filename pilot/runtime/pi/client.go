@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -156,9 +157,7 @@ func (c *RPCClient) do(ctx context.Context, command string, fields map[string]an
 	request := make(map[string]any, len(fields)+2)
 	request["id"] = id
 	request["type"] = command
-	for key, value := range fields {
-		request[key] = value
-	}
+	maps.Copy(request, fields)
 	frame, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("encode pi rpc command %q: %w", command, err)

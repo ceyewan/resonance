@@ -239,20 +239,20 @@ func (s *fakeMutationStore) TransitionAgentToolExecution(_ context.Context, tran
 	execution.UpdatedAt = transition.OccurredAt
 	switch transition.NextStatus {
 	case model.AgentToolExecutionStatusReady:
-		execution.ReadyAt = timePointer(transition.OccurredAt)
+		execution.ReadyAt = new(transition.OccurredAt)
 		execution.ApprovalVersion = transition.ApprovalVersion
 	case model.AgentToolExecutionStatusExecuting:
-		execution.StartedAt = timePointer(transition.OccurredAt)
+		execution.StartedAt = new(transition.OccurredAt)
 		execution.Attempt++
 	case model.AgentToolExecutionStatusFailedRetryable:
-		execution.LastFailedAt = timePointer(transition.OccurredAt)
+		execution.LastFailedAt = new(transition.OccurredAt)
 		execution.ErrorCode, execution.ErrorSummary = transition.ErrorCode, transition.ErrorSummary
 	case model.AgentToolExecutionStatusFailedFinal:
-		execution.LastFailedAt = timePointer(transition.OccurredAt)
-		execution.FinishedAt = timePointer(transition.OccurredAt)
+		execution.LastFailedAt = new(transition.OccurredAt)
+		execution.FinishedAt = new(transition.OccurredAt)
 		execution.ErrorCode, execution.ErrorSummary = transition.ErrorCode, transition.ErrorSummary
 	case model.AgentToolExecutionStatusSucceeded:
-		execution.FinishedAt = timePointer(transition.OccurredAt)
+		execution.FinishedAt = new(transition.OccurredAt)
 		execution.ResultRef, execution.ResultSummary, execution.ResultHash = transition.ResultRef, transition.ResultSummary, transition.ResultHash
 		execution.DownstreamOperationID = transition.DownstreamOperationID
 	}
@@ -392,8 +392,7 @@ func (c *fakeLogicClient) approve(tenantID, callID, approver string) {
 	approval.DecidedAt = time.Date(2026, 8, 9, 1, 0, 2, 0, time.UTC)
 }
 
-func storeKey(first, second string) string   { return first + "\x00" + second }
-func timePointer(value time.Time) *time.Time { return &value }
+func storeKey(first, second string) string { return first + "\x00" + second }
 func cloneExecution(value *model.AgentToolExecution) *model.AgentToolExecution {
 	if value == nil {
 		return nil

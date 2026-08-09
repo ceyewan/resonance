@@ -118,13 +118,11 @@ func TestSink_CloseIsConcurrentAndIdempotent(t *testing.T) {
 	var wait sync.WaitGroup
 	errorsFound := make(chan error, 8)
 	for range 8 {
-		wait.Add(1)
-		go func() {
-			defer wait.Done()
+		wait.Go(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			errorsFound <- sink.Close(ctx)
-		}()
+		})
 	}
 	wait.Wait()
 	close(errorsFound)

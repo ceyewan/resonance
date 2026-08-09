@@ -290,8 +290,8 @@ func (b *Broker) Close(ctx context.Context) error {
 }
 
 func brokerListenSpec(address string) (network, listenPath, socketPath string, err error) {
-	if strings.HasPrefix(address, "unix://") {
-		path := strings.TrimPrefix(address, "unix://")
+	if after, ok := strings.CutPrefix(address, "unix://"); ok {
+		path := after
 		if path == "" || !filepath.IsAbs(path) || filepath.Clean(path) != path || len(path) > 240 {
 			return "", "", "", fmt.Errorf("tool broker Unix socket must be a bounded absolute clean path")
 		}

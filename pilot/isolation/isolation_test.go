@@ -197,7 +197,7 @@ func newTenantHarness(t *testing.T, root string, tenantIndex int) *tenantHarness
 		require.NoError(t, issueErr)
 		harness.credentials = append(harness.credentials, runCredential{
 			tenantIndex: tenantIndex, run: run, username: username, password: password,
-			sessionPayload: []byte(fmt.Sprintf("{\"tenant\":%q,\"run\":%q,\"marker\":%q}\n", tenantID, run.RunID, "session-"+username)),
+			sessionPayload: fmt.Appendf(nil, "{\"tenant\":%q,\"run\":%q,\"marker\":%q}\n", tenantID, run.RunID, "session-"+username),
 			capability:     capability,
 		})
 	}

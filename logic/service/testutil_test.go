@@ -438,7 +438,8 @@ func (m *testMQ) Subscribe(ctx context.Context, topic string, handler mq.Handler
 	return nil, nil
 }
 
-func (m *testMQ) Close() error { return nil }
+func (m *testMQ) Close() error                { return nil }
+func (m *testMQ) Drain(context.Context) error { return nil }
 
 func testLogger() clog.Logger {
 	return clog.Discard()

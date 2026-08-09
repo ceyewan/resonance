@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -84,12 +85,15 @@ func Load() (*Config, error) {
 
 	ctx := context.Background()
 	if err := loader.Load(ctx); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
 	}
 
 	var cfg Config
 	if err := loader.Unmarshal(&cfg); err != nil {
-		return nil, err
+		return nil, errors.Join(err, loader.Close())
+	}
+	if err := loader.Close(); err != nil {
+		return nil, fmt.Errorf("close web config loader: %w", err)
 	}
 
 	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {

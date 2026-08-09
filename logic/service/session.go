@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -458,12 +459,7 @@ func (s *SessionService) resolveAgentProfile(profile commonv1.AgentProfile) (pro
 }
 
 func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, target)
 }
 
 func sessionKindToProto(kind int) commonv1.SessionKind {

@@ -9,6 +9,7 @@
 # 加载 .env 文件（如果存在）
 -include .env
 export
+export GOWORK := off
 
 # Docker Compose 命令
 COMPOSE_INFRA := docker compose --env-file .env -p resonance -f deploy/base.yaml
@@ -43,6 +44,7 @@ gen: ## 生成 protobuf 代码
 tidy: ## 整理 Go 依赖
 	@echo "🧹 整理 Go 依赖..."
 	@go mod tidy
+	@go mod verify
 	@echo "✅ 完成"
 
 format: format-go format-proto format-prettier format-markdown ## 一键格式化 Go/Proto/TS/YAML/MD

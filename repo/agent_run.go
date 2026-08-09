@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -1028,12 +1029,7 @@ func validExecutionAdvance(from, to string) bool {
 }
 
 func containsStatus(statuses []string, status string) bool {
-	for _, candidate := range statuses {
-		if candidate == status {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(statuses, status)
 }
 
 func validBoundedString(value string, max int) bool {

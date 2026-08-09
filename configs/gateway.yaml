@@ -63,8 +63,15 @@ worker_id:
   max_id: 1024 # 最大 workerID 数量
   key: resonance:gateway:worker # Redis 键前缀
 
+# 本配置只用于本机单进程开发；Compose/生产环境强制覆盖为 distributed。
+rate_limit:
+  driver: standalone
+  prefix: "resonance:gateway:ratelimit:"
+
 # 可观测性配置
 observability:
+  version: dev
+  environment: development
   trace:
     disable: true # 开发环境禁用 Trace 上报
     endpoint: localhost:4317 # OTLP Collector 端点

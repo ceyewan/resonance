@@ -132,14 +132,12 @@ func TestIdentityRepo_ConcurrentRoleBindingIsIdempotent(t *testing.T) {
 	errorsCh := make(chan error, workers)
 	var wg sync.WaitGroup
 	for range workers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			errorsCh <- identityRepo.CreateSystemRoleBinding(ctx, &model.SystemRoleBinding{
 				TenantID: "tenant-a", Username: username, Role: model.SystemRoleIAMAdmin,
 			})
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -178,14 +176,11 @@ func TestIdentityRepo_ConcurrentMembershipUpdateUsesVersionFence(t *testing.T) {
 	errorsCh := make(chan error, 2)
 	var wg sync.WaitGroup
 	for _, status := range []string{model.TenantMembershipStatusActive, model.TenantMembershipStatusDisabled} {
-		status := status
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			_, updateErr := identityRepo.UpdateTenantMembershipStatus(ctx, "tenant-a", username, status, 1)
 			errorsCh <- updateErr
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()

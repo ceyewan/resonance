@@ -58,7 +58,7 @@ func (c *Consumer) Start() error {
 		go c.worker()
 	}
 	subscription, err := c.mq.Subscribe(c.ctx, c.config.Topic, c.receive,
-		mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck(), mq.WithMaxInflight(cap(c.jobs)))
+		mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck(), mq.WithMaxInflight(cap(c.jobs)), mq.FromBeginning())
 	if err != nil {
 		c.cancel()
 		c.wg.Wait()
@@ -84,7 +84,10 @@ func (c *Consumer) worker() {
 		case <-c.ctx.Done():
 			c.drain()
 			return
-		case message := <-c.jobs:
+		case message, ok := <-c.jobs:
+			if !ok {
+				return
+			}
 			if message != nil {
 				_ = c.handleMessage(message)
 			}
@@ -95,7 +98,10 @@ func (c *Consumer) worker() {
 func (c *Consumer) drain() {
 	for {
 		select {
-		case message := <-c.jobs:
+		case message, ok := <-c.jobs:
+			if !ok {
+				return
+			}
 			if message != nil {
 				_ = message.Ack()
 			}
@@ -172,10 +178,13 @@ func (c *Consumer) Stop() error {
 	c.mu.Unlock()
 	var result error
 	if subscription != nil {
-		result = subscription.Unsubscribe()
+		drainCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		result = subscription.Drain(drainCtx)
+		cancel()
 	}
-	c.cancel()
+	close(c.jobs)
 	c.wg.Wait()
+	c.cancel()
 	return result
 }
 

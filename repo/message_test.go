@@ -316,7 +316,7 @@ func TestMessageRepo_SaveMessageWithOutbox_RejectsPayloadConflict(t *testing.T) 
 func TestMessageRepo_SaveMessageWithOutbox_EmptyClientMessageIDIsNotDeduplicated(t *testing.T) {
 	messageRepo, ctx := newTestMessageRepo(t)
 
-	for i := int64(0); i < 2; i++ {
+	for i := range int64(2) {
 		result, err := messageRepo.SaveMessageWithOutbox(
 			ctx,
 			testIdempotentMessage(3201+i, i+1, "s_empty", "system", "", ""),
@@ -381,7 +381,7 @@ func TestMessageRepo_SaveMessageWithOutbox_ConcurrentRetryCreatesOneFact(t *test
 	errorsCh := make(chan error, attempts)
 	var wait sync.WaitGroup
 	start := make(chan struct{})
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		wait.Add(1)
 		go func(index int) {
 			defer wait.Done()

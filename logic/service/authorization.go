@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/ceyewan/resonance/model"
 	sharediam "github.com/ceyewan/resonance/pkg/iam"
@@ -38,10 +39,8 @@ func (a *IdentitySystemScopeAuthorizer) HasSystemScope(ctx context.Context, tena
 	if err != nil {
 		return false, err
 	}
-	for _, candidate := range scopes {
-		if candidate == scope {
-			return true, nil
-		}
+	if slices.Contains(scopes, scope) {
+		return true, nil
 	}
 	return false, nil
 }

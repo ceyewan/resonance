@@ -37,6 +37,17 @@ nats:
   max_reconnect: 10
   reconnect_delay: 1s
 
+jetstream:
+  auto_create_stream: true
+  stream_prefix: S-
+  ack_wait: 30s
+  max_deliver: 5
+  retention: limits
+  storage: file
+  max_age: 168h
+  max_bytes: 1073741824
+  replicas: 1
+
 etcd:
   name: task-etcd
   endpoints:
@@ -74,3 +85,16 @@ stream_consumer:
   dlq_topic: resonance.agent.stream.v1.dlq
 
 stream_max_delta_bytes: 65536
+
+observability:
+  version: dev
+  environment: development
+  trace:
+    disable: false
+    endpoint: localhost:4317
+    insecure: true
+    sampler: 1.0
+  metrics:
+    port: 9090
+    path: /metrics
+    enable_runtime: true

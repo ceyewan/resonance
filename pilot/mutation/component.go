@@ -47,7 +47,7 @@ func (c *Component) Start(parent context.Context) error {
 	}
 	c.ctx, c.cancel = context.WithCancel(parent)
 	subscription, err := c.mq.Subscribe(c.ctx, c.config.Topic, c.handleMessage,
-		mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck(), mq.WithMaxInflight(c.config.MaxInflight),
+		mq.WithQueueGroup(c.config.QueueGroup), mq.WithManualAck(), mq.WithMaxInflight(c.config.MaxInflight), mq.FromBeginning(),
 	)
 	if err != nil {
 		c.cancel()
@@ -102,20 +102,24 @@ func (c *Component) reconcileOnce() {
 	}
 }
 
-func (c *Component) Stop() {
+func (c *Component) Stop() error {
 	c.mu.Lock()
 	cancel := c.cancel
 	subscription := c.subscription
 	c.cancel = nil
 	c.subscription = nil
 	c.mu.Unlock()
+	var result error
 	if subscription != nil {
-		_ = subscription.Unsubscribe()
+		drainCtx, cancelDrain := context.WithTimeout(context.Background(), 10*time.Second)
+		result = subscription.Drain(drainCtx)
+		cancelDrain()
 	}
 	if cancel != nil {
 		cancel()
 	}
 	c.wg.Wait()
+	return result
 }
 
 func (c *Component) Errors() <-chan error { return c.errors }

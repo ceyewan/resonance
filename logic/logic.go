@@ -2,7 +2,9 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ceyewan/genesis/auth"
@@ -43,6 +45,8 @@ type Logic struct {
 	resources *resources
 	ctx       context.Context
 	cancel    context.CancelFunc
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // resources 内部资源聚合
@@ -57,7 +61,7 @@ type resources struct {
 	sessionIDGen   idgen.Generator // 用于 SessionID (Snowflake)
 	sequencer      idgen.Sequencer // 用于会话 SeqID (基于 Redis)
 	dbInstance     db.DB
-	instanceIDStop func() // 实例 ID 保活停止函数
+	instanceIDStop func() error // 实例 ID 保活停止函数
 
 	// Repos
 	userRepo             repo.UserRepo
@@ -94,11 +98,16 @@ func New() (*Logic, error) {
 // initComponents 初始化所有组件
 func (l *Logic) initComponents() error {
 	// 1. 日志
-	logger, _ := clog.New(&l.config.Log, clog.WithTraceContext())
+	logger, err := clog.New(&l.config.Log, clog.WithTraceContext())
+	if err != nil {
+		return fmt.Errorf("logger init: %w", err)
+	}
 	l.logger = logger
 
 	// 2. 可观测性
 	obsCfg := &observability.Config{
+		Version: l.config.Observability.Version, InstanceID: l.config.Observability.InstanceID,
+		Environment: l.config.Observability.Environment,
 		Trace: observability.TraceConfig{
 			Disable:  l.config.Observability.Trace.Disable,
 			Endpoint: l.config.Observability.Trace.Endpoint,
@@ -112,8 +121,7 @@ func (l *Logic) initComponents() error {
 		},
 	}
 	if err := observability.Init(obsCfg); err != nil {
-		l.logger.Warn("failed to init observability", clog.Error(err))
-		// 可观测性初始化失败不影响服务启动
+		return fmt.Errorf("init observability: %w", err)
 	}
 
 	// 3. 核心资源
@@ -125,15 +133,16 @@ func (l *Logic) initComponents() error {
 
 	// 3. 基于 Redis 抢占分配唯一实例 ID (WorkerID)
 	allocator, err := idgen.NewAllocator(&idgen.AllocatorConfig{
-		Driver: "redis",
-		MaxID:  l.config.WorkerID.GetMaxID(),
+		Driver:    idgen.DriverRedis,
+		KeyPrefix: l.config.WorkerID.GetKey(),
+		MaxID:     l.config.WorkerID.GetMaxID(),
 	}, idgen.WithRedisConnector(res.redisConn))
 	if err != nil {
 		return fmt.Errorf("create allocator: %w", err)
 	}
 	instanceID, err := allocator.Allocate(l.ctx)
 	if err != nil {
-		return fmt.Errorf("allocate instance id: %w", err)
+		return errors.Join(fmt.Errorf("allocate instance id: %w", err), allocator.Stop())
 	}
 	l.serviceID = fmt.Sprintf("%s-%d", l.config.Service.Name, instanceID)
 	res.instanceIDStop = allocator.Stop
@@ -159,11 +168,12 @@ func (l *Logic) initComponents() error {
 
 	// 监听保活失败
 	go func() {
-		if err := <-allocator.KeepAlive(l.ctx); err != nil {
+		if err, ok := <-allocator.KeepAlive(l.ctx); ok && err != nil {
 			l.logger.Error("instance id keepalive failed", clog.Error(err))
 			l.cancel() // 保活失败，关闭服务
 		}
 	}()
+	go l.monitorRegistryLeaseFailures()
 
 	// 4. 服务层
 	sessionSvc := service.NewSessionService(
@@ -327,12 +337,22 @@ func iamPilotServiceMethods() map[string]struct{} {
 }
 
 // initResources 初始化资源
-func (l *Logic) initResources() (*resources, error) {
+func (l *Logic) initResources() (_ *resources, returnedErr error) {
+	cleanup := make([]func() error, 0, 16)
+	defer func() {
+		if returnedErr == nil {
+			return
+		}
+		for index := len(cleanup) - 1; index >= 0; index-- {
+			returnedErr = errors.Join(returnedErr, cleanup[index]())
+		}
+	}()
 	// DB (PostgreSQL)
 	postgresConn, err := connector.NewPostgreSQL(&l.config.PostgreSQL)
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
+	cleanup = append(cleanup, postgresConn.Close)
 	if err := postgresConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("postgresql connect: %w", err)
 	}
@@ -340,12 +360,14 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db init: %w", err)
 	}
+	cleanup = append(cleanup, dbInstance.Close)
 
 	// Redis
 	redisConn, err := connector.NewRedis(&l.config.Redis)
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
+	cleanup = append(cleanup, redisConn.Close)
 	if err := redisConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("redis connect: %w", err)
 	}
@@ -355,22 +377,25 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("nats init: %w", err)
 	}
+	cleanup = append(cleanup, natsConn.Close)
 	if err := natsConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("nats connect: %w", err)
 	}
 	mqClient, err := mq.New(&mq.Config{
 		Driver:    mq.DriverNATSJetStream,
-		JetStream: &mq.JetStreamConfig{AutoCreateStream: true},
+		JetStream: &l.config.JetStream,
 	}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
+	cleanup = append(cleanup, mqClient.Close)
 
 	// Etcd & Registry
 	etcdConn, err := connector.NewEtcd(&l.config.Etcd, connector.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
+	cleanup = append(cleanup, etcdConn.Close)
 	if err := etcdConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
@@ -378,7 +403,7 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
-	l.registry = reg
+	cleanup = append(cleanup, reg.Close)
 
 	// Authenticator
 	authenticator, err := auth.New(&l.config.Auth, auth.WithLogger(l.logger))
@@ -390,11 +415,14 @@ func (l *Logic) initResources() (*resources, error) {
 	// 注意：msgIDGen 和 sessionIDGen 稍后在 initComponents 中根据分配到的 instanceID 初始化
 	var msgIDGen idgen.Generator
 	var sessionIDGen idgen.Generator
-	sequencer, _ := idgen.NewSequencer(&idgen.SequencerConfig{
-		Driver:    "redis",
+	sequencer, err := idgen.NewSequencer(&idgen.SequencerConfig{
+		Driver:    idgen.DriverRedis,
 		KeyPrefix: "resonance:logic:seq",
 		Step:      1,
 	}, idgen.WithRedisConnector(redisConn), idgen.WithLogger(l.logger))
+	if err != nil {
+		return nil, fmt.Errorf("sequencer init: %w", err)
+	}
 
 	// Repos
 	// 假设 NewUserRepo 和 NewMessageRepo 签名与 SessionRepo 类似
@@ -402,30 +430,38 @@ func (l *Logic) initResources() (*resources, error) {
 	if err != nil {
 		return nil, fmt.Errorf("user repo init: %w", err)
 	}
+	cleanup = append(cleanup, userRepo.Close)
 	identityRepo, err := repo.NewIdentityRepo(dbInstance)
 	if err != nil {
 		return nil, fmt.Errorf("identity repo init: %w", err)
 	}
+	cleanup = append(cleanup, identityRepo.Close)
 	messageRepo, err := repo.NewMessageRepo(dbInstance) // 需要确认签名
 	if err != nil {
 		return nil, fmt.Errorf("message repo init: %w", err)
 	}
+	cleanup = append(cleanup, messageRepo.Close)
 	sessionRepo, err := repo.NewSessionRepo(dbInstance, repo.WithSessionRepoLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("session repo init: %w", err)
 	}
+	cleanup = append(cleanup, sessionRepo.Close)
 	routerRepo, err := repo.NewRouterRepo(redisConn, repo.WithLogger(l.logger))
 	if err != nil {
 		return nil, fmt.Errorf("router repo init: %w", err)
 	}
+	cleanup = append(cleanup, routerRepo.Close)
 	agentApprovalRepo, err := repo.NewAgentApprovalRepo(dbInstance)
 	if err != nil {
 		return nil, fmt.Errorf("agent approval repo init: %w", err)
 	}
+	cleanup = append(cleanup, agentApprovalRepo.Close)
 	agentIAMMutationRepo, err := repo.NewAgentIAMMutationRepo(dbInstance, l.config.AgentBot.Username)
 	if err != nil {
 		return nil, fmt.Errorf("agent IAM mutation repo init: %w", err)
 	}
+	cleanup = append(cleanup, agentIAMMutationRepo.Close)
+	l.registry = reg
 
 	return &resources{
 		postgresConn:         postgresConn,
@@ -458,7 +494,7 @@ func (l *Logic) Run() error {
 	}
 
 	// 启动后台任务
-	go l.outboxRelay.Start(l.ctx)
+	l.outboxRelay.StartAsync(l.ctx)
 
 	// 启动 gRPC Server
 	go func() {
@@ -495,7 +531,33 @@ func (l *Logic) registerService() error {
 
 // Close 优雅关闭
 func (l *Logic) Close() error {
-	l.logger.Info("shutting down logic service...")
+	l.closeOnce.Do(func() { l.closeErr = l.close() })
+	return l.closeErr
+}
+
+func (l *Logic) monitorRegistryLeaseFailures() {
+	for {
+		select {
+		case failure, ok := <-l.registry.LeaseFailures():
+			if !ok {
+				return
+			}
+			l.logger.Error("logic registry lease lost", clog.String("service_id", failure.ServiceID), clog.Error(failure.Err))
+			if l.healthServer != nil {
+				l.healthServer.SetReady(false)
+			}
+			l.cancel()
+		case <-l.ctx.Done():
+			return
+		}
+	}
+}
+
+func (l *Logic) close() error {
+	var result error
+	if l.logger != nil {
+		l.logger.Info("shutting down logic service...")
+	}
 
 	// 标记服务未就绪
 	if l.healthServer != nil {
@@ -507,16 +569,23 @@ func (l *Logic) Close() error {
 	// 1. 停止健康检查服务器
 	if l.healthServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_ = l.healthServer.Stop(shutdownCtx)
+		result = errors.Join(result, l.healthServer.Stop(shutdownCtx))
 		cancel()
 	}
 
 	// 2. 注销服务
 	if l.registry != nil {
-		if err := l.registry.Deregister(context.Background(), l.serviceID); err != nil {
-			l.logger.Warn("deregister logic service failed", clog.Error(err))
+		registryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if l.serviceID != "" {
+			if err := l.registry.Deregister(registryCtx, l.serviceID); err != nil {
+				if l.logger != nil {
+					l.logger.Warn("deregister logic service failed", clog.Error(err))
+				}
+				result = errors.Join(result, fmt.Errorf("deregister logic: %w", err))
+			}
 		}
-		_ = l.registry.Close()
+		result = errors.Join(result, l.registry.Shutdown(registryCtx))
+		cancel()
 	}
 
 	// 3. 停止 gRPC 服务器
@@ -524,49 +593,63 @@ func (l *Logic) Close() error {
 		l.grpcServer.Stop()
 	}
 
-	// 4. 释放资源（带超时控制）
+	if l.outboxRelay != nil {
+		waitCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		result = errors.Join(result, l.outboxRelay.Wait(waitCtx))
+		cancel()
+	}
+
+	// 4. 按依赖逆序释放资源
 	if l.resources != nil {
-		// 创建带超时的 context，用于控制资源关闭的最大等待时间
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		// 使用 goroutine 并发关闭，监听超时
-		done := make(chan struct{})
-		go func() {
-			// 停止实例 ID 保活
-			if l.resources.instanceIDStop != nil {
-				l.resources.instanceIDStop()
-			}
-
-			// 关闭 Repo (主要是清理缓存或日志，DB连接通常由 dbInstance 管理)
-			_ = l.resources.routerRepo.Close()
-			_ = l.resources.sessionRepo.Close()
-			_ = l.resources.userRepo.Close()
-			_ = l.resources.identityRepo.Close()
-			_ = l.resources.messageRepo.Close()
-			_ = l.resources.agentApprovalRepo.Close()
-			_ = l.resources.agentIAMMutationRepo.Close()
-
-			_ = l.resources.etcdConn.Close()
-			_ = l.resources.natsConn.Close()
-			_ = l.resources.redisConn.Close()
-			_ = l.resources.postgresConn.Close()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			// 正常关闭完成
-		case <-shutdownCtx.Done():
-			// 超时，记录警告但继续
-			l.logger.Warn("resource shutdown timed out after 10s, some connections may not be closed cleanly")
+		if l.resources.instanceIDStop != nil {
+			result = errors.Join(result, l.resources.instanceIDStop())
+		}
+		if l.resources.routerRepo != nil {
+			result = errors.Join(result, l.resources.routerRepo.Close())
+		}
+		if l.resources.sessionRepo != nil {
+			result = errors.Join(result, l.resources.sessionRepo.Close())
+		}
+		if l.resources.userRepo != nil {
+			result = errors.Join(result, l.resources.userRepo.Close())
+		}
+		if l.resources.identityRepo != nil {
+			result = errors.Join(result, l.resources.identityRepo.Close())
+		}
+		if l.resources.messageRepo != nil {
+			result = errors.Join(result, l.resources.messageRepo.Close())
+		}
+		if l.resources.agentApprovalRepo != nil {
+			result = errors.Join(result, l.resources.agentApprovalRepo.Close())
+		}
+		if l.resources.agentIAMMutationRepo != nil {
+			result = errors.Join(result, l.resources.agentIAMMutationRepo.Close())
+		}
+		mqCtx, cancelMQ := context.WithTimeout(context.Background(), 10*time.Second)
+		if l.resources.mqClient != nil {
+			result = errors.Join(result, l.resources.mqClient.Drain(mqCtx), l.resources.mqClient.Close())
+		}
+		cancelMQ()
+		if l.resources.dbInstance != nil {
+			result = errors.Join(result, l.resources.dbInstance.Close())
+		}
+		if l.resources.etcdConn != nil {
+			result = errors.Join(result, l.resources.etcdConn.Close())
+		}
+		if l.resources.natsConn != nil {
+			result = errors.Join(result, l.resources.natsConn.Close())
+		}
+		if l.resources.redisConn != nil {
+			result = errors.Join(result, l.resources.redisConn.Close())
+		}
+		if l.resources.postgresConn != nil {
+			result = errors.Join(result, l.resources.postgresConn.Close())
 		}
 	}
 
 	// 5. 关闭可观测性组件
-	if err := observability.Shutdown(context.Background()); err != nil {
-		l.logger.Error("observability shutdown failed", clog.Error(err))
-	}
-
-	return nil
+	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
+	result = errors.Join(result, observability.Shutdown(observabilityCtx))
+	cancelObservability()
+	return result
 }

@@ -3,6 +3,7 @@ package job
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -19,6 +20,8 @@ type OutboxRelay struct {
 	mqClient    mq.MQ
 	logger      clog.Logger
 	config      *config.OutboxConfig
+	done        chan struct{}
+	started     atomic.Bool
 }
 
 func NewOutboxRelay(messageRepo repo.MessageRepo, mqClient mq.MQ, logger clog.Logger, cfg *config.OutboxConfig) *OutboxRelay {
@@ -27,11 +30,14 @@ func NewOutboxRelay(messageRepo repo.MessageRepo, mqClient mq.MQ, logger clog.Lo
 		mqClient:    mqClient,
 		logger:      logger.WithNamespace("outbox_relay"),
 		config:      cfg,
+		done:        make(chan struct{}),
 	}
 }
 
 // Start 启动补发任务
 func (j *OutboxRelay) Start(ctx context.Context) {
+	j.started.Store(true)
+	defer close(j.done)
 	j.logger.Info("starting outbox relay job")
 	ticker := time.NewTicker(j.config.GetTickerTime())
 	defer ticker.Stop()
@@ -51,6 +57,23 @@ func (j *OutboxRelay) Start(ctx context.Context) {
 				j.processPendingMessages(ctx)
 			}()
 		}
+	}
+}
+
+func (j *OutboxRelay) StartAsync(ctx context.Context) {
+	j.started.Store(true)
+	go j.Start(ctx)
+}
+
+func (j *OutboxRelay) Wait(ctx context.Context) error {
+	if !j.started.Load() {
+		return nil
+	}
+	select {
+	case <-j.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

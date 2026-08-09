@@ -35,6 +35,8 @@ func (r *testRegistry) Watch(ctx context.Context, serviceName string) (<-chan re
 	return nil, nil
 }
 
+func (r *testRegistry) LeaseFailures() <-chan registry.LeaseFailure { return nil }
+
 func (r *testRegistry) GetConnection(ctx context.Context, serviceName string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 	return nil, nil
 }
@@ -42,6 +44,8 @@ func (r *testRegistry) GetConnection(ctx context.Context, serviceName string, op
 func (r *testRegistry) Close() error {
 	return nil
 }
+
+func (r *testRegistry) Shutdown(context.Context) error { return nil }
 
 func TestManager_GetClient_NotFound(t *testing.T) {
 	m := NewManager(clog.Discard(), &testRegistry{}, "gateway", 10, 1, time.Second)
