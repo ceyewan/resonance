@@ -68,16 +68,21 @@ func TestValidateResolvedAddressesRejectsEveryNonPublicAndMixedAnswer(t *testing
 	}
 	for _, raw := range forbidden {
 		t.Run(raw, func(t *testing.T) {
-			_, err := validateResolvedAddresses([]netip.Addr{netip.MustParseAddr(raw)})
+			_, err := validateResolvedAddresses([]netip.Addr{netip.MustParseAddr(raw)}, false)
 			require.Error(t, err)
 		})
 	}
 
 	public := []netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("2606:4700:4700::1111")}
-	validated, err := validateResolvedAddresses(public)
+	validated, err := validateResolvedAddresses(public, false)
 	require.NoError(t, err)
 	require.Equal(t, public, validated)
 
-	_, err = validateResolvedAddresses([]netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("10.0.0.1")})
+	_, err = validateResolvedAddresses([]netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("10.0.0.1")}, false)
 	require.Error(t, err, "a mixed public/private DNS answer must reject the whole set")
+
+	benchmark := []netip.Addr{netip.MustParseAddr("198.18.1.151")}
+	validated, err = validateResolvedAddresses(benchmark, true)
+	require.NoError(t, err)
+	require.Equal(t, benchmark, validated)
 }

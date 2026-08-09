@@ -166,7 +166,6 @@ func (l *Logic) initComponents() error {
 	}()
 
 	// 4. 服务层
-	authSvc := service.NewAuthService(res.userRepo, res.identityRepo, res.sessionRepo, res.authenticator, logger)
 	sessionSvc := service.NewSessionService(
 		res.sessionRepo,
 		res.messageRepo,
@@ -183,6 +182,10 @@ func (l *Logic) initComponents() error {
 			UserAssistantVersion: l.config.AgentSessions.UserAssistantProfileVersion,
 			IAMAdminVersion:      l.config.AgentSessions.IAMAdminProfileVersion,
 		}),
+	)
+	authSvc := service.NewAuthService(
+		res.userRepo, res.identityRepo, res.sessionRepo, res.authenticator, logger,
+		service.WithDefaultAgentSessionProvisioner(sessionSvc),
 	)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.msgIDGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)

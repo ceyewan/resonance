@@ -136,7 +136,10 @@ func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBou
 		_, err = runRepo.EnqueueAgentRun(ctx, run)
 		require.NoError(t, err)
 	}
-	other := newTestAgentRun("run-other-actor", "tenant-a", "conversation-other", 9301, 1, base)
+	// Keep the unrelated actor behind the revoked fixture in the documented
+	// available_at/queued_at claim order. The boundary assertion below is about
+	// cancellation scope, not about overriding the queue's FIFO ordering.
+	other := newTestAgentRun("run-other-actor", "tenant-a", "conversation-other", 9301, 1, base.Add(4*time.Millisecond))
 	other.ProfileID = model.AgentProfileIAMAdmin
 	other.ActorID = "other-user"
 	other.ActorUsername = "other-user"

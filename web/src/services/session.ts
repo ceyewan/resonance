@@ -1,6 +1,6 @@
 import type { ChatEvent } from "@gen/common/v1/event_pb";
 import type { SessionInfo } from "@gen/common/v1/view_pb";
-import { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
 
 import { getSession, getSessions, replaceSessions, setMeta, upsertSession } from "../db/repo";
 import type { SessionRow } from "../db/schema";
@@ -12,6 +12,9 @@ function createEmptySessionRow(sessionId: string): SessionRow {
     sessionId,
     name: "",
     type: SessionType.UNSPECIFIED,
+    kind: SessionKind.UNSPECIFIED,
+    agentProfile: AgentProfile.UNSPECIFIED,
+    agentProfileVersion: "0",
     avatarUrl: "",
     unreadCount: "0",
     lastReadSeq: "0",
@@ -32,7 +35,7 @@ function previewFromEvent(event: ChatEvent | undefined): string {
 
   switch (event.payload.case) {
     case "message":
-      return event.payload.value.content;
+      return event.payload.value.recalled ? "[消息已撤回]" : event.payload.value.content;
     case "recall":
       return "[消息已撤回]";
     case "edit":
@@ -59,6 +62,9 @@ function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): 
     sessionId: snapshot.sessionId,
     name: snapshot.name,
     type: snapshot.type,
+    kind: snapshot.kind,
+    agentProfile: snapshot.agentProfile,
+    agentProfileVersion: toIdString(snapshot.agentProfileVersion),
     avatarUrl: snapshot.avatarUrl,
     unreadCount: normalizeUnreadCount(snapshot.unreadCount),
     lastReadSeq: toIdString(snapshot.lastReadSeq),

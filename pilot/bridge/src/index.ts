@@ -38,7 +38,14 @@ export interface Manifest {
 }
 
 interface ToolResult {
-  status: "ok" | "approval_required" | "denied" | "retryable_error" | "final_error";
+  status:
+    | "ok"
+    | "approval_required"
+    | "execution_pending"
+    | "executed"
+    | "denied"
+    | "retryable_error"
+    | "final_error";
   call_id: string;
   model_text: string;
   display_summary: string;
@@ -51,12 +58,18 @@ interface BridgeEnvironment {
   capability: string;
   runID: string;
   budget: ProviderBudgetLimits;
+  provider: DashScopeProviderConfig;
 }
 
 export interface ProviderBudgetLimits {
   maxTotalTokens: number;
   maxCostMicros: number;
   maxProviderCalls: number;
+}
+
+export interface DashScopeProviderConfig {
+  baseUrl: string;
+  model: string;
 }
 
 interface ProviderBudgetContext {
@@ -70,6 +83,7 @@ interface ProviderBudgetContext {
 
 export default async function resonanceToolBridge(pi: ExtensionAPI): Promise<void> {
   const environment = readEnvironment(process.env);
+  registerDashScopeProvider(pi, environment.provider);
   const providerBudgetGuard = createProviderBudgetGuard(environment.budget);
   pi.on("before_provider_request", providerBudgetGuard);
   // Pi's built-in compaction calls the low-level stream function directly and
@@ -139,6 +153,7 @@ export function readEnvironment(environment: NodeJS.ProcessEnv): BridgeEnvironme
       "provider call",
     ),
   };
+  const provider = readDashScopeProvider(environment);
   if (capability.length < 16 || capability.length > 16 * 1024 || !RUN_ID.test(runID)) {
     throw new Error("Trusted Tool Bridge environment is invalid");
   }
@@ -165,7 +180,79 @@ export function readEnvironment(environment: NodeJS.ProcessEnv): BridgeEnvironme
   ) {
     throw new Error("Trusted Tool Bridge endpoint is invalid");
   }
-  return { brokerURL, capability, runID, budget };
+  return { brokerURL, capability, runID, budget, provider };
+}
+
+export function readDashScopeProvider(environment: NodeJS.ProcessEnv): DashScopeProviderConfig {
+  const apiKey = environment.DASHSCOPE_API_KEY ?? "";
+  const rawBaseURL = environment.DASHSCOPE_BASE_URL ?? "";
+  const model = environment.DASHSCOPE_MODEL ?? "";
+  if (
+    apiKey.length < 8 ||
+    apiKey.length > 16 * 1024 ||
+    apiKey === "replace-with-your-dashscope-api-key" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(model)
+  ) {
+    throw new Error("Trusted DashScope Provider environment is invalid");
+  }
+  let baseURL: URL;
+  try {
+    baseURL = new URL(rawBaseURL);
+  } catch {
+    throw new Error("Trusted DashScope Provider environment is invalid");
+  }
+  if (
+    baseURL.protocol !== "https:" ||
+    baseURL.username !== "" ||
+    baseURL.password !== "" ||
+    baseURL.port !== "" ||
+    baseURL.search !== "" ||
+    baseURL.hash !== "" ||
+    baseURL.hostname === "" ||
+    baseURL.pathname !== "/compatible-mode/v1"
+  ) {
+    throw new Error("Trusted DashScope Provider environment is invalid");
+  }
+  return { baseUrl: baseURL.href.replace(/\/$/u, ""), model };
+}
+
+// qwen3.8-max is reached through a pay-as-you-go workspace endpoint. Use a
+// deliberately conservative internal ceiling until live Provider observations
+// are reconciled with the account invoice. Over-reserving is safe; zero or
+// missing prices are not.
+const CONSERVATIVE_PROVIDER_COST_USD_PER_MILLION = 100;
+
+export function registerDashScopeProvider(
+  pi: Pick<ExtensionAPI, "registerProvider">,
+  provider: DashScopeProviderConfig,
+): void {
+  pi.registerProvider("dashscope", {
+    name: "Alibaba Cloud Model Studio",
+    baseUrl: provider.baseUrl,
+    apiKey: "$DASHSCOPE_API_KEY",
+    authHeader: true,
+    api: "openai-completions",
+    models: [
+      {
+        id: provider.model,
+        name: provider.model,
+        reasoning: true,
+        input: ["text"],
+        contextWindow: 1_000_000,
+        maxTokens: 32_768,
+        compat: {
+          supportsDeveloperRole: false,
+          supportsReasoningEffort: false,
+        },
+        cost: {
+          input: CONSERVATIVE_PROVIDER_COST_USD_PER_MILLION,
+          output: CONSERVATIVE_PROVIDER_COST_USD_PER_MILLION,
+          cacheRead: CONSERVATIVE_PROVIDER_COST_USD_PER_MILLION,
+          cacheWrite: CONSERVATIVE_PROVIDER_COST_USD_PER_MILLION,
+        },
+      },
+    ],
+  });
 }
 
 function readPositiveSafeInteger(value: string | undefined, label: string): number {
@@ -190,6 +277,15 @@ export function createProviderBudgetGuard(limits: ProviderBudgetLimits) {
   let remainingCalls = limits.maxProviderCalls;
 
   return (event: { payload: unknown }, context: ProviderBudgetContext): unknown => {
+    const plainPayload = isPlainObject(event.payload) ? event.payload : undefined;
+    const hasMaxTokens = plainPayload !== undefined && "max_tokens" in plainPayload;
+    const hasMaxCompletionTokens =
+      plainPayload !== undefined && "max_completion_tokens" in plainPayload;
+    const tokenField = hasMaxTokens
+      ? "max_tokens"
+      : hasMaxCompletionTokens
+        ? "max_completion_tokens"
+        : undefined;
     const deny = (): unknown => {
       // Pi deliberately catches extension-handler exceptions and would then
       // continue with the original payload, so denial must never throw here.
@@ -198,15 +294,25 @@ export function createProviderBudgetGuard(limits: ProviderBudgetLimits) {
       // request construction fails before any HTTP dispatch even if upstream
       // signal handling regresses.
       context.abort();
-      if (isPlainObject(event.payload)) {
-        return { ...event.payload, max_tokens: 0, __resonance_budget_denied: 0n };
+      if (plainPayload !== undefined) {
+        return {
+          ...plainPayload,
+          ...(tokenField === undefined ? {} : { [tokenField]: 0 }),
+          __resonance_budget_denied: 0n,
+        };
       }
-      return { max_tokens: 0, __resonance_budget_denied: 0n };
+      return { __resonance_budget_denied: 0n };
     };
-    if (remainingCalls < 1 || !isPlainObject(event.payload) || !context.model) {
+    if (
+      remainingCalls < 1 ||
+      plainPayload === undefined ||
+      !context.model ||
+      hasMaxTokens === hasMaxCompletionTokens ||
+      tokenField === undefined
+    ) {
       return deny();
     }
-    const currentMaxTokens = event.payload.max_tokens;
+    const currentMaxTokens = plainPayload[tokenField];
     if (!Number.isSafeInteger(currentMaxTokens) || Number(currentMaxTokens) < 1) {
       return deny();
     }
@@ -221,7 +327,7 @@ export function createProviderBudgetGuard(limits: ProviderBudgetLimits) {
     }
     let payloadBytes: number;
     try {
-      payloadBytes = Buffer.byteLength(JSON.stringify(event.payload));
+      payloadBytes = Buffer.byteLength(JSON.stringify(plainPayload));
     } catch {
       return deny();
     }
@@ -252,7 +358,7 @@ export function createProviderBudgetGuard(limits: ProviderBudgetLimits) {
     remainingTokens -= inputTokenUpperBound + outputLimit;
     remainingCostMicros -= requestCostUpperBound;
     remainingCalls--;
-    return { ...event.payload, max_tokens: outputLimit };
+    return { ...plainPayload, [tokenField]: outputLimit };
   };
 }
 
@@ -369,7 +475,20 @@ export async function executeTool(
   }
   const response = await brokerFetch(environment, "/v1/execute", request, signal, fetcher);
   if (!response.ok) {
-    throw new Error("Tool Broker execution request failed");
+    const status =
+      response.status === 401 || response.status === 403
+        ? "denied"
+        : response.status === 408 || response.status === 429 || response.status >= 500
+          ? "retryable_error"
+          : "final_error";
+    return {
+      status,
+      call_id: toolCallID,
+      model_text: `The Tool Broker rejected the call with status ${status}.`,
+      display_summary: "Tool call rejected",
+      data: {},
+      is_error: true,
+    };
   }
   const result = validateToolResult(await readBoundedJSON(response, MAX_RESULT_BYTES));
   if (result.call_id !== toolCallID) {
@@ -524,7 +643,15 @@ function validateToolResult(value: unknown): ToolResult {
     "data",
     "is_error",
   ]);
-  const statuses = new Set(["ok", "approval_required", "denied", "retryable_error", "final_error"]);
+  const statuses = new Set([
+    "ok",
+    "approval_required",
+    "execution_pending",
+    "executed",
+    "denied",
+    "retryable_error",
+    "final_error",
+  ]);
   if (
     typeof result.status !== "string" ||
     !statuses.has(result.status) ||

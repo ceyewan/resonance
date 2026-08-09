@@ -195,11 +195,16 @@ func (s *Service) PrepareTenantMembershipStatus(
 		if err != nil || frozen.ArgsHash != argsHash || string(frozen.Payload) != string(payload) || frozen.RequesterID != args.RequesterID {
 			return nil, ErrFrozenBindingInvalid
 		}
+		if existing.Status == model.AgentToolExecutionStatusSucceeded ||
+			existing.Status == model.AgentToolExecutionStatusFailedFinal ||
+			existing.Status == model.AgentToolExecutionStatusCancelled {
+			return executionResult(existing), nil
+		}
 		approval, created, err := s.ensureApproval(ctx, existing, frozen)
 		if err != nil {
 			return nil, err
 		}
-		return preparedResult(approval, created), nil
+		return preparedResult(existing, approval, created), nil
 	} else if !errors.Is(lookupErr, repo.ErrAgentToolExecutionNotFound) {
 		return nil, lookupErr
 	}
@@ -228,7 +233,7 @@ func (s *Service) PrepareTenantMembershipStatus(
 	if err != nil {
 		return nil, err
 	}
-	return preparedResult(approval, created), nil
+	return preparedResult(prepared.Execution, approval, created), nil
 }
 
 func (s *Service) ensureApproval(ctx context.Context, execution *model.AgentToolExecution, frozen *model.AgentFrozenToolArgs) (*ApprovalFact, bool, error) {
@@ -255,10 +260,18 @@ func (s *Service) ensureApproval(ctx context.Context, execution *model.AgentTool
 	return approval, created, nil
 }
 
-func preparedResult(approval *ApprovalFact, created bool) *toolbroker.MembershipMutationPrepareResult {
+func preparedResult(execution *model.AgentToolExecution, approval *ApprovalFact, created bool) *toolbroker.MembershipMutationPrepareResult {
 	return &toolbroker.MembershipMutationPrepareResult{
 		CallID: approval.CallID, ArgsHash: approval.ArgsHash, Status: approval.Status,
-		ExpiresAt: approval.ExpiresAt, Created: created,
+		ExecutionStatus: execution.Status, ExpiresAt: approval.ExpiresAt, Created: created,
+	}
+}
+
+func executionResult(execution *model.AgentToolExecution) *toolbroker.MembershipMutationPrepareResult {
+	return &toolbroker.MembershipMutationPrepareResult{
+		CallID: execution.CallID, ArgsHash: execution.ArgsHash,
+		ExecutionStatus: execution.Status, OperationID: execution.DownstreamOperationID,
+		ExecutionSummary: execution.ResultSummary,
 	}
 }
 

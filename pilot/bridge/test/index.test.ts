@@ -7,8 +7,10 @@ import {
   executeTool,
   fetchManifest,
   createProviderBudgetGuard,
+  readDashScopeProvider,
   readBoundedJSON,
   readEnvironment,
+  registerDashScopeProvider,
   validateManifest,
 } from "../src/index.js";
 
@@ -22,6 +24,10 @@ function environment() {
     RESONANCE_AGENT_MAX_TOTAL_TOKENS: "20000",
     RESONANCE_AGENT_MAX_COST_MICROS: "100000",
     RESONANCE_AGENT_MAX_PROVIDER_CALLS: "8",
+    DASHSCOPE_API_KEY: "test-dashscope-key",
+    DASHSCOPE_BASE_URL:
+      "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    DASHSCOPE_MODEL: "qwen3.8-max",
   });
 }
 
@@ -66,8 +72,57 @@ describe("trusted environment", () => {
           RESONANCE_AGENT_MAX_TOTAL_TOKENS: "20000",
           RESONANCE_AGENT_MAX_COST_MICROS: "100000",
           RESONANCE_AGENT_MAX_PROVIDER_CALLS: "8",
+          DASHSCOPE_API_KEY: "test-dashscope-key",
+          DASHSCOPE_BASE_URL:
+            "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+          DASHSCOPE_MODEL: "qwen3.8-max",
         }),
       ).toThrow(/endpoint is invalid/);
+    }
+  });
+
+  it("registers only a validated DashScope OpenAI-compatible provider", () => {
+    const provider = readDashScopeProvider({
+      DASHSCOPE_API_KEY: "test-dashscope-key",
+      DASHSCOPE_BASE_URL:
+        "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      DASHSCOPE_MODEL: "qwen3.8-max",
+    });
+    const registerProvider = vi.fn();
+    registerDashScopeProvider({ registerProvider } as never, provider);
+    expect(registerProvider).toHaveBeenCalledOnce();
+    expect(registerProvider).toHaveBeenCalledWith(
+      "dashscope",
+      expect.objectContaining({
+        baseUrl: provider.baseUrl,
+        apiKey: "$DASHSCOPE_API_KEY",
+        api: "openai-completions",
+        models: [expect.objectContaining({ id: "qwen3.8-max", reasoning: true })],
+      }),
+    );
+  });
+
+  it("rejects placeholder secrets and unsafe Provider URLs", () => {
+    for (const candidate of [
+      {
+        DASHSCOPE_API_KEY: "replace-with-your-dashscope-api-key",
+        DASHSCOPE_BASE_URL:
+          "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+        DASHSCOPE_MODEL: "qwen3.8-max",
+      },
+      {
+        DASHSCOPE_API_KEY: "test-dashscope-key",
+        DASHSCOPE_BASE_URL: "http://127.0.0.1/compatible-mode/v1",
+        DASHSCOPE_MODEL: "qwen3.8-max",
+      },
+      {
+        DASHSCOPE_API_KEY: "test-dashscope-key",
+        DASHSCOPE_BASE_URL:
+          "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1?target=evil",
+        DASHSCOPE_MODEL: "qwen3.8-max",
+      },
+    ]) {
+      expect(() => readDashScopeProvider(candidate)).toThrow(/Provider environment is invalid/);
     }
   });
 });
@@ -109,6 +164,31 @@ describe("provider budget guard", () => {
     expect(() => JSON.stringify(second)).toThrow(/BigInt/u);
   });
 
+  it("caps the OpenAI reasoning max_completion_tokens field used by Qwen", () => {
+    const abort = vi.fn();
+    const guard = createProviderBudgetGuard({
+      maxTotalTokens: 65_536,
+      maxCostMicros: 10_000_000,
+      maxProviderCalls: 1,
+    });
+    const guarded = guard(
+      {
+        payload: {
+          model: "qwen3.8-max",
+          max_completion_tokens: 32_768,
+          messages: [{ role: "user", content: "hi" }],
+        },
+      },
+      {
+        model: { cost: { input: 100, output: 100, cacheRead: 100, cacheWrite: 100 } },
+        abort,
+      },
+    );
+    expect(guarded).toMatchObject({ max_completion_tokens: expect.any(Number) });
+    expect((guarded as { max_completion_tokens: number }).max_completion_tokens).toBeGreaterThan(0);
+    expect(abort).not.toHaveBeenCalled();
+  });
+
   it("aborts before unsupported, exhausted, or unpriced provider requests", () => {
     const abort = vi.fn();
     const guard = createProviderBudgetGuard({
@@ -123,6 +203,21 @@ describe("provider budget guard", () => {
     expect(result).toMatchObject({ max_tokens: 0 });
     expect(abort).toHaveBeenCalledTimes(1);
     expect(() => JSON.stringify(result)).toThrow(/BigInt/u);
+
+    const ambiguousAbort = vi.fn();
+    const ambiguous = createProviderBudgetGuard({
+      maxTotalTokens: 1000,
+      maxCostMicros: 5000,
+      maxProviderCalls: 1,
+    })(
+      { payload: { max_tokens: 10, max_completion_tokens: 10, messages: [] } },
+      {
+        model: { cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 } },
+        abort: ambiguousAbort,
+      },
+    );
+    expect(ambiguousAbort).toHaveBeenCalledTimes(1);
+    expect(() => JSON.stringify(ambiguous)).toThrow(/BigInt/u);
   });
 });
 
@@ -377,13 +472,21 @@ describe("execution", () => {
     expect(result.call_id).toBe("call-9");
   });
 
-  it("fails closed on HTTP errors and mismatched call ids without reflecting a response body", async () => {
+  it("maps HTTP errors to bounded structured statuses without reflecting a response body", async () => {
     const failed = vi.fn<typeof fetch>(async () =>
       jsonResponse({ error: "secret downstream stack" }, 500),
     );
-    await expect(
-      executeTool(environment(), "get_my_profile", "call-1", {}, undefined, failed),
-    ).rejects.not.toThrow(/secret downstream stack/);
+    const failedResult = await executeTool(
+      environment(),
+      "get_my_profile",
+      "call-1",
+      {},
+      undefined,
+      failed,
+    );
+    expect(failedResult.status).toBe("retryable_error");
+    expect(failedResult.is_error).toBe(true);
+    expect(failedResult.model_text).not.toContain("secret downstream stack");
     const mismatch = vi.fn<typeof fetch>(async () =>
       jsonResponse({
         status: "ok",
@@ -398,6 +501,25 @@ describe("execution", () => {
       executeTool(environment(), "get_my_profile", "call-1", {}, undefined, mismatch),
     ).rejects.toThrow(/mismatched call identity/);
   });
+
+  it.each(["execution_pending", "executed"] as const)(
+    "accepts the bounded IAM execution status %s",
+    async (status) => {
+      const fetcher = vi.fn<typeof fetch>(async () =>
+        jsonResponse({
+          status,
+          call_id: "call-iam",
+          model_text: status === "executed" ? "Receipt committed" : "Execution pending",
+          display_summary: status,
+          data: {},
+          is_error: false,
+        }),
+      );
+      await expect(
+        executeTool(environment(), "set_tenant_member_status", "call-iam", {}, undefined, fetcher),
+      ).resolves.toMatchObject({ status, is_error: false });
+    },
+  );
 });
 
 describe("response limits", () => {

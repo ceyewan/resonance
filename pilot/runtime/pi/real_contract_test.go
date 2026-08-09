@@ -64,7 +64,7 @@ func TestRealPiRPCContract(t *testing.T) {
 		Args: []string{
 			"--mode", "rpc", "--session-dir", filepath.Join(home, "sessions"), "--no-builtin-tools", "--no-extensions", "--extension", bridge,
 			"--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
-			"--offline", "--provider", "anthropic", "--model", "claude-sonnet-4-5",
+			"--offline", "--provider", "dashscope", "--model", "qwen3.8-max",
 		},
 		Env: []string{
 			"PATH=" + os.Getenv("PATH"), "HOME=" + home, piAgentDirEnvName + "=" + agentDir, "PI_OFFLINE=1", "PI_TELEMETRY=0",
@@ -74,6 +74,9 @@ func TestRealPiRPCContract(t *testing.T) {
 			"RESONANCE_AGENT_MAX_TOTAL_TOKENS=20000",
 			"RESONANCE_AGENT_MAX_COST_MICROS=100000",
 			"RESONANCE_AGENT_MAX_PROVIDER_CALLS=8",
+			"DASHSCOPE_API_KEY=contract-test-key",
+			"DASHSCOPE_BASE_URL=https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+			"DASHSCOPE_MODEL=qwen3.8-max",
 		},
 		Dir: home,
 	})
@@ -90,8 +93,8 @@ func TestRealPiRPCContract(t *testing.T) {
 	state, err := client.GetState(contractContext)
 	require.NoError(t, err)
 	require.NotNil(t, state.Model)
-	require.Equal(t, "anthropic", state.Model.Provider)
-	require.Equal(t, "claude-sonnet-4-5", state.Model.ID)
+	require.Equal(t, "dashscope", state.Model.Provider)
+	require.Equal(t, "qwen3.8-max", state.Model.ID)
 	require.NotEmpty(t, state.SessionID)
 	commands, err := client.GetCommands(contractContext)
 	require.NoError(t, err)

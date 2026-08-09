@@ -237,7 +237,7 @@ func (s *Server) resolve(parent context.Context, host string) ([]netip.Addr, err
 	if err != nil {
 		return nil, fmt.Errorf("resolve provider host: %w", err)
 	}
-	return validateResolvedAddresses(addresses)
+	return validateResolvedAddresses(addresses, s.config.AllowSyntheticBenchmarkAddresses)
 }
 
 func (s *Server) dial(parent context.Context, address netip.Addr, port int) (net.Conn, error) {

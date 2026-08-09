@@ -165,10 +165,14 @@ func TestAuthService_ValidateTokenFailsClosedOnIdentityState(t *testing.T) {
 func TestAuthService_RegisterCreatesDefaultTenantIdentityAtomically(t *testing.T) {
 	authenticator := newTestAuthenticator(t)
 	identityRepo := &testIdentityRepo{}
+	provisioner := &testDefaultAgentSessionProvisioner{}
 	sessionRepo := &testSessionRepo{getSessionFn: func(context.Context, string) (*model.Session, error) {
 		return &model.Session{SessionID: "0", Name: "Resonance Room"}, nil
 	}}
-	service := NewAuthService(&testUserRepo{}, identityRepo, sessionRepo, authenticator, testLogger())
+	service := NewAuthService(
+		&testUserRepo{}, identityRepo, sessionRepo, authenticator, testLogger(),
+		WithDefaultAgentSessionProvisioner(provisioner),
+	)
 
 	response, err := service.Register(context.Background(), &logicv1.RegisterRequest{
 		Username: "new-user", Password: "password", Nickname: "New User",
@@ -182,6 +186,38 @@ func TestAuthService_RegisterCreatesDefaultTenantIdentityAtomically(t *testing.T
 	require.Equal(t, model.DefaultTenantID, response.TenantId)
 	require.Equal(t, []string{model.SystemRoleUser}, response.Roles)
 	require.Len(t, sessionRepo.addedMembers, 1)
+	require.Equal(t, model.DefaultTenantID, provisioner.tenantID)
+	require.Equal(t, "new-user", provisioner.username)
+}
+
+func TestAuthService_RegisterKeepsIdentityWhenBestEffortAgentProvisioningFails(t *testing.T) {
+	authenticator := newTestAuthenticator(t)
+	identityRepo := &testIdentityRepo{}
+	provisioner := &testDefaultAgentSessionProvisioner{err: errors.New("agent session unavailable")}
+	service := NewAuthService(
+		&testUserRepo{}, identityRepo, &testSessionRepo{}, authenticator, testLogger(),
+		WithDefaultAgentSessionProvisioner(provisioner),
+	)
+
+	response, err := service.Register(context.Background(), &logicv1.RegisterRequest{
+		Username: "new-user", Password: "password", Nickname: "New User",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.NotNil(t, identityRepo.createdUser)
+	require.Equal(t, "new-user", provisioner.username)
+}
+
+type testDefaultAgentSessionProvisioner struct {
+	tenantID string
+	username string
+	err      error
+}
+
+func (p *testDefaultAgentSessionProvisioner) EnsureDefaultAgentSession(_ context.Context, tenantID, username string) (string, error) {
+	p.tenantID = tenantID
+	p.username = username
+	return "agent-session", p.err
 }
 
 func TestAuthService_ResolveUserPrincipalUsesAuthoritativeTenantState(t *testing.T) {

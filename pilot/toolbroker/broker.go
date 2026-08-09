@@ -68,11 +68,14 @@ type MembershipMutationPrepareRequest struct {
 }
 
 type MembershipMutationPrepareResult struct {
-	CallID    string
-	ArgsHash  string
-	Status    string
-	ExpiresAt time.Time
-	Created   bool
+	CallID           string
+	ArgsHash         string
+	Status           string
+	ExecutionStatus  string
+	OperationID      string
+	ExecutionSummary string
+	ExpiresAt        time.Time
+	Created          bool
 }
 
 type Option func(*brokerOptions)
@@ -389,11 +392,29 @@ func (b *Broker) handleExecute(writer http.ResponseWriter, request *http.Request
 		}
 		return
 	}
+	resultStatus := output.status
+	if resultStatus == "" {
+		resultStatus = "ok"
+	}
+	if !validToolResultStatus(resultStatus) {
+		b.writeError(writer, http.StatusInternalServerError, "tool response unavailable")
+		return
+	}
 	result := ToolResult{
-		Status: "ok", CallID: execution.ToolCallID, ModelText: output.modelText,
+		Status: resultStatus, CallID: execution.ToolCallID, ModelText: output.modelText,
 		DisplaySummary: output.displaySummary, Data: output.data,
+		IsError: resultStatus == "denied" || resultStatus == "retryable_error" || resultStatus == "final_error",
 	}
 	b.writeJSON(writer, http.StatusOK, result)
+}
+
+func validToolResultStatus(value string) bool {
+	switch value {
+	case "ok", "approval_required", "execution_pending", "executed", "denied", "retryable_error", "final_error":
+		return true
+	default:
+		return false
+	}
 }
 
 type requestAuthorization struct {

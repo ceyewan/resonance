@@ -19,10 +19,11 @@ import (
 
 // Config 初始化所需的配置（复用 logic.yaml）
 type Config struct {
-	Log        clog.Config                `mapstructure:"log"`
-	PostgreSQL connector.PostgreSQLConfig `mapstructure:"postgres"`
-	Admin      AdminConfig                `mapstructure:"admin"`
-	AgentBot   AgentBotConfig             `mapstructure:"agent_bot"`
+	Log         clog.Config                `mapstructure:"log"`
+	PostgreSQL  connector.PostgreSQLConfig `mapstructure:"postgres"`
+	Admin       AdminConfig                `mapstructure:"admin"`
+	AgentBot    AgentBotConfig             `mapstructure:"agent_bot"`
+	AgentBudget AgentBudgetConfig          `mapstructure:"agent_budget"`
 }
 
 // AdminConfig 管理员初始化配置
@@ -35,6 +36,20 @@ type AdminConfig struct {
 type AgentBotConfig struct {
 	Username string `mapstructure:"username"`
 	Nickname string `mapstructure:"nickname"`
+}
+
+// AgentBudgetConfig provisions only the initial default-tenant policy. Once a
+// policy exists, operators must use the versioned Repo/API path rather than
+// silently overwriting live limits during every init restart.
+type AgentBudgetConfig struct {
+	TenantID               string `mapstructure:"tenant_id"`
+	Enabled                bool   `mapstructure:"enabled"`
+	DailyTokenLimit        int64  `mapstructure:"daily_token_limit"`
+	MonthlyTokenLimit      int64  `mapstructure:"monthly_token_limit"`
+	DailyCostLimitMicros   int64  `mapstructure:"daily_cost_limit_micros"`
+	MonthlyCostLimitMicros int64  `mapstructure:"monthly_cost_limit_micros"`
+	MaxAttemptTokens       int64  `mapstructure:"max_attempt_tokens"`
+	MaxAttemptCostMicros   int64  `mapstructure:"max_attempt_cost_micros"`
 }
 
 // Run 执行数据库初始化：建表 + 种子数据
@@ -78,7 +93,7 @@ func Run() error {
 
 	// 5. Seed 种子数据
 	logger.Info("seeding initial data...")
-	if err := seed(gormDB, &cfg.Admin, &cfg.AgentBot, logger); err != nil {
+	if err := seed(gormDB, &cfg.Admin, &cfg.AgentBot, &cfg.AgentBudget, logger); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	logger.Info("seed completed")
@@ -88,7 +103,7 @@ func Run() error {
 }
 
 // seed 插入种子数据（幂等）
-func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, logger clog.Logger) error {
+func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, budgetCfg *AgentBudgetConfig, logger clog.Logger) error {
 	// 1. 创建默认全员群 (Resonance Room)
 	room := &model.Session{
 		SessionID:     "0",
@@ -124,6 +139,10 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, logger
 		}
 		logger.Info("agent bot ready", clog.String("username", bot.Username))
 	}
+	if err := ensureInitialAgentBudgetPolicy(gormDB, budgetCfg); err != nil {
+		return fmt.Errorf("seed agent budget policy: %w", err)
+	}
+	logger.Info("initial agent budget policy ready", clog.String("tenant_id", budgetCfg.TenantID))
 
 	// 3. 创建管理员账号
 	if adminCfg.Username == "" || adminCfg.Password == "" {
@@ -179,6 +198,40 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, logger
 	}
 	logger.Info("admin system role ready", clog.String("username", adminCfg.Username))
 
+	return nil
+}
+
+func ensureInitialAgentBudgetPolicy(gormDB *gorm.DB, config *AgentBudgetConfig) error {
+	if gormDB == nil || config == nil {
+		return fmt.Errorf("agent budget seed configuration is required")
+	}
+	policy := &model.AgentBudgetPolicy{
+		TenantID: config.TenantID, Enabled: config.Enabled,
+		DailyTokenLimit: config.DailyTokenLimit, MonthlyTokenLimit: config.MonthlyTokenLimit,
+		DailyCostLimitMicros: config.DailyCostLimitMicros, MonthlyCostLimitMicros: config.MonthlyCostLimitMicros,
+		MaxAttemptTokens: config.MaxAttemptTokens, MaxAttemptCostMicros: config.MaxAttemptCostMicros,
+		Version: 1,
+	}
+	if err := validateInitialAgentBudgetPolicy(policy); err != nil {
+		return err
+	}
+	result := gormDB.Clauses(clause.OnConflict{DoNothing: true}).Create(policy)
+	if result.Error != nil {
+		return result.Error
+	}
+	return nil
+}
+
+func validateInitialAgentBudgetPolicy(policy *model.AgentBudgetPolicy) error {
+	const maxBridgeExactInteger int64 = 9_007_199_254_740_991
+	if policy == nil || policy.TenantID == "" || len(policy.TenantID) > 64 || !policy.Enabled ||
+		policy.DailyTokenLimit < 1 || policy.MonthlyTokenLimit < policy.DailyTokenLimit ||
+		policy.DailyCostLimitMicros < 1 || policy.MonthlyCostLimitMicros < policy.DailyCostLimitMicros ||
+		policy.MaxAttemptTokens < 1 || policy.MaxAttemptTokens > policy.DailyTokenLimit ||
+		policy.MaxAttemptCostMicros < 1 || policy.MaxAttemptCostMicros > policy.DailyCostLimitMicros ||
+		policy.MaxAttemptTokens > maxBridgeExactInteger || policy.MaxAttemptCostMicros > maxBridgeExactInteger {
+		return fmt.Errorf("enabled initial agent budget policy has invalid limits")
+	}
 	return nil
 }
 

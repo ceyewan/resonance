@@ -45,6 +45,11 @@ type TenantMembershipReader interface {
 	GetTenantMembership(ctx context.Context, tenantID, username string) (*model.TenantMembership, error)
 }
 
+var (
+	errAgentSessionActorNotHuman  = errors.New("AI session actor must be a human account")
+	errAgentSessionBotUnavailable = errors.New("configured agent bot is unavailable")
+)
+
 // AgentSessionPolicy is server-owned configuration for the only AI profiles
 // that can be selected by CreateAgentSession.
 type AgentSessionPolicy struct {
@@ -111,6 +116,14 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		return nil, err
 	}
 	username := principal.Username
+	if s.agentPolicy.BotUsername != "" && s.agentPolicy.UserAssistantVersion > 0 {
+		if _, ensureErr := s.EnsureDefaultAgentSession(ctx, principal.TenantID, username); ensureErr != nil {
+			observability.RecordDefaultAgentSessionProvision(ctx, "session_list_repair", "failed")
+			s.logger.Warn("failed to repair default agent session", clog.Error(ensureErr))
+		} else {
+			observability.RecordDefaultAgentSessionProvision(ctx, "session_list_repair", "succeeded")
+		}
+	}
 
 	sessions, err := s.sessionRepo.GetUserSessionListByTenant(ctx, principal.TenantID, username)
 	if err != nil {
@@ -348,30 +361,76 @@ func (s *SessionService) CreateAgentSession(ctx context.Context, req *logicv1.Cr
 	if !containsString(principal.Scopes, requiredScope) || (requiredRole != "" && !containsString(principal.Roles, requiredRole)) {
 		return nil, status.Error(codes.PermissionDenied, "agent profile is not permitted")
 	}
-	creator, err := s.userRepo.GetUserByUsername(ctx, principal.Username)
-	if err != nil || creator == nil || creator.Kind != model.UserKindHuman {
-		return nil, status.Error(codes.PermissionDenied, "AI session actor must be a human account")
-	}
-	bot, err := s.userRepo.GetUserByUsername(ctx, s.agentPolicy.BotUsername)
-	if err != nil || bot == nil || bot.Kind != model.UserKindAgentBot {
-		return nil, status.Error(codes.FailedPrecondition, "configured agent bot is unavailable")
-	}
-	sessionID := generateAgentSessionID(principal.TenantID, principal.Username, profileID, profileVersion)
-	session := &model.Session{
-		SessionID: sessionID, Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
-		TenantID: principal.TenantID, ProfileID: profileID, ProfileVersion: profileVersion,
-		Name: displayName, OwnerUsername: principal.Username,
-	}
-	members := []*model.SessionMember{
-		{SessionID: sessionID, Username: principal.Username, Role: 1},
-		{SessionID: sessionID, Username: bot.Username, Role: 0},
-	}
-	persisted, _, err := s.sessionRepo.CreateSessionWithMembers(ctx, session, members)
+	persisted, err := s.createPinnedAgentSession(ctx, principal.TenantID, principal.Username, profileID, profileVersion, displayName)
 	if err != nil {
+		switch {
+		case errors.Is(err, errAgentSessionActorNotHuman):
+			return nil, status.Error(codes.PermissionDenied, errAgentSessionActorNotHuman.Error())
+		case errors.Is(err, errAgentSessionBotUnavailable):
+			return nil, status.Error(codes.FailedPrecondition, errAgentSessionBotUnavailable.Error())
+		}
 		s.logger.Error("failed to create agent session", clog.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create agent session")
 	}
 	return &logicv1.CreateAgentSessionResponse{SessionId: persisted.SessionID}, nil
+}
+
+// EnsureDefaultAgentSession is the idempotent provisioning and lazy-repair
+// path for the ordinary assistant. IAM profiles are never provisioned here.
+func (s *SessionService) EnsureDefaultAgentSession(ctx context.Context, tenantID, username string) (string, error) {
+	if tenantID == "" || username == "" || s.agentPolicy.BotUsername == "" || s.agentPolicy.UserAssistantVersion < 1 {
+		return "", fmt.Errorf("default agent session policy is unavailable")
+	}
+	if s.memberships == nil {
+		return "", fmt.Errorf("tenant membership reader is unavailable")
+	}
+	membership, err := s.memberships.GetTenantMembership(ctx, tenantID, username)
+	if err != nil || membership == nil || membership.TenantID != tenantID || membership.Username != username ||
+		membership.Status != model.TenantMembershipStatusActive {
+		return "", fmt.Errorf("active tenant membership is required")
+	}
+	name := s.agentPolicy.BotNickname
+	if name == "" {
+		name = "AI Assistant"
+	}
+	persisted, err := s.createPinnedAgentSession(
+		ctx, tenantID, username, model.AgentProfileUserAssistant, s.agentPolicy.UserAssistantVersion, name,
+	)
+	if err != nil {
+		return "", err
+	}
+	return persisted.SessionID, nil
+}
+
+func (s *SessionService) createPinnedAgentSession(
+	ctx context.Context,
+	tenantID, username, profileID string,
+	profileVersion int64,
+	displayName string,
+) (*model.Session, error) {
+	creator, err := s.userRepo.GetUserByUsername(ctx, username)
+	if err != nil || creator == nil || creator.Kind != model.UserKindHuman || creator.Username != username {
+		return nil, errAgentSessionActorNotHuman
+	}
+	bot, err := s.userRepo.GetUserByUsername(ctx, s.agentPolicy.BotUsername)
+	if err != nil || bot == nil || bot.Kind != model.UserKindAgentBot || bot.Username != s.agentPolicy.BotUsername {
+		return nil, errAgentSessionBotUnavailable
+	}
+	sessionID := generateAgentSessionID(tenantID, username, profileID, profileVersion)
+	session := &model.Session{
+		SessionID: sessionID, Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
+		TenantID: tenantID, ProfileID: profileID, ProfileVersion: profileVersion,
+		Name: displayName, OwnerUsername: username,
+	}
+	members := []*model.SessionMember{
+		{SessionID: sessionID, Username: username, Role: 1},
+		{SessionID: sessionID, Username: bot.Username, Role: 0},
+	}
+	persisted, _, err := s.sessionRepo.CreateSessionWithMembers(ctx, session, members)
+	if err != nil {
+		return nil, err
+	}
+	return persisted, nil
 }
 
 func (s *SessionService) resolveAgentProfile(profile commonv1.AgentProfile) (profileID string, version int64, role, scope, name string, ok bool) {

@@ -12,9 +12,9 @@ func TestConfig_RequiresFixedProviderProxyAndOfflineEnvironment(t *testing.T) {
 	require.NoError(t, config.Validate())
 
 	for _, invalid := range [][]string{
-		{"PATH", "ANTHROPIC_API_KEY"},
-		{"PATH", "ANTHROPIC_API_KEY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "RESONANCE_POSTGRES_PASSWORD"},
-		{"PATH", "ANTHROPIC_API_KEY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_OFFLINE"},
+		{"PATH", "DASHSCOPE_API_KEY"},
+		{"PATH", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL", "DASHSCOPE_MODEL", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "RESONANCE_POSTGRES_PASSWORD"},
+		{"PATH", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL", "DASHSCOPE_MODEL", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_OFFLINE"},
 	} {
 		copy := config
 		copy.Runtime.ProviderEnvAllowlist = invalid
@@ -25,7 +25,8 @@ func TestConfig_RequiresFixedProviderProxyAndOfflineEnvironment(t *testing.T) {
 func TestConfig_RuntimeEnvironmentDoesNotInheritServiceCredentials(t *testing.T) {
 	config := validRuntimeHostConfig()
 	for name, value := range map[string]string{
-		"PATH": "/usr/bin", "ANTHROPIC_API_KEY": "provider", "HTTP_PROXY": "http://proxy:18080",
+		"PATH": "/usr/bin", "DASHSCOPE_API_KEY": "provider", "DASHSCOPE_BASE_URL": "https://example.test/compatible-mode/v1",
+		"DASHSCOPE_MODEL": "qwen3.8-max", "HTTP_PROXY": "http://proxy:18080",
 		"HTTPS_PROXY": "http://proxy:18080", "NO_PROXY": "127.0.0.1,localhost", "PI_OFFLINE": "1", "PI_TELEMETRY": "0",
 	} {
 		t.Setenv(name, value)
@@ -45,7 +46,10 @@ func validRuntimeHostConfig() Config {
 	config.Runtime.ExtensionPath = "/opt/resonance/bridge/src/index.ts"
 	config.Runtime.WorkDir = "/var/lib/resonance-pilot/work"
 	config.Runtime.AgentDir = "/var/lib/resonance-pilot/pi-agent"
-	config.Runtime.ProviderEnvAllowlist = []string{"PATH", "ANTHROPIC_API_KEY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_TELEMETRY"}
+	config.Runtime.ProviderEnvAllowlist = []string{
+		"PATH", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL", "DASHSCOPE_MODEL",
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_TELEMETRY",
+	}
 	config.Runtime.ProviderProxyURL = "http://proxy:18080"
 	config.Remote.SocketPath = "/run/resonance-agent/runtime.sock"
 	config.Remote.SessionRoot = "/var/lib/resonance-pilot/sessions"

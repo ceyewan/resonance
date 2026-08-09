@@ -168,7 +168,10 @@ func (c Config) Validate() error {
 }
 
 func validateProviderEnvironment(names []string) error {
-	required := []string{"PATH", "ANTHROPIC_API_KEY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_TELEMETRY"}
+	required := []string{
+		"PATH", "DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL", "DASHSCOPE_MODEL",
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "PI_OFFLINE", "PI_TELEMETRY",
+	}
 	if len(names) != len(required) {
 		return fmt.Errorf("runtime host provider environment must use the fixed production allowlist")
 	}

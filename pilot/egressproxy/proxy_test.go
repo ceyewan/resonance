@@ -21,13 +21,13 @@ func TestServerLoopbackPinsValidatedIPAndRelaysOpaqueTLS(t *testing.T) {
 	dialer := newPipeDialer()
 	server := startLoopbackServer(t, testProxyConfig(), staticResolver{addresses: []netip.Addr{netip.MustParseAddr("1.1.1.1")}}, dialer)
 
-	client, reader, status := openRawProxyRequest(t, server, "CONNECT api.anthropic.com:443 HTTP/1.1\r\nHost: api.anthropic.com:443\r\n\r\n")
+	client, reader, status := openRawProxyRequest(t, server, "CONNECT llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com:443 HTTP/1.1\r\nHost: llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com:443\r\n\r\n")
 	require.Equal(t, http.StatusOK, status)
 	backend := <-dialer.connections
 	t.Cleanup(func() { _ = backend.Close() })
 	require.Equal(t, []string{"1.1.1.1:443"}, dialer.addressesSnapshot(), "the dialer must receive the validated IP, never the hostname")
 
-	hello := fragmentFirstTLSRecord(t, captureTLSClientHello(t, "api.anthropic.com", []string{"h2", "http/1.1"}), 19)
+	hello := fragmentFirstTLSRecord(t, captureTLSClientHello(t, "llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com", []string{"h2", "http/1.1"}), 19)
 	backendHello := make(chan []byte, 1)
 	go func() {
 		payload := make([]byte, len(hello))
@@ -110,6 +110,22 @@ func TestServerRejectsPrivateMetadataAndMixedDNSWithoutDial(t *testing.T) {
 			require.Empty(t, dialer.addressesSnapshot())
 		})
 	}
+}
+
+func TestServerDevelopmentModePinsSyntheticBenchmarkAddress(t *testing.T) {
+	config := testProxyConfig()
+	config.AllowSyntheticBenchmarkAddresses = true
+	dialer := newPipeDialer()
+	server := startLoopbackServer(t, config, staticResolver{
+		addresses: []netip.Addr{netip.MustParseAddr("198.18.1.151")},
+	}, dialer)
+
+	client, _, status := openRawProxyRequest(t, server, canonicalConnectRequest())
+	require.Equal(t, http.StatusOK, status)
+	backend := <-dialer.connections
+	defer backend.Close()
+	require.Equal(t, []string{"198.18.1.151:443"}, dialer.addressesSnapshot())
+	_ = client.Close()
 }
 
 func TestServerBoundsDNSDialClientHelloIdleConcurrencyAndClose(t *testing.T) {
@@ -215,7 +231,7 @@ func openValidatedTunnel(t *testing.T, config Config) (net.Conn, net.Conn) {
 	client, _, status := openRawProxyRequest(t, server, canonicalConnectRequest())
 	require.Equal(t, http.StatusOK, status)
 	backend := <-dialer.connections
-	hello := captureTLSClientHello(t, "api.anthropic.com", []string{"h2"})
+	hello := captureTLSClientHello(t, "llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com", []string{"h2"})
 	backendHello := make(chan struct{})
 	go func() {
 		_, _ = io.ReadFull(backend, make([]byte, len(hello)))
@@ -261,7 +277,7 @@ func openRawProxyRequest(t *testing.T, server *Server, request string) (net.Conn
 }
 
 func canonicalConnectRequest() string {
-	return "CONNECT api.anthropic.com:443 HTTP/1.1\r\nHost: api.anthropic.com:443\r\n\r\n"
+	return "CONNECT llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com:443 HTTP/1.1\r\nHost: llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com:443\r\n\r\n"
 }
 
 func testProxyConfig() Config {

@@ -23,7 +23,6 @@ var forbiddenAddressPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("192.0.0.0/24"),
 	netip.MustParsePrefix("192.0.2.0/24"),
-	netip.MustParsePrefix("198.18.0.0/15"),
 	netip.MustParsePrefix("198.51.100.0/24"),
 	netip.MustParsePrefix("203.0.113.0/24"),
 	netip.MustParsePrefix("240.0.0.0/4"),
@@ -43,6 +42,8 @@ var forbiddenAddressPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2001:db8::/32"),
 	netip.MustParsePrefix("2002::/16"),
 }
+
+var syntheticBenchmarkPrefix = netip.MustParsePrefix("198.18.0.0/15")
 
 func canonicalDNSName(host string) (string, error) {
 	if host == "" || strings.TrimSpace(host) != host || strings.HasSuffix(host, ".") ||
@@ -73,14 +74,14 @@ func canonicalDNSName(host string) (string, error) {
 	return ascii, nil
 }
 
-func validateResolvedAddresses(addresses []netip.Addr) ([]netip.Addr, error) {
+func validateResolvedAddresses(addresses []netip.Addr, allowSyntheticBenchmarkAddresses bool) ([]netip.Addr, error) {
 	if len(addresses) == 0 {
 		return nil, fmt.Errorf("DNS returned no addresses")
 	}
 	validated := make([]netip.Addr, 0, len(addresses))
 	seen := make(map[netip.Addr]struct{}, len(addresses))
 	for _, address := range addresses {
-		if err := validateResolvedAddress(address); err != nil {
+		if err := validateResolvedAddress(address, allowSyntheticBenchmarkAddresses); err != nil {
 			// Reject the whole answer set. Accepting one public answer alongside a
 			// private answer would leave room for rebinding/failover mistakes.
 			return nil, err
@@ -97,11 +98,17 @@ func validateResolvedAddresses(addresses []netip.Addr) ([]netip.Addr, error) {
 	return validated, nil
 }
 
-func validateResolvedAddress(address netip.Addr) error {
+func validateResolvedAddress(address netip.Addr, allowSyntheticBenchmarkAddresses bool) error {
 	if !address.IsValid() || address.Zone() != "" || address.Is4In6() ||
 		!address.IsGlobalUnicast() || address.IsUnspecified() || address.IsLoopback() ||
 		address.IsPrivate() || address.IsLinkLocalUnicast() || address.IsLinkLocalMulticast() || address.IsMulticast() {
 		return fmt.Errorf("DNS returned a forbidden address")
+	}
+	if syntheticBenchmarkPrefix.Contains(address) {
+		if allowSyntheticBenchmarkAddresses {
+			return nil
+		}
+		return fmt.Errorf("DNS returned a reserved or metadata address")
 	}
 	for _, prefix := range forbiddenAddressPrefixes {
 		if prefix.Contains(address) {

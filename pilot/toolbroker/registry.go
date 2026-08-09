@@ -38,6 +38,7 @@ var (
 )
 
 type toolOutput struct {
+	status         string
 	modelText      string
 	displaySummary string
 	data           map[string]any
@@ -204,17 +205,54 @@ func (b *Broker) executeSetTenantMemberStatus(
 		return toolOutput{}, errToolUnavailable
 	}
 	data := map[string]any{
-		"status": prepared.Status, "call_id": prepared.CallID, "args_hash": prepared.ArgsHash, "created": prepared.Created,
+		"approval_status": prepared.Status, "execution_status": prepared.ExecutionStatus,
+		"call_id": prepared.CallID, "args_hash": prepared.ArgsHash, "created": prepared.Created,
 	}
 	modelText := "The IAM change was not executed. A durable approval is required before the frozen request can run."
 	displaySummary := "Approval required for tenant member status change"
+	resultStatus := "approval_required"
 	if arguments.DryRun {
 		modelText = "Dry run completed. No approval, execution, receipt, or IAM change was created."
 		displaySummary = "Dry run completed without side effects"
+		resultStatus = "ok"
 	} else {
+		if prepared.ExecutionStatus == model.AgentToolExecutionStatusSucceeded {
+			if prepared.OperationID == "" || prepared.ExecutionSummary == "" {
+				return toolOutput{}, errToolUnavailable
+			}
+			data["operation_id"] = prepared.OperationID
+			resultStatus = "executed"
+			modelText = "The approved IAM change has a durable execution receipt and completed successfully."
+			displaySummary = prepared.ExecutionSummary
+			return toolOutput{status: resultStatus, modelText: modelText, displaySummary: displaySummary, data: data}, nil
+		}
+		if prepared.ExecutionStatus == model.AgentToolExecutionStatusFailedFinal ||
+			prepared.ExecutionStatus == model.AgentToolExecutionStatusCancelled {
+			resultStatus = "final_error"
+			modelText = "The approved IAM change did not complete. Review the durable execution record before retrying."
+			displaySummary = "IAM change execution did not complete"
+			return toolOutput{status: resultStatus, modelText: modelText, displaySummary: displaySummary, data: data}, nil
+		}
 		data["expires_at"] = prepared.ExpiresAt.UTC().Format(time.RFC3339Nano)
+		switch prepared.Status {
+		case model.AgentApprovalStatusPending:
+		case model.AgentApprovalStatusApproved:
+			resultStatus = "execution_pending"
+			modelText = "The frozen IAM change was approved and is handled asynchronously. Verify the durable execution receipt before claiming that the membership changed."
+			displaySummary = "Approved IAM change is awaiting receipt verification"
+		case model.AgentApprovalStatusRejected, model.AgentApprovalStatusRevoked:
+			resultStatus = "denied"
+			modelText = "The durable IAM approval was denied or revoked. The membership change was not executed by this Tool call."
+			displaySummary = "IAM change approval denied"
+		case model.AgentApprovalStatusExpired:
+			resultStatus = "final_error"
+			modelText = "The durable IAM approval expired. Create a new request after revalidating the target membership version."
+			displaySummary = "IAM change approval expired"
+		default:
+			return toolOutput{}, errToolUnavailable
+		}
 	}
-	return toolOutput{modelText: modelText, displaySummary: displaySummary, data: data}, nil
+	return toolOutput{status: resultStatus, modelText: modelText, displaySummary: displaySummary, data: data}, nil
 }
 
 func containsExact(values []string, expected string) bool {

@@ -85,6 +85,18 @@ func (b *HistoryPromptBuilder) RebuildPrompt(ctx context.Context, run *model.Age
 			return "", fmt.Errorf("authoritative history contains an invalid event")
 		}
 		message := event.GetMessage()
+		if message != nil && message.Recalled {
+			if message.Type != commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED || message.Content != "" {
+				return "", fmt.Errorf("authoritative history contains an invalid recalled tombstone")
+			}
+			if event.EventId == run.SourceEventID {
+				return "", fmt.Errorf("current source event was recalled")
+			}
+			// Logic emits this bounded tombstone for recalled rows. Preserve sequence
+			// validation while excluding the original content from the model prompt.
+			previousSeq = event.SeqId
+			continue
+		}
 		if message == nil || message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT || message.Content == "" || !utf8.ValidString(message.Content) {
 			return "", fmt.Errorf("authoritative history contains an unsupported message")
 		}

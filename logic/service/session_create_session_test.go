@@ -192,6 +192,33 @@ func TestSessionService_CreateAgentSession_UsesTrustedPrincipalAndPinnedProfile(
 	})
 }
 
+func TestSessionService_EnsureDefaultAgentSessionCreatesOnlyUserAssistant(t *testing.T) {
+	sessionRepo := &testSessionRepo{}
+	userRepo := &testUserRepo{getUserByUsernameFn: func(_ context.Context, username string) (*model.User, error) {
+		kind := model.UserKindHuman
+		if username == "resonance-agent" {
+			kind = model.UserKindAgentBot
+		}
+		return &model.User{Username: username, Kind: kind}, nil
+	}}
+	svc := NewSessionService(
+		sessionRepo, &testMessageRepo{}, userRepo, nil, nil, nil, nil, testLogger(),
+		withTestTenantMemberships(),
+		WithAgentSessionPolicy(AgentSessionPolicy{
+			BotUsername: "resonance-agent", BotNickname: "Assistant", UserAssistantVersion: 3, IAMAdminVersion: 9,
+		}),
+	)
+
+	sessionID, err := svc.EnsureDefaultAgentSession(context.Background(), "tenant-a", "alice")
+	require.NoError(t, err)
+	require.Equal(t, generateAgentSessionID("tenant-a", "alice", model.AgentProfileUserAssistant, 3), sessionID)
+	require.Equal(t, model.AgentProfileUserAssistant, sessionRepo.createdSession.ProfileID)
+	require.Equal(t, int64(3), sessionRepo.createdSession.ProfileVersion)
+	require.Equal(t, []string{"alice", "resonance-agent"}, []string{
+		sessionRepo.addedMembers[0].Username, sessionRepo.addedMembers[1].Username,
+	})
+}
+
 func TestSessionService_CreateAgentSession_RejectsProfileEscalation(t *testing.T) {
 	userRepo := &testUserRepo{getUserByUsernameFn: func(_ context.Context, username string) (*model.User, error) {
 		kind := model.UserKindHuman
@@ -220,6 +247,51 @@ func TestSessionService_CreateAgentSession_RejectsProfileEscalation(t *testing.T
 		Profile: commonv1.AgentProfile_AGENT_PROFILE_USER_ASSISTANT,
 	})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+func TestSessionService_CreateAgentSession_PreservesActorAndBotStatusCodes(t *testing.T) {
+	principal := &UserPrincipal{
+		TenantID: "tenant-a", Username: "alice", Roles: []string{model.SystemRoleUser}, Scopes: []string{model.ScopeChatUse},
+	}
+	for _, test := range []struct {
+		name string
+		user func(string) *model.User
+		code codes.Code
+	}{
+		{
+			name: "actor is not human",
+			user: func(username string) *model.User {
+				return &model.User{Username: username, Kind: model.UserKindAgentBot}
+			},
+			code: codes.PermissionDenied,
+		},
+		{
+			name: "configured bot is unavailable",
+			user: func(username string) *model.User {
+				if username == "alice" {
+					return &model.User{Username: username, Kind: model.UserKindHuman}
+				}
+				return &model.User{Username: username, Kind: model.UserKindHuman}
+			},
+			code: codes.FailedPrecondition,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			users := &testUserRepo{getUserByUsernameFn: func(_ context.Context, username string) (*model.User, error) {
+				return test.user(username), nil
+			}}
+			svc := NewSessionService(
+				&testSessionRepo{}, &testMessageRepo{}, users, nil, nil, nil, nil, testLogger(),
+				withTestTenantMemberships(),
+				WithAgentSessionPolicy(AgentSessionPolicy{BotUsername: "resonance-agent", UserAssistantVersion: 1}),
+			)
+			_, err := svc.CreateAgentSession(
+				WithUserPrincipal(context.Background(), principal),
+				&logicv1.CreateAgentSessionRequest{Profile: commonv1.AgentProfile_AGENT_PROFILE_USER_ASSISTANT},
+			)
+			require.Equal(t, test.code, status.Code(err))
+		})
+	}
 }
 
 func TestSessionService_CreateAgentSession_IsolatesProfilesForSameUser(t *testing.T) {

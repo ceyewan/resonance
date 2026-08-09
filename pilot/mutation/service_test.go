@@ -32,6 +32,12 @@ func TestService_CrashAfterPrepareAndLostEventAreRecoveredByReconcile(t *testing
 	require.NoError(t, restarted.Reconcile(context.Background()))
 	require.Equal(t, model.AgentToolExecutionStatusSucceeded, fixture.store.execution("tenant-a", "call-1").Status)
 	require.Equal(t, 1, fixture.logic.commits)
+
+	completed, err := restarted.PrepareTenantMembershipStatus(context.Background(), fixture.request())
+	require.NoError(t, err)
+	require.Equal(t, model.AgentToolExecutionStatusSucceeded, completed.ExecutionStatus)
+	require.NotEmpty(t, completed.OperationID)
+	require.NotEmpty(t, completed.ExecutionSummary)
 }
 
 func TestService_ResponseLossUsesNewAttemptAndSameIdempotencyFact(t *testing.T) {

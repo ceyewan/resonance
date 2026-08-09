@@ -414,7 +414,13 @@ func TestBroker_MutationOnlyPreparesWithCapabilityTenantAndCurrentWriteScope(t *
 	response := executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-mutation",
 		`{"target_username":"bob","desired_status":"DISABLED","expected_version":4,"dry_run":false}`)
 	require.Equal(t, http.StatusOK, response.StatusCode)
-	_ = readResponseBody(t, response)
+	payload := readResponseBody(t, response)
+	var toolResult ToolResult
+	require.NoError(t, json.Unmarshal(payload, &toolResult))
+	require.Equal(t, "approval_required", toolResult.Status)
+	require.False(t, toolResult.IsError)
+	require.Equal(t, model.AgentApprovalStatusPending, toolResult.Data["approval_status"])
+	require.Equal(t, model.AgentToolExecutionStatusPrepared, toolResult.Data["execution_status"])
 	request, calls := preparer.snapshot()
 	require.Equal(t, 1, calls)
 	require.Equal(t, "tenant-a", request.TenantID, "tenant 必须来自 Capability")
@@ -422,12 +428,37 @@ func TestBroker_MutationOnlyPreparesWithCapabilityTenantAndCurrentWriteScope(t *
 	require.Equal(t, "call-mutation", request.CallID)
 	require.Equal(t, run.ActorID, request.RequesterID)
 
+	preparer.setResult(MembershipMutationPrepareResult{
+		ArgsHash: strings.Repeat("b", 64), Status: model.AgentApprovalStatusApproved,
+		ExecutionStatus: model.AgentToolExecutionStatusPrepared,
+		ExpiresAt:       time.Date(2026, 8, 9, 2, 10, 0, 0, time.UTC),
+	})
+	response = executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-approved",
+		`{"target_username":"bob","desired_status":"DISABLED","expected_version":4,"dry_run":false}`)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	toolResult = ToolResult{}
+	require.NoError(t, json.Unmarshal(readResponseBody(t, response), &toolResult))
+	require.Equal(t, "execution_pending", toolResult.Status)
+	require.False(t, toolResult.IsError)
+
+	preparer.setResult(MembershipMutationPrepareResult{
+		ArgsHash: strings.Repeat("c", 64), ExecutionStatus: model.AgentToolExecutionStatusSucceeded,
+		OperationID: "operation-1", ExecutionSummary: "Tenant member bob is now DISABLED at version 5",
+	})
+	response = executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-executed",
+		`{"target_username":"bob","desired_status":"DISABLED","expected_version":4,"dry_run":false}`)
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	toolResult = ToolResult{}
+	require.NoError(t, json.Unmarshal(readResponseBody(t, response), &toolResult))
+	require.Equal(t, "executed", toolResult.Status)
+	require.Equal(t, "operation-1", toolResult.Data["operation_id"])
+
 	response = executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-forged",
 		`{"tenant_id":"tenant-b","target_username":"bob","desired_status":"DISABLED","expected_version":4,"dry_run":false}`)
 	require.Equal(t, http.StatusBadRequest, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	_, calls = preparer.snapshot()
-	require.Equal(t, 1, calls)
+	require.Equal(t, 3, calls)
 
 	principals.setPermissions([]string{iamAdminRole}, []string{iamUserReadScope})
 	response = executeBrokerTool(t, broker, token.Reveal(), ToolSetMemberStatus, "call-downgraded",
@@ -435,7 +466,7 @@ func TestBroker_MutationOnlyPreparesWithCapabilityTenantAndCurrentWriteScope(t *
 	require.Equal(t, http.StatusForbidden, response.StatusCode)
 	require.NoError(t, response.Body.Close())
 	_, calls = preparer.snapshot()
-	require.Equal(t, 1, calls)
+	require.Equal(t, 3, calls)
 }
 
 func readBrokerManifest(t *testing.T, broker *Broker, token string) Manifest {
@@ -534,6 +565,7 @@ type fakeMutationPreparer struct {
 	mu      sync.Mutex
 	request MembershipMutationPrepareRequest
 	calls   int
+	result  *MembershipMutationPrepareResult
 }
 
 func (p *fakeMutationPreparer) PrepareTenantMembershipStatus(_ context.Context, request MembershipMutationPrepareRequest) (*MembershipMutationPrepareResult, error) {
@@ -541,10 +573,22 @@ func (p *fakeMutationPreparer) PrepareTenantMembershipStatus(_ context.Context, 
 	defer p.mu.Unlock()
 	p.request = request
 	p.calls++
+	if p.result != nil {
+		result := *p.result
+		result.CallID = request.CallID
+		return &result, nil
+	}
 	return &MembershipMutationPrepareResult{
 		CallID: request.CallID, ArgsHash: strings.Repeat("a", 64), Status: model.AgentApprovalStatusPending,
-		ExpiresAt: time.Date(2026, 8, 9, 2, 10, 0, 0, time.UTC), Created: true,
+		ExecutionStatus: model.AgentToolExecutionStatusPrepared,
+		ExpiresAt:       time.Date(2026, 8, 9, 2, 10, 0, 0, time.UTC), Created: true,
 	}, nil
+}
+
+func (p *fakeMutationPreparer) setResult(result MembershipMutationPrepareResult) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.result = &result
 }
 
 func (p *fakeMutationPreparer) snapshot() (MembershipMutationPrepareRequest, int) {

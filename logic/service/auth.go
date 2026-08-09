@@ -14,6 +14,7 @@ import (
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
+	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
 )
@@ -26,6 +27,17 @@ type AuthService struct {
 	sessionRepo   repo.SessionRepo
 	authenticator auth.Authenticator
 	logger        clog.Logger
+	agentSessions DefaultAgentSessionProvisioner
+}
+
+type DefaultAgentSessionProvisioner interface {
+	EnsureDefaultAgentSession(ctx context.Context, tenantID, username string) (string, error)
+}
+
+type AuthServiceOption func(*AuthService)
+
+func WithDefaultAgentSessionProvisioner(provisioner DefaultAgentSessionProvisioner) AuthServiceOption {
+	return func(service *AuthService) { service.agentSessions = provisioner }
 }
 
 // NewAuthService 创建认证服务
@@ -35,14 +47,21 @@ func NewAuthService(
 	sessionRepo repo.SessionRepo,
 	authenticator auth.Authenticator,
 	logger clog.Logger,
+	options ...AuthServiceOption,
 ) *AuthService {
-	return &AuthService{
+	service := &AuthService{
 		userRepo:      userRepo,
 		identityRepo:  identityRepo,
 		sessionRepo:   sessionRepo,
 		authenticator: authenticator,
 		logger:        logger,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 // Login 实现 AuthService.Login
@@ -84,6 +103,7 @@ func (s *AuthService) Login(ctx context.Context, req *logicv1.LoginRequest) (*lo
 		s.logger.Error("failed to generate token", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to generate token")
 	}
+	s.ensureDefaultAgentSession(ctx, tenantID, user.Username, "login")
 
 	resp := &logicv1.LoginResponse{
 		AccessToken: tokenPair.AccessToken,
@@ -149,6 +169,7 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 		s.logger.Warn("failed to join default room", clog.String("username", user.Username), clog.Error(err))
 		// 非阻塞，注册仍视为成功
 	}
+	s.ensureDefaultAgentSession(ctx, model.DefaultTenantID, user.Username, "register")
 
 	resp := &logicv1.RegisterResponse{
 		AccessToken: tokenPair.AccessToken,
@@ -163,6 +184,18 @@ func (s *AuthService) Register(ctx context.Context, req *logicv1.RegisterRequest
 	}
 
 	return resp, nil
+}
+
+func (s *AuthService) ensureDefaultAgentSession(ctx context.Context, tenantID, username, trigger string) {
+	if s.agentSessions == nil {
+		return
+	}
+	if _, err := s.agentSessions.EnsureDefaultAgentSession(ctx, tenantID, username); err != nil {
+		observability.RecordDefaultAgentSessionProvision(ctx, trigger, "failed")
+		s.logger.Warn("failed to ensure default agent session", clog.Error(err))
+		return
+	}
+	observability.RecordDefaultAgentSessionProvision(ctx, trigger, "succeeded")
 }
 
 // ValidateToken 实现 AuthService.ValidateToken

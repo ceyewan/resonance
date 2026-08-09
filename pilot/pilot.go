@@ -200,6 +200,13 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	if err != nil {
 		return nil, fmt.Errorf("pilot agent run repo: %w", err)
 	}
+	budgetPolicy, err := runRepo.GetAgentBudgetPolicy(ctx, cfg.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("pilot requires a provisioned agent budget policy: %w", err)
+	}
+	if !budgetPolicy.Enabled {
+		return nil, fmt.Errorf("pilot requires an enabled agent budget policy for tenant %q", cfg.TenantID)
+	}
 	identityRepo, err := repo.NewIdentityRepo(database)
 	if err != nil {
 		return nil, fmt.Errorf("pilot identity repo: %w", err)

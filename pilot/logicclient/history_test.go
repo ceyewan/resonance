@@ -31,7 +31,8 @@ func TestHistoryPromptBuilder_UsesAuthoritativeOrderedHistoryAndServiceIdentity(
 	require.NoError(t, err)
 	client := &fakeHistoryClient{verifier: verifier, events: []*commonv1.ChatEvent{
 		textHistoryEvent(11, 1, "conversation-a", "resonance-agent", "prior answer"),
-		textHistoryEvent(12, 2, "conversation-a", "alice", "current question"),
+		recalledHistoryEvent(13, 2, "conversation-a", "alice"),
+		textHistoryEvent(12, 3, "conversation-a", "alice", "current question"),
 	}}
 	builder, err := NewHistoryPromptBuilder(client, signer, "resonance-agent", 100, 64<<10)
 	require.NoError(t, err)
@@ -42,7 +43,32 @@ func TestHistoryPromptBuilder_UsesAuthoritativeOrderedHistoryAndServiceIdentity(
 	require.NoError(t, err)
 	require.Contains(t, prompt, `"current_event_id":12`)
 	require.Contains(t, prompt, `"content":"current question"`)
+	require.NotContains(t, prompt, "recalled")
 	require.NotContains(t, prompt, "0123456789abcdef")
+}
+
+func TestHistoryPromptBuilderRejectsRecalledCurrentEvent(t *testing.T) {
+	client := &fakeHistoryClient{events: []*commonv1.ChatEvent{recalledHistoryEvent(12, 1, "conversation-a", "alice")}}
+	builder, err := NewHistoryPromptBuilder(client, passthroughAuthenticator{}, "resonance-agent", 100, 64<<10)
+	require.NoError(t, err)
+	_, err = builder.RebuildPrompt(context.Background(), &model.AgentRun{
+		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
+		ActorUsername: "alice", Prompt: "private recalled text",
+	})
+	require.ErrorContains(t, err, "was recalled")
+}
+
+func TestHistoryPromptBuilderRejectsMalformedRecalledTombstone(t *testing.T) {
+	event := recalledHistoryEvent(11, 1, "conversation-a", "alice")
+	event.GetMessage().Content = "must not survive recall"
+	client := &fakeHistoryClient{events: []*commonv1.ChatEvent{event}}
+	builder, err := NewHistoryPromptBuilder(client, passthroughAuthenticator{}, "resonance-agent", 100, 64<<10)
+	require.NoError(t, err)
+	_, err = builder.RebuildPrompt(context.Background(), &model.AgentRun{
+		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
+		ActorUsername: "alice", Prompt: "current question",
+	})
+	require.ErrorContains(t, err, "invalid recalled tombstone")
 }
 
 func TestHistoryPromptBuilder_FailsClosedOnTamperedOrMissingCurrentEvent(t *testing.T) {
@@ -84,4 +110,11 @@ func (passthroughAuthenticator) AuthenticateServiceCall(ctx context.Context, _, 
 func textHistoryEvent(eventID, seqID int64, sessionID, from, content string) *commonv1.ChatEvent {
 	return &commonv1.ChatEvent{EventId: eventID, SeqId: seqID, SessionId: sessionID, FromUsername: from,
 		Payload: &commonv1.ChatEvent_Message{Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: content}}}
+}
+
+func recalledHistoryEvent(eventID, seqID int64, sessionID, from string) *commonv1.ChatEvent {
+	return &commonv1.ChatEvent{EventId: eventID, SeqId: seqID, SessionId: sessionID, FromUsername: from,
+		Payload: &commonv1.ChatEvent_Message{Message: &commonv1.Message{
+			Type: commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED, Recalled: true,
+		}}}
 }

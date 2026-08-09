@@ -34,10 +34,11 @@ var (
 	shutdown  func(context.Context) error
 
 	// 业务指标
-	loginDuration         metrics.Histogram
-	registerDuration      metrics.Histogram
-	sendMessageDuration   metrics.Histogram
-	createSessionDuration metrics.Histogram
+	loginDuration                metrics.Histogram
+	registerDuration             metrics.Histogram
+	sendMessageDuration          metrics.Histogram
+	createSessionDuration        metrics.Histogram
+	defaultAgentSessionProvision metrics.Counter
 )
 
 // Init 初始化可观测性组件
@@ -197,6 +198,11 @@ func initBusinessMetrics() {
 		metrics.WithUnit("s"),
 		metrics.WithBuckets([]float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1}),
 	)
+
+	defaultAgentSessionProvision, _ = meter.Counter(
+		"logic_default_agent_session_provision_total",
+		"Default Agent session provisioning attempts by bounded trigger and outcome",
+	)
 }
 
 // ============================================================================
@@ -260,6 +266,14 @@ func RecordSendMessageDuration(ctx context.Context, duration time.Duration, labe
 func RecordCreateSessionDuration(ctx context.Context, duration time.Duration, labels ...metrics.Label) {
 	if createSessionDuration != nil {
 		createSessionDuration.Record(ctx, duration.Seconds(), labels...)
+	}
+}
+
+// RecordDefaultAgentSessionProvision records the best-effort provisioning and
+// lazy-repair path. Callers must use the bounded trigger/outcome vocabulary.
+func RecordDefaultAgentSessionProvision(ctx context.Context, trigger, outcome string) {
+	if defaultAgentSessionProvision != nil {
+		defaultAgentSessionProvision.Inc(ctx, metrics.L("trigger", trigger), metrics.L("outcome", outcome))
 	}
 }
 

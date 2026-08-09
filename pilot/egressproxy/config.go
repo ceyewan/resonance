@@ -16,18 +16,22 @@ const providerTLSPort = 443
 // AllowedHosts contains exact, lower-case ASCII IDNA A-labels. Wildcards,
 // trailing dots, IP literals and implicit ports are never accepted.
 type Config struct {
-	Address                 string        `mapstructure:"address"`
-	AllowedHosts            []string      `mapstructure:"allowed_hosts"`
-	DNSTimeout              time.Duration `mapstructure:"dns_timeout"`
-	DialTimeout             time.Duration `mapstructure:"dial_timeout"`
-	ClientHelloTimeout      time.Duration `mapstructure:"client_hello_timeout"`
-	IdleTimeout             time.Duration `mapstructure:"idle_timeout"`
-	MaxConnectionDuration   time.Duration `mapstructure:"max_connection_duration"`
-	ReadHeaderTimeout       time.Duration `mapstructure:"read_header_timeout"`
-	MaxHeaderBytes          int           `mapstructure:"max_header_bytes"`
-	MaxClientHelloBytes     int           `mapstructure:"max_client_hello_bytes"`
-	MaxConnections          int           `mapstructure:"max_connections"`
-	MaxConnectionsPerClient int           `mapstructure:"max_connections_per_client"`
+	Address      string   `mapstructure:"address"`
+	AllowedHosts []string `mapstructure:"allowed_hosts"`
+	// AllowSyntheticBenchmarkAddresses is a local-development compatibility
+	// switch for Docker Desktop/VPN DNS stacks that synthesize public hosts into
+	// RFC 2544 198.18.0.0/15. Production Compose explicitly forces it off.
+	AllowSyntheticBenchmarkAddresses bool          `mapstructure:"allow_synthetic_benchmark_addresses"`
+	DNSTimeout                       time.Duration `mapstructure:"dns_timeout"`
+	DialTimeout                      time.Duration `mapstructure:"dial_timeout"`
+	ClientHelloTimeout               time.Duration `mapstructure:"client_hello_timeout"`
+	IdleTimeout                      time.Duration `mapstructure:"idle_timeout"`
+	MaxConnectionDuration            time.Duration `mapstructure:"max_connection_duration"`
+	ReadHeaderTimeout                time.Duration `mapstructure:"read_header_timeout"`
+	MaxHeaderBytes                   int           `mapstructure:"max_header_bytes"`
+	MaxClientHelloBytes              int           `mapstructure:"max_client_hello_bytes"`
+	MaxConnections                   int           `mapstructure:"max_connections"`
+	MaxConnectionsPerClient          int           `mapstructure:"max_connections_per_client"`
 }
 
 func Load() (*Config, error) {
@@ -132,7 +136,7 @@ func (c Config) Validate() error {
 // intentionally not defaulted by Load: deleting it from deployment config must
 // make startup fail instead of silently restoring network access.
 func ProductionConfig() Config {
-	cfg := Config{AllowedHosts: []string{"api.anthropic.com"}}
+	cfg := Config{AllowedHosts: []string{"llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com"}}
 	cfg.setDefaults()
 	return cfg
 }
