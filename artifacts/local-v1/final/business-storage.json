@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "im",
+    "messages": 5,
+    "published_outbox": 5,
+    "inbox_rows": 17
+  },
+  {
+    "kind": "agent",
+    "runs": 2,
+    "succeeded_runs": 2,
+    "tool_executions": 1,
+    "approvals": 1,
+    "mutation_receipts": 1
+  }
+]

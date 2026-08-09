@@ -6,6 +6,7 @@ cd "$ROOT"
 COMPOSE=(docker compose --env-file .env -p resonance-v1 -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml -f deploy/observability.yaml)
 EVIDENCE_DIR=${EVIDENCE_DIR:-artifacts/local-v1/$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$EVIDENCE_DIR"
+EVIDENCE_DIR=$(cd "$EVIDENCE_DIR" && pwd)
 TEST_PREFIX=${RESONANCE_E2E_PREFIX:-lv1-$(date -u +%m%d%H%M%S)-$$}
 if [[ ! "$TEST_PREFIX" =~ ^[A-Za-z0-9_-]{1,24}$ ]]; then
   echo "unsafe E2E prefix" >&2
@@ -17,7 +18,11 @@ cleanup() {
 trap cleanup EXIT
 
 "${COMPOSE[@]}" config | sed -E '/^[[:space:]]+[A-Z0-9_]*(PASSWORD|SECRET|API_KEY)[A-Z0-9_]*:/ s/:.*/: <redacted>/' >"$EVIDENCE_DIR/compose-config.yaml"
-"${COMPOSE[@]}" ps --format json >"$EVIDENCE_DIR/compose-ps.jsonl"
+"${COMPOSE[@]}" ps --all --format json >"$EVIDENCE_DIR/compose-ps.jsonl"
+compose_ps=$(jq -s '.' "$EVIDENCE_DIR/compose-ps.jsonl")
+test "$(jq '[.[] | select(.Service != "init" and .Service != "pilot-storage-init" and (.State != "running" or .Health != "healthy"))] | length' <<<"$compose_ps")" -eq 0
+test "$(jq '[.[] | select((.Service == "init" or .Service == "pilot-storage-init") and (.State != "exited" or .ExitCode != 0))] | length' <<<"$compose_ps")" -eq 0
+test "$(jq '[.[] | select(.Service == "init" or .Service == "pilot-storage-init")] | length' <<<"$compose_ps")" -eq 2
 for url in http://127.0.0.1:14173/ http://127.0.0.1:18080/ready http://127.0.0.1:13000/api/health; do
   curl --fail --silent --show-error --max-time 10 "$url" >/dev/null
 done

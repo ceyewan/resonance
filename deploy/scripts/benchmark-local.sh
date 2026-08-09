@@ -5,6 +5,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 OUT_DIR=${BENCHMARK_OUT_DIR:-artifacts/local-v1/benchmark-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$OUT_DIR"
+OUT_DIR=$(cd "$OUT_DIR" && pwd)
 PREFIX=${RESONANCE_BENCHMARK_PREFIX:-lb-$(date -u +%m%d%H%M%S)-$$}
 if [[ ! "$PREFIX" =~ ^[A-Za-z0-9_-]{1,24}$ ]]; then
   echo "unsafe benchmark prefix" >&2

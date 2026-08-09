@@ -6,6 +6,7 @@ cd "$ROOT"
 COMPOSE=(docker compose --env-file .env -p resonance-v1 -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml -f deploy/observability.yaml)
 EVIDENCE_DIR=${EVIDENCE_DIR:-artifacts/local-v1/recovery-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$EVIDENCE_DIR"
+EVIDENCE_DIR=$(cd "$EVIDENCE_DIR" && pwd)
 PREFIX=${RESONANCE_RECOVERY_PREFIX:-rc-$(date -u +%m%d%H%M%S)-$$}
 if [[ ! "$PREFIX" =~ ^[A-Za-z0-9_-]{1,20}$ ]]; then
   echo "unsafe recovery prefix" >&2

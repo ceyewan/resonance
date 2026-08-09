@@ -1,1 +1,7 @@
-ok  	github.com/ceyewan/resonance/test/integration	33.194s
+IM E2E: connect three WebSocket devices
+IM E2E: message Ack and online push
+IM E2E: message edit push
+IM E2E: multi-device read receipt
+IM E2E: offline Inbox recovery
+IM E2E: reconnected online push probe
+IM E2E: message recall push

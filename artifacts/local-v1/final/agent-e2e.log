@@ -1,4 +1,5 @@
-ok  	github.com/ceyewan/resonance/pilot/coordinator	1.852s
-ok  	github.com/ceyewan/resonance/pilot/toolbroker	2.391s
-ok  	github.com/ceyewan/resonance/pilot/mutation	3.573s
-ok  	github.com/ceyewan/resonance/pilot/stream	4.219s
+=== RUN   TestAgentServiceDeterministicCompose
+    agent_service_test.go:178: deterministic Agent E2E passed: tool_run=e7c2d692fce81929a97f24db0714e3cb mutation_run=f03d9ede3328b1df19bca6192da1204f approval=deterministic-4a1cb2ab59607a2b target=lv1-final2-08091916-agent-e2e-target-1786274171504732000
+--- PASS: TestAgentServiceDeterministicCompose (1.65s)
+PASS
+ok  	github.com/ceyewan/resonance/test/live	2.170s

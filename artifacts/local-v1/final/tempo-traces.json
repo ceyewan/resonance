@@ -1,137 +1,135 @@
 {
   "traces": [
     {
-      "traceID": "1d958d46d6875dde35091bbb10cadae",
+      "traceID": "3e23e001989d2c412f26c6fabc574de1",
       "rootServiceName": "resonance-task",
       "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786268818468706779"
+      "startTimeUnixNano": "1786274144375206464"
     },
     {
-      "traceID": "13a7a76e6079d6711e972eaea87e59a9",
+      "traceID": "38c658e497aa30ad9f8ff4ed916e5637",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "consumer.chat_event.process",
+      "startTimeUnixNano": "1786274144375083281",
+      "durationMs": 7
+    },
+    {
+      "traceID": "1b3e30f1097f9f5d421a11aca2f99e7",
       "rootServiceName": "resonance-task",
       "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786268818468468538"
+      "startTimeUnixNano": "1786274144375079030"
     },
     {
-      "traceID": "ced84111cda34ab23258253cd4c8615",
+      "traceID": "458df68d25867fa44d4b03c6169aaf2a",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "consumer.chat_event.process",
+      "startTimeUnixNano": "1786274144374953180",
+      "durationMs": 4
+    },
+    {
+      "traceID": "338e4172228db168b1c81a2acde01258",
       "rootServiceName": "resonance-gateway",
       "rootTraceName": "get-trace-id",
-      "startTimeUnixNano": "1786268785815609942"
+      "startTimeUnixNano": "1786274143726253042"
     },
     {
-      "traceID": "1239dc782b2f6a432bf8941667863ec0",
+      "traceID": "2d337ad1271be9f13574d93f169256a2",
       "rootServiceName": "resonance-task",
       "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786268352840241732",
-      "durationMs": 50
-    },
-    {
-      "traceID": "13b375c41d28cba8b5ee2fdb7b4c232b",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786268352839980649"
-    },
-    {
-      "traceID": "faf95b0776b1d9a7ac77356f3b7c106",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786268352839664024",
-      "durationMs": 50
-    },
-    {
-      "traceID": "9b98d12382b998566d1b7d8411d11e3",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786268352839662649"
-    },
-    {
-      "traceID": "a11c1f04e7133271161cd472707c1b9",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786268352839081316"
-    },
-    {
-      "traceID": "1565e5719ed5182fc87a18721e346e43",
-      "rootServiceName": "resonance-gateway",
-      "rootTraceName": "get-trace-id",
-      "startTimeUnixNano": "1786268235065998644"
-    },
-    {
-      "traceID": "4fb34f6172f7183c2e8b97b4e0bf851",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786267603198947772"
-    },
-    {
-      "traceID": "12ca8f039c0beb65dda984bae8656804",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267603195418586",
-      "durationMs": 1
-    },
-    {
-      "traceID": "cabf2d73921fde68ac0e798bb7c3314",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786267603189839302"
-    },
-    {
-      "traceID": "c66d0bbd6672df0e3f3ce496ae88f19",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267603164753773",
-      "durationMs": 21
-    },
-    {
-      "traceID": "5f8998ca924c21e089376e6464080ee",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267603164729941",
-      "durationMs": 24
-    },
-    {
-      "traceID": "2ea4e87916cdefa95ecaac0ea34fe78",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267602256710477",
-      "durationMs": 1
-    },
-    {
-      "traceID": "903e736bb6a59cfa0f6ee9ce3b8efb3",
-      "rootServiceName": "resonance-task",
-      "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267602253682889",
+      "startTimeUnixNano": "1786274143682003671",
       "durationMs": 2
     },
     {
-      "traceID": "7620b98280d462c70ba4f465ab9605d",
-      "rootServiceName": "resonance-gateway",
-      "rootTraceName": "get-trace-id",
-      "startTimeUnixNano": "1786267602249652647"
+      "traceID": "4248fde7d47b60638c365f7db3d77ddb",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143681995587"
     },
     {
-      "traceID": "5a0728c196458e12ccc87ebee5b3aaf",
+      "traceID": "1965e58b265ac1ee5c78f93623226452",
       "rootServiceName": "resonance-task",
       "rootTraceName": "consumer.chat_event.process",
-      "startTimeUnixNano": "1786267602233528012",
+      "startTimeUnixNano": "1786274143674935124",
       "durationMs": 2
     },
     {
-      "traceID": "8d92be1961114cf606f235a7802344c",
+      "traceID": "a65d2a60ca4a7d010381ebf7530f391",
       "rootServiceName": "resonance-task",
       "rootTraceName": "dummy",
-      "startTimeUnixNano": "1786267602199026571"
+      "startTimeUnixNano": "1786274143674927914"
     },
     {
-      "traceID": "cbc7cdeea951f23cd7ebb378887caef",
+      "traceID": "36f214887709365d176f13fb32cf7141",
       "rootServiceName": "resonance-gateway",
       "rootTraceName": "get-trace-id",
-      "startTimeUnixNano": "1786267602193282004"
+      "startTimeUnixNano": "1786274143666143299"
+    },
+    {
+      "traceID": "5891e4e03dbc8a128f2a875fde96477b",
+      "rootServiceName": "resonance-gateway",
+      "rootTraceName": "get-trace-id",
+      "startTimeUnixNano": "1786274143412209026"
+    },
+    {
+      "traceID": "b353659863491ba7ef4ccbb0c3d1a3a",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143410955063"
+    },
+    {
+      "traceID": "180e51cccdb555ab49b3199be95febae",
+      "rootServiceName": "resonance-gateway",
+      "rootTraceName": "get-trace-id",
+      "startTimeUnixNano": "1786274143408196311"
+    },
+    {
+      "traceID": "61dc3418e926ca6fffb5a98811a898e6",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "consumer.chat_event.process",
+      "startTimeUnixNano": "1786274143406209207",
+      "durationMs": 1
+    },
+    {
+      "traceID": "4e4dc1acdc28bb99728093822a46d869",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143406206540"
+    },
+    {
+      "traceID": "d98da75c97dee96fd483a04a7bfd17d",
+      "rootServiceName": "resonance-gateway",
+      "rootTraceName": "get-trace-id",
+      "startTimeUnixNano": "1786274143383689509"
+    },
+    {
+      "traceID": "17c651b99e606bc1c2f1836ef4b53447",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "consumer.chat_event.process",
+      "startTimeUnixNano": "1786274143371803721",
+      "durationMs": 11
+    },
+    {
+      "traceID": "2d76e99e4af780997098fcd41aeedc70",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143371798887"
+    },
+    {
+      "traceID": "3165e8ef3339d2d6c4fabee883334db7",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143371608819"
+    },
+    {
+      "traceID": "7dc8585cf3793a3521a22588f2250a3",
+      "rootServiceName": "resonance-task",
+      "rootTraceName": "dummy",
+      "startTimeUnixNano": "1786274143101432038"
     }
   ],
   "metrics": {
-    "inspectedTraces": 233,
-    "inspectedBytes": "28336",
+    "inspectedTraces": 42,
+    "inspectedBytes": "19952",
     "completedJobs": 1,
     "totalJobs": 1
   }
