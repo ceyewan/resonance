@@ -29,6 +29,8 @@ done
 
 deploy/scripts/test-cleanup-local-test-data.sh \
   | tee "$EVIDENCE_DIR/cleanup-literal-prefix-safety.log"
+deploy/scripts/test-evidence-secret-scan.sh \
+  | tee "$EVIDENCE_DIR/evidence-sensitive-field-scan.log"
 
 targets=""
 for _ in $(seq 1 30); do

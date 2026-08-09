@@ -3,23 +3,11 @@
   "data": {
     "alerts": [
       {
-        "labels": {
-          "alertname": "ServiceDown",
-          "instance": "gateway:9092",
-          "job": "resonance",
-          "severity": "critical"
-        },
-        "annotations": { "summary": "Resonance service target is down" },
-        "state": "pending",
-        "activeAt": "2026-08-09T09:48:12.080619359Z",
-        "value": "0e+00"
-      },
-      {
         "labels": { "alertname": "APIHighErrorRate", "severity": "warning" },
-        "annotations": { "summary": "Gateway HTTP errors detected" },
+        "annotations": { "summary": "Gateway HTTP 4xx/5xx error rate exceeds 20%" },
         "state": "firing",
-        "activeAt": "2026-08-09T09:48:12.080619359Z",
-        "value": "1e+00"
+        "activeAt": "2026-08-09T12:45:12.080619359Z",
+        "value": "9.939759036144578e-01"
       }
     ]
   }

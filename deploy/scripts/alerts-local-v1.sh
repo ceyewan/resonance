@@ -16,6 +16,9 @@ cleanup() {
     kill "$error_load_pid" >/dev/null 2>&1 || true
     wait "$error_load_pid" >/dev/null 2>&1 || true
   fi
+  if [[ -n "${backlog_report:-}" ]]; then
+    rm -f "$backlog_report"
+  fi
   "${COMPOSE[@]}" unpause nats >/dev/null 2>&1 || true
   "${COMPOSE[@]}" start task alloy gateway >/dev/null 2>&1 || true
   deploy/scripts/cleanup-local-test-data.sh "$PREFIX"
@@ -57,10 +60,20 @@ wait_cleared TelemetryPipelineDown
 alerts >"$OUT/telemetry-pipeline-down-recovered.json"
 
 "${COMPOSE[@]}" pause nats
+backlog_report=$(mktemp "${TMPDIR:-/tmp}/resonance-backlog-report.XXXXXX")
 go run ./cmd/local-benchmark -base-url http://127.0.0.1:18080 -count 1 \
-  -prefix "$PREFIX-backlog" -output "$OUT/backlog-load.json" >/dev/null 2>&1 || true
+  -prefix "$PREFIX-backlog" -output "$backlog_report" >/dev/null 2>&1 || true
 wait_state OutboxBacklog firing
 alerts >"$OUT/outbox-backlog-firing.json"
+jq '{
+  schema_version: 1,
+  injection: "NATS paused while local benchmark submitted a message",
+  alert: ([.data.alerts[] | select(.labels.alertname == "OutboxBacklog")][0] | {
+    state,
+    observed_backlog: (.value | tonumber),
+    summary: .annotations.summary
+  })
+}' "$OUT/outbox-backlog-firing.json" >"$OUT/backlog-load.json"
 "${COMPOSE[@]}" unpause nats
 wait_cleared OutboxBacklog
 alerts >"$OUT/outbox-backlog-recovered.json"
@@ -86,8 +99,10 @@ curl -fsS http://127.0.0.1:18080/ready >/dev/null
 error_load_pid=$!
 wait_state APIHighErrorRate firing
 alerts >"$OUT/api-high-error-rate-firing.json"
-docker inspect "$gateway_container" >"$OUT/api-high-error-rate-gateway-running.json"
-curl -fsS http://127.0.0.1:18080/ready >"$OUT/api-high-error-rate-gateway-ready.txt"
+docker inspect --format \
+  '{"ContainerID":{{json .Id}},"Status":{{json .State.Status}},"Running":{{json .State.Running}},"Health":{{json .State.Health.Status}},"RestartCount":{{json .RestartCount}},"StartedAt":{{json .State.StartedAt}}}' \
+  "$gateway_container" | jq . >"$OUT/api-high-error-rate-gateway-status.json"
+curl -fsS http://127.0.0.1:18080/ready | jq . >"$OUT/api-high-error-rate-gateway-ready.json"
 if [[ "$("${COMPOSE[@]}" ps -q gateway)" != "$gateway_container" ]]; then
   echo "gateway container changed during HTTP error injection" >&2
   exit 1
@@ -97,5 +112,7 @@ wait "$error_load_pid" >/dev/null 2>&1 || true
 error_load_pid=
 wait_cleared APIHighErrorRate
 alerts >"$OUT/api-high-error-rate-recovered.json"
+
+deploy/scripts/check-evidence-secrets.sh "$OUT"
 
 echo "$OUT"

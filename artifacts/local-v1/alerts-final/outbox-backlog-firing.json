@@ -12,8 +12,8 @@
         },
         "annotations": { "summary": "Logic outbox has pending records" },
         "state": "firing",
-        "activeAt": "2026-08-09T09:46:42.080619359Z",
-        "value": "2e+00"
+        "activeAt": "2026-08-09T12:43:42.080619359Z",
+        "value": "1e+00"
       }
     ]
   }

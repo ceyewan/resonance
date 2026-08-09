@@ -24,11 +24,13 @@ make down-observability
 ## Final evidence
 
 - Cold-start Compose, health, IM E2E, deterministic Agent/Pilot contract E2E, Prometheus, Loki and Tempo: `artifacts/local-v1/final/`.
-- Controlled firing evidence for ServiceDown, APIHighErrorRate, OutboxBacklog and TelemetryPipelineDown: `artifacts/local-v1/alerts-final/`.
+- Controlled firing and recovery evidence for ServiceDown, APIHighErrorRate, OutboxBacklog and TelemetryPipelineDown: `artifacts/local-v1/alerts-final/`. The API error-rate run injects real HTTP 404 responses while the same Gateway container remains running and healthy; its status snapshot is an explicit field allowlist and contains no environment variables.
 - Machine-readable business and Agent contract baseline plus host/Docker/release metadata: `artifacts/local-v1/benchmark-20260809T092636Z/`.
 - Full repository regression: `go test ./... -count=1` passed, including PostgreSQL/Testcontainers and the IM integration suite.
 
 The final Prometheus snapshot has zero unhealthy targets, the Loki snapshot contains logs from the isolated project, and the Tempo snapshot contains 20 traces. Five dashboards and the Prometheus/Loki/Tempo data sources are provisioned from files. Loki derived fields and Tempo traces-to-logs are configured in both directions.
+
+The curated API alert snapshot records an observed error-rate value of `0.9939759036144578` (99.40%) in `api-high-error-rate-firing.json`. At the same time, `api-high-error-rate-gateway-status.json` records the unchanged Gateway as `running` and `healthy` with zero restarts, and `api-high-error-rate-gateway-ready.json` records a successful readiness response. The matching recovered snapshot contains no firing API error-rate alert.
 
 ## Baseline snapshot
 
@@ -50,3 +52,4 @@ Message delivery success was 100%. These values are a local baseline, not a prod
 - Core readiness remained available while Alloy, Loki and Tempo were paused, and all three accepted new telemetry after recovery.
 - Logic, Task, Gateway, Pilot, NATS, Redis, etcd and PostgreSQL were restarted without deleting volumes and recovered.
 - Generated Compose evidence redacts keys containing password, secret or API key material.
+- Alert evidence is rejected before completion if its content contains a sensitive field name, credential assignment, private key, JWT, or common provider-token pattern. Timestamped diagnostic runs are ignored by Git; only the curated, scanned `alerts-final/` directory is versioned.

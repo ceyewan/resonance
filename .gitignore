@@ -43,3 +43,8 @@ web/vite.config.js
 web/vite.config.d.ts
 
 docs/archive/
+
+# Local observability runs may contain host-specific diagnostic evidence. Only
+# the explicitly curated final/alerts-final/benchmark-* fixtures are tracked.
+artifacts/local-v1/????????T??????Z/
+artifacts/local-v1/alerts-????????T??????Z/

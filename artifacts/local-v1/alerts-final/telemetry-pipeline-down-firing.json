@@ -6,7 +6,7 @@
         "labels": { "alertname": "TelemetryPipelineDown", "severity": "critical" },
         "annotations": { "summary": "Local telemetry component is down" },
         "state": "firing",
-        "activeAt": "2026-08-09T09:45:52.080619359Z",
+        "activeAt": "2026-08-09T12:42:42.080619359Z",
         "value": "0e+00"
       }
     ]

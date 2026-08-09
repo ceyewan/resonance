@@ -30,7 +30,7 @@
         },
         {
           "refId": "B",
-          "expr": "sum(rate(gateway_http_errors_total[1m]))",
+          "expr": "sum(rate(gateway_http_requests_total{outcome=\"error\"}[1m]))",
           "legendFormat": "errors/s"
         }
       ]
