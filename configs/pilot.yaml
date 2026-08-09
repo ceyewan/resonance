@@ -110,8 +110,8 @@ session:
 profile:
   id: user-assistant
   version: 1
-  provider: anthropic
-  model: claude-sonnet-4-5
+  provider: dashscope
+  model: qwen3.8-max
   bridge_version: 0.1.0
   max_final_bytes: 65536
   history_limit: 100

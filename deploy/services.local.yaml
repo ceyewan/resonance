@@ -1,0 +1,7 @@
+# Local-only deployment overrides. Never include this file in production.
+services:
+  provider-egress-proxy:
+    environment:
+      # Docker Desktop/VPN may synthesize public DNS into RFC 2544
+      # 198.18.0.0/15. The base and production configurations remain closed.
+      RESONANCE_ALLOW_SYNTHETIC_BENCHMARK_ADDRESSES: "true"

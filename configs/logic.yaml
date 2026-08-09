@@ -71,6 +71,18 @@ agent_bot:
   username: resonance-agent
   nickname: Resonance Assistant
 
+# Init 只在策略不存在时创建这组 fail-closed 预算；后续变更必须通过
+# expected-version CAS 的受控管理路径，重启不会覆盖生产限额。
+agent_budget:
+  tenant_id: default
+  enabled: true
+  daily_token_limit: 2000000
+  monthly_token_limit: 20000000
+  daily_cost_limit_micros: 50000000
+  monthly_cost_limit_micros: 500000000
+  max_attempt_tokens: 65536
+  max_attempt_cost_micros: 10000000
+
 # Logic owns the profile IDs and pinned versions written into AI sessions.
 # Clients may select only the corresponding enum; they cannot supply tenant,
 # bot username or version.

@@ -5,7 +5,8 @@
 ## 文件说明
 
 - `base.yaml`：基础设施服务，包含 PostgreSQL、Redis、NATS、Etcd
-- `services.yaml`：业务服务，包含 `init`、`logic`、`task`、`gateway`、`web`
+- `services.yaml`：业务服务，包含 `init`、`logic`、`task`、`gateway`、`web`，以及两个 Agent Profile 的 control/runtime 和 Provider Egress Proxy
+- `services.local.yaml`：仅本地开发覆盖，显式启用 Docker Desktop/VPN 的 RFC 2544 DNS 合成地址兼容
 - `services.prod.yaml`：生产覆盖，关闭业务端口暴露并接入 Caddy
 - `Dockerfile`：统一镜像构建文件
 - `scripts/deploy-local.sh`：本地全 Docker 启动脚本
@@ -62,7 +63,9 @@ make down
 - `RESONANCE_ADMIN_PASSWORD`
 - `RESONANCE_GATEWAY_SERVICE_AUTH_SECRET`
 - 两个 Profile 各自独立的 Capability/service-auth Secret
-- `ANTHROPIC_API_KEY`
+- `DASHSCOPE_API_KEY`
+- `DASHSCOPE_BASE_URL`
+- `DASHSCOPE_MODEL`
 - `RESONANCE_PILOT_IMAGE=repository@sha256:<64 hex>`
 - `RESONANCE_PILOT_RUNTIME_IMAGE=repository@sha256:<64 hex>`
 

@@ -25,7 +25,7 @@ docker build --target final -t ceyewan/resonance:local -f deploy/Dockerfile .
 
 # 3. 启动服务
 echo "🚀 启动服务..."
-docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml up -d
 
 echo ""
 echo "✅ 部署完成"

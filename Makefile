@@ -12,7 +12,7 @@ export
 
 # Docker Compose 命令
 COMPOSE_INFRA := docker compose --env-file .env -p resonance -f deploy/base.yaml
-COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml
+COMPOSE := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml
 COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.prod.yaml --profile production
 PRETTIER := ./tools/node_modules/.bin/prettier
 MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2

@@ -58,6 +58,25 @@ require_strong_secret() {
     fi
 }
 
+require_dashscope_config() {
+    local api_key base_url model
+    api_key="$(get_env DASHSCOPE_API_KEY)"
+    base_url="$(get_env DASHSCOPE_BASE_URL)"
+    model="$(get_env DASHSCOPE_MODEL)"
+    if [[ ${#api_key} -lt 8 || "$api_key" == *"replace-with-"* || "$api_key" == *"<"* ]]; then
+        echo "❌ 错误：DASHSCOPE_API_KEY 未设置或仍是占位符"
+        exit 1
+    fi
+    if [[ "$base_url" != "https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1" ]]; then
+        echo "❌ 错误：DASHSCOPE_BASE_URL 必须与 egress allowlist 对应的按量付费业务空间 endpoint 完全一致"
+        exit 1
+    fi
+    if [[ "$model" != "qwen3.8-max" ]]; then
+        echo "❌ 错误：DASHSCOPE_MODEL 必须是已验证并由 Profile 固定的 qwen3.8-max"
+        exit 1
+    fi
+}
+
 require_distinct_secrets() {
     local keys=(
         RESONANCE_AUTH_SECRET_KEY
@@ -116,7 +135,7 @@ require_strong_secret RESONANCE_PILOT_CAPABILITY_SECRET
 require_strong_secret RESONANCE_PILOT_SERVICE_AUTH_SECRET
 require_strong_secret RESONANCE_PILOT_IAM_CAPABILITY_SECRET
 require_strong_secret RESONANCE_PILOT_IAM_SERVICE_AUTH_SECRET
-require_non_empty ANTHROPIC_API_KEY "ANTHROPIC_API_KEY=<server-provider-key>"
+require_dashscope_config
 validate_prod_security
 require_distinct_secrets
 

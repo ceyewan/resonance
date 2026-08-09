@@ -15,11 +15,14 @@ if [ ! -f .env ]; then
 fi
 
 echo "更新本地 Docker 部署..."
-docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d postgres redis nats etcd
-docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml up -d --build --force-recreate init logic task gateway web
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml up -d postgres redis nats etcd
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml \
+    up -d --build --remove-orphans \
+    provider-egress-proxy pilot-storage-init pilot-runtime pilot-iam-admin-runtime \
+    init logic task gateway web pilot pilot-iam-admin
 
 echo ""
-docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml ps
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml ps
 echo ""
 echo "本地 Docker 部署已更新"
 echo "Web:     http://localhost:4173"
