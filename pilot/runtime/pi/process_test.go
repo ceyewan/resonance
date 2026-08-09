@@ -37,8 +37,10 @@ func TestExecProcessStarter_RealPipesAndReap(t *testing.T) {
 	line, err := bufio.NewReader(process.Stdout()).ReadString('\n')
 	require.NoError(t, err)
 	require.Equal(t, "ack:hello\n", line)
-	require.NoError(t, process.Wait())
+	// StdoutPipe/StderrPipe must be fully consumed before Wait; Wait is allowed
+	// to close the descriptors as soon as the child exits.
 	require.Equal(t, []byte("helper-stderr"), <-stderrDone)
+	require.NoError(t, process.Wait())
 	require.NoError(t, process.Signal(syscall.SIGTERM), "signal after reap must be harmless")
 }
 
