@@ -53,4 +53,10 @@ Resonance 从 Agent Service 合并后的 `origin/main` 精确 SHA
 
 ## Hosted CI
 
-阶段二 PR、受控负向验证和合并后 main SHA 的最终记录在 PR 与阶段 Goal 交接表中维护。
+PR #9 在正常配置提交 `7dcd3a8` 上 9 项检查全部通过。受控负向提交
+`51f22b5` 临时将 Genesis module sums 设为错误期望；GitHub Actions run
+`31293930017` 的 `Verify published Genesis module identity` 在 9 秒内失败，并跳过
+后续 Go test 与 race gate，证明不匹配的 published module 不能通过合并门禁。随后恢复
+真实 sums 并重新执行全量检查。
+
+合并后 main SHA 与最终 main workflow run 在阶段 Goal 交接表中维护。
