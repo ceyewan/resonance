@@ -177,7 +177,7 @@ services:
       RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
       RESONANCE_OBSERVABILITY_VERSION: 69f02a11319e
       RESONANCE_RATE_LIMIT_DRIVER: distributed
-      RESONANCE_RATE_LIMIT_PREFIX: 'resonance:gateway:ratelimit:'
+      RESONANCE_RATE_LIMIT_PREFIX: "resonance:gateway:ratelimit:"
       RESONANCE_REDIS_ADDR: redis:6379
       RESONANCE_SERVICE_AUTH_GATEWAY_SECRET: <redacted>
       RESONANCE_SERVICE_HOST: gateway-service-001

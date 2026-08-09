@@ -70,10 +70,8 @@ func main() {
 	}
 
 	aliceWS, aliceConnect := dialWS(baseURL, aliceToken)
-	defer aliceWS.Close()
 	bobWS, bobConnect := dialWS(baseURL, bobToken)
 	wsSamples := []time.Duration{aliceConnect, bobConnect}
-	defer bobWS.Close()
 
 	online := make([]time.Duration, 0, count)
 	succeeded := 0
@@ -112,6 +110,9 @@ func main() {
 	if _, err := sessions.PullInboxDelta(ctx, pull); err != nil {
 		fatal(err)
 	}
+	if err := aliceWS.Close(); err != nil {
+		fatal(err)
+	}
 
 	host, _ := os.Hostname()
 	report := result{SchemaVersion: 1, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Seed: 20260809, Concurrency: 1, MessageCount: count, Host: host, GoVersion: runtime.Version(), OnlinePush: summarize(online), OfflineInbox: summarize([]time.Duration{time.Since(offlineStart)}), WSConnect: summarize(wsSamples), SuccessRate: float64(succeeded) / float64(count)}
@@ -119,10 +120,13 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	defer f.Close()
 	encoder := json.NewEncoder(f)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(report); err != nil {
+		_ = f.Close()
+		fatal(err)
+	}
+	if err := f.Close(); err != nil {
 		fatal(err)
 	}
 	if report.SuccessRate != 1 {

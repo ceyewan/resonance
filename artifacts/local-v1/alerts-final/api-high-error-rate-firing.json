@@ -1,1 +1,26 @@
-{"status":"success","data":{"alerts":[{"labels":{"alertname":"ServiceDown","instance":"gateway:9092","job":"resonance","severity":"critical"},"annotations":{"summary":"Resonance service target is down"},"state":"pending","activeAt":"2026-08-09T09:48:12.080619359Z","value":"0e+00"},{"labels":{"alertname":"APIHighErrorRate","severity":"warning"},"annotations":{"summary":"Gateway HTTP errors detected"},"state":"firing","activeAt":"2026-08-09T09:48:12.080619359Z","value":"1e+00"}]}}
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "ServiceDown",
+          "instance": "gateway:9092",
+          "job": "resonance",
+          "severity": "critical"
+        },
+        "annotations": { "summary": "Resonance service target is down" },
+        "state": "pending",
+        "activeAt": "2026-08-09T09:48:12.080619359Z",
+        "value": "0e+00"
+      },
+      {
+        "labels": { "alertname": "APIHighErrorRate", "severity": "warning" },
+        "annotations": { "summary": "Gateway HTTP errors detected" },
+        "state": "firing",
+        "activeAt": "2026-08-09T09:48:12.080619359Z",
+        "value": "1e+00"
+      }
+    ]
+  }
+}

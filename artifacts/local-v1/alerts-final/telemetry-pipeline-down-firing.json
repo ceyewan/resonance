@@ -1,1 +1,14 @@
-{"status":"success","data":{"alerts":[{"labels":{"alertname":"TelemetryPipelineDown","severity":"critical"},"annotations":{"summary":"Local telemetry component is down"},"state":"firing","activeAt":"2026-08-09T09:45:52.080619359Z","value":"0e+00"}]}}
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": { "alertname": "TelemetryPipelineDown", "severity": "critical" },
+        "annotations": { "summary": "Local telemetry component is down" },
+        "state": "firing",
+        "activeAt": "2026-08-09T09:45:52.080619359Z",
+        "value": "0e+00"
+      }
+    ]
+  }
+}
