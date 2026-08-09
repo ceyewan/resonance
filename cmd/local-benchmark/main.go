@@ -34,20 +34,27 @@ type result struct {
 	Seed          int64        `json:"seed"`
 	Concurrency   int          `json:"concurrency"`
 	MessageCount  int          `json:"message_count"`
+	DurationMS    float64      `json:"duration_ms"`
+	Throughput    float64      `json:"messages_per_second"`
 	Host          string       `json:"host"`
 	GoVersion     string       `json:"go_version"`
+	Prefix        string       `json:"prefix"`
+	AliceUsername string       `json:"alice_username"`
+	BobUsername   string       `json:"bob_username"`
 	OnlinePush    distribution `json:"online_push"`
 	OfflineInbox  distribution `json:"offline_inbox_recovery"`
 	WSConnect     distribution `json:"websocket_connect"`
 	SuccessRate   float64      `json:"message_delivery_success_rate"`
+	WSFailureRate float64      `json:"websocket_connect_failure_rate"`
 }
 
 func main() {
-	var baseURL, output string
+	var baseURL, output, requestedPrefix string
 	var count int
 	flag.StringVar(&baseURL, "base-url", "http://127.0.0.1:8080", "Gateway base URL")
 	flag.StringVar(&output, "output", "", "JSON output path")
 	flag.IntVar(&count, "count", 20, "fixed online message sample count")
+	flag.StringVar(&requestedPrefix, "prefix", "", "unique benchmark prefix")
 	flag.Parse()
 	if output == "" || count < 1 {
 		fatal(fmt.Errorf("output is required and count must be positive"))
@@ -58,9 +65,15 @@ func main() {
 	auth := gatewayv1connect.NewAuthServiceClient(http.DefaultClient, baseURL)
 	sessions := gatewayv1connect.NewSessionServiceClient(http.DefaultClient, baseURL)
 	suffix := fmt.Sprintf("%d", time.Now().UTC().UnixNano())
-	alice, aliceToken := register(ctx, auth, "v1bench_a_"+suffix)
-	bob, bobToken := register(ctx, auth, "v1bench_b_"+suffix)
-	_ = alice
+	prefix := requestedPrefix
+	if prefix == "" {
+		prefix = "v1bench_" + suffix
+	}
+	if !validPrefix(prefix) {
+		fatal(fmt.Errorf("prefix must contain only letters, numbers, underscores, and hyphens"))
+	}
+	alice, aliceToken := register(ctx, auth, prefix+"-a")
+	bob, bobToken := register(ctx, auth, prefix+"-b")
 
 	request := connect.NewRequest(&gatewayv1.CreateSessionRequest{Members: []string{bob}, Type: commonv1.SessionType_SESSION_TYPE_DIRECT})
 	request.Header().Set("Authorization", "Bearer "+aliceToken)
@@ -73,11 +86,13 @@ func main() {
 	bobWS, bobConnect := dialWS(baseURL, bobToken)
 	wsSamples := []time.Duration{aliceConnect, bobConnect}
 
+	benchmarkStarted := time.Now()
 	online := make([]time.Duration, 0, count)
 	succeeded := 0
 	for i := 0; i < count; i++ {
 		clientSeq := fmt.Sprintf("bench-%s-%d", suffix, i)
-		packet := &gatewayv1.WsPacket{ClientSeq: clientSeq, Payload: &gatewayv1.WsPacket_ChatRequest{ChatRequest: &gatewayv1.ChatRequest{SessionId: created.Msg.GetSessionId(), Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "local-v1-benchmark"}}}}
+		clientMessageID := fmt.Sprintf("%s-message-%d", prefix, i)
+		packet := &gatewayv1.WsPacket{ClientSeq: clientSeq, Payload: &gatewayv1.WsPacket_ChatRequest{ChatRequest: &gatewayv1.ChatRequest{SessionId: created.Msg.GetSessionId(), Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "local-v1-benchmark", ClientMsgId: clientMessageID}}}}
 		data, err := wswire.EncodePacket(packet)
 		if err != nil {
 			fatal(err)
@@ -86,7 +101,7 @@ func main() {
 		if err := aliceWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
 			fatal(err)
 		}
-		if waitForEvent(bobWS, 10*time.Second) {
+		if waitForEvent(bobWS, clientMessageID, 10*time.Second) {
 			online = append(online, time.Since(started))
 			succeeded++
 		}
@@ -96,7 +111,9 @@ func main() {
 		fatal(err)
 	}
 	offlineStart := time.Now()
-	offlinePacket := &gatewayv1.WsPacket{ClientSeq: "offline-" + suffix, Payload: &gatewayv1.WsPacket_ChatRequest{ChatRequest: &gatewayv1.ChatRequest{SessionId: created.Msg.GetSessionId(), Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "local-v1-offline-benchmark"}}}}
+	offlineClientSequence := "offline-" + suffix
+	offlineClientMessageID := prefix + "-offline-message"
+	offlinePacket := &gatewayv1.WsPacket{ClientSeq: offlineClientSequence, Payload: &gatewayv1.WsPacket_ChatRequest{ChatRequest: &gatewayv1.ChatRequest{SessionId: created.Msg.GetSessionId(), Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "local-v1-offline-benchmark", ClientMsgId: offlineClientMessageID}}}}
 	data, err := wswire.EncodePacket(offlinePacket)
 	if err != nil {
 		fatal(err)
@@ -104,18 +121,25 @@ func main() {
 	if err := aliceWS.WriteMessage(websocket.BinaryMessage, data); err != nil {
 		fatal(err)
 	}
-	time.Sleep(500 * time.Millisecond)
-	pull := connect.NewRequest(&gatewayv1.PullInboxDeltaRequest{Limit: 100})
-	pull.Header().Set("Authorization", "Bearer "+bobToken)
-	if _, err := sessions.PullInboxDelta(ctx, pull); err != nil {
+	offlineEventID := waitForAck(aliceWS, offlineClientSequence, 10*time.Second)
+	bobReconnected, reconnectDuration := dialWS(baseURL, bobToken)
+	wsSamples = append(wsSamples, reconnectDuration)
+	if err := bobReconnected.Close(); err != nil {
 		fatal(err)
+	}
+	if !waitForInboxEvent(ctx, sessions, bobToken, offlineEventID, 10*time.Second) {
+		fatal(fmt.Errorf("offline event %d was not recovered from Inbox", offlineEventID))
 	}
 	if err := aliceWS.Close(); err != nil {
 		fatal(err)
 	}
 
 	host, _ := os.Hostname()
-	report := result{SchemaVersion: 1, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Seed: 20260809, Concurrency: 1, MessageCount: count, Host: host, GoVersion: runtime.Version(), OnlinePush: summarize(online), OfflineInbox: summarize([]time.Duration{time.Since(offlineStart)}), WSConnect: summarize(wsSamples), SuccessRate: float64(succeeded) / float64(count)}
+	duration := time.Since(benchmarkStarted)
+	report := result{SchemaVersion: 1, GeneratedAt: time.Now().UTC().Format(time.RFC3339), Seed: 20260809, Concurrency: 1, MessageCount: count,
+		DurationMS: float64(duration.Microseconds()) / 1000, Throughput: float64(succeeded) / duration.Seconds(), Host: host, GoVersion: runtime.Version(),
+		Prefix: prefix, AliceUsername: alice, BobUsername: bob, OnlinePush: summarize(online), OfflineInbox: summarize([]time.Duration{time.Since(offlineStart)}),
+		WSConnect: summarize(wsSamples), SuccessRate: float64(succeeded) / float64(count), WSFailureRate: 0}
 	f, err := os.Create(output)
 	if err != nil {
 		fatal(err)
@@ -160,7 +184,7 @@ func dialWS(baseURL, token string) (*websocket.Conn, time.Duration) {
 	return conn, time.Since(started)
 }
 
-func waitForEvent(conn *websocket.Conn, timeout time.Duration) bool {
+func waitForEvent(conn *websocket.Conn, clientMessageID string, timeout time.Duration) bool {
 	_ = conn.SetReadDeadline(time.Now().Add(timeout))
 	for {
 		kind, data, err := conn.ReadMessage()
@@ -171,10 +195,58 @@ func waitForEvent(conn *websocket.Conn, timeout time.Duration) bool {
 			continue
 		}
 		packet, err := wswire.DecodePacket(data)
-		if err == nil && packet.GetEvent() != nil {
+		if err == nil && packet.GetEvent().GetMessage().GetClientMsgId() == clientMessageID {
 			return true
 		}
 	}
+}
+
+func waitForAck(conn *websocket.Conn, clientSequence string, timeout time.Duration) int64 {
+	_ = conn.SetReadDeadline(time.Now().Add(timeout))
+	for {
+		kind, data, err := conn.ReadMessage()
+		if err != nil {
+			fatal(err)
+		}
+		if kind != websocket.BinaryMessage {
+			continue
+		}
+		packet, decodeErr := wswire.DecodePacket(data)
+		if decodeErr == nil && packet.GetAck().GetRefClientSeq() == clientSequence && packet.GetAck().GetEventId() > 0 {
+			return packet.GetAck().GetEventId()
+		}
+	}
+}
+
+func waitForInboxEvent(ctx context.Context, sessions gatewayv1connect.SessionServiceClient, token string, eventID int64, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		pull := connect.NewRequest(&gatewayv1.PullInboxDeltaRequest{Limit: 100})
+		pull.Header().Set("Authorization", "Bearer "+token)
+		response, err := sessions.PullInboxDelta(ctx, pull)
+		if err == nil {
+			for _, item := range response.Msg.GetEvents() {
+				if item.GetEvent().GetEventId() == eventID {
+					return true
+				}
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
+}
+
+func validPrefix(value string) bool {
+	if value == "" || len(value) > 80 {
+		return false
+	}
+	for _, character := range value {
+		if (character < 'a' || character > 'z') && (character < 'A' || character > 'Z') &&
+			(character < '0' || character > '9') && character != '_' && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func summarize(values []time.Duration) distribution {

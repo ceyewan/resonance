@@ -115,6 +115,10 @@ func (b *StatusBatcher) SyncUserOnline(username, remoteIP string) {
 	}
 
 	b.mu.Lock()
+	// A disconnect followed by a reconnect can happen within one flush interval.
+	// Keep only the latest state for each user so a stale offline event cannot
+	// delete the newly established route in Logic.
+	b.removeBufferedUser(username)
 	b.onlineBuf = append(b.onlineBuf, event)
 	shouldFlush := len(b.onlineBuf)+len(b.offlineBuf) >= b.batchSize
 	b.mu.Unlock()
@@ -132,6 +136,7 @@ func (b *StatusBatcher) SyncUserOffline(username string) {
 	}
 
 	b.mu.Lock()
+	b.removeBufferedUser(username)
 	b.offlineBuf = append(b.offlineBuf, event)
 	shouldFlush := len(b.onlineBuf)+len(b.offlineBuf) >= b.batchSize
 	b.mu.Unlock()
@@ -139,6 +144,25 @@ func (b *StatusBatcher) SyncUserOffline(username string) {
 	if shouldFlush {
 		b.flush()
 	}
+}
+
+// removeBufferedUser must be called with b.mu held.
+func (b *StatusBatcher) removeBufferedUser(username string) {
+	online := b.onlineBuf[:0]
+	for _, event := range b.onlineBuf {
+		if event.GetUsername() != username {
+			online = append(online, event)
+		}
+	}
+	b.onlineBuf = online
+
+	offline := b.offlineBuf[:0]
+	for _, event := range b.offlineBuf {
+		if event.GetUsername() != username {
+			offline = append(offline, event)
+		}
+	}
+	b.offlineBuf = offline
 }
 
 // flushLoop 定时刷新循环

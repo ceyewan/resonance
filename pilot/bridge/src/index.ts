@@ -72,6 +72,10 @@ export interface DashScopeProviderConfig {
   model: string;
 }
 
+const DETERMINISTIC_PROVIDER_BASE_URL = "http://127.0.0.1:18096/compatible-mode/v1";
+const DETERMINISTIC_PROVIDER_MODEL = "resonance-deterministic-v1";
+const DETERMINISTIC_PROVIDER_API_KEY = "resonance-local-deterministic-key";
+
 interface ProviderBudgetContext {
   model:
     | {
@@ -187,6 +191,10 @@ export function readDashScopeProvider(environment: NodeJS.ProcessEnv): DashScope
   const apiKey = environment.DASHSCOPE_API_KEY ?? "";
   const rawBaseURL = environment.DASHSCOPE_BASE_URL ?? "";
   const model = environment.DASHSCOPE_MODEL ?? "";
+  const deterministic =
+    apiKey === DETERMINISTIC_PROVIDER_API_KEY &&
+    rawBaseURL === DETERMINISTIC_PROVIDER_BASE_URL &&
+    model === DETERMINISTIC_PROVIDER_MODEL;
   if (
     apiKey.length < 8 ||
     apiKey.length > 16 * 1024 ||
@@ -200,6 +208,9 @@ export function readDashScopeProvider(environment: NodeJS.ProcessEnv): DashScope
     baseURL = new URL(rawBaseURL);
   } catch {
     throw new Error("Trusted DashScope Provider environment is invalid");
+  }
+  if (deterministic) {
+    return { baseUrl: rawBaseURL, model };
   }
   if (
     baseURL.protocol !== "https:" ||
