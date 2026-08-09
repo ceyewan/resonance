@@ -42,6 +42,7 @@ type Gateway struct {
 	resources *resources
 	ctx       context.Context
 	cancel    context.CancelFunc
+	errors    chan error
 
 	// workerID 保活停止函数
 	stopWorkerIDKeepAlive func() error
@@ -73,6 +74,7 @@ func New() (*Gateway, error) {
 		config: cfg,
 		ctx:    ctx,
 		cancel: cancel,
+		errors: make(chan error, 1),
 	}
 	// 初始化各个组件
 	if err := g.initComponents(); err != nil {
@@ -112,7 +114,7 @@ func (g *Gateway) initComponents() error {
 		return fmt.Errorf("logger init: %w", err)
 	}
 	g.logger = logger
-	authenticator, err := auth.New(&g.config.Auth, auth.WithLogger(logger))
+	authenticator, err := auth.New(&g.config.Auth, auth.WithLogger(logger), auth.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("auth init: %w", err)
 	}
@@ -138,7 +140,7 @@ func (g *Gateway) initComponents() error {
 		Driver:    idgen.DriverRedis,
 		KeyPrefix: g.config.WorkerID.GetKey(),
 		MaxID:     g.config.WorkerID.GetMaxID(),
-	}, idgen.WithRedisConnector(res.redisConn))
+	}, idgen.WithRedisConnector(res.redisConn), idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("create allocator: %w", err)
 	}
@@ -153,7 +155,7 @@ func (g *Gateway) initComponents() error {
 	go func() {
 		if err, ok := <-allocator.KeepAlive(g.ctx); ok && err != nil {
 			g.logger.Error("workerID keepalive failed, shutting down", clog.String("error", err.Error()))
-			g.cancel()
+			g.reportFatal(fmt.Errorf("workerID keepalive: %w", err))
 		}
 	}()
 
@@ -169,7 +171,7 @@ func (g *Gateway) initComponents() error {
 	idGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
 		Mode:     idgen.GeneratorModeSingleDC,
 		WorkerID: workerID,
-	})
+	}, idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("create id generator: %w", err)
 	}
@@ -197,7 +199,7 @@ func (g *Gateway) initBaseResources() (_ *resources, returnedErr error) {
 		}
 	}()
 	// Redis
-	redisConn, err := connector.NewRedis(&g.config.Redis, connector.WithLogger(g.logger))
+	redisConn, err := connector.NewRedis(&g.config.Redis, connector.WithLogger(g.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
@@ -207,7 +209,7 @@ func (g *Gateway) initBaseResources() (_ *resources, returnedErr error) {
 	}
 
 	// Etcd
-	etcdConn, err := connector.NewEtcd(&g.config.Etcd, connector.WithLogger(g.logger))
+	etcdConn, err := connector.NewEtcd(&g.config.Etcd, connector.WithLogger(g.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
@@ -217,7 +219,7 @@ func (g *Gateway) initBaseResources() (_ *resources, returnedErr error) {
 	}
 
 	// Registry
-	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger))
+	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
@@ -274,7 +276,7 @@ func (g *Gateway) initServers(idGen idgen.Generator) error {
 	g.resources.connMgr.SetUpgrader(wsHandler.Upgrader())
 
 	// HTTP Handler & Middlewares
-	limiterOptions := []ratelimit.Option{ratelimit.WithLogger(g.logger)}
+	limiterOptions := []ratelimit.Option{ratelimit.WithLogger(g.logger), ratelimit.WithMeter(observability.Meter())}
 	if g.config.RateLimit.Driver == ratelimit.DriverDistributed {
 		limiterOptions = append(limiterOptions, ratelimit.WithRedisConnector(g.resources.redisConn))
 	}
@@ -306,7 +308,7 @@ func (g *Gateway) monitorRegistryLeaseFailures() {
 			if g.healthProbe != nil {
 				g.healthProbe.SetReady(false)
 			}
-			g.cancel()
+			g.reportFatal(fmt.Errorf("registry lease for %s: %w", failure.ServiceID, failure.Err))
 		case <-g.ctx.Done():
 			return
 		}
@@ -325,13 +327,13 @@ func (g *Gateway) Run() error {
 	go func() {
 		if err := g.grpcServer.Start(); err != nil {
 			g.logger.Error("grpc server failed", clog.Error(err))
-			g.cancel()
+			g.reportFatal(fmt.Errorf("grpc server: %w", err))
 		}
 	}()
 	go func() {
 		if err := g.httpServer.Start(); err != nil {
 			g.logger.Error("http server failed", clog.Error(err))
-			g.cancel()
+			g.reportFatal(fmt.Errorf("http server: %w", err))
 		}
 	}()
 
@@ -340,6 +342,26 @@ func (g *Gateway) Run() error {
 	}
 	g.healthProbe.SetReady(true)
 	return nil
+}
+
+// Errors reports the first background failure that requires process shutdown.
+func (g *Gateway) Errors() <-chan error { return g.errors }
+
+// Done is closed when the Gateway lifecycle context is canceled.
+func (g *Gateway) Done() <-chan struct{} { return g.ctx.Done() }
+
+func (g *Gateway) reportFatal(err error) {
+	if err == nil || g.ctx.Err() != nil {
+		return
+	}
+	select {
+	case g.errors <- err:
+	default:
+	}
+	if g.healthProbe != nil {
+		g.healthProbe.SetReady(false)
+	}
+	g.cancel()
 }
 
 // registerService 注册服务实例

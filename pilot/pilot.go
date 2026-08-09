@@ -32,6 +32,7 @@ import (
 	"github.com/ceyewan/resonance/pilot/session"
 	"github.com/ceyewan/resonance/pilot/stream"
 	"github.com/ceyewan/resonance/pilot/toolbroker"
+	"github.com/ceyewan/resonance/pkg/grpctrace"
 	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/pkg/serviceauth"
 	"github.com/ceyewan/resonance/repo"
@@ -133,7 +134,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 		return telemetry.Close(shutdownContext)
 	})
 
-	postgres, err := connector.NewPostgreSQL(&cfg.PostgreSQL)
+	postgres, err := connector.NewPostgreSQL(&cfg.PostgreSQL, connector.WithLogger(logger), connector.WithMeter(telemetry.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("pilot postgresql init: %w", err)
 	}
@@ -147,7 +148,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	}
 	cleanup.add(database.Close)
 
-	nats, err := connector.NewNATS(&cfg.NATS, connector.WithLogger(logger))
+	nats, err := connector.NewNATS(&cfg.NATS, connector.WithLogger(logger), connector.WithMeter(telemetry.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("pilot nats init: %w", err)
 	}
@@ -157,7 +158,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	}
 	mqClient, err := mq.New(&mq.Config{
 		Driver: mq.DriverNATSJetStream, JetStream: &cfg.JetStream,
-	}, mq.WithNATSConnector(nats), mq.WithLogger(logger))
+	}, mq.WithNATSConnector(nats), mq.WithLogger(logger), mq.WithMeter(telemetry.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("pilot MQ: %w", err)
 	}
@@ -167,7 +168,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 		return errors.Join(mqClient.Drain(drainContext), mqClient.Close())
 	})
 
-	etcd, err := connector.NewEtcd(&cfg.Etcd, connector.WithLogger(logger))
+	etcd, err := connector.NewEtcd(&cfg.Etcd, connector.WithLogger(logger), connector.WithMeter(telemetry.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("pilot etcd init: %w", err)
 	}
@@ -175,7 +176,7 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	if err := etcd.Connect(ctx); err != nil {
 		return nil, fmt.Errorf("pilot etcd connect: %w", err)
 	}
-	serviceRegistry, err := registry.New(etcd, cfg.Registry.ToRegistryConfig(), registry.WithLogger(logger))
+	serviceRegistry, err := registry.New(etcd, cfg.Registry.ToRegistryConfig(), registry.WithLogger(logger), registry.WithMeter(telemetry.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("pilot registry: %w", err)
 	}
@@ -188,6 +189,8 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 	dialContext, cancelDial := context.WithTimeout(ctx, 5*time.Second)
 	logicConnection, err := serviceRegistry.GetConnection(dialContext, cfg.LogicServiceName,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(grpctrace.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(grpctrace.StreamClientInterceptor()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(1<<20), grpc.MaxCallSendMsgSize(1<<20)),
 		grpc.WithDefaultServiceConfig(logicClientServiceConfig),
 	)

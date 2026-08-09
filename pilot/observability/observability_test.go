@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ceyewan/genesis/connector"
 	"github.com/ceyewan/genesis/metrics"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -35,6 +36,21 @@ func TestTelemetry_CloseAlwaysAttemptsTraceAndMeterAndIsIdempotent(t *testing.T)
 	require.ErrorContains(t, err, "trace close")
 	require.Equal(t, 1, traceCalls)
 	require.Equal(t, 1, meter.shutdownCalls)
+}
+
+func TestTelemetryExposesServiceMeterForGenesisComponents(t *testing.T) {
+	meter := newTestMeter()
+	telemetry, err := newWithMeter(meter, func(context.Context) error { return nil })
+	require.NoError(t, err)
+	require.Same(t, meter, telemetry.Meter())
+
+	_, err = connector.NewRedis(
+		&connector.RedisConfig{Addr: "127.0.0.1:6379"},
+		connector.WithMeter(telemetry.Meter()),
+	)
+	require.NoError(t, err)
+	require.Contains(t, meter.counters, connector.MetricHealthChecks)
+	require.Contains(t, meter.counters, connector.MetricReconnects)
 }
 
 func TestObservedEventSink_RecordsBoundedRunSignalsWithoutIdentityLabels(t *testing.T) {

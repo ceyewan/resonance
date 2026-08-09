@@ -71,6 +71,9 @@ func Init(cfg *Config) error {
 	return initErr
 }
 
+// Meter returns the service-owned Meter shared with Genesis components.
+func Meter() metrics.Meter { return meter }
+
 // Shutdown 优雅关闭
 func Shutdown(ctx context.Context) error {
 	var traceErr, metricsErr error

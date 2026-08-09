@@ -7,11 +7,15 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/task/pusher"
 )
 
 func TestDispatcher_Handle_EmptyEvent(t *testing.T) {
@@ -166,6 +170,34 @@ func TestDispatcher_Handle_PushRouteQueryFailed_DoNotFailAck(t *testing.T) {
 		TargetUsernames: []string{"alice", "bob"},
 	})
 	require.NoError(t, err)
+}
+
+func TestDispatcherPersistsW3CContextInPushTask(t *testing.T) {
+	previous := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+	client := &testPusherClient{}
+	d := NewDispatcher(
+		&testMessageRepo{},
+		&testRouterRepo{batchGetUsersGatewayFn: func(context.Context, []string) ([]*model.Router, error) {
+			return []*model.Router{{Username: "bob", GatewayID: "gateway-1"}}, nil
+		}},
+		&testPusherManager{getFn: func(string) (pusher.Client, error) { return client, nil }},
+		clog.Discard(),
+	)
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{1}, SpanID: trace.SpanID{2}, TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), spanContext)
+	event := &commonv1.ChatEvent{
+		EventId: 801, SeqId: 1, SessionId: "s_8", FromUsername: "alice",
+		Payload: &commonv1.ChatEvent_Message{Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "hello"}},
+	}
+
+	require.NoError(t, d.Handle(ctx, &mqv1.MQEvent{Event: event, TargetUsernames: []string{"alice", "bob"}}))
+	require.Len(t, client.tasks, 1)
+	require.NotEmpty(t, client.tasks[0].TraceHeaders["traceparent"])
+	require.Len(t, client.tasks[0].TraceHeaders, 1)
 }
 
 func TestDispatcher_Handle_Edit_SaveInboxBatch(t *testing.T) {

@@ -7,6 +7,9 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/model"
@@ -14,6 +17,9 @@ import (
 )
 
 func TestDispatcher_RoutesStreamWithoutInboxDependency(t *testing.T) {
+	previous := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
 	client := &fakeClient{}
 	dispatcher, err := NewDispatcher(&fakeRouterRepo{routers: []*model.Router{{Username: "alice", GatewayID: "gateway-1"}}},
 		&fakePusherManager{client: client}, clog.Discard())
@@ -21,7 +27,10 @@ func TestDispatcher_RoutesStreamWithoutInboxDependency(t *testing.T) {
 	event := validStreamEvent()
 	event.Sequence = 7
 	event.Payload = &mqv1.AgentStreamEvent_Chunk{Chunk: &mqv1.AgentStreamChunk{Delta: "hello"}}
-	require.NoError(t, dispatcher.Handle(context.Background(), event))
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: trace.TraceID{3}, SpanID: trace.SpanID{4}, TraceFlags: trace.FlagsSampled,
+	})
+	require.NoError(t, dispatcher.Handle(trace.ContextWithSpanContext(context.Background(), spanContext), event))
 	require.Len(t, client.tasks, 1)
 	request := client.tasks[0].Stream
 	require.Equal(t, []string{"alice"}, client.tasks[0].ToUsernames)
@@ -30,6 +39,7 @@ func TestDispatcher_RoutesStreamWithoutInboxDependency(t *testing.T) {
 	require.Equal(t, uint64(7), request.GetStreamChunk().GetStreamSequence())
 	require.Equal(t, int32(7), request.GetStreamChunk().GetSequence()) //nolint:staticcheck // Intentional legacy compatibility assertion.
 	require.Equal(t, "hello", request.GetStreamChunk().GetDelta())
+	require.NotEmpty(t, client.tasks[0].TraceHeaders["traceparent"])
 }
 
 func TestDispatcher_DropsWhenGatewayQueueIsFull(t *testing.T) {

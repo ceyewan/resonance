@@ -186,7 +186,7 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 		}
 	}()
 	// PostgreSQL
-	postgresConn, err := connector.NewPostgreSQL(&t.config.PostgreSQL)
+	postgresConn, err := connector.NewPostgreSQL(&t.config.PostgreSQL, connector.WithLogger(t.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
@@ -196,7 +196,7 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 	}
 
 	// Redis
-	redisConn, err := connector.NewRedis(&t.config.Redis)
+	redisConn, err := connector.NewRedis(&t.config.Redis, connector.WithLogger(t.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
@@ -206,7 +206,7 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 	}
 
 	// NATS
-	natsConn, err := connector.NewNATS(&t.config.NATS, connector.WithLogger(t.logger))
+	natsConn, err := connector.NewNATS(&t.config.NATS, connector.WithLogger(t.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("nats init: %w", err)
 	}
@@ -217,14 +217,14 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 	mqClient, err := mq.New(&mq.Config{
 		Driver:    mq.DriverNATSJetStream,
 		JetStream: &t.config.JetStream,
-	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger))
+	}, mq.WithNATSConnector(natsConn), mq.WithLogger(t.logger), mq.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
 	cleanup = append(cleanup, mqClient.Close)
 
 	// Etcd (用于服务发现)
-	etcdConn, err := connector.NewEtcd(&t.config.Etcd, connector.WithLogger(t.logger))
+	etcdConn, err := connector.NewEtcd(&t.config.Etcd, connector.WithLogger(t.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
@@ -234,7 +234,7 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 	}
 
 	// Registry
-	reg, err := registry.New(etcdConn, t.config.Registry.ToRegistryConfig(), registry.WithLogger(t.logger))
+	reg, err := registry.New(etcdConn, t.config.Registry.ToRegistryConfig(), registry.WithLogger(t.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
