@@ -6,7 +6,7 @@
 
 ## 1. 可观测性目标
 
-Resonance 的可观测性设计服务于两个目标：一是让开发者在本地调试时能快速定位问题，二是让生产环境在出现异常时有足够的信息进行排查。当前实现以日志和指标为主，Trace 已经接入但仍在逐步完善。
+Resonance 的可观测性设计服务于两个目标：一是让开发者在本地调试时能快速定位问题，二是让生产环境在出现异常时有足够的信息进行排查。Gateway、Logic、Task 和 Pilot 均使用服务级 TraceProvider/MeterProvider，并完成关键跨进程链路传播。
 
 ---
 
@@ -76,6 +76,8 @@ logger.Error("保存消息失败: " + err.Error())
 
 所有服务都启用了 Go runtime 指标（`enable_runtime: true`），包括 goroutine 数量、GC 耗时、内存使用等。
 
+每个服务只创建一个 Meter。该 Meter 同时用于 Resonance 业务指标，并通过 Genesis 的 `connector.WithMeter`、`mq.WithMeter`、`registry.WithMeter`、`auth.WithMeter`、`idgen.WithMeter` 和 `ratelimit.WithMeter` 注入该进程内实际使用的基础设施组件。组件不得回退到 `metrics.Discard()`，也不得额外创建 MeterProvider 或监听端口。
+
 ### 3.2 Logic 业务指标
 
 Logic 在 `logic/observability/observability.go` 中定义了以下业务指标：
@@ -143,14 +145,14 @@ observability:
 
 ### 4.2 Trace 跨服务传播
 
-Logic 在发布 MQ 事件时，会把当前 Trace 上下文注入到 `MQEvent.trace_headers` 中：
+Gateway/Pilot 到 Logic，以及 Task 到 Gateway 的 gRPC 调用统一使用 `pkg/grpctrace` 注入和提取 W3C `traceparent`/`tracestate`。Logic 在发布 MQ 事件时，会把当前 Trace 上下文注入到 `MQEvent.trace_headers` 中：
 
 ```go
 // logic/internal/mqpublish/publish.go
 observability.InjectTraceContext(ctx, event.TraceHeaders)
 ```
 
-Task 消费到事件后，可以从 `trace_headers` 中恢复 Trace 上下文，使得 Logic 的 Span 和 Task 的 Span 能够关联到同一条 Trace 链路上。
+Task 消费到持久消息或 Agent stream 后，从 `trace_headers` 恢复 Trace 上下文。Dispatcher 随后把当前受限 W3C carrier 保存进内部 `PushTask`；异步 Pusher 在调用 Gateway 前恢复 carrier 并创建子 Span。因此队列调度不会把 `Gateway → Logic → MQ → Task → Gateway` 拆成多条 Trace。
 
 Pilot Ingress 会把上游 trace carrier 与 AgentRun 一起持久化。Worker 在数秒或重启后 claim Run 时，只恢复受限的 W3C `traceparent`/`tracestate`，不恢复任意 header 或用户提供的 baggage，再创建 `agent.run`/`agent.commit_prepared` Span。这样排队不会丢失父链路，也不会把租户或用户值变成高基数属性。
 
@@ -169,10 +171,10 @@ defer endSpan()
 
 | 服务 | 已覆盖 |
 | ---- | ------ |
-| Logic | 初始化完成，业务 Span 逐步补充 |
-| Task | `dispatcher.handle` Span 已接入 |
-| Gateway | 配置已存在，Trace 上报默认关闭（`disable: true`） |
-| Pilot | Agent Run、prepared commit 与持久化 carrier 恢复 |
+| Logic | gRPC ingress 提取、MQ publish 和业务 Span |
+| Task | MQ/stream consumer、`dispatcher.handle`、异步 Gateway push |
+| Gateway | HTTP/WS ingress、Logic client 和 Push gRPC ingress；本地配置可关闭导出但仍保留传播 |
+| Pilot | durable ingress/run carrier、Runtime/Tool/commit Span 和 Logic client |
 
 ---
 
@@ -210,9 +212,11 @@ defer endSpan()
 | `logic/observability/observability.go` | Logic 指标与 Trace 初始化 |
 | `task/observability/observability.go` | Task 指标与 Trace 初始化 |
 | `pilot/observability/observability.go` | Pilot 实例化 Telemetry、Run 指标和 durable trace 恢复 |
+| `pkg/grpctrace/grpctrace.go` | gRPC W3C Trace Context 客户端/服务端统一传播 |
 | `logic/internal/mqpublish/publish.go` | Trace 上下文注入到 MQEvent |
-| `task/dispatcher/dispatcher.go` | `dispatcher.handle` Span |
-| `logic/server/grpc.go` | gRPC 请求日志拦截器（含 trace_id 提取） |
+| `task/dispatcher/dispatcher.go` | `dispatcher.handle` Span 与 PushTask carrier |
+| `task/pusher/client.go` | PushTask carrier 恢复与 Gateway client 传播 |
+| `logic/server/grpc.go` | gRPC Trace Context 提取、鉴权与请求日志拦截器 |
 | `configs/logic.yaml` | Logic 可观测性配置 |
 | `configs/gateway.yaml` | Gateway 可观测性配置 |
 | `configs/pilot.yaml` | Pilot trace 与 `:9093/metrics` 配置 |

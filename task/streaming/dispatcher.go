@@ -12,6 +12,7 @@ import (
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/repo"
+	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
 )
 
@@ -39,6 +40,8 @@ func (d *Dispatcher) Handle(ctx context.Context, event *mqv1.AgentStreamEvent) e
 		return fmt.Errorf("query agent stream routes: %w", err)
 	}
 	groups := make(map[string][]string)
+	traceHeaders := make(map[string]string, 2)
+	observability.InjectTraceContext(ctx, traceHeaders)
 	for _, router := range routers {
 		if router == nil || router.GatewayID == "" || router.Username == "" {
 			continue
@@ -53,7 +56,7 @@ func (d *Dispatcher) Handle(ctx context.Context, event *mqv1.AgentStreamEvent) e
 			continue
 		}
 		request := toGatewayRequest(event)
-		if err := client.Enqueue(&pusher.PushTask{ToUsernames: usernames, Stream: request}); err != nil {
+		if err := client.Enqueue(&pusher.PushTask{ToUsernames: usernames, Stream: request, TraceHeaders: traceHeaders}); err != nil {
 			d.logger.Debug("drop agent stream for full gateway queue",
 				clog.String("gateway_id", gatewayID), clog.String("run_id", event.GetRunId()))
 		}

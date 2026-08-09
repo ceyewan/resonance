@@ -114,6 +114,8 @@ func (d *Dispatcher) pushToOnlineUsers(ctx context.Context, ev *commonv1.ChatEve
 
 	successCount := 0
 	failedCount := 0
+	traceHeaders := make(map[string]string, 2)
+	observability.InjectTraceContext(ctx, traceHeaders)
 	for gatewayID, users := range gatewayGroups {
 		client, err := d.pusherMgr.GetClient(gatewayID)
 		if err != nil {
@@ -126,8 +128,9 @@ func (d *Dispatcher) pushToOnlineUsers(ctx context.Context, ev *commonv1.ChatEve
 		}
 
 		task := &pusher.PushTask{
-			ToUsernames: users,
-			Event:       ev,
+			ToUsernames:  users,
+			Event:        ev,
+			TraceHeaders: traceHeaders,
 		}
 		if err := client.Enqueue(task); err != nil {
 			failedCount += len(users)

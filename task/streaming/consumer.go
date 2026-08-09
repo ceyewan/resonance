@@ -12,6 +12,7 @@ import (
 
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
 	"github.com/ceyewan/resonance/task/config"
+	"github.com/ceyewan/resonance/task/observability"
 )
 
 type HandlerFunc func(context.Context, *mqv1.AgentStreamEvent) error
@@ -119,15 +120,18 @@ func (c *Consumer) handleMessage(message mq.Message) error {
 	if err := ValidateEvent(event, c.maxDeltaBytes); err != nil {
 		return c.deadLetterAndAck(message, "invalid_agent_stream")
 	}
+	ctx := observability.ExtractTraceContext(message.Context(), event.GetTraceHeaders())
+	ctx, endSpan := observability.StartSpan(ctx, "consumer.agent_stream.process")
+	defer endSpan()
 
 	var lastErr error
 	for attempt := 0; attempt < c.config.MaxRetry; attempt++ {
 		if attempt > 0 && c.config.RetryInterval > 0 {
 			timer := time.NewTimer(time.Duration(c.config.RetryInterval) * time.Second)
 			select {
-			case <-message.Context().Done():
+			case <-ctx.Done():
 				timer.Stop()
-				lastErr = message.Context().Err()
+				lastErr = ctx.Err()
 				attempt = c.config.MaxRetry
 				continue
 			case <-c.ctx.Done():
@@ -138,7 +142,7 @@ func (c *Consumer) handleMessage(message mq.Message) error {
 			case <-timer.C:
 			}
 		}
-		if err := c.handler(message.Context(), event); err != nil {
+		if err := c.handler(ctx, event); err != nil {
 			lastErr = err
 			continue
 		}

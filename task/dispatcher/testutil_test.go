@@ -116,6 +116,17 @@ type testPusherManager struct {
 	getFn func(gatewayID string) (pusher.Client, error)
 }
 
+type testPusherClient struct {
+	tasks []*pusher.PushTask
+}
+
+func (c *testPusherClient) Enqueue(task *pusher.PushTask) error {
+	c.tasks = append(c.tasks, task)
+	return nil
+}
+
+func (c *testPusherClient) QueueSize() int { return len(c.tasks) }
+
 func (m *testPusherManager) Start() error { return nil }
 
 func (m *testPusherManager) GetClient(gatewayID string) (pusher.Client, error) {

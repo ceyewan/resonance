@@ -45,6 +45,7 @@ type Logic struct {
 	resources *resources
 	ctx       context.Context
 	cancel    context.CancelFunc
+	errors    chan error
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -85,6 +86,7 @@ func New() (*Logic, error) {
 		config: cfg,
 		ctx:    ctx,
 		cancel: cancel,
+		errors: make(chan error, 1),
 	}
 
 	if err := l.initComponents(); err != nil {
@@ -136,7 +138,7 @@ func (l *Logic) initComponents() error {
 		Driver:    idgen.DriverRedis,
 		KeyPrefix: l.config.WorkerID.GetKey(),
 		MaxID:     l.config.WorkerID.GetMaxID(),
-	}, idgen.WithRedisConnector(res.redisConn))
+	}, idgen.WithRedisConnector(res.redisConn), idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("create allocator: %w", err)
 	}
@@ -151,7 +153,7 @@ func (l *Logic) initComponents() error {
 	msgIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
 		Mode:     idgen.GeneratorModeSingleDC,
 		WorkerID: instanceID,
-	})
+	}, idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("msgID generator init: %w", err)
 	}
@@ -160,7 +162,7 @@ func (l *Logic) initComponents() error {
 	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
 		Mode:     idgen.GeneratorModeSingleDC,
 		WorkerID: instanceID,
-	})
+	}, idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return fmt.Errorf("sessionID generator init: %w", err)
 	}
@@ -170,7 +172,7 @@ func (l *Logic) initComponents() error {
 	go func() {
 		if err, ok := <-allocator.KeepAlive(l.ctx); ok && err != nil {
 			l.logger.Error("instance id keepalive failed", clog.Error(err))
-			l.cancel() // 保活失败，关闭服务
+			l.reportFatal(fmt.Errorf("instance id keepalive: %w", err))
 		}
 	}()
 	go l.monitorRegistryLeaseFailures()
@@ -348,7 +350,7 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 		}
 	}()
 	// DB (PostgreSQL)
-	postgresConn, err := connector.NewPostgreSQL(&l.config.PostgreSQL)
+	postgresConn, err := connector.NewPostgreSQL(&l.config.PostgreSQL, connector.WithLogger(l.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("postgresql init: %w", err)
 	}
@@ -363,7 +365,7 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 	cleanup = append(cleanup, dbInstance.Close)
 
 	// Redis
-	redisConn, err := connector.NewRedis(&l.config.Redis)
+	redisConn, err := connector.NewRedis(&l.config.Redis, connector.WithLogger(l.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("redis init: %w", err)
 	}
@@ -373,7 +375,7 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 	}
 
 	// NATS
-	natsConn, err := connector.NewNATS(&l.config.NATS, connector.WithLogger(l.logger))
+	natsConn, err := connector.NewNATS(&l.config.NATS, connector.WithLogger(l.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("nats init: %w", err)
 	}
@@ -384,14 +386,14 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 	mqClient, err := mq.New(&mq.Config{
 		Driver:    mq.DriverNATSJetStream,
 		JetStream: &l.config.JetStream,
-	}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger))
+	}, mq.WithNATSConnector(natsConn), mq.WithLogger(l.logger), mq.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("mq client init: %w", err)
 	}
 	cleanup = append(cleanup, mqClient.Close)
 
 	// Etcd & Registry
-	etcdConn, err := connector.NewEtcd(&l.config.Etcd, connector.WithLogger(l.logger))
+	etcdConn, err := connector.NewEtcd(&l.config.Etcd, connector.WithLogger(l.logger), connector.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("etcd init: %w", err)
 	}
@@ -399,14 +401,14 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 	if err := etcdConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
-	reg, err := registry.New(etcdConn, l.config.Registry.ToRegistryConfig(), registry.WithLogger(l.logger))
+	reg, err := registry.New(etcdConn, l.config.Registry.ToRegistryConfig(), registry.WithLogger(l.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
 	cleanup = append(cleanup, reg.Close)
 
 	// Authenticator
-	authenticator, err := auth.New(&l.config.Auth, auth.WithLogger(l.logger))
+	authenticator, err := auth.New(&l.config.Auth, auth.WithLogger(l.logger), auth.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("auth init: %w", err)
 	}
@@ -419,7 +421,7 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 		Driver:    idgen.DriverRedis,
 		KeyPrefix: "resonance:logic:seq",
 		Step:      1,
-	}, idgen.WithRedisConnector(redisConn), idgen.WithLogger(l.logger))
+	}, idgen.WithRedisConnector(redisConn), idgen.WithLogger(l.logger), idgen.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("sequencer init: %w", err)
 	}
@@ -500,7 +502,7 @@ func (l *Logic) Run() error {
 	go func() {
 		if err := l.grpcServer.Start(); err != nil {
 			l.logger.Error("grpc server failed", clog.Error(err))
-			l.cancel()
+			l.reportFatal(fmt.Errorf("grpc server: %w", err))
 		}
 	}()
 
@@ -512,6 +514,26 @@ func (l *Logic) Run() error {
 	// 服务注册成功后才标记就绪
 	l.healthServer.SetReady(true)
 	return nil
+}
+
+// Errors reports the first background failure that requires process shutdown.
+func (l *Logic) Errors() <-chan error { return l.errors }
+
+// Done is closed when the Logic lifecycle context is canceled.
+func (l *Logic) Done() <-chan struct{} { return l.ctx.Done() }
+
+func (l *Logic) reportFatal(err error) {
+	if err == nil || l.ctx.Err() != nil {
+		return
+	}
+	select {
+	case l.errors <- err:
+	default:
+	}
+	if l.healthServer != nil {
+		l.healthServer.SetReady(false)
+	}
+	l.cancel()
 }
 
 // registerService 注册服务到 Etcd
@@ -546,7 +568,7 @@ func (l *Logic) monitorRegistryLeaseFailures() {
 			if l.healthServer != nil {
 				l.healthServer.SetReady(false)
 			}
-			l.cancel()
+			l.reportFatal(fmt.Errorf("registry lease for %s: %w", failure.ServiceID, failure.Err))
 		case <-l.ctx.Done():
 			return
 		}

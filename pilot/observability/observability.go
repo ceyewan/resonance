@@ -115,6 +115,9 @@ func newWithMeter(meter metrics.Meter, traceShutdown func(context.Context) error
 	return telemetry, nil
 }
 
+// Meter returns the service-owned Meter shared with Genesis components.
+func (t *Telemetry) Meter() metrics.Meter { return t.meter }
+
 func initTrace(config Config) (func(context.Context) error, error) {
 	if config.Trace.Disable {
 		return genesistrace.InstallLocalProvider(serviceName)

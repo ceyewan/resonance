@@ -13,14 +13,16 @@ import (
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	gatewayv1 "github.com/ceyewan/resonance/api/gen/go/gateway/v1"
+	"github.com/ceyewan/resonance/pkg/grpctrace"
 	"github.com/ceyewan/resonance/task/observability"
 )
 
 // PushTask 推送任务
 type PushTask struct {
-	ToUsernames []string
-	Event       *commonv1.ChatEvent
-	Stream      *gatewayv1.PushStreamRequest
+	ToUsernames  []string
+	Event        *commonv1.ChatEvent
+	Stream       *gatewayv1.PushStreamRequest
+	TraceHeaders map[string]string
 }
 
 // GatewayClient 单个 Gateway 的推送客户端
@@ -46,6 +48,8 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 	// 建立连接（使用 grpc.NewClient 替代废弃的 grpc.Dial）
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithChainUnaryInterceptor(grpctrace.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(grpctrace.StreamClientInterceptor()),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallRecvMsgSize(4*1024*1024), // 4MB
 		),
@@ -243,6 +247,9 @@ func (c *GatewayClient) doPush(task *PushTask) {
 }
 
 func (c *GatewayClient) pushOnce(ctx context.Context, task *PushTask) ([]string, error) {
+	ctx = observability.ExtractTraceContext(ctx, task.TraceHeaders)
+	ctx, endSpan := observability.StartSpan(ctx, "pusher.gateway.push")
+	defer endSpan()
 	if task.Event != nil {
 		response, err := c.client.PushEvent(ctx, &gatewayv1.PushEventRequest{
 			ToUsernames: task.ToUsernames, Event: task.Event,

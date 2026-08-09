@@ -115,6 +115,10 @@ Gateway 的 WebSocket 连接管理包含以下可靠性机制：
 - **客户端重连**：前端 `WsClient` 以指数退避策略自动重连（1s → 30s）
 - **重连后同步**：重连成功后立即触发 `InboxSyncManager.run()`，补偿离线期间的事件
 
+### 7.1 服务级致命故障
+
+Gateway 和 Logic 将 registry lease 丢失、Snowflake allocator keepalive 失败以及 gRPC/HTTP 服务异常退出视为进程级故障。后台协程通过有界 `Errors()` 通道报告第一个故障、撤销 readiness 并取消服务 context；`main` 同时等待操作系统信号和该错误通道。收到后台故障后进程以非零状态退出，defer 路径仍执行幂等、有界的 `Close()`，避免关键服务已经失效但进程继续存活。
+
 ---
 
 ## 8. 当前实现结构

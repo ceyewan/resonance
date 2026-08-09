@@ -15,6 +15,7 @@ import (
 
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/gateway/observability"
+	"github.com/ceyewan/resonance/pkg/grpctrace"
 	"github.com/ceyewan/resonance/pkg/serviceauth"
 	"github.com/ceyewan/resonance/pkg/userauth"
 )
@@ -192,14 +193,7 @@ func traceContextUnaryInterceptor() grpc.UnaryClientInterceptor {
 			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
 		}
 
-		// 同时注入 OTEL TraceContext（用于 Trace 链路传递）
-		carrier := make(map[string]string)
-		observability.InjectTraceContext(ctx, carrier)
-		for key, value := range carrier {
-			ctx = metadata.AppendToOutgoingContext(ctx, key, value)
-		}
-
-		return invoker(ctx, method, req, reply, cc, opts...)
+		return invoker(grpctrace.InjectOutgoing(ctx), method, req, reply, cc, opts...)
 	}
 }
 
@@ -222,14 +216,7 @@ func traceContextStreamInterceptor() grpc.StreamClientInterceptor {
 			ctx = metadata.AppendToOutgoingContext(ctx, "trace-id", traceID)
 		}
 
-		// 同时注入 OTEL TraceContext（用于 Trace 链路传递）
-		carrier := make(map[string]string)
-		observability.InjectTraceContext(ctx, carrier)
-		for key, value := range carrier {
-			ctx = metadata.AppendToOutgoingContext(ctx, key, value)
-		}
-
-		return streamer(ctx, desc, cc, method, opts...)
+		return streamer(grpctrace.InjectOutgoing(ctx), desc, cc, method, opts...)
 	}
 }
 

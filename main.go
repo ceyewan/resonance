@@ -59,7 +59,10 @@ func run() (exitCode int) {
 			fmt.Printf("❌ Gateway error: %v\n", err)
 			return 1
 		}
-		waitForSignal()
+		if err := waitForSignalOrError(g.Errors()); err != nil {
+			fmt.Printf("❌ Gateway background failure: %v\n", err)
+			return 1
+		}
 
 	case "logic":
 		l, err := logic.New()
@@ -77,7 +80,10 @@ func run() (exitCode int) {
 			fmt.Printf("❌ Logic error: %v\n", err)
 			return 1
 		}
-		waitForSignal()
+		if err := waitForSignalOrError(l.Errors()); err != nil {
+			fmt.Printf("❌ Logic background failure: %v\n", err)
+			return 1
+		}
 
 	case "task":
 		t, err := task.New()

@@ -10,6 +10,9 @@ import (
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
@@ -29,6 +32,22 @@ func TestStreamConsumer_ValidEventAcked(t *testing.T) {
 	require.Equal(t, 1, calls)
 	require.True(t, message.acked)
 	require.False(t, message.nacked)
+}
+
+func TestStreamConsumerRestoresPersistedTraceContext(t *testing.T) {
+	previous := otel.GetTextMapPropagator()
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	t.Cleanup(func() { otel.SetTextMapPropagator(previous) })
+	event := validStreamEvent()
+	event.TraceHeaders = map[string]string{
+		"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+	}
+	consumer := newConsumerForTest(t, &fakeMQ{}, func(ctx context.Context, _ *mqv1.AgentStreamEvent) error {
+		require.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", trace.SpanContextFromContext(ctx).TraceID().String())
+		return nil
+	})
+
+	require.NoError(t, consumer.handleMessage(&fakeMessage{topic: "stream", data: marshalStream(t, event)}))
 }
 
 func TestStreamConsumer_HandlerFailureIsBoundedlyRetriedThenDropped(t *testing.T) {
