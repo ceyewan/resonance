@@ -47,15 +47,15 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Verify published Genesis module identity
+        run: |
+          go mod verify
+          test "$(go list -m -f '{{.Version}} {{.Sum}} {{.GoModSum}}' github.com/ceyewan/genesis)" = "v1.0.0-rc.1 h1:controlled-negative h1:controlled-negative"
+
       # repo/ 层测试依赖 testcontainers 自动拉起 postgres/redis 镜像，
       # ubuntu-latest runner 自带 Docker daemon，无需额外 services。
       - name: Run Go tests
         run: make test-go
-
-      - name: Verify published Genesis module identity
-        run: |
-          go mod verify
-          test "$(go list -m -f '{{.Version}} {{.Sum}} {{.GoModSum}}' github.com/ceyewan/genesis)" = "v1.0.0-rc.1 h1:X3VK5VpPxIrgyzQsPPPSHQHaiNvMhhT/wcGCWkuFS8U= h1:VUPsG33Toz8lKJk2tEkgeWd7SFMIDjYtwvzYOuQmRU4="
 
       - name: Run Agent multi-tenant isolation race gate
         run: go test -race ./pilot/isolation -run '^TestConcurrentTenantIsolation$' -count=5
