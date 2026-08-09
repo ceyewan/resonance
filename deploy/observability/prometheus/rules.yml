@@ -1,0 +1,23 @@
+groups:
+  - name: resonance-local-v1
+    rules:
+      - alert: ServiceDown
+        expr: up{job="resonance"} == 0
+        for: 30s
+        labels: { severity: critical }
+        annotations: { summary: "Resonance service target is down" }
+      - alert: APIHighErrorRate
+        expr: (1 - max(up{instance="gateway:9092"})) > 0
+        for: 15s
+        labels: { severity: warning }
+        annotations: { summary: "Gateway HTTP errors detected" }
+      - alert: OutboxBacklog
+        expr: max_over_time(logic_outbox_backlog[1m]) > 0
+        for: 10s
+        labels: { severity: warning }
+        annotations: { summary: "Logic outbox has pending records" }
+      - alert: TelemetryPipelineDown
+        expr: min(up{job=~"prometheus|loki|tempo|alloy"}) == 0
+        for: 30s
+        labels: { severity: critical }
+        annotations: { summary: "Local telemetry component is down" }

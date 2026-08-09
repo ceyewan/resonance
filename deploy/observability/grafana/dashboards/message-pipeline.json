@@ -1,0 +1,64 @@
+{
+  "uid": "resonance-message-pipeline",
+  "title": "Message Pipeline",
+  "tags": ["resonance"],
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Logic send latency",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(logic_send_message_duration_seconds_bucket[5m])))",
+          "legendFormat": "P95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(logic_send_message_duration_seconds_bucket[5m])))",
+          "legendFormat": "P99"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Task storage and push latency",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(task_storage_process_duration_seconds_bucket[5m])))",
+          "legendFormat": "storage P95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(task_push_process_duration_seconds_bucket[5m])))",
+          "legendFormat": "push P95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Push queue / enqueue failures",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(task_gateway_queue_depth)", "legendFormat": "queue depth" },
+        {
+          "refId": "B",
+          "expr": "sum(rate(task_push_enqueue_failed_total[1m]))",
+          "legendFormat": "enqueue failures/s"
+        }
+      ]
+    }
+  ]
+}
