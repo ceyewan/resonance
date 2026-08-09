@@ -37,7 +37,7 @@ Logic ingress, plus exact AI Session Profile binding for Bot Chat/History calls.
 ```bash
 go test -race ./pkg/serviceauth ./logic ./logic/config ./logic/server ./logic/service -count=5
 go vet ./pkg/serviceauth ./logic ./logic/config ./logic/server ./logic/service
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
 git diff --check
 ```
 

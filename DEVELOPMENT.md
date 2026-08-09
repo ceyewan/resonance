@@ -222,6 +222,9 @@
 - [ ] Runtime 升级契约、Session fixture 和回滚文档已完成；候选版本 Canary/回滚实操仍待发布环境
 - [x] 版本化业务 Eval 覆盖回答质量、Tool 序列、越权拒绝和真实副作用；每个候选仍须运行真实 Provider Observation
 - [x] 建立 Run Queue、首 token、Pi 异常、Tool、审批、Session、成本指标
+- [x] IAM Tool Result 区分审批待执行与 durable receipt 已执行，模型不得提前声称成功
+- [x] Recall 历史使用显式 tombstone；默认 Bot provisioning 以指标观测并由 Login/List 最终一致修复
+- [x] RFC 2544 DNS 兼容只存在于本地 Compose override；付费 Provider Smoke E2E 默认拒绝远程环境
 
 ### 验证标准
 

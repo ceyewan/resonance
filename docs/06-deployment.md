@@ -109,7 +109,9 @@ configs/
 | `RESONANCE_PILOT_TENANT_ID` / `RESONANCE_PILOT_IAM_TENANT_ID` | 两个 Pilot 工作负载各自唯一允许的 Tenant |
 | `RESONANCE_USER_ASSISTANT_PROFILE_VERSION` | Logic 与 user-assistant Pilot 共同固定的版本 |
 | `RESONANCE_IAM_ADMIN_PROFILE_VERSION` | Logic 与 iam-admin Pilot 共同固定的版本 |
-| `ANTHROPIC_API_KEY` | 只注入 Runtime sidecar 的服务端 API Key；control/proxy 不可见 |
+| `DASHSCOPE_API_KEY` | 只注入 Runtime sidecar 的平台托管 API Key；control/proxy 不可见 |
+| `DASHSCOPE_BASE_URL` | 百炼 OpenAI-compatible Base URL，当前固定为按量付费业务空间专属 endpoint |
+| `DASHSCOPE_MODEL` | 默认模型，当前固定为 `qwen3.8-max` |
 
 两个 Pilot 的 Capability 与 Logic service-auth 密钥不得复用。Compose 会把两个独立
 service ID/secret/Tenant 同时注入 Logic 与对应 Pilot；Logic 只允许普通 Pilot 调用
@@ -155,9 +157,10 @@ make up
 等价于：
 
 ```bash
-docker compose -p resonance \
+docker compose --env-file .env -p resonance \
   -f deploy/base.yaml \
   -f deploy/services.yaml \
+  -f deploy/services.local.yaml \
   up -d
 ```
 
@@ -180,7 +183,9 @@ RESONANCE_WEB_WS_BASE_URL=ws://localhost:8080/ws
 make update-local
 ```
 
-该命令会重新构建镜像、按 `deploy/base.yaml + deploy/services.yaml` 重建业务容器，并输出最新服务状态。
+该命令会重新构建镜像、按 `deploy/base.yaml + deploy/services.yaml + deploy/services.local.yaml`
+重建业务容器，并输出最新服务状态。RFC 2544 合成地址兼容只存在于这个 local override；
+基础和生产配置均默认关闭。
 
 ### 7.2 生产模式
 
@@ -191,7 +196,7 @@ make up-prod
 等价于：
 
 ```bash
-docker compose -p resonance \
+docker compose --env-file .env -p resonance \
   -f deploy/base.yaml \
   -f deploy/services.yaml \
   -f deploy/services.prod.yaml \
@@ -217,7 +222,9 @@ RESONANCE_POSTGRES_PASSWORD=<strong-password>
 RESONANCE_ADMIN_PASSWORD=<admin-password>
 RESONANCE_PILOT_CAPABILITY_SECRET=<at-least-32-random-bytes>
 RESONANCE_PILOT_SERVICE_AUTH_SECRET=<at-least-32-random-bytes>
-ANTHROPIC_API_KEY=<server-api-key>
+DASHSCOPE_API_KEY=<server-provider-key>
+DASHSCOPE_BASE_URL=https://llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+DASHSCOPE_MODEL=qwen3.8-max
 RESONANCE_PILOT_IMAGE=registry/resonance-pilot@sha256:<64-lowercase-hex>
 RESONANCE_PILOT_RUNTIME_IMAGE=registry/resonance-pilot-runtime@sha256:<64-lowercase-hex>
 ```
@@ -226,7 +233,7 @@ Pilot 使用两个兼容镜像：`pilot-control-final` 只有 Go control，不�
 
 生产脚本拒绝 Agent 镜像的 tag、空值或非法 digest。GitHub 发布工作流会将 control/runtime 两个 digest、Pi/Bridge/Remote Runtime 协议版本和源码 SHA 写入同一个 `agent-release-<tag>` artifact，同时为两个镜像发布 SBOM 和 provenance attestation。发布和回滚必须把该 digest 对当作不可拆分的组合。`deploy/scripts/rollback-agent.sh` 默认只校验，仅显式 `--execute` 才会停止 ingress、依次恢复 Runtime/control 并生成操作证据。
 
-Control 只加入 `resonance-net`，Runtime 只加入 `runtime-internal`。Runtime 无默认业务网络出口，只能经 `provider-egress-proxy` 的精确 CONNECT allowlist 访问 `api.anthropic.com:443`；Tool Bridge 经 loopback Relay 和私有 UDS 回到 control。Compose 的 stop grace 必须覆盖 control 停止摄入、Run drain、Remote Shutdown 和 Pi Abort/Kill。
+Control 只加入 `resonance-net`，Runtime 只加入 `runtime-internal`。Runtime 无默认业务网络出口，只能经 `provider-egress-proxy` 的精确 CONNECT allowlist 访问 `llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com:443`；Tool Bridge 经 loopback Relay 和私有 UDS 回到 control。Compose 的 stop grace 必须覆盖 control 停止摄入、Run drain、Remote Shutdown 和 Pi Abort/Kill。Docker Desktop/VPN 可能把公网域名解析到 RFC 2544 合成地址，本地 Compose 对该地址段有显式兼容；生产覆盖强制关闭此兼容，继续只接受真实公网地址。
 
 ---
 

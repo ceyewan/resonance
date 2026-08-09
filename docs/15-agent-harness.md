@@ -323,7 +323,7 @@ Bridge 重试 HTTP 请求时必须复用同一 `tool_call_id` 和请求幂等键
 
 ```json
 {
-  "status": "ok | approval_required | denied | retryable_error | final_error",
+  "status": "ok | approval_required | execution_pending | executed | denied | retryable_error | final_error",
   "call_id": "...",
   "model_text": "供模型使用的脱敏文本",
   "display_summary": "供用户界面展示的摘要",
@@ -336,6 +336,8 @@ Bridge 重试 HTTP 请求时必须复用同一 `tool_call_id` 和请求幂等键
 - Secret、Credential、密码哈希和内部授权信息不能返回。
 - Tool Broker 错误不得把下游原始堆栈暴露给模型。
 - `approval_required` 是一次正常、可解释的 Tool Result，不阻塞 Pi 进程。
+- `execution_pending` 表示审批已经通过但 durable receipt 尚未提交，模型不得声称变更成功。
+- `executed` 只能在 Tool Broker 观察到绑定当前 call/args 的 durable execution receipt 后返回。
 
 ### 8.4 Capability 传递
 

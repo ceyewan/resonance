@@ -51,7 +51,7 @@ PILOT_PREVIOUS_IMAGE_DIGEST="registry.example/resonance-pilot@sha256:$(printf 'a
 PILOT_RUNTIME_PREVIOUS_IMAGE_DIGEST="registry.example/resonance-pilot-runtime@sha256:$(printf 'b%.0s' {1..64})" \
   ./deploy/scripts/rollback-agent.sh --validate-only
 
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
 make lint-markdown
 git diff --check
 ```

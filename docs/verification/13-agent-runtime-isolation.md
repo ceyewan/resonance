@@ -42,7 +42,7 @@ docker build --target pilot-runtime-final -t resonance-pilot-runtime:verify -f d
 docker image inspect resonance-pilot-runtime:verify --format '{{.Config.User}}'
 docker run --rm --entrypoint /opt/resonance/bridge/node_modules/.bin/pi \
   resonance-pilot-runtime:verify --version
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml config -q
 ```
 
 固定镜像验收值为用户 `resonance`、Pi `0.84.1`；control 镜像内必须找不到 `node` 和 Pi binary。真实 Pi 契约离线验证 `--mode rpc`、固定安全 flags、`get_state`、`get_session_stats`、Abort 和 stdin close，不产生 Provider 请求。

@@ -86,6 +86,7 @@ Logic 在 `logic/observability/observability.go` 中定义了以下业务指标�
 | `logic_register_duration_seconds` | Histogram | 注册请求处理耗时 |
 | `logic_send_message_duration_seconds` | Histogram | 发消息请求处理耗时 |
 | `logic_create_session_duration_seconds` | Histogram | 创建会话请求处理耗时 |
+| `logic_default_agent_session_provision_total` | Counter | 默认 Bot 会话 best-effort provisioning/lazy repair 结果；仅使用固定 trigger/outcome 标签 |
 
 ### 3.3 Task 业务指标
 

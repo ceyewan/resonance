@@ -18,8 +18,9 @@ Runtime/UDS/凭证分离的完整验收见 `13-agent-runtime-isolation.md`。
 ## 2. Fail-closed 契约
 
 - 仅接受 HTTP/1.1 CONNECT。普通 HTTP、请求体、userinfo、IP literal、通配域、尾点、大小写或端口非规范形式均拒绝。
-- 生产配置显式只允许 lower-case ASCII IDNA A-label `api.anthropic.com` 和端口 `443`。allowlist 为空、重复或包含非规范项时启动失败。
+- 当前配置显式只允许 lower-case ASCII IDNA A-label `llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com` 和端口 `443`。allowlist 为空、重复或包含非规范项时启动失败。
 - DNS 由 proxy 自己解析；任何候选地址属于 private、loopback、link-local、multicast、unspecified、documentation、benchmark、metadata、IPv4-mapped 或受限转换网段时，整个答案集都拒绝。
+- Docker Desktop/VPN 可能使用 RFC 2544 `198.18.0.0/15` 合成公网地址；基础 Compose 默认拒绝，只有显式叠加 `services.local.yaml` 才对此地址段开启兼容；生产仍拒绝全部 benchmark 地址。
 - dial 只接收已经校验过的 IP，不再次传入 hostname，避免 DNS rebinding。
 - CONNECT 200 后有界读取一个完整 TLS ClientHello，支持 TCP 和 TLS record 分片。SNI 必须是与 CONNECT host 完全一致的 lower-case ASCII A-label；ALPN 必须存在且只能包含 `h2`、`http/1.1`。
 - ClientHello 原始 record 校验后原样转发；代理不终止 TLS、不读取 HTTP header，也不记录目标请求中的 header、token 或 secret。
@@ -32,7 +33,8 @@ go test ./pilot/egressproxy -count=1 -v
 go test -race ./pilot/egressproxy -count=1
 go vet ./pilot/egressproxy
 go test . -run '^$' -count=1
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml config
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml config
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml config
 make lint-markdown
 git diff --check
 ```

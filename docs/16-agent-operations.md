@@ -86,7 +86,7 @@ Canary 不得通过同时订阅生产 topic 的相同 queue group 实现；这�
 ```bash
 RESONANCE_PILOT_IMAGE="$PILOT_PREVIOUS_IMAGE_DIGEST" \
 RESONANCE_PILOT_RUNTIME_IMAGE="$PILOT_RUNTIME_PREVIOUS_IMAGE_DIGEST" \
-docker compose -p resonance -f deploy/base.yaml -f deploy/services.yaml \
+docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml \
   up -d --no-deps pilot-runtime pilot-iam-admin-runtime pilot pilot-iam-admin
 ```
 
