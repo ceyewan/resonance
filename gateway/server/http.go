@@ -5,9 +5,11 @@ import (
 	"net/http"
 
 	"github.com/ceyewan/genesis/clog"
+	"github.com/ceyewan/genesis/metrics"
 	"github.com/gin-gonic/gin"
 
 	"github.com/ceyewan/resonance/gateway/config"
+	"github.com/ceyewan/resonance/gateway/observability"
 	"github.com/ceyewan/resonance/gateway/transport/httpapi"
 	"github.com/ceyewan/resonance/gateway/transport/ws"
 	"github.com/ceyewan/resonance/pkg/health"
@@ -42,6 +44,7 @@ func (s *HTTPServer) Start() error {
 
 	// 应用中间件（CORS 必须在最前）
 	router.Use(s.middlewares.CORS)
+	router.Use(metrics.GinHTTPMiddleware(observability.HTTPServerMetrics()))
 	router.Use(s.middlewares.Recovery)
 
 	// 注册 API 路由

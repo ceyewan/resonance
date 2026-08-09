@@ -7,10 +7,16 @@ groups:
         labels: { severity: critical }
         annotations: { summary: "Resonance service target is down" }
       - alert: APIHighErrorRate
-        expr: (1 - max(up{instance="gateway:9092"})) > 0
+        expr: |
+          (
+            sum(rate(gateway_http_requests_total{outcome="error"}[30s]))
+            /
+            clamp_min(sum(rate(gateway_http_requests_total[30s])), 0.001)
+          ) > 0.20
+          and sum(rate(gateway_http_requests_total[30s])) > 0.10
         for: 15s
         labels: { severity: warning }
-        annotations: { summary: "Gateway HTTP errors detected" }
+        annotations: { summary: "Gateway HTTP 4xx/5xx error rate exceeds 20%" }
       - alert: OutboxBacklog
         expr: max_over_time(logic_outbox_backlog[1m]) > 0
         for: 10s

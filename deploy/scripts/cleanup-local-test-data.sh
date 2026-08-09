@@ -15,10 +15,13 @@ db_name=$(sed -n 's/^RESONANCE_POSTGRES_DATABASE=//p' .env | tail -n 1)
 db_user=${db_user:-resonance}
 db_name=${db_name:-resonance}
 
-"${COMPOSE[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -v test_prefix="${prefix}%" -U "$db_user" -d "$db_name" <<'SQL'
+"${COMPOSE[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -v test_prefix="$prefix" -U "$db_user" -d "$db_name" <<'SQL'
 BEGIN;
 CREATE TEMP TABLE cleanup_users ON COMMIT DROP AS
-  SELECT username FROM t_user WHERE username LIKE :'test_prefix';
+  -- left(...)=prefix is a literal prefix comparison. Unlike LIKE, underscores
+  -- and percent signs cannot expand the deletion set as SQL wildcards.
+  SELECT username FROM t_user
+  WHERE left(username, length(:'test_prefix')) = :'test_prefix';
 CREATE TEMP TABLE cleanup_sessions ON COMMIT DROP AS
   SELECT session_id FROM t_session
   WHERE owner_username IN (SELECT username FROM cleanup_users);

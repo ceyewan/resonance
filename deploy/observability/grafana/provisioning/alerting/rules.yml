@@ -55,7 +55,7 @@ groups:
             model:
               {
                 editorMode: code,
-                expr: '1 - max(up{instance="gateway:9092"})',
+                expr: '(sum(rate(gateway_http_requests_total{outcome="error"}[30s])) / clamp_min(sum(rate(gateway_http_requests_total[30s])), 0.001)) and sum(rate(gateway_http_requests_total[30s])) > 0.10',
                 instant: true,
                 intervalMs: 1000,
                 maxDataPoints: 43200,
@@ -67,7 +67,7 @@ groups:
               conditions:
                 [
                   {
-                    evaluator: { params: [0], type: gt },
+                    evaluator: { params: [0.2], type: gt },
                     operator: { type: and },
                     query: { params: [C] },
                     reducer: { params: [], type: last },
@@ -83,7 +83,7 @@ groups:
         noDataState: OK
         execErrState: Error
         for: 10s
-        annotations: { summary: "Gateway HTTP errors detected in local verification" }
+        annotations: { summary: "Gateway HTTP 4xx/5xx error rate exceeds 20%" }
         labels: { severity: warning }
       - uid: resonance-outbox-backlog
         title: OutboxBacklog

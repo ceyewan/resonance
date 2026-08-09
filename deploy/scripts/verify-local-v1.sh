@@ -27,6 +27,9 @@ for url in http://127.0.0.1:14173/ http://127.0.0.1:18080/ready http://127.0.0.1
   curl --fail --silent --show-error --max-time 10 "$url" >/dev/null
 done
 
+deploy/scripts/test-cleanup-local-test-data.sh \
+  | tee "$EVIDENCE_DIR/cleanup-literal-prefix-safety.log"
+
 targets=""
 for _ in $(seq 1 30); do
   targets=$("${COMPOSE[@]}" exec -T grafana wget -qO- 'http://prometheus:9090/api/v1/targets?state=active')

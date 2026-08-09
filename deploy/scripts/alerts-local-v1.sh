@@ -12,6 +12,10 @@ if [[ ! "$PREFIX" =~ ^[A-Za-z0-9_-]{1,24}$ ]]; then
   exit 2
 fi
 cleanup() {
+  if [[ -n "${error_load_pid:-}" ]]; then
+    kill "$error_load_pid" >/dev/null 2>&1 || true
+    wait "$error_load_pid" >/dev/null 2>&1 || true
+  fi
   "${COMPOSE[@]}" unpause nats >/dev/null 2>&1 || true
   "${COMPOSE[@]}" start task alloy gateway >/dev/null 2>&1 || true
   deploy/scripts/cleanup-local-test-data.sh "$PREFIX"
@@ -61,10 +65,36 @@ alerts >"$OUT/outbox-backlog-firing.json"
 wait_cleared OutboxBacklog
 alerts >"$OUT/outbox-backlog-recovered.json"
 
-"${COMPOSE[@]}" stop gateway
+gateway_container=$("${COMPOSE[@]}" ps -q gateway)
+if [[ -z "$gateway_container" ]]; then
+  echo "gateway container is not running" >&2
+  exit 1
+fi
+curl -fsS http://127.0.0.1:18080/ready >/dev/null
+
+# Keep Gateway online and sustain real 404 responses across several Prometheus
+# scrapes. The global HTTP middleware records these as outcome="error".
+(
+  deadline=$((SECONDS + 45))
+  while (( SECONDS < deadline )); do
+    for _ in $(seq 1 10); do
+      curl -sS -o /dev/null "http://127.0.0.1:18080/__alert_probe_${PREFIX}" || true
+    done
+    sleep 0.5
+  done
+) &
+error_load_pid=$!
 wait_state APIHighErrorRate firing
 alerts >"$OUT/api-high-error-rate-firing.json"
-"${COMPOSE[@]}" start gateway
+docker inspect "$gateway_container" >"$OUT/api-high-error-rate-gateway-running.json"
+curl -fsS http://127.0.0.1:18080/ready >"$OUT/api-high-error-rate-gateway-ready.txt"
+if [[ "$("${COMPOSE[@]}" ps -q gateway)" != "$gateway_container" ]]; then
+  echo "gateway container changed during HTTP error injection" >&2
+  exit 1
+fi
+kill "$error_load_pid" >/dev/null 2>&1 || true
+wait "$error_load_pid" >/dev/null 2>&1 || true
+error_load_pid=
 wait_cleared APIHighErrorRate
 alerts >"$OUT/api-high-error-rate-recovered.json"
 
