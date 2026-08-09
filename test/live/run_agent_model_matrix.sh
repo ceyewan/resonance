@@ -1,6 +1,6 @@
 #!/bin/bash
-# Run the paid Agent smoke E2E against one or more DashScope models in a local,
-# disposable deployment, then restore the
+# Run the paid Agent smoke E2E against one or more DashScope models in an
+# existing local deployment, then restore the
 # model configured in the ignored repository .env. Provider credentials remain
 # inside the Runtime containers and are never read or printed by this script.
 
@@ -21,11 +21,16 @@ if [[ ! "$DEFAULT_MODEL" =~ ^[A-Za-z0-9._-]+$ ]]; then
     exit 1
 fi
 
-COMPOSE=(docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml)
+COMPOSE=(docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml)
 if (( $# == 0 )); then
     MODELS=(qwen3.7-plus qwen3.7-flash)
 else
     MODELS=("$@")
+fi
+
+if ! "${COMPOSE[@]}" ps --status running --services | grep -qx gateway; then
+    echo "error: the local Gateway is not running; run 'make update-local' first" >&2
+    exit 1
 fi
 
 activate_model() {

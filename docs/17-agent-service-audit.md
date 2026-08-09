@@ -100,7 +100,8 @@ RESONANCE_LIVE_AGENT_E2E=1 \
 测试默认只允许访问 loopback 部署；若显式设置 `RESONANCE_LIVE_ALLOW_REMOTE=1`，必须使用
 专用测试环境和可清理的测试 Tenant。它会创建持久测试用户并消耗真实 Provider 额度，不应直接指向生产默认 Tenant。
 
-轻量模型矩阵会依次切换 control/runtime、执行真实 E2E，并在退出时恢复 `.env` 中的默认模型：
+轻量模型矩阵运行在已由 `make update-local` 启动的本地环境上，会依次切换 control/runtime、执行真实
+E2E，并在退出时恢复 `.env` 中的默认模型：
 
 ```bash
 bash test/live/run_agent_model_matrix.sh qwen3.7-plus qwen3.7-flash
