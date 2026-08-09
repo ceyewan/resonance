@@ -20,6 +20,7 @@ linters:
     paths:
       - docs
       - deploy
+      - "(^|/)node_modules/"
     rules:
       - path: _test\.go
         linters:
@@ -41,3 +42,4 @@ formatters:
     paths:
       - docs
       - deploy
+      - "(^|/)node_modules/"
