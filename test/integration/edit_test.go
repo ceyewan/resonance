@@ -87,13 +87,15 @@ func TestMessageEdit_GoldenPath(t *testing.T) {
 	sequencer, err := idgen.NewSequencer(&idgen.SequencerConfig{Driver: "redis", KeyPrefix: "it:edit:seq", Step: 1}, idgen.WithRedisConnector(infra.redisConn), idgen.WithLogger(logger))
 	require.NoError(t, err)
 
-	authSvc := logicservice.NewAuthService(userRepo, sessionRepo, authenticator, logger)
-	sessionSvc := logicservice.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger)
-	chatSvc := logicservice.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger)
+	identityRepo, err := repo.NewIdentityRepo(infra.db)
+	require.NoError(t, err)
+	authSvc := logicservice.NewAuthService(userRepo, identityRepo, sessionRepo, authenticator, logger)
+	sessionSvc := logicservice.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger, logicservice.WithTenantMembershipReader(identityRepo), logicservice.WithLegacyGlobalSessionAuthorizationForTests())
+	chatSvc := logicservice.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger, logicservice.WithLegacyGlobalChatAuthorizationForTests())
 	presenceSvc := logicservice.NewPresenceService(routerRepo, logger)
 
 	logicAddr := mustFreeAddr(t)
-	logicGRPC := logicserver.NewGRPCServer(logicAddr, logger, authSvc, sessionSvc, chatSvc, presenceSvc)
+	logicGRPC := logicserver.NewGRPCServer(logicAddr, logger, authSvc, sessionSvc, chatSvc, presenceSvc, logicserver.WithLegacyUsernameAuthForTests())
 	go func() { _ = logicGRPC.Start() }()
 	t.Cleanup(logicGRPC.Stop)
 
@@ -245,13 +247,15 @@ func TestMessageEdit_PermissionDenied(t *testing.T) {
 	sequencer, err := idgen.NewSequencer(&idgen.SequencerConfig{Driver: "redis", KeyPrefix: "it:edit:perm:seq", Step: 1}, idgen.WithRedisConnector(infra.redisConn), idgen.WithLogger(logger))
 	require.NoError(t, err)
 
-	authSvc := logicservice.NewAuthService(userRepo, sessionRepo, authenticator, logger)
-	sessionSvc := logicservice.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger)
-	chatSvc := logicservice.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger)
+	identityRepo, err := repo.NewIdentityRepo(infra.db)
+	require.NoError(t, err)
+	authSvc := logicservice.NewAuthService(userRepo, identityRepo, sessionRepo, authenticator, logger)
+	sessionSvc := logicservice.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger, logicservice.WithTenantMembershipReader(identityRepo), logicservice.WithLegacyGlobalSessionAuthorizationForTests())
+	chatSvc := logicservice.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger, logicservice.WithLegacyGlobalChatAuthorizationForTests())
 	presenceSvc := logicservice.NewPresenceService(routerRepo, logger)
 
 	logicAddr := mustFreeAddr(t)
-	logicGRPC := logicserver.NewGRPCServer(logicAddr, logger, authSvc, sessionSvc, chatSvc, presenceSvc)
+	logicGRPC := logicserver.NewGRPCServer(logicAddr, logger, authSvc, sessionSvc, chatSvc, presenceSvc, logicserver.WithLegacyUsernameAuthForTests())
 	go func() { _ = logicGRPC.Start() }()
 	t.Cleanup(logicGRPC.Stop)
 
@@ -296,7 +300,7 @@ type editSingleGatewayPusherManager struct {
 
 func (m *editSingleGatewayPusherManager) Start() error { return nil }
 func (m *editSingleGatewayPusherManager) Close()       {}
-func (m *editSingleGatewayPusherManager) GetClient(gatewayID string) (*pusher.GatewayClient, error) {
+func (m *editSingleGatewayPusherManager) GetClient(gatewayID string) (pusher.Client, error) {
 	if gatewayID != m.gatewayID {
 		return nil, context.Canceled
 	}

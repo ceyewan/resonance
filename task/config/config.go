@@ -39,7 +39,9 @@ type Config struct {
 	GatewayPusherCount int    `mapstructure:"gateway_pusher_count"` // 每个 Gateway 的并发推送协程数
 
 	// 消费者配置
-	Consumer ConsumerConfig `mapstructure:"consumer"` // 单消费者：先存储后推送
+	Consumer            ConsumerConfig `mapstructure:"consumer"` // 持久 ChatEvent：先存储后推送
+	StreamConsumer      ConsumerConfig `mapstructure:"stream_consumer"`
+	StreamMaxDeltaBytes int            `mapstructure:"stream_max_delta_bytes"`
 
 	// 可观测性配置
 	Observability struct {
@@ -137,6 +139,27 @@ func Load() (*Config, error) {
 	if cfg.Consumer.DLQTopic == "" {
 		cfg.Consumer.DLQTopic = cfg.Consumer.Topic + ".dlq"
 	}
+	if cfg.StreamConsumer.WorkerCount <= 0 {
+		cfg.StreamConsumer.WorkerCount = 10
+	}
+	if cfg.StreamConsumer.QueueGroup == "" {
+		cfg.StreamConsumer.QueueGroup = "resonance_group_agent_stream"
+	}
+	if cfg.StreamConsumer.MaxRetry <= 0 {
+		cfg.StreamConsumer.MaxRetry = 2
+	}
+	if cfg.StreamConsumer.Topic == "" {
+		cfg.StreamConsumer.Topic = "resonance.agent.stream.v1"
+	}
+	if cfg.StreamConsumer.DLQTopic == "" {
+		cfg.StreamConsumer.DLQTopic = cfg.StreamConsumer.Topic + ".dlq"
+	}
+	if cfg.StreamMaxDeltaBytes <= 0 {
+		cfg.StreamMaxDeltaBytes = 64 << 10
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
 
 	// 在 debug 模式下，打印最终生效的配置
 	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {
@@ -144,6 +167,23 @@ func Load() (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func (c *Config) Validate() error {
+	if c.Consumer.Topic == "" || c.Consumer.QueueGroup == "" || c.Consumer.WorkerCount < 1 ||
+		c.Consumer.MaxRetry < 1 || c.Consumer.RetryInterval < 0 || c.Consumer.DLQTopic == "" {
+		return fmt.Errorf("task durable consumer configuration is invalid")
+	}
+	if c.StreamConsumer.Topic == "" || c.StreamConsumer.QueueGroup == "" || c.StreamConsumer.WorkerCount < 1 ||
+		c.StreamConsumer.MaxRetry < 1 || c.StreamConsumer.RetryInterval < 0 || c.StreamConsumer.DLQTopic == "" ||
+		c.StreamMaxDeltaBytes < 1 {
+		return fmt.Errorf("task agent stream consumer configuration is invalid")
+	}
+	if c.StreamConsumer.Topic == c.Consumer.Topic || c.StreamConsumer.QueueGroup == c.Consumer.QueueGroup ||
+		c.StreamConsumer.DLQTopic == c.Consumer.DLQTopic {
+		return fmt.Errorf("task agent stream channel must be isolated from durable chat events")
+	}
+	return nil
 }
 
 // MustLoad 创建并加载配置，出错时 panic

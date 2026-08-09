@@ -19,6 +19,8 @@ import (
 
 // PublishMessageToMQResult 发布消息到 MQ 的结果
 type PublishMessageToMQResult struct {
+	Message   *model.MessageContent
+	Created   bool
 	OutboxID  int64
 	Topic     string
 	EventData []byte
@@ -54,12 +56,27 @@ func PublishMessageToMQ(
 	}
 
 	// 5. 使用事务保存消息、更新序列号、记录 Outbox
-	if err := messageRepo.SaveMessageWithOutbox(ctx, msgContent, outbox); err != nil {
+	saveResult, err := messageRepo.SaveMessageWithOutbox(ctx, msgContent, outbox)
+	if err != nil {
 		return nil, fmt.Errorf("save message with outbox: %w", err)
+	}
+	if saveResult == nil || saveResult.Message == nil {
+		return nil, fmt.Errorf("save message with outbox returned no message")
+	}
+	if !saveResult.Created {
+		return &PublishMessageToMQResult{
+			Message: saveResult.Message,
+			Created: false,
+		}, nil
+	}
+	if saveResult.Outbox == nil {
+		return nil, fmt.Errorf("created message has no outbox")
 	}
 
 	return &PublishMessageToMQResult{
-		OutboxID:  outbox.ID,
+		Message:   saveResult.Message,
+		Created:   true,
+		OutboxID:  saveResult.Outbox.ID,
 		Topic:     topic,
 		EventData: eventData,
 	}, nil

@@ -13,6 +13,7 @@ option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
   rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc CreateAgentSession(CreateAgentSessionRequest) returns (CreateAgentSessionResponse);
   rpc GetHistoryEvents(GetHistoryEventsRequest) returns (GetHistoryEventsResponse);
   rpc GetContactList(GetContactListRequest) returns (GetContactListResponse);
   rpc SearchUser(SearchUserRequest) returns (SearchUserResponse);
@@ -33,6 +34,14 @@ message CreateSessionRequest {
 }
 
 message CreateSessionResponse {
+  string session_id = 1;
+}
+
+message CreateAgentSessionRequest {
+  resonance.common.v1.AgentProfile profile = 1;
+}
+
+message CreateAgentSessionResponse {
   string session_id = 1;
 }
 

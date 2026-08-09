@@ -6,7 +6,7 @@ import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegen
 import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
 import type { ChatEvent } from "../../common/v1/event_pb";
 import { file_common_v1_event } from "../../common/v1/event_pb";
-import type { SessionType } from "../../common/v1/session_pb";
+import type { AgentProfile, SessionType } from "../../common/v1/session_pb";
 import { file_common_v1_session } from "../../common/v1/session_pb";
 import type { ContactInfo, InboxEvent, SessionInfo } from "../../common/v1/view_pb";
 import { file_common_v1_view } from "../../common/v1/view_pb";
@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file gateway/v1/session.proto.
  */
 export const file_gateway_v1_session: GenFile = /*@__PURE__*/
-  fileDesc("ChhnYXRld2F5L3YxL3Nlc3Npb24ucHJvdG8SFHJlc29uYW5jZS5nYXRld2F5LnYxIhcKFUdldFNlc3Npb25MaXN0UmVxdWVzdCJMChZHZXRTZXNzaW9uTGlzdFJlc3BvbnNlEjIKCHNlc3Npb25zGAEgAygLMiAucmVzb25hbmNlLmNvbW1vbi52MS5TZXNzaW9uSW5mbyJlChRDcmVhdGVTZXNzaW9uUmVxdWVzdBIPCgdtZW1iZXJzGAEgAygJEgwKBG5hbWUYAiABKAkSLgoEdHlwZRgDIAEoDjIgLnJlc29uYW5jZS5jb21tb24udjEuU2Vzc2lvblR5cGUiKwoVQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEhIKCnNlc3Npb25faWQYASABKAkiUAoXR2V0SGlzdG9yeUV2ZW50c1JlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRINCgVsaW1pdBgCIAEoAxISCgpiZWZvcmVfc2VxGAMgASgDIkoKGEdldEhpc3RvcnlFdmVudHNSZXNwb25zZRIuCgZldmVudHMYASADKAsyHi5yZXNvbmFuY2UuY29tbW9uLnYxLkNoYXRFdmVudCIXChVHZXRDb250YWN0TGlzdFJlcXVlc3QiTAoWR2V0Q29udGFjdExpc3RSZXNwb25zZRIyCghjb250YWN0cxgBIAMoCzIgLnJlc29uYW5jZS5jb21tb24udjEuQ29udGFjdEluZm8iIgoRU2VhcmNoVXNlclJlcXVlc3QSDQoFcXVlcnkYASABKAkiRQoSU2VhcmNoVXNlclJlc3BvbnNlEi8KBXVzZXJzGAEgAygLMiAucmVzb25hbmNlLmNvbW1vbi52MS5Db250YWN0SW5mbyI/ChlVcGRhdGVSZWFkUG9zaXRpb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkSDgoGc2VxX2lkGAIgASgDIjIKGlVwZGF0ZVJlYWRQb3NpdGlvblJlc3BvbnNlEhQKDHVucmVhZF9jb3VudBgBIAEoAyI5ChVQdWxsSW5ib3hEZWx0YVJlcXVlc3QSEQoJY3Vyc29yX2lkGAEgASgDEg0KBWxpbWl0GAIgASgDInMKFlB1bGxJbmJveERlbHRhUmVzcG9uc2USLwoGZXZlbnRzGAEgAygLMh8ucmVzb25hbmNlLmNvbW1vbi52MS5JbmJveEV2ZW50EhYKDm5leHRfY3Vyc29yX2lkGAIgASgDEhAKCGhhc19tb3JlGAMgASgIMo4GCg5TZXNzaW9uU2VydmljZRJrCg5HZXRTZXNzaW9uTGlzdBIrLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldFNlc3Npb25MaXN0UmVxdWVzdBosLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldFNlc3Npb25MaXN0UmVzcG9uc2USaAoNQ3JlYXRlU2Vzc2lvbhIqLnJlc29uYW5jZS5nYXRld2F5LnYxLkNyZWF0ZVNlc3Npb25SZXF1ZXN0GisucmVzb25hbmNlLmdhdGV3YXkudjEuQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEnEKEEdldEhpc3RvcnlFdmVudHMSLS5yZXNvbmFuY2UuZ2F0ZXdheS52MS5HZXRIaXN0b3J5RXZlbnRzUmVxdWVzdBouLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldEhpc3RvcnlFdmVudHNSZXNwb25zZRJrCg5HZXRDb250YWN0TGlzdBIrLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldENvbnRhY3RMaXN0UmVxdWVzdBosLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldENvbnRhY3RMaXN0UmVzcG9uc2USXwoKU2VhcmNoVXNlchInLnJlc29uYW5jZS5nYXRld2F5LnYxLlNlYXJjaFVzZXJSZXF1ZXN0GigucmVzb25hbmNlLmdhdGV3YXkudjEuU2VhcmNoVXNlclJlc3BvbnNlEncKElVwZGF0ZVJlYWRQb3NpdGlvbhIvLnJlc29uYW5jZS5nYXRld2F5LnYxLlVwZGF0ZVJlYWRQb3NpdGlvblJlcXVlc3QaMC5yZXNvbmFuY2UuZ2F0ZXdheS52MS5VcGRhdGVSZWFkUG9zaXRpb25SZXNwb25zZRJrCg5QdWxsSW5ib3hEZWx0YRIrLnJlc29uYW5jZS5nYXRld2F5LnYxLlB1bGxJbmJveERlbHRhUmVxdWVzdBosLnJlc29uYW5jZS5nYXRld2F5LnYxLlB1bGxJbmJveERlbHRhUmVzcG9uc2VC2AEKGGNvbS5yZXNvbmFuY2UuZ2F0ZXdheS52MUIMU2Vzc2lvblByb3RvUAFaPGdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9nYXRld2F5L3YxO2dhdGV3YXl2MaICA1JHWKoCFFJlc29uYW5jZS5HYXRld2F5LlYxygIUUmVzb25hbmNlXEdhdGV3YXlcVjHiAiBSZXNvbmFuY2VcR2F0ZXdheVxWMVxHUEJNZXRhZGF0YeoCFlJlc29uYW5jZTo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_common_v1_event, file_common_v1_session, file_common_v1_view]);
+  fileDesc("ChhnYXRld2F5L3YxL3Nlc3Npb24ucHJvdG8SFHJlc29uYW5jZS5nYXRld2F5LnYxIhcKFUdldFNlc3Npb25MaXN0UmVxdWVzdCJMChZHZXRTZXNzaW9uTGlzdFJlc3BvbnNlEjIKCHNlc3Npb25zGAEgAygLMiAucmVzb25hbmNlLmNvbW1vbi52MS5TZXNzaW9uSW5mbyJlChRDcmVhdGVTZXNzaW9uUmVxdWVzdBIPCgdtZW1iZXJzGAEgAygJEgwKBG5hbWUYAiABKAkSLgoEdHlwZRgDIAEoDjIgLnJlc29uYW5jZS5jb21tb24udjEuU2Vzc2lvblR5cGUiKwoVQ3JlYXRlU2Vzc2lvblJlc3BvbnNlEhIKCnNlc3Npb25faWQYASABKAkiTwoZQ3JlYXRlQWdlbnRTZXNzaW9uUmVxdWVzdBIyCgdwcm9maWxlGAEgASgOMiEucmVzb25hbmNlLmNvbW1vbi52MS5BZ2VudFByb2ZpbGUiMAoaQ3JlYXRlQWdlbnRTZXNzaW9uUmVzcG9uc2USEgoKc2Vzc2lvbl9pZBgBIAEoCSJQChdHZXRIaXN0b3J5RXZlbnRzUmVxdWVzdBISCgpzZXNzaW9uX2lkGAEgASgJEg0KBWxpbWl0GAIgASgDEhIKCmJlZm9yZV9zZXEYAyABKAMiSgoYR2V0SGlzdG9yeUV2ZW50c1Jlc3BvbnNlEi4KBmV2ZW50cxgBIAMoCzIeLnJlc29uYW5jZS5jb21tb24udjEuQ2hhdEV2ZW50IhcKFUdldENvbnRhY3RMaXN0UmVxdWVzdCJMChZHZXRDb250YWN0TGlzdFJlc3BvbnNlEjIKCGNvbnRhY3RzGAEgAygLMiAucmVzb25hbmNlLmNvbW1vbi52MS5Db250YWN0SW5mbyIiChFTZWFyY2hVc2VyUmVxdWVzdBINCgVxdWVyeRgBIAEoCSJFChJTZWFyY2hVc2VyUmVzcG9uc2USLwoFdXNlcnMYASADKAsyIC5yZXNvbmFuY2UuY29tbW9uLnYxLkNvbnRhY3RJbmZvIj8KGVVwZGF0ZVJlYWRQb3NpdGlvblJlcXVlc3QSEgoKc2Vzc2lvbl9pZBgBIAEoCRIOCgZzZXFfaWQYAiABKAMiMgoaVXBkYXRlUmVhZFBvc2l0aW9uUmVzcG9uc2USFAoMdW5yZWFkX2NvdW50GAEgASgDIjkKFVB1bGxJbmJveERlbHRhUmVxdWVzdBIRCgljdXJzb3JfaWQYASABKAMSDQoFbGltaXQYAiABKAMicwoWUHVsbEluYm94RGVsdGFSZXNwb25zZRIvCgZldmVudHMYASADKAsyHy5yZXNvbmFuY2UuY29tbW9uLnYxLkluYm94RXZlbnQSFgoObmV4dF9jdXJzb3JfaWQYAiABKAMSEAoIaGFzX21vcmUYAyABKAgyhwcKDlNlc3Npb25TZXJ2aWNlEmsKDkdldFNlc3Npb25MaXN0EisucmVzb25hbmNlLmdhdGV3YXkudjEuR2V0U2Vzc2lvbkxpc3RSZXF1ZXN0GiwucmVzb25hbmNlLmdhdGV3YXkudjEuR2V0U2Vzc2lvbkxpc3RSZXNwb25zZRJoCg1DcmVhdGVTZXNzaW9uEioucmVzb25hbmNlLmdhdGV3YXkudjEuQ3JlYXRlU2Vzc2lvblJlcXVlc3QaKy5yZXNvbmFuY2UuZ2F0ZXdheS52MS5DcmVhdGVTZXNzaW9uUmVzcG9uc2USdwoSQ3JlYXRlQWdlbnRTZXNzaW9uEi8ucmVzb25hbmNlLmdhdGV3YXkudjEuQ3JlYXRlQWdlbnRTZXNzaW9uUmVxdWVzdBowLnJlc29uYW5jZS5nYXRld2F5LnYxLkNyZWF0ZUFnZW50U2Vzc2lvblJlc3BvbnNlEnEKEEdldEhpc3RvcnlFdmVudHMSLS5yZXNvbmFuY2UuZ2F0ZXdheS52MS5HZXRIaXN0b3J5RXZlbnRzUmVxdWVzdBouLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldEhpc3RvcnlFdmVudHNSZXNwb25zZRJrCg5HZXRDb250YWN0TGlzdBIrLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldENvbnRhY3RMaXN0UmVxdWVzdBosLnJlc29uYW5jZS5nYXRld2F5LnYxLkdldENvbnRhY3RMaXN0UmVzcG9uc2USXwoKU2VhcmNoVXNlchInLnJlc29uYW5jZS5nYXRld2F5LnYxLlNlYXJjaFVzZXJSZXF1ZXN0GigucmVzb25hbmNlLmdhdGV3YXkudjEuU2VhcmNoVXNlclJlc3BvbnNlEncKElVwZGF0ZVJlYWRQb3NpdGlvbhIvLnJlc29uYW5jZS5nYXRld2F5LnYxLlVwZGF0ZVJlYWRQb3NpdGlvblJlcXVlc3QaMC5yZXNvbmFuY2UuZ2F0ZXdheS52MS5VcGRhdGVSZWFkUG9zaXRpb25SZXNwb25zZRJrCg5QdWxsSW5ib3hEZWx0YRIrLnJlc29uYW5jZS5nYXRld2F5LnYxLlB1bGxJbmJveERlbHRhUmVxdWVzdBosLnJlc29uYW5jZS5nYXRld2F5LnYxLlB1bGxJbmJveERlbHRhUmVzcG9uc2VC2AEKGGNvbS5yZXNvbmFuY2UuZ2F0ZXdheS52MUIMU2Vzc2lvblByb3RvUAFaPGdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9nYXRld2F5L3YxO2dhdGV3YXl2MaICA1JHWKoCFFJlc29uYW5jZS5HYXRld2F5LlYxygIUUmVzb25hbmNlXEdhdGV3YXlcVjHiAiBSZXNvbmFuY2VcR2F0ZXdheVxWMVxHUEJNZXRhZGF0YeoCFlJlc29uYW5jZTo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_common_v1_event, file_common_v1_session, file_common_v1_view]);
 
 /**
  * @generated from message resonance.gateway.v1.GetSessionListRequest
@@ -93,6 +93,40 @@ export const CreateSessionResponseSchema: GenMessage<CreateSessionResponse> = /*
   messageDesc(file_gateway_v1_session, 3);
 
 /**
+ * @generated from message resonance.gateway.v1.CreateAgentSessionRequest
+ */
+export type CreateAgentSessionRequest = Message<"resonance.gateway.v1.CreateAgentSessionRequest"> & {
+  /**
+   * @generated from field: resonance.common.v1.AgentProfile profile = 1;
+   */
+  profile: AgentProfile;
+};
+
+/**
+ * Describes the message resonance.gateway.v1.CreateAgentSessionRequest.
+ * Use `create(CreateAgentSessionRequestSchema)` to create a new message.
+ */
+export const CreateAgentSessionRequestSchema: GenMessage<CreateAgentSessionRequest> = /*@__PURE__*/
+  messageDesc(file_gateway_v1_session, 4);
+
+/**
+ * @generated from message resonance.gateway.v1.CreateAgentSessionResponse
+ */
+export type CreateAgentSessionResponse = Message<"resonance.gateway.v1.CreateAgentSessionResponse"> & {
+  /**
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+};
+
+/**
+ * Describes the message resonance.gateway.v1.CreateAgentSessionResponse.
+ * Use `create(CreateAgentSessionResponseSchema)` to create a new message.
+ */
+export const CreateAgentSessionResponseSchema: GenMessage<CreateAgentSessionResponse> = /*@__PURE__*/
+  messageDesc(file_gateway_v1_session, 5);
+
+/**
  * @generated from message resonance.gateway.v1.GetHistoryEventsRequest
  */
 export type GetHistoryEventsRequest = Message<"resonance.gateway.v1.GetHistoryEventsRequest"> & {
@@ -117,7 +151,7 @@ export type GetHistoryEventsRequest = Message<"resonance.gateway.v1.GetHistoryEv
  * Use `create(GetHistoryEventsRequestSchema)` to create a new message.
  */
 export const GetHistoryEventsRequestSchema: GenMessage<GetHistoryEventsRequest> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 4);
+  messageDesc(file_gateway_v1_session, 6);
 
 /**
  * @generated from message resonance.gateway.v1.GetHistoryEventsResponse
@@ -134,7 +168,7 @@ export type GetHistoryEventsResponse = Message<"resonance.gateway.v1.GetHistoryE
  * Use `create(GetHistoryEventsResponseSchema)` to create a new message.
  */
 export const GetHistoryEventsResponseSchema: GenMessage<GetHistoryEventsResponse> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 5);
+  messageDesc(file_gateway_v1_session, 7);
 
 /**
  * @generated from message resonance.gateway.v1.GetContactListRequest
@@ -147,7 +181,7 @@ export type GetContactListRequest = Message<"resonance.gateway.v1.GetContactList
  * Use `create(GetContactListRequestSchema)` to create a new message.
  */
 export const GetContactListRequestSchema: GenMessage<GetContactListRequest> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 6);
+  messageDesc(file_gateway_v1_session, 8);
 
 /**
  * @generated from message resonance.gateway.v1.GetContactListResponse
@@ -164,7 +198,7 @@ export type GetContactListResponse = Message<"resonance.gateway.v1.GetContactLis
  * Use `create(GetContactListResponseSchema)` to create a new message.
  */
 export const GetContactListResponseSchema: GenMessage<GetContactListResponse> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 7);
+  messageDesc(file_gateway_v1_session, 9);
 
 /**
  * @generated from message resonance.gateway.v1.SearchUserRequest
@@ -181,7 +215,7 @@ export type SearchUserRequest = Message<"resonance.gateway.v1.SearchUserRequest"
  * Use `create(SearchUserRequestSchema)` to create a new message.
  */
 export const SearchUserRequestSchema: GenMessage<SearchUserRequest> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 8);
+  messageDesc(file_gateway_v1_session, 10);
 
 /**
  * @generated from message resonance.gateway.v1.SearchUserResponse
@@ -198,7 +232,7 @@ export type SearchUserResponse = Message<"resonance.gateway.v1.SearchUserRespons
  * Use `create(SearchUserResponseSchema)` to create a new message.
  */
 export const SearchUserResponseSchema: GenMessage<SearchUserResponse> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 9);
+  messageDesc(file_gateway_v1_session, 11);
 
 /**
  * @generated from message resonance.gateway.v1.UpdateReadPositionRequest
@@ -220,7 +254,7 @@ export type UpdateReadPositionRequest = Message<"resonance.gateway.v1.UpdateRead
  * Use `create(UpdateReadPositionRequestSchema)` to create a new message.
  */
 export const UpdateReadPositionRequestSchema: GenMessage<UpdateReadPositionRequest> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 10);
+  messageDesc(file_gateway_v1_session, 12);
 
 /**
  * @generated from message resonance.gateway.v1.UpdateReadPositionResponse
@@ -237,7 +271,7 @@ export type UpdateReadPositionResponse = Message<"resonance.gateway.v1.UpdateRea
  * Use `create(UpdateReadPositionResponseSchema)` to create a new message.
  */
 export const UpdateReadPositionResponseSchema: GenMessage<UpdateReadPositionResponse> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 11);
+  messageDesc(file_gateway_v1_session, 13);
 
 /**
  * @generated from message resonance.gateway.v1.PullInboxDeltaRequest
@@ -259,7 +293,7 @@ export type PullInboxDeltaRequest = Message<"resonance.gateway.v1.PullInboxDelta
  * Use `create(PullInboxDeltaRequestSchema)` to create a new message.
  */
 export const PullInboxDeltaRequestSchema: GenMessage<PullInboxDeltaRequest> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 12);
+  messageDesc(file_gateway_v1_session, 14);
 
 /**
  * @generated from message resonance.gateway.v1.PullInboxDeltaResponse
@@ -286,7 +320,7 @@ export type PullInboxDeltaResponse = Message<"resonance.gateway.v1.PullInboxDelt
  * Use `create(PullInboxDeltaResponseSchema)` to create a new message.
  */
 export const PullInboxDeltaResponseSchema: GenMessage<PullInboxDeltaResponse> = /*@__PURE__*/
-  messageDesc(file_gateway_v1_session, 13);
+  messageDesc(file_gateway_v1_session, 15);
 
 /**
  * SessionService 对外会话与历史接口（Web -> Gateway，ConnectRPC/HTTP）
@@ -310,6 +344,14 @@ export const SessionService: GenService<{
     methodKind: "unary";
     input: typeof CreateSessionRequestSchema;
     output: typeof CreateSessionResponseSchema;
+  },
+  /**
+   * @generated from rpc resonance.gateway.v1.SessionService.CreateAgentSession
+   */
+  createAgentSession: {
+    methodKind: "unary";
+    input: typeof CreateAgentSessionRequestSchema;
+    output: typeof CreateAgentSessionResponseSchema;
   },
   /**
    * @generated from rpc resonance.gateway.v1.SessionService.GetHistoryEvents

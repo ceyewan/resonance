@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package resonance.gateway.v1;
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/gateway/v1;gatewayv1";
+
+// AgentApprovalService exposes only the human decision surface. Approval
+// creation remains an internal Pilot -> Logic operation.
+service AgentApprovalService {
+  rpc GetApproval(GetApprovalRequest) returns (GetApprovalResponse);
+  rpc ListApprovals(ListApprovalsRequest) returns (ListApprovalsResponse);
+  rpc DecideApproval(DecideApprovalRequest) returns (DecideApprovalResponse);
+}
+
+enum AgentApprovalStatus {
+  AGENT_APPROVAL_STATUS_UNSPECIFIED = 0;
+  AGENT_APPROVAL_STATUS_PENDING = 1;
+  AGENT_APPROVAL_STATUS_APPROVED = 2;
+  AGENT_APPROVAL_STATUS_REJECTED = 3;
+  AGENT_APPROVAL_STATUS_REVOKED = 4;
+  AGENT_APPROVAL_STATUS_EXPIRED = 5;
+}
+
+enum AgentApprovalDecision {
+  AGENT_APPROVAL_DECISION_UNSPECIFIED = 0;
+  AGENT_APPROVAL_DECISION_APPROVE = 1;
+  AGENT_APPROVAL_DECISION_REJECT = 2;
+}
+
+// AgentApproval intentionally contains only the redacted argument summary and
+// binding hash. Frozen/raw Tool arguments are never exposed to the browser.
+message AgentApproval {
+  int64 id = 1;
+  string run_id = 2;
+  string call_id = 3;
+  string tool_name = 4;
+  string requester_id = 5;
+  string args_hash = 6;
+  string args_summary = 7;
+  AgentApprovalStatus status = 8;
+  AgentApprovalDecision decision = 9;
+  string decision_by = 10;
+  string decision_reason = 11;
+  int64 decided_at_ms = 12;
+  int64 expires_at_ms = 13;
+  int64 version = 14;
+  int64 created_at_ms = 15;
+  int64 updated_at_ms = 16;
+}
+
+// Tenant is deliberately absent from all public requests. Gateway injects the
+// tenant from its verified request Principal before calling Logic.
+message GetApprovalRequest {
+  string call_id = 1;
+}
+
+message GetApprovalResponse {
+  AgentApproval approval = 1;
+}
+
+message ListApprovalsRequest {
+  AgentApprovalStatus status = 1;
+  int64 before_id = 2;
+  int32 page_size = 3;
+}
+
+message ListApprovalsResponse {
+  repeated AgentApproval approvals = 1;
+  int64 next_before_id = 2;
+}
+
+message DecideApprovalRequest {
+  string call_id = 1;
+  string args_hash = 2;
+  int64 expected_version = 3;
+  AgentApprovalDecision decision = 4;
+  string reason = 5;
+}
+
+message DecideApprovalResponse {
+  AgentApproval approval = 1;
+  bool changed = 2;
+}

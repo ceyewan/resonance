@@ -71,7 +71,8 @@ logger.Error("保存消息失败: " + err.Error())
 | ---- | -------- | ---- |
 | Logic | `:9091` | `/metrics` |
 | Gateway | `:9092` | `/metrics` |
-| Task | 与 Logic 共用配置，按实际部署端口 | `/metrics` |
+| Task | `:9090`（可配置） | `/metrics` |
+| Pilot | `:9093` | `/metrics` |
 
 所有服务都启用了 Go runtime 指标（`enable_runtime: true`），包括 goroutine 数量、GC 耗时、内存使用等。
 
@@ -85,6 +86,7 @@ Logic 在 `logic/observability/observability.go` 中定义了以下业务指标�
 | `logic_register_duration_seconds` | Histogram | 注册请求处理耗时 |
 | `logic_send_message_duration_seconds` | Histogram | 发消息请求处理耗时 |
 | `logic_create_session_duration_seconds` | Histogram | 创建会话请求处理耗时 |
+| `logic_default_agent_session_provision_total` | Counter | 默认 Bot 会话 best-effort provisioning/lazy repair 结果；仅使用固定 trigger/outcome 标签 |
 
 ### 3.3 Task 业务指标
 
@@ -101,13 +103,30 @@ Task 在 `task/observability/observability.go` 中定义了以下业务指标：
 
 `task_push_enqueue_failed` 的 `reason` 标签区分了两种失败原因：`client_not_found`（Gateway 实例不在路由表中）和 `queue_full`（推送队列已满）。
 
+### 3.4 Pilot 业务指标
+
+Pilot 使用实例化的 Telemetry 资源，同时关闭 trace provider 和 meter；不会因为 trace shutdown 失败而遗留 Prometheus listener。指标标签只允许事件种类、结果和 token category 等有限枚举，禁止 `run_id`、`tenant_id`、username、conversation、call_id 和 Tool 原始名称。
+
+| 指标名 | 类型 | 含义 |
+| ------ | ---- | ---- |
+| `pilot_run_queue_wait_seconds` | Histogram | Run 从 durable queue 到 Runtime start 的等待时间 |
+| `pilot_first_token_seconds` | Histogram | Runtime start 到第一个文本 Delta 的耗时 |
+| `pilot_run_duration_seconds` | Histogram | Runtime 到 settled/failed 的耗时 |
+| `pilot_active_runs` | Gauge | 当前进程的 Active Runtime 数量 |
+| `pilot_runtime_events_total` | Counter | 按有限事件种类统计 Runtime 事件 |
+| `pilot_runtime_failures_total` | Counter | Runtime 失败终态数量 |
+| `pilot_tool_calls_total` | Counter | Tool 成功/失败终态数量，不标记 Tool 原名 |
+| `pilot_model_tokens_total` | Counter | input/output/cache token 分类用量 |
+| `pilot_model_cost_total` | Counter | Provider 返回的模型成本 |
+| `pilot_stream_publish_dropped_total` | Counter | 有界流式 egress 丢弃/失败次数 |
+
 ---
 
 ## 4. 分布式追踪（Trace）
 
 ### 4.1 接入方式
 
-Logic 和 Task 都通过 OpenTelemetry 接入分布式追踪，使用 OTLP gRPC 协议上报到 Collector（默认地址 `localhost:4317`）。
+Logic、Task 和 Pilot 都通过 OpenTelemetry 接入分布式追踪，使用 OTLP gRPC 协议上报到 Collector（默认地址 `localhost:4317`）。
 
 配置示例（`configs/logic.yaml`）：
 
@@ -133,6 +152,8 @@ observability.InjectTraceContext(ctx, event.TraceHeaders)
 
 Task 消费到事件后，可以从 `trace_headers` 中恢复 Trace 上下文，使得 Logic 的 Span 和 Task 的 Span 能够关联到同一条 Trace 链路上。
 
+Pilot Ingress 会把上游 trace carrier 与 AgentRun 一起持久化。Worker 在数秒或重启后 claim Run 时，只恢复受限的 W3C `traceparent`/`tracestate`，不恢复任意 header 或用户提供的 baggage，再创建 `agent.run`/`agent.commit_prepared` Span。这样排队不会丢失父链路，也不会把租户或用户值变成高基数属性。
+
 Task 的 Dispatcher 在处理每个事件时会创建 Span：
 
 ```go
@@ -151,6 +172,7 @@ defer endSpan()
 | Logic | 初始化完成，业务 Span 逐步补充 |
 | Task | `dispatcher.handle` Span 已接入 |
 | Gateway | 配置已存在，Trace 上报默认关闭（`disable: true`） |
+| Pilot | Agent Run、prepared commit 与持久化 carrier 恢复 |
 
 ---
 
@@ -187,11 +209,13 @@ defer endSpan()
 | ---- | ---- |
 | `logic/observability/observability.go` | Logic 指标与 Trace 初始化 |
 | `task/observability/observability.go` | Task 指标与 Trace 初始化 |
+| `pilot/observability/observability.go` | Pilot 实例化 Telemetry、Run 指标和 durable trace 恢复 |
 | `logic/internal/mqpublish/publish.go` | Trace 上下文注入到 MQEvent |
 | `task/dispatcher/dispatcher.go` | `dispatcher.handle` Span |
 | `logic/server/grpc.go` | gRPC 请求日志拦截器（含 trace_id 提取） |
 | `configs/logic.yaml` | Logic 可观测性配置 |
 | `configs/gateway.yaml` | Gateway 可观测性配置 |
+| `configs/pilot.yaml` | Pilot trace 与 `:9093/metrics` 配置 |
 
 ---
 

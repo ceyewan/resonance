@@ -40,7 +40,11 @@ type Config struct {
 	Auth auth.Config `mapstructure:"auth"`
 
 	// 管理员初始化配置
-	Admin AdminConfig `mapstructure:"admin"`
+	Admin         AdminConfig         `mapstructure:"admin"`
+	AgentBot      AgentBotConfig      `mapstructure:"agent_bot"`
+	AgentSessions AgentSessionsConfig `mapstructure:"agent_sessions"`
+	ServiceAuth   ServiceAuthConfig   `mapstructure:"service_auth"`
+	AgentApproval AgentApprovalConfig `mapstructure:"agent_approval"`
 
 	// WorkerID 配置
 	WorkerID WorkerIDConfig `mapstructure:"worker_id"`
@@ -117,6 +121,38 @@ type AdminConfig struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 	Nickname string `mapstructure:"nickname"`
+}
+
+type AgentBotConfig struct {
+	Username string `mapstructure:"username"`
+	Nickname string `mapstructure:"nickname"`
+}
+
+// AgentSessionsConfig pins the profile snapshots that Logic is allowed to
+// persist. Clients choose only a profile enum; these IDs and versions are never
+// accepted from an RPC body.
+type AgentSessionsConfig struct {
+	UserAssistantProfileVersion int64 `mapstructure:"user_assistant_profile_version"`
+	IAMAdminProfileVersion      int64 `mapstructure:"iam_admin_profile_version"`
+}
+
+type ServiceAuthConfig struct {
+	PilotServiceID    string        `mapstructure:"pilot_service_id"`
+	PilotSecret       string        `mapstructure:"pilot_secret"`
+	PilotTenantID     string        `mapstructure:"pilot_tenant_id"`
+	IAMPilotServiceID string        `mapstructure:"iam_pilot_service_id"`
+	IAMPilotSecret    string        `mapstructure:"iam_pilot_secret"`
+	IAMPilotTenantID  string        `mapstructure:"iam_pilot_tenant_id"`
+	GatewayServiceID  string        `mapstructure:"gateway_service_id"`
+	GatewaySecret     string        `mapstructure:"gateway_secret"`
+	MaxSkew           time.Duration `mapstructure:"max_skew"`
+	NonceKeyPrefix    string        `mapstructure:"nonce_key_prefix"`
+}
+
+type AgentApprovalConfig struct {
+	ReadScope        string `mapstructure:"read_scope"`
+	DecideScope      string `mapstructure:"decide_scope"`
+	AllowSelfApprove bool   `mapstructure:"allow_self_approve"`
 }
 
 // WorkerIDConfig WorkerID 分发配置 (对齐 Gateway)
@@ -241,6 +277,27 @@ func Load() (*Config, error) {
 	if err := loader.Unmarshal(&cfg); err != nil {
 		return nil, err
 	}
+	if cfg.ServiceAuth.MaxSkew <= 0 {
+		cfg.ServiceAuth.MaxSkew = 30 * time.Second
+	}
+	if cfg.ServiceAuth.NonceKeyPrefix == "" {
+		cfg.ServiceAuth.NonceKeyPrefix = "resonance:logic:serviceauth:nonce:"
+	}
+	if err := validatePilotServiceAuth(cfg.ServiceAuth, cfg.AgentBot.Username); err != nil {
+		return nil, err
+	}
+	if cfg.ServiceAuth.GatewayServiceID == "" || len(cfg.ServiceAuth.GatewaySecret) < 32 {
+		return nil, fmt.Errorf("service_auth requires gateway_service_id and at least 32 gateway secret bytes")
+	}
+	if cfg.AgentBot.Username == "" || cfg.AgentSessions.UserAssistantProfileVersion < 1 ||
+		cfg.AgentSessions.IAMAdminProfileVersion < 1 {
+		return nil, fmt.Errorf("agent sessions require an agent bot and positive pinned profile versions")
+	}
+	if cfg.Auth.SecretKey == cfg.ServiceAuth.GatewaySecret ||
+		(cfg.ServiceAuth.PilotSecret != "" && cfg.Auth.SecretKey == cfg.ServiceAuth.PilotSecret) ||
+		(cfg.ServiceAuth.IAMPilotSecret != "" && cfg.Auth.SecretKey == cfg.ServiceAuth.IAMPilotSecret) {
+		return nil, fmt.Errorf("JWT and service auth secrets must be distinct")
+	}
 
 	// 在 debug 模式下，打印最终生效的配置
 	if os.Getenv("DEBUG_CONFIG") == "true" || os.Getenv("RESONANCE_DEBUG_CONFIG") == "true" {
@@ -257,6 +314,40 @@ func MustLoad() *Config {
 		panic(err)
 	}
 	return cfg
+}
+
+func validatePilotServiceAuth(config ServiceAuthConfig, botUsername string) error {
+	type workload struct {
+		name, serviceID, secret, tenantID string
+	}
+	workloads := []workload{
+		{name: "user-assistant Pilot", serviceID: config.PilotServiceID, secret: config.PilotSecret, tenantID: config.PilotTenantID},
+		{name: "iam-admin Pilot", serviceID: config.IAMPilotServiceID, secret: config.IAMPilotSecret, tenantID: config.IAMPilotTenantID},
+	}
+	configured := make([]workload, 0, len(workloads))
+	for _, item := range workloads {
+		if item.secret == "" {
+			continue
+		}
+		if len(item.secret) < 32 || !validServiceAuthIdentity(item.serviceID) ||
+			!validServiceAuthIdentity(item.tenantID) || !validServiceAuthIdentity(botUsername) {
+			return fmt.Errorf("service_auth %s requires service_id, tenant_id, agent bot and at least 32 secret bytes", item.name)
+		}
+		if item.serviceID == config.GatewayServiceID || item.secret == config.GatewaySecret {
+			return fmt.Errorf("service_auth %s and Gateway identities and secrets must be distinct", item.name)
+		}
+		configured = append(configured, item)
+	}
+	if len(configured) == 2 &&
+		(configured[0].serviceID == configured[1].serviceID || configured[0].secret == configured[1].secret) {
+		return fmt.Errorf("service_auth Pilot profile identities and secrets must be distinct")
+	}
+	return nil
+}
+
+func validServiceAuthIdentity(value string) bool {
+	return value != "" && len(value) <= 128 && strings.TrimSpace(value) == value &&
+		!strings.ContainsAny(value, "\x00\r\n\t ")
 }
 
 // dumpConfig 以 JSON 格式打印配置（脱敏敏感字段）
@@ -280,6 +371,15 @@ func dumpConfig(cfg *Config) {
 	}
 	if sanitized.Admin.Password != "" {
 		sanitized.Admin.Password = "***"
+	}
+	if sanitized.ServiceAuth.PilotSecret != "" {
+		sanitized.ServiceAuth.PilotSecret = "***"
+	}
+	if sanitized.ServiceAuth.IAMPilotSecret != "" {
+		sanitized.ServiceAuth.IAMPilotSecret = "***"
+	}
+	if sanitized.ServiceAuth.GatewaySecret != "" {
+		sanitized.ServiceAuth.GatewaySecret = "***"
 	}
 
 	data, _ := json.MarshalIndent(sanitized, "", "  ")

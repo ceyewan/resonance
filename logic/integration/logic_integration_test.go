@@ -74,13 +74,15 @@ func TestLogicIntegration_SendEvent_WritesMessageAndOutbox(t *testing.T) {
 	}, idgen.WithRedisConnector(infra.redisConn), idgen.WithLogger(logger))
 	require.NoError(t, err)
 
-	authSvc := service.NewAuthService(userRepo, sessionRepo, authenticator, logger)
-	sessionSvc := service.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger)
-	chatSvc := service.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger)
+	identityRepo, err := repo.NewIdentityRepo(dbInstance)
+	require.NoError(t, err)
+	authSvc := service.NewAuthService(userRepo, identityRepo, sessionRepo, authenticator, logger)
+	sessionSvc := service.NewSessionService(sessionRepo, messageRepo, userRepo, sessionIDGen, msgIDGen, sequencer, infra.mqClient, logger, service.WithTenantMembershipReader(identityRepo), service.WithLegacyGlobalSessionAuthorizationForTests())
+	chatSvc := service.NewChatService(sessionRepo, messageRepo, msgIDGen, sequencer, infra.mqClient, logger, service.WithLegacyGlobalChatAuthorizationForTests())
 	presenceSvc := service.NewPresenceService(routerRepo, logger)
 
 	addr := mustFreeAddr(t)
-	grpcServer := server.NewGRPCServer(addr, logger, authSvc, sessionSvc, chatSvc, presenceSvc)
+	grpcServer := server.NewGRPCServer(addr, logger, authSvc, sessionSvc, chatSvc, presenceSvc, server.WithLegacyUsernameAuthForTests())
 	go func() {
 		_ = grpcServer.Start()
 	}()

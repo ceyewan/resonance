@@ -8,17 +8,38 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/mq"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 )
 
 func newTestIncomingContext(username string) context.Context {
-	return metadata.NewIncomingContext(context.Background(), metadata.Pairs(metadataUsernameKey, username))
+	return WithUserPrincipal(context.Background(), &UserPrincipal{
+		TenantID: model.DefaultTenantID, Username: username, Version: 1,
+		Roles: []string{model.SystemRoleUser}, Scopes: []string{model.ScopeChatUse, model.ScopeProfileSelfRead},
+	})
+}
+
+type testTenantMembershipReader struct {
+	getFn func(context.Context, string, string) (*model.TenantMembership, error)
+}
+
+func (r *testTenantMembershipReader) GetTenantMembership(ctx context.Context, tenantID, username string) (*model.TenantMembership, error) {
+	if r != nil && r.getFn != nil {
+		return r.getFn(ctx, tenantID, username)
+	}
+	return &model.TenantMembership{
+		TenantID: tenantID, Username: username, Status: model.TenantMembershipStatusActive, Version: 1,
+	}, nil
+}
+
+func withTestTenantMemberships() SessionServiceOption {
+	return WithTenantMembershipReader(&testTenantMembershipReader{})
 }
 
 type testSessionRepo struct {
 	getSessionFn                func(ctx context.Context, sessionID string) (*model.Session, error)
+	findDirectSessionFn         func(ctx context.Context, tenantID, username1, username2 string) (*model.Session, error)
 	getUserSessionFn            func(ctx context.Context, username, sessionID string) (*model.SessionMember, error)
 	getUserSessBatch            func(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error)
 	getMembersFn                func(ctx context.Context, sessionID string) ([]*model.SessionMember, error)
@@ -28,6 +49,7 @@ type testSessionRepo struct {
 	createSessionFn             func(ctx context.Context, session *model.Session) error
 	addMemberFn                 func(ctx context.Context, member *model.SessionMember) error
 	getUserSessionLFn           func(ctx context.Context, username string) ([]*model.Session, error)
+	getUserSessionTenantFn      func(ctx context.Context, tenantID, username string) ([]*model.Session, error)
 
 	createdSession *model.Session
 	addedMembers   []*model.SessionMember
@@ -41,11 +63,40 @@ func (r *testSessionRepo) CreateSession(ctx context.Context, session *model.Sess
 	return nil
 }
 
+func (r *testSessionRepo) CreateSessionWithMembers(ctx context.Context, session *model.Session, members []*model.SessionMember) (*model.Session, bool, error) {
+	if r.createSessionFn != nil {
+		if err := r.createSessionFn(ctx, session); err != nil {
+			return nil, false, err
+		}
+	}
+	for _, member := range members {
+		if r.addMemberFn != nil {
+			if err := r.addMemberFn(ctx, member); err != nil {
+				return nil, false, err
+			}
+		}
+	}
+	r.createdSession = session
+	r.addedMembers = append(r.addedMembers, members...)
+	return session, true, nil
+}
+
 func (r *testSessionRepo) GetSession(ctx context.Context, sessionID string) (*model.Session, error) {
 	if r.getSessionFn != nil {
-		return r.getSessionFn(ctx, sessionID)
+		session, err := r.getSessionFn(ctx, sessionID)
+		if session != nil && session.TenantID == "" {
+			session.TenantID = model.DefaultTenantID
+		}
+		return session, err
 	}
-	return &model.Session{SessionID: sessionID}, nil
+	return &model.Session{SessionID: sessionID, TenantID: model.DefaultTenantID}, nil
+}
+
+func (r *testSessionRepo) FindDirectSessionByMembers(ctx context.Context, tenantID, username1, username2 string) (*model.Session, error) {
+	if r.findDirectSessionFn != nil {
+		return r.findDirectSessionFn(ctx, tenantID, username1, username2)
+	}
+	return nil, repo.ErrSessionNotFound
 }
 
 func (r *testSessionRepo) GetUserSession(ctx context.Context, username, sessionID string) (*model.SessionMember, error) {
@@ -60,6 +111,27 @@ func (r *testSessionRepo) GetUserSessionList(ctx context.Context, username strin
 		return r.getUserSessionLFn(ctx, username)
 	}
 	return nil, nil
+}
+
+func (r *testSessionRepo) GetUserSessionListByTenant(ctx context.Context, tenantID, username string) ([]*model.Session, error) {
+	if r.getUserSessionTenantFn != nil {
+		sessions, err := r.getUserSessionTenantFn(ctx, tenantID, username)
+		return fillTestSessionTenants(sessions, tenantID), err
+	}
+	if r.getUserSessionLFn != nil {
+		sessions, err := r.getUserSessionLFn(ctx, username)
+		return fillTestSessionTenants(sessions, tenantID), err
+	}
+	return nil, nil
+}
+
+func fillTestSessionTenants(sessions []*model.Session, tenantID string) []*model.Session {
+	for _, session := range sessions {
+		if session != nil && session.TenantID == "" {
+			session.TenantID = tenantID
+		}
+	}
+	return sessions
 }
 
 func (r *testSessionRepo) GetUserSessionsBatch(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error) {
@@ -95,6 +167,10 @@ func (r *testSessionRepo) GetContactList(ctx context.Context, username string) (
 	return nil, nil
 }
 
+func (r *testSessionRepo) GetContactListByTenant(ctx context.Context, tenantID, username string) ([]*model.User, error) {
+	return r.GetContactList(ctx, username)
+}
+
 func (r *testSessionRepo) UpdateLastReadSeq(ctx context.Context, sessionID, username string, lastReadSeq int64) error {
 	if r.updateLastReadFn != nil {
 		return r.updateLastReadFn(ctx, sessionID, username, lastReadSeq)
@@ -126,8 +202,9 @@ type testMessageRepo struct {
 	getLastMessagesBatchFn    func(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error)
 	getInboxDeltaFn           func(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error)
 	getUnreadCountFn          func(ctx context.Context, username, sessionID string) (int64, error)
-	saveMessageWithOutboxFn   func(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error
+	saveMessageWithOutboxFn   func(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) (*repo.MessageSaveResult, error)
 	getMessageByEventIDFn     func(ctx context.Context, eventID int64) (*model.MessageContent, error)
+	getMessageByIdempotencyFn func(ctx context.Context, sessionID, senderUsername, clientMsgID string) (*model.MessageContent, error)
 	recallMessageWithOutboxFn func(ctx context.Context, eventID int64, recalledAt time.Time, outbox *model.MessageOutbox) error
 	editMessageWithOutboxFn   func(ctx context.Context, eventID int64, newContent string, editedAt time.Time, outbox *model.MessageOutbox) error
 
@@ -192,6 +269,13 @@ func (r *testMessageRepo) GetMessageByEventID(ctx context.Context, eventID int64
 	return nil, fmt.Errorf("message not found")
 }
 
+func (r *testMessageRepo) GetMessageByIdempotencyKey(ctx context.Context, sessionID, senderUsername, clientMsgID string) (*model.MessageContent, error) {
+	if r.getMessageByIdempotencyFn != nil {
+		return r.getMessageByIdempotencyFn(ctx, sessionID, senderUsername, clientMsgID)
+	}
+	return nil, repo.ErrMessageNotFound
+}
+
 func (r *testMessageRepo) MarkMessageRecalled(ctx context.Context, eventID int64, at time.Time) error {
 	return nil
 }
@@ -223,7 +307,7 @@ func (r *testMessageRepo) EditMessageWithOutbox(ctx context.Context, eventID int
 	return nil
 }
 
-func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) error {
+func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.MessageContent, outbox *model.MessageOutbox) (*repo.MessageSaveResult, error) {
 	r.savedMessage = msg
 	r.savedOutbox = outbox
 	if r.saveMessageWithOutboxFn != nil {
@@ -232,7 +316,7 @@ func (r *testMessageRepo) SaveMessageWithOutbox(ctx context.Context, msg *model.
 	if outbox != nil && outbox.ID == 0 {
 		outbox.ID = 1
 	}
-	return nil
+	return &repo.MessageSaveResult{Message: msg, Outbox: outbox, Created: true}, nil
 }
 
 func (r *testMessageRepo) UpdateOutboxStatus(ctx context.Context, id int64, status int) error {
@@ -282,10 +366,14 @@ func (r *testUserRepo) UpdateUser(ctx context.Context, user *model.User) error {
 func (r *testUserRepo) Close() error                                           { return nil }
 
 type testGenerator struct {
-	next int64
+	next   int64
+	nextFn func() (int64, error)
 }
 
 func (g *testGenerator) Next() (int64, error) {
+	if g.nextFn != nil {
+		return g.nextFn()
+	}
 	return g.next, nil
 }
 

@@ -65,7 +65,7 @@ func (m *fakePusherManager) Start() error {
 	return m.startErr
 }
 
-func (m *fakePusherManager) GetClient(gatewayID string) (*pusher.GatewayClient, error) {
+func (m *fakePusherManager) GetClient(gatewayID string) (pusher.Client, error) {
 	return nil, errors.New("not used")
 }
 

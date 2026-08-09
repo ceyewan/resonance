@@ -10,7 +10,7 @@ import type { Message as Message$1 } from "@bufbuild/protobuf";
  * Describes the file common/v1/message.proto.
  */
 export const file_common_v1_message: GenFile = /*@__PURE__*/
-  fileDesc("Chdjb21tb24vdjEvbWVzc2FnZS5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSKZAQoHTWVzc2FnZRIuCgR0eXBlGAEgASgOMiAucmVzb25hbmNlLmNvbW1vbi52MS5NZXNzYWdlVHlwZRIPCgdjb250ZW50GAIgASgJEhkKEXJlcGx5X3RvX2V2ZW50X2lkGAMgASgDEhUKDWNsaWVudF9tc2dfaWQYBCABKAkSGwoTbWVudGlvbmVkX3VzZXJuYW1lcxgFIAMoCSqmAQoLTWVzc2FnZVR5cGUSHAoYTUVTU0FHRV9UWVBFX1VOU1BFQ0lGSUVEEAASFQoRTUVTU0FHRV9UWVBFX1RFWFQQARIWChJNRVNTQUdFX1RZUEVfSU1BR0UQAhIVChFNRVNTQUdFX1RZUEVfRklMRRADEhcKE01FU1NBR0VfVFlQRV9TWVNURU0QBBIaChZNRVNTQUdFX1RZUEVfQUlfU1RSRUFNEAVC0QEKF2NvbS5yZXNvbmFuY2UuY29tbW9uLnYxQgxNZXNzYWdlUHJvdG9QAVo6Z2l0aHViLmNvbS9jZXlld2FuL3Jlc29uYW5jZS9hcGkvZ2VuL2dvL2NvbW1vbi92MTtjb21tb252MaICA1JDWKoCE1Jlc29uYW5jZS5Db21tb24uVjHKAhNSZXNvbmFuY2VcQ29tbW9uXFYx4gIfUmVzb25hbmNlXENvbW1vblxWMVxHUEJNZXRhZGF0YeoCFVJlc29uYW5jZTo6Q29tbW9uOjpWMWIGcHJvdG8z");
+  fileDesc("Chdjb21tb24vdjEvbWVzc2FnZS5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSKrAQoHTWVzc2FnZRIuCgR0eXBlGAEgASgOMiAucmVzb25hbmNlLmNvbW1vbi52MS5NZXNzYWdlVHlwZRIPCgdjb250ZW50GAIgASgJEhkKEXJlcGx5X3RvX2V2ZW50X2lkGAMgASgDEhUKDWNsaWVudF9tc2dfaWQYBCABKAkSGwoTbWVudGlvbmVkX3VzZXJuYW1lcxgFIAMoCRIQCghyZWNhbGxlZBgGIAEoCCqmAQoLTWVzc2FnZVR5cGUSHAoYTUVTU0FHRV9UWVBFX1VOU1BFQ0lGSUVEEAASFQoRTUVTU0FHRV9UWVBFX1RFWFQQARIWChJNRVNTQUdFX1RZUEVfSU1BR0UQAhIVChFNRVNTQUdFX1RZUEVfRklMRRADEhcKE01FU1NBR0VfVFlQRV9TWVNURU0QBBIaChZNRVNTQUdFX1RZUEVfQUlfU1RSRUFNEAVC0QEKF2NvbS5yZXNvbmFuY2UuY29tbW9uLnYxQgxNZXNzYWdlUHJvdG9QAVo6Z2l0aHViLmNvbS9jZXlld2FuL3Jlc29uYW5jZS9hcGkvZ2VuL2dvL2NvbW1vbi92MTtjb21tb252MaICA1JDWKoCE1Jlc29uYW5jZS5Db21tb24uVjHKAhNSZXNvbmFuY2VcQ29tbW9uXFYx4gIfUmVzb25hbmNlXENvbW1vblxWMVxHUEJNZXRhZGF0YeoCFVJlc29uYW5jZTo6Q29tbW9uOjpWMWIGcHJvdG8z");
 
 /**
  * Message 是 ChatEvent 的一种 payload，只承载消息本体字段
@@ -44,6 +44,14 @@ export type Message = Message$1<"resonance.common.v1.Message"> & {
    * @generated from field: repeated string mentioned_usernames = 5;
    */
   mentionedUsernames: string[];
+
+  /**
+   * recalled is an explicit tombstone marker for authoritative history
+   * snapshots. When true, content and other user-authored fields are empty.
+   *
+   * @generated from field: bool recalled = 6;
+   */
+  recalled: boolean;
 };
 
 /**

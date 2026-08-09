@@ -129,6 +129,8 @@ ReadReceipt 也已在 Phase 6 打通完整闭环：
 - **权威状态**：`t_session_member.last_read_seq` 是服务端的真实读位点
 - **统一事件同步**：`read_receipt` 会进入 MQ / Inbox / WebSocket 链路，供其他端或其他成员恢复与展示
 
+所有会占用 `seq_id` 的事件都必须同步推进 `t_session.max_seq_id`。这包括 `message`、`recall`、`edit` 和 `read_receipt`。否则会出现 `last_read_seq` 已经推进到新事件序号，但会话快照仍停在旧 `max_seq_id` 的状态，进而导致会话列表未读数被算成负数或刷新后回弹。当前实现要求这些事件在写 Outbox 的同一事务内 CAS 更新 `max_seq_id`，保证会话序列快照和事件流一致。
+
 当前各层实现如下：
 
 - **Logic** — `logic/service/session.go` 仅在读位点单调前进时产出事件，避免重复 read receipt

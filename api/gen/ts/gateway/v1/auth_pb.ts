@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file gateway/v1/auth.proto.
  */
 export const file_gateway_v1_auth: GenFile = /*@__PURE__*/
-  fileDesc("ChVnYXRld2F5L3YxL2F1dGgucHJvdG8SFHJlc29uYW5jZS5nYXRld2F5LnYxIjIKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCSJOCg1Mb2dpblJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRInCgR1c2VyGAIgASgLMhkucmVzb25hbmNlLmNvbW1vbi52MS5Vc2VyIkcKD1JlZ2lzdGVyUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIQCghuaWNrbmFtZRgDIAEoCSJRChBSZWdpc3RlclJlc3BvbnNlEhQKDGFjY2Vzc190b2tlbhgBIAEoCRInCgR1c2VyGAIgASgLMhkucmVzb25hbmNlLmNvbW1vbi52MS5Vc2VyIg8KDUxvZ291dFJlcXVlc3QiIQoOTG9nb3V0UmVzcG9uc2USDwoHc3VjY2VzcxgBIAEoCDKPAgoLQXV0aFNlcnZpY2USUAoFTG9naW4SIi5yZXNvbmFuY2UuZ2F0ZXdheS52MS5Mb2dpblJlcXVlc3QaIy5yZXNvbmFuY2UuZ2F0ZXdheS52MS5Mb2dpblJlc3BvbnNlElkKCFJlZ2lzdGVyEiUucmVzb25hbmNlLmdhdGV3YXkudjEuUmVnaXN0ZXJSZXF1ZXN0GiYucmVzb25hbmNlLmdhdGV3YXkudjEuUmVnaXN0ZXJSZXNwb25zZRJTCgZMb2dvdXQSIy5yZXNvbmFuY2UuZ2F0ZXdheS52MS5Mb2dvdXRSZXF1ZXN0GiQucmVzb25hbmNlLmdhdGV3YXkudjEuTG9nb3V0UmVzcG9uc2VC1QEKGGNvbS5yZXNvbmFuY2UuZ2F0ZXdheS52MUIJQXV0aFByb3RvUAFaPGdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9nYXRld2F5L3YxO2dhdGV3YXl2MaICA1JHWKoCFFJlc29uYW5jZS5HYXRld2F5LlYxygIUUmVzb25hbmNlXEdhdGV3YXlcVjHiAiBSZXNvbmFuY2VcR2F0ZXdheVxWMVxHUEJNZXRhZGF0YeoCFlJlc29uYW5jZTo6R2F0ZXdheTo6VjFiBnByb3RvMw", [file_common_v1_types]);
+  fileDesc("ChVnYXRld2F5L3YxL2F1dGgucHJvdG8SFHJlc29uYW5jZS5nYXRld2F5LnYxIkUKDExvZ2luUmVxdWVzdBIQCgh1c2VybmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRIRCgl0ZW5hbnRfaWQYAyABKAkigAEKDUxvZ2luUmVzcG9uc2USFAoMYWNjZXNzX3Rva2VuGAEgASgJEicKBHVzZXIYAiABKAsyGS5yZXNvbmFuY2UuY29tbW9uLnYxLlVzZXISEQoJdGVuYW50X2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEg4KBnNjb3BlcxgFIAMoCSJHCg9SZWdpc3RlclJlcXVlc3QSEAoIdXNlcm5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSEAoIbmlja25hbWUYAyABKAkigwEKEFJlZ2lzdGVyUmVzcG9uc2USFAoMYWNjZXNzX3Rva2VuGAEgASgJEicKBHVzZXIYAiABKAsyGS5yZXNvbmFuY2UuY29tbW9uLnYxLlVzZXISEQoJdGVuYW50X2lkGAMgASgJEg0KBXJvbGVzGAQgAygJEg4KBnNjb3BlcxgFIAMoCSIPCg1Mb2dvdXRSZXF1ZXN0IiEKDkxvZ291dFJlc3BvbnNlEg8KB3N1Y2Nlc3MYASABKAgyjwIKC0F1dGhTZXJ2aWNlElAKBUxvZ2luEiIucmVzb25hbmNlLmdhdGV3YXkudjEuTG9naW5SZXF1ZXN0GiMucmVzb25hbmNlLmdhdGV3YXkudjEuTG9naW5SZXNwb25zZRJZCghSZWdpc3RlchIlLnJlc29uYW5jZS5nYXRld2F5LnYxLlJlZ2lzdGVyUmVxdWVzdBomLnJlc29uYW5jZS5nYXRld2F5LnYxLlJlZ2lzdGVyUmVzcG9uc2USUwoGTG9nb3V0EiMucmVzb25hbmNlLmdhdGV3YXkudjEuTG9nb3V0UmVxdWVzdBokLnJlc29uYW5jZS5nYXRld2F5LnYxLkxvZ291dFJlc3BvbnNlQtUBChhjb20ucmVzb25hbmNlLmdhdGV3YXkudjFCCUF1dGhQcm90b1ABWjxnaXRodWIuY29tL2NleWV3YW4vcmVzb25hbmNlL2FwaS9nZW4vZ28vZ2F0ZXdheS92MTtnYXRld2F5djGiAgNSR1iqAhRSZXNvbmFuY2UuR2F0ZXdheS5WMcoCFFJlc29uYW5jZVxHYXRld2F5XFYx4gIgUmVzb25hbmNlXEdhdGV3YXlcVjFcR1BCTWV0YWRhdGHqAhZSZXNvbmFuY2U6OkdhdGV3YXk6OlYxYgZwcm90bzM", [file_common_v1_types]);
 
 /**
  * @generated from message resonance.gateway.v1.LoginRequest
@@ -27,6 +27,11 @@ export type LoginRequest = Message<"resonance.gateway.v1.LoginRequest"> & {
    * @generated from field: string password = 2;
    */
   password: string;
+
+  /**
+   * @generated from field: string tenant_id = 3;
+   */
+  tenantId: string;
 };
 
 /**
@@ -49,6 +54,21 @@ export type LoginResponse = Message<"resonance.gateway.v1.LoginResponse"> & {
    * @generated from field: resonance.common.v1.User user = 2;
    */
   user?: User;
+
+  /**
+   * @generated from field: string tenant_id = 3;
+   */
+  tenantId: string;
+
+  /**
+   * @generated from field: repeated string roles = 4;
+   */
+  roles: string[];
+
+  /**
+   * @generated from field: repeated string scopes = 5;
+   */
+  scopes: string[];
 };
 
 /**
@@ -98,6 +118,21 @@ export type RegisterResponse = Message<"resonance.gateway.v1.RegisterResponse"> 
    * @generated from field: resonance.common.v1.User user = 2;
    */
   user?: User;
+
+  /**
+   * @generated from field: string tenant_id = 3;
+   */
+  tenantId: string;
+
+  /**
+   * @generated from field: repeated string roles = 4;
+   */
+  roles: string[];
+
+  /**
+   * @generated from field: repeated string scopes = 5;
+   */
+  scopes: string[];
 };
 
 /**

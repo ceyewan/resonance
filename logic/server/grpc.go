@@ -13,17 +13,83 @@ import (
 
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/logic/service"
+	"github.com/ceyewan/resonance/pkg/serviceauth"
 )
 
 // GRPCServer gRPC 服务包装器
 type GRPCServer struct {
-	logger      clog.Logger
-	server      *grpc.Server
-	addr        string
-	authSvc     *service.AuthService
-	sessionSvc  *service.SessionService
-	chatSvc     *service.ChatService
-	presenceSvc *service.PresenceService
+	logger                  clog.Logger
+	server                  *grpc.Server
+	addr                    string
+	authSvc                 *service.AuthService
+	userPrincipalResolver   userPrincipalResolver
+	gatewayServiceID        string
+	sessionSvc              *service.SessionService
+	chatSvc                 *service.ChatService
+	presenceSvc             *service.PresenceService
+	agentApprovalSvc        *service.AgentApprovalService
+	agentIAMMutationSvc     *service.AgentIAMMutationService
+	serviceAuth             *serviceauth.Verifier
+	serviceProfiles         map[string]service.ServiceProfile
+	protectedActors         map[string]struct{}
+	allowLegacyUsernameAuth bool
+}
+
+type userPrincipalResolver interface {
+	ResolveUserPrincipal(context.Context, string, string) (*service.UserPrincipal, error)
+}
+
+type Option func(*GRPCServer)
+
+func WithServiceAuth(verifier *serviceauth.Verifier) Option {
+	return func(server *GRPCServer) { server.serviceAuth = verifier }
+}
+
+func WithGatewayServiceID(serviceID string) Option {
+	return func(server *GRPCServer) { server.gatewayServiceID = serviceID }
+}
+
+func WithServiceProfile(serviceID, profileID string, profileVersion int64) Option {
+	return func(server *GRPCServer) {
+		if serviceID == "" || profileID == "" || profileVersion < 1 {
+			return
+		}
+		if server.serviceProfiles == nil {
+			server.serviceProfiles = make(map[string]service.ServiceProfile)
+		}
+		server.serviceProfiles[serviceID] = service.ServiceProfile{
+			ProfileID: profileID, ProfileVersion: profileVersion,
+		}
+	}
+}
+
+func WithAgentApprovalService(approvalService *service.AgentApprovalService) Option {
+	return func(server *GRPCServer) { server.agentApprovalSvc = approvalService }
+}
+
+func WithAgentIAMMutationService(mutationService *service.AgentIAMMutationService) Option {
+	return func(server *GRPCServer) { server.agentIAMMutationSvc = mutationService }
+}
+
+// WithLegacyUsernameAuthForTests enables the pre-IAM x-username path for
+// integration fixtures only. Production assembly must require signed service
+// credentials.
+func WithLegacyUsernameAuthForTests() Option {
+	return func(server *GRPCServer) { server.allowLegacyUsernameAuth = true }
+}
+
+// WithProtectedActor prevents a presentation-only service identity (for
+// example the Agent Bot) from using legacy x-username authentication.
+func WithProtectedActor(username string) Option {
+	return func(server *GRPCServer) {
+		if username == "" {
+			return
+		}
+		if server.protectedActors == nil {
+			server.protectedActors = make(map[string]struct{})
+		}
+		server.protectedActors[username] = struct{}{}
+	}
 }
 
 // NewGRPCServer 创建 gRPC 服务
@@ -34,15 +100,21 @@ func NewGRPCServer(
 	sessionSvc *service.SessionService,
 	chatSvc *service.ChatService,
 	presenceSvc *service.PresenceService,
+	options ...Option,
 ) *GRPCServer {
-	return &GRPCServer{
-		addr:        addr,
-		logger:      logger,
-		authSvc:     authSvc,
-		sessionSvc:  sessionSvc,
-		chatSvc:     chatSvc,
-		presenceSvc: presenceSvc,
+	server := &GRPCServer{
+		addr:                  addr,
+		logger:                logger,
+		authSvc:               authSvc,
+		userPrincipalResolver: authSvc,
+		sessionSvc:            sessionSvc,
+		chatSvc:               chatSvc,
+		presenceSvc:           presenceSvc,
 	}
+	for _, option := range options {
+		option(server)
+	}
+	return server
 }
 
 // Start 启动 gRPC 服务
@@ -65,6 +137,12 @@ func (s *GRPCServer) Start() error {
 	logicv1.RegisterSessionServiceServer(s.server, s.sessionSvc)
 	logicv1.RegisterChatServiceServer(s.server, s.chatSvc)
 	logicv1.RegisterPresenceServiceServer(s.server, s.presenceSvc)
+	if s.agentApprovalSvc != nil {
+		logicv1.RegisterAgentApprovalServiceServer(s.server, s.agentApprovalSvc)
+	}
+	if s.agentIAMMutationSvc != nil {
+		logicv1.RegisterAgentIAMMutationServiceServer(s.server, s.agentIAMMutationSvc)
+	}
 
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {

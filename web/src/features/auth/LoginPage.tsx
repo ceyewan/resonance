@@ -5,7 +5,6 @@ import { GlassInput } from "../../components/GlassInput";
 import { GlassButton } from "../../components/GlassButton";
 import { WallpaperBackground } from "../../components/WallpaperBackground";
 import { login } from "../../services/auth";
-import { mockLoginAndPopulateDb } from "../../services/mock";
 import { KeyRound, User } from "lucide-react";
 import "./AuthPages.css";
 
@@ -29,19 +28,6 @@ export function LoginPage() {
       void navigate({ to: "/chat" });
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : "登录失败");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMockLogin = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      await mockLoginAndPopulateDb();
-      void navigate({ to: "/chat" });
-    } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : "Mock login failed");
     } finally {
       setLoading(false);
     }
@@ -91,29 +77,13 @@ export function LoginPage() {
 
             {/* Actions */}
             <div className="auth-actions">
-              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
-                <GlassButton
-                  type="button"
-                  variant="ghost"
-                  disabled={loading}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    void handleMockLogin();
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  {loading ? "..." : "Demo Mode"}
-                </GlassButton>
-
-                <GlassButton
-                  type="submit"
-                  disabled={loading || !username || !password}
-                  onClick={(e) => void handleLogin(e)}
-                  style={{ flex: 1 }}
-                >
-                  {loading ? "Signing in..." : "Sign In"}
-                </GlassButton>
-              </div>
+              <GlassButton
+                type="submit"
+                disabled={loading || !username || !password}
+                onClick={(e) => void handleLogin(e)}
+              >
+                {loading ? "Signing in..." : "Sign In"}
+              </GlassButton>
 
               <p className="auth-switch">
                 Don't have an account?{" "}

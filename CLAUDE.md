@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## 架构状态：Phase 0–4 已完成，Phase 5 开发中
+## 架构状态：Phase 0–8 已完成，Phase 9 生产验证中
 
-事件驱动骨架已完整落地（ChatEvent 统一抽象、Outbox 事务一致性、Task 单消费者串行语义均已稳定）。当前处于功能扩展阶段（Phase 5 起：撤回、已读同步、AI 接入），演进路线详见 `docs/archive/architecture/05-migration.md`。
+事件驱动 IM 骨架、撤回/编辑/已读、Go Pilot + Pi Runtime、tenant-scoped AI Session、IAM 审批/Mutation 和 Agent Stream 已落地。当前重点是固定 Runtime 发布、业务 Eval 和多实例生产验收；一手依据见 `docs/14-ai-service.md`、`docs/15-agent-harness.md`、`docs/16-agent-operations.md` 与 `DEVELOPMENT.md`。
 
 设计决策的**一手依据**已迁移到 `docs/`：
 
@@ -44,7 +44,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 | **Gateway** | 协议转换 + 连接管理 + 鉴权中间件 | 业务规则、持久化 |
 | **Logic** | 业务规则 + 事件生成 + Outbox 事务一致性 | 推送、写扩散 |
 | **Task** | 消费 MQ,按事件类型落地 + 推送到 Gateway | 业务判断 |
-| **AI Service**(未来) | 过滤 AI 会话消息 + 调用模型 + 以 Bot 身份回复 | 连接管理、鉴权 |
+| **Pilot** | Go 控制面调度隔离的 Pi Runtime，以 Actor 权限调用 Go Tool Broker，并以 Bot 身份回复 | 连接管理、Agent Loop、绕过 Logic 写主事实 |
 
 ### 核心抽象:ChatEvent
 
@@ -53,7 +53,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 ### 身份传递约定
 
 - Web → Gateway:`Authorization: Bearer <jwt>` Header
-- Gateway → Logic:gRPC metadata `x-username`
+- Gateway → Logic：Gateway workload 对 method + payload hash + tenant + actor + membership version + timestamp + nonce 签名；Logic 验签后从 IAM 权威回查 Principal。生产拒绝 `x-username`、内部 Bearer 和 body 身份字段
 - **业务 body 里永远不带 `username` / `access_token`**
 
 ### 错误处理约定

@@ -22,4 +22,7 @@ message Message {
   int64 reply_to_event_id = 3;
   string client_msg_id = 4;
   repeated string mentioned_usernames = 5;
+  // recalled is an explicit tombstone marker for authoritative history
+  // snapshots. When true, content and other user-authored fields are empty.
+  bool recalled = 6;
 }

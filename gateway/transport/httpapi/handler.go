@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"connectrpc.com/connect"
+	"github.com/ceyewan/genesis/auth"
 	"github.com/ceyewan/genesis/clog"
 	"github.com/gin-gonic/gin"
 
@@ -15,17 +16,19 @@ import (
 
 // HTTPHandler 实现 Gateway 的 HTTP API
 type HTTPHandler struct {
-	logicClient *logicclient.Client
-	logger      clog.Logger
-	authConfig  *middleware.AuthConfig
+	logicClient    *logicclient.Client
+	approvalClient approvalLogicClient
+	logger         clog.Logger
+	authConfig     *middleware.AuthConfig
 }
 
 // NewHTTPHandler 创建 API Handler
-func NewHTTPHandler(logicClient *logicclient.Client, logger clog.Logger) *HTTPHandler {
+func NewHTTPHandler(logicClient *logicclient.Client, authenticator auth.Authenticator, logger clog.Logger) *HTTPHandler {
 	return &HTTPHandler{
-		logicClient: logicClient,
-		logger:      logger,
-		authConfig:  middleware.NewAuthConfig(logicClient, logger),
+		logicClient:    logicClient,
+		approvalClient: logicClient,
+		logger:         logger,
+		authConfig:     middleware.NewAuthConfig(authenticator, logger),
 	}
 }
 
@@ -55,6 +58,7 @@ func (h *HTTPHandler) Login(
 	logicReq := &logicv1.LoginRequest{
 		Username: req.Msg.Username,
 		Password: req.Msg.Password,
+		TenantId: req.Msg.TenantId,
 	}
 
 	logicResp, err := h.logicClient.Login(ctx, logicReq)
@@ -66,6 +70,9 @@ func (h *HTTPHandler) Login(
 	resp := &gatewayv1.LoginResponse{
 		AccessToken: logicResp.AccessToken,
 		User:        logicResp.User,
+		TenantId:    logicResp.TenantId,
+		Roles:       logicResp.Roles,
+		Scopes:      logicResp.Scopes,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -93,6 +100,9 @@ func (h *HTTPHandler) Register(
 	resp := &gatewayv1.RegisterResponse{
 		AccessToken: logicResp.AccessToken,
 		User:        logicResp.User,
+		TenantId:    logicResp.TenantId,
+		Roles:       logicResp.Roles,
+		Scopes:      logicResp.Scopes,
 	}
 
 	return connect.NewResponse(resp), nil
@@ -166,6 +176,28 @@ func (h *HTTPHandler) CreateSession(
 	}
 
 	return connect.NewResponse(resp), nil
+}
+
+// CreateAgentSession accepts only a profile enum. The trusted tenant, roles and
+// scopes are resolved again by Logic from the Gateway-signed principal.
+func (h *HTTPHandler) CreateAgentSession(
+	ctx context.Context,
+	req *connect.Request[gatewayv1.CreateAgentSessionRequest],
+) (*connect.Response[gatewayv1.CreateAgentSessionResponse], error) {
+	username, err := h.getUsernameFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logicResp, err := h.logicClient.CreateAgentSession(ctx, username, &logicv1.CreateAgentSessionRequest{
+		Profile: req.Msg.Profile,
+	})
+	if err != nil {
+		h.logger.Error("create agent session failed", clog.Error(err))
+		return nil, toConnectError(err)
+	}
+
+	return connect.NewResponse(&gatewayv1.CreateAgentSessionResponse{SessionId: logicResp.SessionId}), nil
 }
 
 // GetHistoryEvents 实现 SessionService.GetHistoryEvents

@@ -73,6 +73,109 @@ func (SessionType) EnumDescriptor() ([]byte, []int) {
 	return file_common_v1_session_proto_rawDescGZIP(), []int{0}
 }
 
+// SessionKind separates ordinary user conversations from explicitly-created AI
+// conversations. It is independent of SessionType: an AI conversation is still
+// a direct conversation with exactly one human and one configured agent bot.
+type SessionKind int32
+
+const (
+	SessionKind_SESSION_KIND_UNSPECIFIED SessionKind = 0
+	SessionKind_SESSION_KIND_STANDARD    SessionKind = 1
+	SessionKind_SESSION_KIND_AI          SessionKind = 2
+)
+
+// Enum value maps for SessionKind.
+var (
+	SessionKind_name = map[int32]string{
+		0: "SESSION_KIND_UNSPECIFIED",
+		1: "SESSION_KIND_STANDARD",
+		2: "SESSION_KIND_AI",
+	}
+	SessionKind_value = map[string]int32{
+		"SESSION_KIND_UNSPECIFIED": 0,
+		"SESSION_KIND_STANDARD":    1,
+		"SESSION_KIND_AI":          2,
+	}
+)
+
+func (x SessionKind) Enum() *SessionKind {
+	p := new(SessionKind)
+	*p = x
+	return p
+}
+
+func (x SessionKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SessionKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_common_v1_session_proto_enumTypes[1].Descriptor()
+}
+
+func (SessionKind) Type() protoreflect.EnumType {
+	return &file_common_v1_session_proto_enumTypes[1]
+}
+
+func (x SessionKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SessionKind.Descriptor instead.
+func (SessionKind) EnumDescriptor() ([]byte, []int) {
+	return file_common_v1_session_proto_rawDescGZIP(), []int{1}
+}
+
+// AgentProfile is the only client-selectable input when creating an AI session.
+// Tenant, bot identity and pinned profile version are always server-owned.
+type AgentProfile int32
+
+const (
+	AgentProfile_AGENT_PROFILE_UNSPECIFIED    AgentProfile = 0
+	AgentProfile_AGENT_PROFILE_USER_ASSISTANT AgentProfile = 1
+	AgentProfile_AGENT_PROFILE_IAM_ADMIN      AgentProfile = 2
+)
+
+// Enum value maps for AgentProfile.
+var (
+	AgentProfile_name = map[int32]string{
+		0: "AGENT_PROFILE_UNSPECIFIED",
+		1: "AGENT_PROFILE_USER_ASSISTANT",
+		2: "AGENT_PROFILE_IAM_ADMIN",
+	}
+	AgentProfile_value = map[string]int32{
+		"AGENT_PROFILE_UNSPECIFIED":    0,
+		"AGENT_PROFILE_USER_ASSISTANT": 1,
+		"AGENT_PROFILE_IAM_ADMIN":      2,
+	}
+)
+
+func (x AgentProfile) Enum() *AgentProfile {
+	p := new(AgentProfile)
+	*p = x
+	return p
+}
+
+func (x AgentProfile) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AgentProfile) Descriptor() protoreflect.EnumDescriptor {
+	return file_common_v1_session_proto_enumTypes[2].Descriptor()
+}
+
+func (AgentProfile) Type() protoreflect.EnumType {
+	return &file_common_v1_session_proto_enumTypes[2]
+}
+
+func (x AgentProfile) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AgentProfile.Descriptor instead.
+func (AgentProfile) EnumDescriptor() ([]byte, []int) {
+	return file_common_v1_session_proto_rawDescGZIP(), []int{2}
+}
+
 type SessionMeta struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -147,7 +250,15 @@ const file_common_v1_session_proto_rawDesc = "" +
 	"\x18SESSION_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13SESSION_TYPE_DIRECT\x10\x01\x12\x16\n" +
 	"\x12SESSION_TYPE_GROUP\x10\x02\x12\x13\n" +
-	"\x0fSESSION_TYPE_AI\x10\x03B\xd1\x01\n" +
+	"\x0fSESSION_TYPE_AI\x10\x03*[\n" +
+	"\vSessionKind\x12\x1c\n" +
+	"\x18SESSION_KIND_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15SESSION_KIND_STANDARD\x10\x01\x12\x13\n" +
+	"\x0fSESSION_KIND_AI\x10\x02*l\n" +
+	"\fAgentProfile\x12\x1d\n" +
+	"\x19AGENT_PROFILE_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cAGENT_PROFILE_USER_ASSISTANT\x10\x01\x12\x1b\n" +
+	"\x17AGENT_PROFILE_IAM_ADMIN\x10\x02B\xd1\x01\n" +
 	"\x17com.resonance.common.v1B\fSessionProtoP\x01Z:github.com/ceyewan/resonance/api/gen/go/common/v1;commonv1\xa2\x02\x03RCX\xaa\x02\x13Resonance.Common.V1\xca\x02\x13Resonance\\Common\\V1\xe2\x02\x1fResonance\\Common\\V1\\GPBMetadata\xea\x02\x15Resonance::Common::V1b\x06proto3"
 
 var (
@@ -162,11 +273,13 @@ func file_common_v1_session_proto_rawDescGZIP() []byte {
 	return file_common_v1_session_proto_rawDescData
 }
 
-var file_common_v1_session_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_common_v1_session_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_common_v1_session_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_common_v1_session_proto_goTypes = []any{
 	(SessionType)(0),    // 0: resonance.common.v1.SessionType
-	(*SessionMeta)(nil), // 1: resonance.common.v1.SessionMeta
+	(SessionKind)(0),    // 1: resonance.common.v1.SessionKind
+	(AgentProfile)(0),   // 2: resonance.common.v1.AgentProfile
+	(*SessionMeta)(nil), // 3: resonance.common.v1.SessionMeta
 }
 var file_common_v1_session_proto_depIdxs = []int32{
 	0, // 0: resonance.common.v1.SessionMeta.type:type_name -> resonance.common.v1.SessionType
@@ -187,7 +300,7 @@ func file_common_v1_session_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_v1_session_proto_rawDesc), len(file_common_v1_session_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      3,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,

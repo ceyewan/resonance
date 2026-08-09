@@ -165,9 +165,9 @@ Resonance 把在线推送看作“在线优化路径”，把 Inbox 看作“最
 
 ## 6. 身份传递与边界约束
 
-在身份传递上，系统采用一个很明确的约束：业务 body 不携带身份字段。Web 到 Gateway 使用 `Authorization: Bearer <token>` 完成认证，Gateway 在接入层完成 token 校验后，不再把原始 token 继续向下游转发，而是把已确认的用户名通过 gRPC metadata `x-username` 传给 Logic。Logic 的拦截器负责从 metadata 中恢复身份并写入上下文，后续业务代码统一从 context 中读取当前用户。
+在身份传递上，系统采用一个很明确的约束：业务 body 不能决定 Actor。Web 到 Gateway 使用 `Authorization: Bearer <token>` 完成认证，Gateway 本地验 JWT 后不再传播原始 token，而是对 gRPC method、payload hash、tenant、actor、成员版本、时间戳和 nonce 做逐请求服务签名。Logic 验证 Gateway 工作负载身份并防重放，再按 tenant + username 从 IAM Repo 权威回查，后续业务代码只读取经过验证的 context Principal。
 
-这条约束的意义在于，它把鉴权层和业务层干净地分开了。Gateway 关注的是“这个调用是否来自一个合法用户”，Logic 关注的是“这个已认证用户是否有权限做当前业务动作”。如果身份同时出现在 Header、metadata 和 body 里，就会很快出现多份来源不一致的问题，也会让协议变得越来越混乱。
+这条约束的意义在于，它把客户端凭证与业务授权分开了。Gateway 关注 JWT 的密码学有效性，Logic 关注当前成员、角色和 Scope。请求体可以携带目标 tenant 作为资源选择器，但必须等于可信 Principal 的 tenant；明文 `x-username`、roles、scopes 或内部 Bearer 都不能成为生产身份来源。
 
 在错误处理上，系统同样坚持边界清晰。业务失败通过 gRPC status 进行表达，而不是在响应结构里再塞一个自由文本 `error` 字段。这样 Gateway 和客户端可以用标准的错误处理方式理解失败原因，协议本身也不会被额外的非结构化字段污染。
 

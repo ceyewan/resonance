@@ -6,7 +6,7 @@ import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { ChatEvent } from "./event_pb";
 import { file_common_v1_event } from "./event_pb";
-import type { SessionType } from "./session_pb";
+import type { AgentProfile, SessionKind, SessionType } from "./session_pb";
 import { file_common_v1_session } from "./session_pb";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -14,7 +14,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file common/v1/view.proto.
  */
 export const file_common_v1_view: GenFile = /*@__PURE__*/
-  fileDesc("ChRjb21tb24vdjEvdmlldy5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSLUAQoLU2Vzc2lvbkluZm8SEgoKc2Vzc2lvbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEi4KBHR5cGUYAyABKA4yIC5yZXNvbmFuY2UuY29tbW9uLnYxLlNlc3Npb25UeXBlEhIKCmF2YXRhcl91cmwYBCABKAkSFAoMdW5yZWFkX2NvdW50GAUgASgDEhUKDWxhc3RfcmVhZF9zZXEYBiABKAMSMgoKbGFzdF9ldmVudBgHIAEoCzIeLnJlc29uYW5jZS5jb21tb24udjEuQ2hhdEV2ZW50IkUKC0NvbnRhY3RJbmZvEhAKCHVzZXJuYW1lGAEgASgJEhAKCG5pY2tuYW1lGAIgASgJEhIKCmF2YXRhcl91cmwYAyABKAkiTQoKSW5ib3hFdmVudBIQCghpbmJveF9pZBgBIAEoAxItCgVldmVudBgCIAEoCzIeLnJlc29uYW5jZS5jb21tb24udjEuQ2hhdEV2ZW50Qs4BChdjb20ucmVzb25hbmNlLmNvbW1vbi52MUIJVmlld1Byb3RvUAFaOmdpdGh1Yi5jb20vY2V5ZXdhbi9yZXNvbmFuY2UvYXBpL2dlbi9nby9jb21tb24vdjE7Y29tbW9udjGiAgNSQ1iqAhNSZXNvbmFuY2UuQ29tbW9uLlYxygITUmVzb25hbmNlXENvbW1vblxWMeICH1Jlc29uYW5jZVxDb21tb25cVjFcR1BCTWV0YWRhdGHqAhVSZXNvbmFuY2U6OkNvbW1vbjo6VjFiBnByb3RvMw", [file_common_v1_event, file_common_v1_session]);
+  fileDesc("ChRjb21tb24vdjEvdmlldy5wcm90bxITcmVzb25hbmNlLmNvbW1vbi52MSLdAgoLU2Vzc2lvbkluZm8SEgoKc2Vzc2lvbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEi4KBHR5cGUYAyABKA4yIC5yZXNvbmFuY2UuY29tbW9uLnYxLlNlc3Npb25UeXBlEhIKCmF2YXRhcl91cmwYBCABKAkSFAoMdW5yZWFkX2NvdW50GAUgASgDEhUKDWxhc3RfcmVhZF9zZXEYBiABKAMSMgoKbGFzdF9ldmVudBgHIAEoCzIeLnJlc29uYW5jZS5jb21tb24udjEuQ2hhdEV2ZW50Ei4KBGtpbmQYCCABKA4yIC5yZXNvbmFuY2UuY29tbW9uLnYxLlNlc3Npb25LaW5kEjgKDWFnZW50X3Byb2ZpbGUYCSABKA4yIS5yZXNvbmFuY2UuY29tbW9uLnYxLkFnZW50UHJvZmlsZRIdChVhZ2VudF9wcm9maWxlX3ZlcnNpb24YCiABKAMiRQoLQ29udGFjdEluZm8SEAoIdXNlcm5hbWUYASABKAkSEAoIbmlja25hbWUYAiABKAkSEgoKYXZhdGFyX3VybBgDIAEoCSJNCgpJbmJveEV2ZW50EhAKCGluYm94X2lkGAEgASgDEi0KBWV2ZW50GAIgASgLMh4ucmVzb25hbmNlLmNvbW1vbi52MS5DaGF0RXZlbnRCzgEKF2NvbS5yZXNvbmFuY2UuY29tbW9uLnYxQglWaWV3UHJvdG9QAVo6Z2l0aHViLmNvbS9jZXlld2FuL3Jlc29uYW5jZS9hcGkvZ2VuL2dvL2NvbW1vbi92MTtjb21tb252MaICA1JDWKoCE1Jlc29uYW5jZS5Db21tb24uVjHKAhNSZXNvbmFuY2VcQ29tbW9uXFYx4gIfUmVzb25hbmNlXENvbW1vblxWMVxHUEJNZXRhZGF0YeoCFVJlc29uYW5jZTo6Q29tbW9uOjpWMWIGcHJvdG8z", [file_common_v1_event, file_common_v1_session]);
 
 /**
  * SessionInfo 是会话列表/会话概览的跨层视图对象
@@ -57,6 +57,21 @@ export type SessionInfo = Message<"resonance.common.v1.SessionInfo"> & {
    * @generated from field: resonance.common.v1.ChatEvent last_event = 7;
    */
   lastEvent?: ChatEvent;
+
+  /**
+   * @generated from field: resonance.common.v1.SessionKind kind = 8;
+   */
+  kind: SessionKind;
+
+  /**
+   * @generated from field: resonance.common.v1.AgentProfile agent_profile = 9;
+   */
+  agentProfile: AgentProfile;
+
+  /**
+   * @generated from field: int64 agent_profile_version = 10;
+   */
+  agentProfileVersion: bigint;
 };
 
 /**

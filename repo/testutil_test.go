@@ -293,11 +293,20 @@ func cleanupTestData(t *testing.T, database db.DB) {
 	gormDB := database.DB(ctx)
 
 	tables := []string{
+		"t_agent_audit_log",
+		"t_agent_iam_mutation_receipt",
+		"t_agent_frozen_tool_args",
+		"t_agent_tool_execution",
+		"t_agent_approval",
+		"t_agent_session_binding",
+		"t_agent_run",
 		"t_inbox",
 		"t_message_outbox",
 		"t_message_content",
 		"t_session_member",
 		"t_session",
+		"t_system_role_binding",
+		"t_tenant_membership",
 		"t_user",
 	}
 

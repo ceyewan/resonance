@@ -39,7 +39,7 @@ Lint 同样分四个子目标：
 
 | 子目标 | 工具 | 覆盖范围 |
 | ------ | ---- | -------- |
-| `lint-go` | golangci-lint v1.64.8 | Go 代码静态分析 |
+| `lint-go` | golangci-lint v2.12.2 | Go 代码静态分析 |
 | `lint-proto` | `buf lint` | Proto 定义规范检查 |
 | `lint-prettier` | Prettier `--check` | 格式一致性检查 |
 | `lint-markdown` | markdownlint-cli2 | Markdown 规范检查 |

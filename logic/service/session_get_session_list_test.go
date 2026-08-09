@@ -29,6 +29,24 @@ func TestSessionService_GetSessionList_Empty(t *testing.T) {
 	require.Empty(t, resp.Sessions)
 }
 
+func TestSessionService_GetSessionList_ExposesPinnedAgentProfile(t *testing.T) {
+	sessionRepo := &testSessionRepo{getUserSessionLFn: func(context.Context, string) ([]*model.Session, error) {
+		return []*model.Session{{
+			SessionID: "agent:test", Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
+			TenantID: model.DefaultTenantID, ProfileID: model.AgentProfileIAMAdmin, ProfileVersion: 4,
+			Name: "IAM Admin Assistant",
+		}}, nil
+	}}
+	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger())
+
+	response, err := svc.GetSessionList(newTestIncomingContext("alice"), &logicv1.GetSessionListRequest{})
+	require.NoError(t, err)
+	require.Len(t, response.Sessions, 1)
+	require.Equal(t, commonv1.SessionKind_SESSION_KIND_AI, response.Sessions[0].Kind)
+	require.Equal(t, commonv1.AgentProfile_AGENT_PROFILE_IAM_ADMIN, response.Sessions[0].AgentProfile)
+	require.Equal(t, int64(4), response.Sessions[0].AgentProfileVersion)
+}
+
 func TestSessionService_GetSessionList_DirectNicknameUnreadAndLastEvent(t *testing.T) {
 	now := time.Now()
 	sessionRepo := &testSessionRepo{
@@ -48,6 +66,9 @@ func TestSessionService_GetSessionList_DirectNicknameUnreadAndLastEvent(t *testi
 				{SessionID: "single:alice:bob", Username: "alice", LastReadSeq: 9},
 			}, nil
 		},
+		getMembersFn: func(context.Context, string) ([]*model.SessionMember, error) {
+			return []*model.SessionMember{{Username: "alice"}, {Username: "bob"}}, nil
+		},
 	}
 	messageRepo := &testMessageRepo{
 		getLastMessagesBatchFn: func(ctx context.Context, sessionIDs []string) ([]*model.MessageContent, error) {
@@ -63,6 +84,11 @@ func TestSessionService_GetSessionList_DirectNicknameUnreadAndLastEvent(t *testi
 					CreatedAt:      now,
 				},
 			}, nil
+		},
+		getUnreadCountFn: func(ctx context.Context, username, sessionID string) (int64, error) {
+			require.Equal(t, "alice", username)
+			require.Equal(t, "single:alice:bob", sessionID)
+			return 3, nil
 		},
 	}
 	userRepo := &testUserRepo{
@@ -129,6 +155,38 @@ func TestSessionService_GetSessionList_FallbackLastEventWhenNoMessage(t *testing
 	require.Equal(t, "group:1", s.LastEvent.SessionId)
 	require.Equal(t, commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED, s.LastEvent.GetMessage().GetType())
 	require.Equal(t, "", s.LastEvent.GetMessage().GetContent())
+}
+
+func TestSessionService_GetSessionList_ClampsUnreadFallback(t *testing.T) {
+	sessionRepo := &testSessionRepo{
+		getUserSessionLFn: func(ctx context.Context, username string) ([]*model.Session, error) {
+			return []*model.Session{
+				{
+					SessionID: "group:1",
+					Type:      int(commonv1.SessionType_SESSION_TYPE_GROUP),
+					Name:      "Dev",
+					MaxSeqID:  1,
+				},
+			}, nil
+		},
+		getUserSessBatch: func(ctx context.Context, username string, sessionIDs []string) ([]*model.SessionMember, error) {
+			return []*model.SessionMember{
+				{SessionID: "group:1", Username: "alice", LastReadSeq: 2},
+			}, nil
+		},
+	}
+	messageRepo := &testMessageRepo{
+		getUnreadCountFn: func(ctx context.Context, username, sessionID string) (int64, error) {
+			return 0, errors.New("unread query failed")
+		},
+	}
+	svc := NewSessionService(sessionRepo, messageRepo, &testUserRepo{}, nil, nil, nil, nil, testLogger())
+
+	resp, err := svc.GetSessionList(newTestIncomingContext("alice"), &logicv1.GetSessionListRequest{})
+	require.NoError(t, err)
+	require.Len(t, resp.Sessions, 1)
+	require.Equal(t, int64(0), resp.Sessions[0].UnreadCount)
+	require.Equal(t, int64(2), resp.Sessions[0].LastReadSeq)
 }
 
 func TestSessionService_GetSessionList_ListFailed(t *testing.T) {

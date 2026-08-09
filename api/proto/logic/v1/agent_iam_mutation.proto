@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package resonance.logic.v1;
+
+import "logic/v1/agent_approval.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
+
+// AgentIAMMutationService 是 Pilot 唯一允许调用的 IAM 写边界。
+// Pilot 只能提交已冻结并获批的绑定，不能直接写 IAM 数据库。
+service AgentIAMMutationService {
+  rpc PreviewTenantMembershipStatus(PreviewTenantMembershipStatusRequest) returns (PreviewTenantMembershipStatusResponse);
+  rpc GetExecutionApproval(GetExecutionApprovalRequest) returns (GetExecutionApprovalResponse);
+  rpc ExecuteTenantMembershipStatus(ExecuteTenantMembershipStatusRequest) returns (ExecuteTenantMembershipStatusResponse);
+}
+
+message PreviewTenantMembershipStatusRequest {
+  string tenant_id = 1;
+  string run_id = 2;
+  string call_id = 3;
+  string requester_id = 4;
+  string target_username = 5;
+  string desired_status = 6;
+  int64 expected_version = 7;
+  bool dry_run = 8;
+}
+
+message PreviewTenantMembershipStatusResponse {
+  string target_username = 1;
+  string current_status = 2;
+  string desired_status = 3;
+  int64 current_version = 4;
+  bool would_change = 5;
+  string args_hash = 6;
+}
+
+message GetExecutionApprovalRequest {
+  string tenant_id = 1;
+  string call_id = 2;
+  string args_hash = 3;
+}
+
+message GetExecutionApprovalResponse {
+  AgentApproval approval = 1;
+}
+
+message ExecuteTenantMembershipStatusRequest {
+  string tenant_id = 1;
+  string run_id = 2;
+  string call_id = 3;
+  string args_hash = 4;
+  string tool_name = 5;
+  string idempotency_key = 6;
+  string target_username = 7;
+  string desired_status = 8;
+  int64 expected_version = 9;
+  int64 approval_version = 10;
+  // dry_run=true 表示该参数来自“只准备、不执行”的 Tool 调用；
+  // 实际写入只会发生在权威审批回查成功之后。
+  bool dry_run = 11;
+  string requester_id = 12;
+}
+
+message ExecuteTenantMembershipStatusResponse {
+  string operation_id = 1;
+  string target_username = 2;
+  string previous_status = 3;
+  string result_status = 4;
+  int64 previous_version = 5;
+  int64 result_version = 6;
+  int64 approval_version = 7;
+  int64 committed_at_ms = 8;
+  bool repeated = 9;
+}

@@ -14,10 +14,11 @@ import (
 
 // PullInboxDelta 实现 SessionService.PullInboxDelta
 func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullInboxDeltaRequest) (*logicv1.PullInboxDeltaResponse, error) {
-	username, err := MustUsernameFromCtx(ctx)
+	principal, err := s.requireUserPrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
+	username := principal.Username
 
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -36,6 +37,16 @@ func (s *SessionService) PullInboxDelta(ctx context.Context, req *logicv1.PullIn
 	events := make([]*commonv1.InboxEvent, 0, len(items))
 	nextCursorID := req.CursorId
 	for _, item := range items {
+		session, sessionErr := s.sessionRepo.GetSession(ctx, item.SessionID)
+		if sessionErr != nil {
+			return nil, status.Errorf(codes.Internal, "failed to verify inbox tenant")
+		}
+		if session == nil || session.TenantID != principal.TenantID {
+			if item.ID > nextCursorID {
+				nextCursorID = item.ID
+			}
+			continue
+		}
 		chatEvent := &commonv1.ChatEvent{}
 		if err := proto.Unmarshal(item.Payload, chatEvent); err != nil {
 			s.logger.Error("failed to unmarshal inbox payload", clog.Int64("inbox_id", item.ID), clog.Error(err))

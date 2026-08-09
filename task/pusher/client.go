@@ -20,6 +20,7 @@ import (
 type PushTask struct {
 	ToUsernames []string
 	Event       *commonv1.ChatEvent
+	Stream      *gatewayv1.PushStreamRequest
 }
 
 // GatewayClient 单个 Gateway 的推送客户端
@@ -77,6 +78,9 @@ func NewClient(addr string, id string, queueSize int, pusherCount int, logger cl
 
 // Enqueue 将推送任务加入队列（非阻塞）
 func (c *GatewayClient) Enqueue(task *PushTask) error {
+	if err := validatePushTask(task); err != nil {
+		return err
+	}
 	if c.closing.Load() {
 		return fmt.Errorf("gateway %s client closing", c.id)
 	}
@@ -98,6 +102,10 @@ func (c *GatewayClient) Enqueue(task *PushTask) error {
 
 // EnqueueBlocking 将推送任务加入队列（阻塞直到有空位）
 func (c *GatewayClient) EnqueueBlocking(task *PushTask) {
+	if err := validatePushTask(task); err != nil {
+		c.logger.Warn("enqueue skipped: invalid push task", clog.Error(err))
+		return
+	}
 	if c.closing.Load() {
 		c.logger.Warn("enqueue skipped: client closing", clog.String("gateway_id", c.id))
 		return
@@ -172,45 +180,55 @@ func (c *GatewayClient) doPush(task *PushTask) {
 	const maxRetry = 3
 	const retryDelay = 1 * time.Second
 
+	if err := validatePushTask(task); err != nil {
+		c.logger.Warn("push skipped: invalid task", clog.Error(err))
+		return
+	}
+	kind, correlation := pushTaskIdentity(task)
 	var lastErr error
 	for attempt := range maxRetry {
 		if attempt > 0 {
 			c.logger.Warn("retrying push",
 				clog.String("gateway_id", c.id),
-				clog.Int64("event_id", task.Event.GetEventId()),
+				clog.String("push_kind", kind),
+				clog.String("correlation", correlation),
 				clog.Int("attempt", attempt+1))
-			time.Sleep(retryDelay)
+			timer := time.NewTimer(retryDelay)
+			select {
+			case <-c.ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
 		}
 
 		ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
-		req := &gatewayv1.PushEventRequest{
-			ToUsernames: task.ToUsernames,
-			Event:       task.Event,
-		}
-
-		resp, err := c.client.PushEvent(ctx, req)
+		failedUsernames, err := c.pushOnce(ctx, task)
 		cancel()
 
 		if err != nil {
 			lastErr = err
 			c.logger.Warn("push attempt failed",
 				clog.String("gateway_id", c.id),
-				clog.Int64("event_id", task.Event.GetEventId()),
+				clog.String("push_kind", kind),
+				clog.String("correlation", correlation),
 				clog.Int("attempt", attempt+1),
 				clog.Error(err))
 			continue
 		}
 
-		if len(resp.FailedUsernames) > 0 {
+		if len(failedUsernames) > 0 {
 			c.logger.Warn("partial push failure",
 				clog.String("gateway_id", c.id),
-				clog.Int64("event_id", resp.EventId),
-				clog.Int("failed_count", len(resp.FailedUsernames)))
+				clog.String("push_kind", kind),
+				clog.String("correlation", correlation),
+				clog.Int("failed_count", len(failedUsernames)))
 		}
 
 		c.logger.Debug("push success",
 			clog.String("gateway_id", c.id),
-			clog.Int64("event_id", task.Event.GetEventId()),
+			clog.String("push_kind", kind),
+			clog.String("correlation", correlation),
 			clog.Int("user_count", len(task.ToUsernames)))
 		return // 成功
 	}
@@ -218,9 +236,56 @@ func (c *GatewayClient) doPush(task *PushTask) {
 	// 重试耗尽，记录错误
 	c.logger.Error("push failed after retries",
 		clog.String("gateway_id", c.id),
-		clog.Int64("event_id", task.Event.GetEventId()),
+		clog.String("push_kind", kind),
+		clog.String("correlation", correlation),
 		clog.Int("user_count", len(task.ToUsernames)),
 		clog.Error(lastErr))
+}
+
+func (c *GatewayClient) pushOnce(ctx context.Context, task *PushTask) ([]string, error) {
+	if task.Event != nil {
+		response, err := c.client.PushEvent(ctx, &gatewayv1.PushEventRequest{
+			ToUsernames: task.ToUsernames, Event: task.Event,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return response.GetFailedUsernames(), nil
+	}
+	task.Stream.ToUsernames = append(task.Stream.ToUsernames[:0], task.ToUsernames...)
+	response, err := c.client.PushStream(ctx, task.Stream)
+	if err != nil {
+		return nil, err
+	}
+	return response.GetFailedUsernames(), nil
+}
+
+func validatePushTask(task *PushTask) error {
+	if task == nil || len(task.ToUsernames) == 0 || (task.Event == nil) == (task.Stream == nil) {
+		return fmt.Errorf("push task must contain targets and exactly one payload")
+	}
+	if task.Stream != nil && task.Stream.GetPayload() == nil {
+		return fmt.Errorf("stream push task payload is missing")
+	}
+	return nil
+}
+
+func pushTaskIdentity(task *PushTask) (string, string) {
+	if task.Event != nil {
+		return "event", fmt.Sprintf("%d", task.Event.GetEventId())
+	}
+	switch payload := task.Stream.GetPayload().(type) {
+	case *gatewayv1.PushStreamRequest_StreamBegin:
+		return "stream_begin", payload.StreamBegin.GetRunId()
+	case *gatewayv1.PushStreamRequest_StreamChunk:
+		return "stream_chunk", payload.StreamChunk.GetRunId()
+	case *gatewayv1.PushStreamRequest_StreamEnd:
+		return "stream_end", payload.StreamEnd.GetRunId()
+	case *gatewayv1.PushStreamRequest_Typing:
+		return "typing", payload.Typing.GetSessionId()
+	default:
+		return "stream", ""
+	}
 }
 
 // Close 关闭连接

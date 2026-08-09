@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package resonance.mq.v1;
+
+import "common/v1/options.proto";
+
+option go_package = "github.com/ceyewan/resonance/api/gen/go/mq/v1;mqv1";
+
+// AgentApprovalRequestedEvent 通知持久化的 Logic 审批事实。
+// 事件只包含脱敏摘要，不携带冻结的 Tool 参数正文。
+message AgentApprovalRequestedEvent {
+  option (resonance.common.v1.default_topic) = "resonance.agent.approval.requested.v1";
+
+  int64 event_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string call_id = 4;
+  string tool_name = 5;
+  string requester_id = 6;
+  string args_hash = 7;
+  string args_summary = 8;
+  int64 expires_at_ms = 9;
+  int64 approval_version = 10;
+  int64 requested_at_ms = 11;
+  map<string, string> trace_headers = 12;
+}
+
+enum AgentApprovalDecision {
+  AGENT_APPROVAL_DECISION_UNSPECIFIED = 0;
+  AGENT_APPROVAL_DECISION_APPROVE = 1;
+  AGENT_APPROVAL_DECISION_REJECT = 2;
+}
+
+// AgentApprovalDecidedEvent 是发往 Pilot 的持久化交接事件。消费者执行前必须
+// 绑定 tenant_id、call_id、args_hash 和 approval_version。
+message AgentApprovalDecidedEvent {
+  option (resonance.common.v1.default_topic) = "resonance.agent.approval.decided.v1";
+
+  int64 event_id = 1;
+  string tenant_id = 2;
+  string run_id = 3;
+  string call_id = 4;
+  string args_hash = 5;
+  int64 approval_version = 6;
+  AgentApprovalDecision decision = 7;
+  string decision_by = 8;
+  string reason = 9;
+  int64 decided_at_ms = 10;
+  map<string, string> trace_headers = 11;
+}

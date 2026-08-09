@@ -1,0 +1,22 @@
+address: 0.0.0.0:18080
+
+# Exact lower-case ASCII IDNA A-labels only. This list is deliberately explicit:
+# removing it must make startup fail rather than silently restoring access.
+allowed_hosts:
+  - llm-3rwbpx52jtt7759p.cn-beijing.maas.aliyuncs.com
+
+# Keep false in the file and in production. Local Compose opts in because some
+# Docker Desktop/VPN DNS stacks synthesize public endpoints into RFC 2544
+# 198.18.0.0/15; exact host allowlisting and TLS SNI validation still apply.
+allow_synthetic_benchmark_addresses: false
+
+dns_timeout: 2s
+dial_timeout: 5s
+client_hello_timeout: 3s
+idle_timeout: 45s
+max_connection_duration: 10m
+read_header_timeout: 3s
+max_header_bytes: 8192
+max_client_hello_bytes: 65536
+max_connections: 128
+max_connections_per_client: 8

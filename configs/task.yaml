@@ -63,3 +63,14 @@ consumer:
   worker_count: 20
   max_retry: 3
   retry_interval: 5
+
+# Agent delta 是临时 UI 通道；此消费者只路由到 Gateway，不写 Inbox。
+stream_consumer:
+  topic: resonance.agent.stream.v1
+  queue_group: resonance_group_agent_stream
+  worker_count: 10
+  max_retry: 2
+  retry_interval: 0
+  dlq_topic: resonance.agent.stream.v1.dlq
+
+stream_max_delta_bytes: 65536

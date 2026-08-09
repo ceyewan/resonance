@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	SessionService_GetSessionList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetSessionList"
 	SessionService_CreateSession_FullMethodName      = "/resonance.gateway.v1.SessionService/CreateSession"
+	SessionService_CreateAgentSession_FullMethodName = "/resonance.gateway.v1.SessionService/CreateAgentSession"
 	SessionService_GetHistoryEvents_FullMethodName   = "/resonance.gateway.v1.SessionService/GetHistoryEvents"
 	SessionService_GetContactList_FullMethodName     = "/resonance.gateway.v1.SessionService/GetContactList"
 	SessionService_SearchUser_FullMethodName         = "/resonance.gateway.v1.SessionService/SearchUser"
@@ -37,6 +38,7 @@ const (
 type SessionServiceClient interface {
 	GetSessionList(ctx context.Context, in *GetSessionListRequest, opts ...grpc.CallOption) (*GetSessionListResponse, error)
 	CreateSession(ctx context.Context, in *CreateSessionRequest, opts ...grpc.CallOption) (*CreateSessionResponse, error)
+	CreateAgentSession(ctx context.Context, in *CreateAgentSessionRequest, opts ...grpc.CallOption) (*CreateAgentSessionResponse, error)
 	GetHistoryEvents(ctx context.Context, in *GetHistoryEventsRequest, opts ...grpc.CallOption) (*GetHistoryEventsResponse, error)
 	GetContactList(ctx context.Context, in *GetContactListRequest, opts ...grpc.CallOption) (*GetContactListResponse, error)
 	SearchUser(ctx context.Context, in *SearchUserRequest, opts ...grpc.CallOption) (*SearchUserResponse, error)
@@ -66,6 +68,16 @@ func (c *sessionServiceClient) CreateSession(ctx context.Context, in *CreateSess
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateSessionResponse)
 	err := c.cc.Invoke(ctx, SessionService_CreateSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *sessionServiceClient) CreateAgentSession(ctx context.Context, in *CreateAgentSessionRequest, opts ...grpc.CallOption) (*CreateAgentSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateAgentSessionResponse)
+	err := c.cc.Invoke(ctx, SessionService_CreateAgentSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +143,7 @@ func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, in *PullInbox
 type SessionServiceServer interface {
 	GetSessionList(context.Context, *GetSessionListRequest) (*GetSessionListResponse, error)
 	CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error)
+	CreateAgentSession(context.Context, *CreateAgentSessionRequest) (*CreateAgentSessionResponse, error)
 	GetHistoryEvents(context.Context, *GetHistoryEventsRequest) (*GetHistoryEventsResponse, error)
 	GetContactList(context.Context, *GetContactListRequest) (*GetContactListResponse, error)
 	SearchUser(context.Context, *SearchUserRequest) (*SearchUserResponse, error)
@@ -151,6 +164,9 @@ func (UnimplementedSessionServiceServer) GetSessionList(context.Context, *GetSes
 }
 func (UnimplementedSessionServiceServer) CreateSession(context.Context, *CreateSessionRequest) (*CreateSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSession not implemented")
+}
+func (UnimplementedSessionServiceServer) CreateAgentSession(context.Context, *CreateAgentSessionRequest) (*CreateAgentSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateAgentSession not implemented")
 }
 func (UnimplementedSessionServiceServer) GetHistoryEvents(context.Context, *GetHistoryEventsRequest) (*GetHistoryEventsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHistoryEvents not implemented")
@@ -220,6 +236,24 @@ func _SessionService_CreateSession_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SessionServiceServer).CreateSession(ctx, req.(*CreateSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SessionService_CreateAgentSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAgentSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionServiceServer).CreateAgentSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SessionService_CreateAgentSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionServiceServer).CreateAgentSession(ctx, req.(*CreateAgentSessionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -328,6 +362,10 @@ var SessionService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateSession",
 			Handler:    _SessionService_CreateSession_Handler,
+		},
+		{
+			MethodName: "CreateAgentSession",
+			Handler:    _SessionService_CreateAgentSession_Handler,
 		},
 		{
 			MethodName: "GetHistoryEvents",

@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, Search, Settings2, Users } from "lucide-react";
+import { Bot, Plus, Search, Settings2, Users } from "lucide-react";
+import { SessionKind } from "@gen/common/v1/session_pb";
 
 import { GlassCard } from "../../components/GlassCard";
 import { useSessionListLive } from "../../hooks/useSessionListLive";
@@ -99,10 +100,17 @@ export function SessionRail() {
               {({ isActive }) => (
                 <>
                   <div className="flex justify-between items-center mb-1 gap-2">
-                    <span
-                      className={`font-semibold truncate text-[16px] ${isActive ? "text-[var(--color-text)]" : "text-[var(--color-text)] group-hover:text-[var(--color-text)]"}`}
-                    >
-                      {session.name || session.sessionId}
+                    <span className="min-w-0 flex items-center gap-1.5">
+                      <span
+                        className={`font-semibold truncate text-[16px] ${isActive ? "text-[var(--color-text)]" : "text-[var(--color-text)] group-hover:text-[var(--color-text)]"}`}
+                      >
+                        {session.name || session.sessionId}
+                      </span>
+                      {session.kind === SessionKind.AI ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-border)] bg-[var(--glass-surface)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-text-muted)]">
+                          <Bot className="h-3 w-3" /> BOT
+                        </span>
+                      ) : null}
                     </span>
                     {Number(session.unreadCount) > 0 ? (
                       <span

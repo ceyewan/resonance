@@ -61,6 +61,15 @@ func EventTypeFromChatEvent(ev *commonv1.ChatEvent) int {
 
 // BuildMessageEventFromModel 将消息模型转换为 ChatEvent。
 func BuildMessageEventFromModel(sessionID string, msg *model.MessageContent) *commonv1.ChatEvent {
+	messageType := ParseMessageType(msg.MsgType)
+	content := msg.Content
+	recalled := msg.RecalledAt != nil
+	if recalled {
+		// The durable row is retained for idempotency/audit, but recalled content
+		// must never be reconstructed into history responses or Agent prompts.
+		messageType = commonv1.MessageType_MESSAGE_TYPE_UNSPECIFIED
+		content = ""
+	}
 	return &commonv1.ChatEvent{
 		EventId:      msg.EventID,
 		SeqId:        msg.SeqID,
@@ -69,8 +78,9 @@ func BuildMessageEventFromModel(sessionID string, msg *model.MessageContent) *co
 		TimestampMs:  msg.CreatedAt.UnixMilli(),
 		Payload: &commonv1.ChatEvent_Message{
 			Message: &commonv1.Message{
-				Type:    ParseMessageType(msg.MsgType),
-				Content: msg.Content,
+				Type:     messageType,
+				Content:  content,
+				Recalled: recalled,
 			},
 		},
 	}

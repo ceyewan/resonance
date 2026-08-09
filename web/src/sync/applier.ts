@@ -1,11 +1,12 @@
 import { SessionUpdateKind, type ChatEvent } from "@gen/common/v1/event_pb";
-import { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
 
 import { toBigIntId, toIdString } from "../lib/id";
 import {
   deleteEvent,
   findPendingEventByClientMsgId,
   getEventByEventId,
+  getEventsBySession,
   getMeta,
   getSession,
   putEvent,
@@ -19,6 +20,9 @@ function createDefaultSession(sessionId: string): SessionRow {
     sessionId,
     name: "",
     type: SessionType.UNSPECIFIED,
+    kind: SessionKind.UNSPECIFIED,
+    agentProfile: AgentProfile.UNSPECIFIED,
+    agentProfileVersion: "0",
     avatarUrl: "",
     unreadCount: "0",
     lastReadSeq: "0",
@@ -74,6 +78,7 @@ function toEventRow(event: ChatEvent): EventRow {
         replyToEventId: toIdString(payload.replyToEventId),
         clientMsgId: payload.clientMsgId,
         mentionedUsernames: payload.mentionedUsernames,
+        recalled: payload.recalled,
       };
     }
     case "recall":
@@ -196,6 +201,14 @@ async function applyReadReceipt(event: ChatEvent): Promise<void> {
     const incomingLastRead = toBigIntId(readUptoSeqId);
     if (incomingLastRead > currentLastRead) {
       next.lastReadSeq = toIdString(incomingLastRead);
+      const events = await getEventsBySession(event.sessionId);
+      const unread = events.filter(
+        (item) =>
+          item.payloadCase === "message" &&
+          item.fromUsername !== meUsername &&
+          toBigIntId(item.seqId) > incomingLastRead,
+      ).length;
+      next.unreadCount = toIdString(BigInt(unread));
     }
   }
 

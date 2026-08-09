@@ -76,7 +76,9 @@ ON CONFLICT (owner_username, session_id, seq_id) DO NOTHING
 
 ### 4.3 客户端发送幂等
 
-客户端生成 `client_msg_id`（本地唯一 ID），随消息一起发送。Logic 通过 `idx_client_msg_id` 索引检测重复发送，返回已有的 `event_id` 而不是写入新记录。这保证了网络抖动导致的客户端重发不会产生重复消息。
+客户端生成不超过 64 字节的 `client_msg_id`，并在重试时保持不变。Logic 先按 `(session_id, authenticated_sender, client_msg_id)` 查询，命中同一规范化请求时直接返回第一次的 ACK，不再分配 event/seq；并发未命中由数据库部分唯一索引和同一事务内的 `ON CONFLICT DO NOTHING` 收口。只有 `Created=true` 的调用才会创建 Outbox 并触发 look-aside 发布。
+
+幂等不是“任意同 ID 都成功”：同键但消息类型、内容、引用目标或 Mention 列表不同会返回 `AlreadyExists`。空 `client_msg_id` 保持非幂等兼容语义。历史行没有请求 Hash 时也不会猜测或从已编辑内容回填，而是 fail closed。
 
 ---
 

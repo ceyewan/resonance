@@ -72,7 +72,7 @@ func TestSessionService_PullInboxDelta_InvalidPayload(t *testing.T) {
 	messageRepo := &testMessageRepo{
 		getInboxDeltaFn: func(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error) {
 			return []*model.Inbox{
-				{ID: 11, Payload: []byte("bad-payload")},
+				{ID: 11, SessionID: "s_1", Payload: []byte("bad-payload")},
 			}, nil
 		},
 	}
@@ -120,8 +120,8 @@ func TestSessionService_PullInboxDelta_Success(t *testing.T) {
 		getInboxDeltaFn: func(ctx context.Context, username string, cursorID int64, limit int) ([]*model.Inbox, error) {
 			require.Equal(t, 2, limit)
 			return []*model.Inbox{
-				{ID: 9, Payload: payload1},
-				{ID: 12, Payload: payload2},
+				{ID: 9, SessionID: "s_1", Payload: payload1},
+				{ID: 12, SessionID: "s_1", Payload: payload2},
 			}, nil
 		},
 	}

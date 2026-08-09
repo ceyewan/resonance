@@ -10,7 +10,7 @@ import {
   SessionUpdateSchema,
 } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
-import { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { getEventsBySession, getSession, putEvent, setMeta, upsertSession } from "../db/repo";
@@ -24,6 +24,9 @@ function makeBaseSession(sessionId: string, type: SessionType): SessionRow {
     sessionId,
     name: "session",
     type,
+    kind: SessionKind.STANDARD,
+    agentProfile: AgentProfile.UNSPECIFIED,
+    agentProfileVersion: "0",
     avatarUrl: "",
     unreadCount: "0",
     lastReadSeq: "0",
@@ -45,6 +48,7 @@ function makeMessageEvent(params: {
   timestampMs: bigint;
   clientMsgId?: string;
   content?: string;
+  recalled?: boolean;
 }) {
   return create(ChatEventSchema, {
     eventId: params.eventId,
@@ -60,6 +64,7 @@ function makeMessageEvent(params: {
         replyToEventId: 0n,
         clientMsgId: params.clientMsgId ?? "",
         mentionedUsernames: [],
+        recalled: params.recalled ?? false,
       }),
     },
   });
@@ -234,6 +239,28 @@ describe("applyEvent", () => {
     expect(recalledTarget?.recalled).toBe(true);
   });
 
+  test("e2) 权威历史的显式 recalled tombstone 直接落为已撤回消息", async () => {
+    const sessionId = "s-recalled-tombstone";
+    await upsertSession(makeBaseSession(sessionId, SessionType.DIRECT));
+
+    await applyEvent(
+      makeMessageEvent({
+        eventId: 5101n,
+        seqId: 1n,
+        sessionId,
+        fromUsername: "bob",
+        timestampMs: 51001n,
+        content: "",
+        recalled: true,
+      }),
+    );
+
+    const events = await getEventsBySession(sessionId);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.recalled).toBe(true);
+    expect(events[0]?.content).toBe("");
+  });
+
   test("f) MessageEdit 覆盖 content 并 edited=true", async () => {
     const sessionId = "s-edit";
     await upsertSession(makeBaseSession(sessionId, SessionType.DIRECT));
@@ -337,6 +364,52 @@ describe("applyEvent", () => {
 
     const session = await getSession(sessionId);
     expect(session?.lastReadSeq).toBe("123");
+  });
+
+  test("g4) ReadReceipt 来自本人时重算本地未读数", async () => {
+    const sessionId = "s-read-self-unread";
+    await upsertSession({
+      ...makeBaseSession(sessionId, SessionType.DIRECT),
+      unreadCount: "2",
+    });
+
+    await applyEvent(
+      makeMessageEvent({
+        eventId: 7301n,
+        seqId: 1n,
+        sessionId,
+        fromUsername: "bob",
+        timestampMs: 73001n,
+      }),
+    );
+    await applyEvent(
+      makeMessageEvent({
+        eventId: 7302n,
+        seqId: 2n,
+        sessionId,
+        fromUsername: "bob",
+        timestampMs: 73002n,
+      }),
+    );
+
+    const receipt = create(ChatEventSchema, {
+      eventId: 7303n,
+      seqId: 3n,
+      sessionId,
+      fromUsername: "alice",
+      timestampMs: 73003n,
+      payload: {
+        case: "readReceipt",
+        value: create(ReadReceiptSchema, {
+          readUptoSeqId: 2n,
+        }),
+      },
+    });
+    await applyEvent(receipt);
+
+    const session = await getSession(sessionId);
+    expect(session?.lastReadSeq).toBe("2");
+    expect(session?.unreadCount).toBe("0");
   });
 
   test("h) SessionUpdate 覆盖会话元信息", async () => {

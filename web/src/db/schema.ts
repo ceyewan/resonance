@@ -1,12 +1,15 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type { SessionUpdateKind } from "@gen/common/v1/event_pb";
 import type { MessageType } from "@gen/common/v1/message_pb";
-import type { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionKind, type SessionType } from "@gen/common/v1/session_pb";
 
 export type SessionRow = {
   sessionId: string;
   name: string;
   type: SessionType;
+  kind: SessionKind;
+  agentProfile: AgentProfile;
+  agentProfileVersion: string;
   avatarUrl: string;
   unreadCount: string;
   lastReadSeq: string;
@@ -77,12 +80,25 @@ export class ResonanceDb extends Dexie {
 
   constructor(name = "resonance") {
     super(name);
-    this.version(1).stores({
+    const stores = {
       sessions: "sessionId, type, lastEventTs",
       events: "[sessionId+seqId], eventId, [sessionId+timestampMs], clientMsgId",
       outbox: "clientSeq, sessionId, status",
       meta: "key",
-    });
+    };
+    this.version(1).stores(stores);
+    this.version(2)
+      .stores(stores)
+      .upgrade((transaction) =>
+        transaction
+          .table<SessionRow, string>("sessions")
+          .toCollection()
+          .modify((session) => {
+            session.kind ??= SessionKind.UNSPECIFIED;
+            session.agentProfile ??= AgentProfile.UNSPECIFIED;
+            session.agentProfileVersion ??= "0";
+          }),
+      );
   }
 }
 

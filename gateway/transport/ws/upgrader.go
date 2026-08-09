@@ -8,6 +8,7 @@ import (
 
 	"github.com/ceyewan/resonance/gateway/config"
 	"github.com/ceyewan/resonance/gateway/middleware"
+	"github.com/ceyewan/resonance/pkg/userauth"
 )
 
 // Upgrader 处理 WebSocket 连接握手
@@ -56,6 +57,12 @@ func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if traceID == "" {
 		traceID = r.Header.Get(middleware.TraceIDHeader)
 	}
+	principal, ok := userauth.PrincipalFromContext(r.Context())
+	if !ok {
+		h.logger.Warn("websocket connection rejected: missing verified principal", clog.String("remote_addr", r.RemoteAddr))
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 	if traceID == "" {
 		// 使用 OTEL 生成的 TraceID
 		traceID = middleware.GetTraceID(r.Context())
@@ -86,12 +93,13 @@ func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		int64(h.config.MaxMessageSize*1024),
 		h.config.GetPingInterval(),
 		h.config.GetPongTimeout(),
+		WithUserPrincipal(principal),
 	)
 
 	// 管理连接
 	if err := h.connMgr.AddConnection(username, conn); err != nil {
 		h.logger.Error("failed to add connection", clog.String("username", username), clog.Error(err))
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 

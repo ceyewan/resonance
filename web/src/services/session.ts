@@ -1,6 +1,6 @@
 import type { ChatEvent } from "@gen/common/v1/event_pb";
 import type { SessionInfo } from "@gen/common/v1/view_pb";
-import { SessionType } from "@gen/common/v1/session_pb";
+import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
 
 import { getSession, getSessions, replaceSessions, setMeta, upsertSession } from "../db/repo";
 import type { SessionRow } from "../db/schema";
@@ -12,6 +12,9 @@ function createEmptySessionRow(sessionId: string): SessionRow {
     sessionId,
     name: "",
     type: SessionType.UNSPECIFIED,
+    kind: SessionKind.UNSPECIFIED,
+    agentProfile: AgentProfile.UNSPECIFIED,
+    agentProfileVersion: "0",
     avatarUrl: "",
     unreadCount: "0",
     lastReadSeq: "0",
@@ -32,7 +35,7 @@ function previewFromEvent(event: ChatEvent | undefined): string {
 
   switch (event.payload.case) {
     case "message":
-      return event.payload.value.content;
+      return event.payload.value.recalled ? "[消息已撤回]" : event.payload.value.content;
     case "recall":
       return "[消息已撤回]";
     case "edit":
@@ -46,6 +49,10 @@ function previewFromEvent(event: ChatEvent | undefined): string {
   }
 }
 
+function normalizeUnreadCount(value: bigint): string {
+  return toIdString(value > 0n ? value : 0n);
+}
+
 function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): SessionRow {
   const base = existing ?? createEmptySessionRow(snapshot.sessionId);
   const lastEvent = snapshot.lastEvent;
@@ -55,8 +62,11 @@ function toSessionRow(snapshot: SessionInfo, existing: SessionRow | undefined): 
     sessionId: snapshot.sessionId,
     name: snapshot.name,
     type: snapshot.type,
+    kind: snapshot.kind,
+    agentProfile: snapshot.agentProfile,
+    agentProfileVersion: toIdString(snapshot.agentProfileVersion),
     avatarUrl: snapshot.avatarUrl,
-    unreadCount: toIdString(snapshot.unreadCount),
+    unreadCount: normalizeUnreadCount(snapshot.unreadCount),
     lastReadSeq: toIdString(snapshot.lastReadSeq),
     lastEventId: lastEvent === undefined ? "0" : toIdString(lastEvent.eventId),
     lastEventSeqId: lastEvent === undefined ? "0" : toIdString(lastEvent.seqId),
@@ -71,10 +81,6 @@ export async function syncSessionList(): Promise<SessionRow[]> {
     getSessions(),
   ]);
   const existingById = new Map(existingRows.map((row) => [row.sessionId, row]));
-  const { getAccessToken } = await import("../api/transport");
-  if (getAccessToken() === "mock-token-123") {
-    return existingRows;
-  }
   const response = await sessionClient.getSessionList({});
   const nextRows = response.sessions.map((snapshot) =>
     toSessionRow(snapshot, existingById.get(snapshot.sessionId)),
@@ -95,10 +101,6 @@ export async function loadHistory(
   sessionId: string,
   options: LoadHistoryOptions = {},
 ): Promise<number> {
-  const { getAccessToken } = await import("../api/transport");
-  if (getAccessToken() === "mock-token-123") {
-    return 0;
-  }
   const { sessionClient } = await import("../api/clients");
   const response = await sessionClient.getHistoryEvents({
     sessionId,

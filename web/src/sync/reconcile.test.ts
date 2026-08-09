@@ -4,13 +4,16 @@ import { create } from "@bufbuild/protobuf";
 import { ChatEventSchema } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
 import { InboxEventSchema } from "@gen/common/v1/view_pb";
+import { StreamBeginSchema } from "@gen/gateway/v1/packet_pb";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { getEventsBySession, setMeta } from "../db/repo";
 import { db } from "../db/schema";
+import { useAgentStreamStore } from "../stores/agentStream";
+import { handleAgentStreamBegin } from "./agentStream";
 import { reconcileInboxEvent, reconcileWsEvent } from "./reconcile";
 
-function makeMessageEvent(eventId: bigint, seqId: bigint, sessionId: string) {
+function makeMessageEvent(eventId: bigint, seqId: bigint, sessionId: string, clientMsgId = "") {
   return create(ChatEventSchema, {
     eventId,
     seqId,
@@ -23,7 +26,7 @@ function makeMessageEvent(eventId: bigint, seqId: bigint, sessionId: string) {
         type: MessageType.TEXT,
         content: `m-${eventId.toString()}`,
         replyToEventId: 0n,
-        clientMsgId: "",
+        clientMsgId,
         mentionedUsernames: [],
       }),
     },
@@ -40,6 +43,7 @@ async function clearDbForTest(): Promise<void> {
 }
 
 beforeEach(async () => {
+  useAgentStreamStore.getState().reset();
   await clearDbForTest();
   await setMeta({ key: "me_username", value: "alice" });
 });
@@ -75,5 +79,23 @@ describe("reconcile", () => {
 
     const rows = await getEventsBySession(sessionId);
     expect(rows).toHaveLength(1);
+  });
+
+  test("最终消息先落库成功，再按 client_msg_id 对账移除流式临时态", async () => {
+    const sessionId = "s-reconcile-agent";
+    handleAgentStreamBegin(
+      create(StreamBeginSchema, {
+        sessionId,
+        streamId: "stream-reconcile",
+        runId: "run-reconcile",
+        fromUsername: "assistant",
+        finalClientMsgId: "agent:run-reconcile:final",
+      }),
+    );
+
+    await reconcileWsEvent(makeMessageEvent(3_001n, 31n, sessionId, "agent:run-reconcile:final"));
+
+    expect(await getEventsBySession(sessionId)).toHaveLength(1);
+    expect(Object.values(useAgentStreamStore.getState().streamsByKey)).toHaveLength(0);
   });
 });

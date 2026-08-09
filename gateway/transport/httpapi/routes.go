@@ -125,4 +125,9 @@ func (h *HTTPHandler) registerAuthRoutes(group *gin.RouterGroup) {
 	// SessionService: 所有接口都需要认证
 	path, handler := gatewayv1connect.NewSessionServiceHandler(h)
 	group.Any(path+"*any", gin.WrapH(handler))
+
+	// AgentApprovalService: only read/decision APIs are public; Logic performs
+	// the authoritative current-scope check for every request.
+	path, handler = gatewayv1connect.NewAgentApprovalServiceHandler(h)
+	group.Any(path+"*any", gin.WrapH(handler))
 }

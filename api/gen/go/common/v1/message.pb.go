@@ -89,8 +89,11 @@ type Message struct {
 	ReplyToEventId     int64                  `protobuf:"varint,3,opt,name=reply_to_event_id,json=replyToEventId,proto3" json:"reply_to_event_id,omitempty"`
 	ClientMsgId        string                 `protobuf:"bytes,4,opt,name=client_msg_id,json=clientMsgId,proto3" json:"client_msg_id,omitempty"`
 	MentionedUsernames []string               `protobuf:"bytes,5,rep,name=mentioned_usernames,json=mentionedUsernames,proto3" json:"mentioned_usernames,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// recalled is an explicit tombstone marker for authoritative history
+	// snapshots. When true, content and other user-authored fields are empty.
+	Recalled      bool `protobuf:"varint,6,opt,name=recalled,proto3" json:"recalled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Message) Reset() {
@@ -158,17 +161,25 @@ func (x *Message) GetMentionedUsernames() []string {
 	return nil
 }
 
+func (x *Message) GetRecalled() bool {
+	if x != nil {
+		return x.Recalled
+	}
+	return false
+}
+
 var File_common_v1_message_proto protoreflect.FileDescriptor
 
 const file_common_v1_message_proto_rawDesc = "" +
 	"\n" +
-	"\x17common/v1/message.proto\x12\x13resonance.common.v1\"\xd9\x01\n" +
+	"\x17common/v1/message.proto\x12\x13resonance.common.v1\"\xf5\x01\n" +
 	"\aMessage\x124\n" +
 	"\x04type\x18\x01 \x01(\x0e2 .resonance.common.v1.MessageTypeR\x04type\x12\x18\n" +
 	"\acontent\x18\x02 \x01(\tR\acontent\x12)\n" +
 	"\x11reply_to_event_id\x18\x03 \x01(\x03R\x0ereplyToEventId\x12\"\n" +
 	"\rclient_msg_id\x18\x04 \x01(\tR\vclientMsgId\x12/\n" +
-	"\x13mentioned_usernames\x18\x05 \x03(\tR\x12mentionedUsernames*\xa6\x01\n" +
+	"\x13mentioned_usernames\x18\x05 \x03(\tR\x12mentionedUsernames\x12\x1a\n" +
+	"\brecalled\x18\x06 \x01(\bR\brecalled*\xa6\x01\n" +
 	"\vMessageType\x12\x1c\n" +
 	"\x18MESSAGE_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MESSAGE_TYPE_TEXT\x10\x01\x12\x16\n" +

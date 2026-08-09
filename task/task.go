@@ -18,6 +18,7 @@ import (
 	"github.com/ceyewan/resonance/task/dispatcher"
 	"github.com/ceyewan/resonance/task/observability"
 	"github.com/ceyewan/resonance/task/pusher"
+	"github.com/ceyewan/resonance/task/streaming"
 )
 
 // Task 任务服务生命周期管理器
@@ -31,10 +32,11 @@ type Task struct {
 	resources *resources
 
 	// 组件
-	pusherMgr    pusher.PusherManager
-	dispatcher   *dispatcher.Dispatcher
-	consumer     consumerComponent
-	healthServer healthComponent
+	pusherMgr      pusher.PusherManager
+	dispatcher     *dispatcher.Dispatcher
+	consumer       consumerComponent
+	streamConsumer consumerComponent
+	healthServer   healthComponent
 }
 
 // resources 内部资源聚合
@@ -81,7 +83,7 @@ func New() (*Task, error) {
 	}
 
 	if err := t.initComponents(); err != nil {
-		t.Close()
+		_ = t.Close()
 		return nil, err
 	}
 
@@ -144,6 +146,21 @@ func (t *Task) initComponents() error {
 		logger.WithNamespace("consumer"),
 	)
 	t.consumer.SetName("chat_event")
+
+	streamDispatcher, err := streaming.NewDispatcher(res.routerRepo, t.pusherMgr, logger.WithNamespace("agent_stream_dispatcher"))
+	if err != nil {
+		return fmt.Errorf("agent stream dispatcher init: %w", err)
+	}
+	t.streamConsumer, err = streaming.NewConsumer(
+		res.mqClient,
+		streamDispatcher.Handle,
+		t.config.StreamConsumer,
+		t.config.StreamMaxDeltaBytes,
+		logger.WithNamespace("agent_stream_consumer"),
+	)
+	if err != nil {
+		return fmt.Errorf("agent stream consumer init: %w", err)
+	}
 
 	// 7. 健康检查 Server
 	t.healthServer = health.NewServer(t.config.GetHTTPAddr(), logger)
@@ -259,6 +276,12 @@ func (t *Task) Run() error {
 	if err := t.consumer.Start(); err != nil {
 		return fmt.Errorf("consumer start: %w", err)
 	}
+	if t.streamConsumer != nil {
+		if err := t.streamConsumer.Start(); err != nil {
+			_ = t.consumer.Stop()
+			return fmt.Errorf("agent stream consumer start: %w", err)
+		}
+	}
 
 	// 服务就绪，标记健康检查
 	t.healthServer.SetReady(true)
@@ -284,7 +307,12 @@ func (t *Task) Close() error {
 		cancel()
 	}
 
-	// 2. 停止消费
+	// 2. 停止临时流与持久消息摄入
+	if t.streamConsumer != nil {
+		if err := t.streamConsumer.Stop(); err != nil {
+			t.logger.Warn("stop agent stream consumer failed", clog.Error(err))
+		}
+	}
 	if t.consumer != nil {
 		if err := t.consumer.Stop(); err != nil {
 			t.logger.Warn("stop consumer failed", clog.Error(err))
@@ -306,11 +334,11 @@ func (t *Task) Close() error {
 		done := make(chan struct{})
 		go func() {
 			// 按依赖关系逆序关闭
-			t.resources.registry.Close()
-			t.resources.etcdConn.Close()
-			t.resources.natsConn.Close()
-			t.resources.redisConn.Close()
-			t.resources.postgresConn.Close()
+			_ = t.resources.registry.Close()
+			_ = t.resources.etcdConn.Close()
+			_ = t.resources.natsConn.Close()
+			_ = t.resources.redisConn.Close()
+			_ = t.resources.postgresConn.Close()
 			close(done)
 		}()
 

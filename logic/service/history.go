@@ -24,6 +24,9 @@ func (s *SessionService) GetHistoryEvents(ctx context.Context, req *logicv1.GetH
 	if req.SessionId == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "session_id is required")
 	}
+	if err := requireSessionTenant(ctx, s.sessionRepo, req.SessionId, s.allowLegacy); err != nil {
+		return nil, err
+	}
 
 	limit := int(req.Limit)
 	if limit <= 0 {
