@@ -17,6 +17,7 @@ COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml 
 PRETTIER := ./tools/node_modules/.bin/prettier
 MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2
 GOLANGCI_LINT_VERSION ?= 2.12.2
+GOLANGCI_LINT_VERSION_NORMALIZED := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
 
 # ============================================================================
 # 帮助信息
@@ -88,12 +89,12 @@ lint: lint-go lint-proto lint-prettier lint-markdown lint-web ## 一键执行 Go
 lint-go: ## Go 静态检查（golangci-lint）
 	@echo "🔍 Go lint (golangci-lint)..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "❌ 未安装 golangci-lint，请先执行: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)"; \
+		echo "❌ 未安装 golangci-lint，请先执行: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION_NORMALIZED)"; \
 		exit 1; \
 	fi
-	@if ! golangci-lint version 2>/dev/null | grep -Fq "version $(GOLANGCI_LINT_VERSION)"; then \
-		echo "❌ golangci-lint 版本不匹配，需要 $(GOLANGCI_LINT_VERSION)"; \
-		echo "   安装命令: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)"; \
+	@if ! golangci-lint version 2>/dev/null | grep -Fq "version $(GOLANGCI_LINT_VERSION_NORMALIZED)"; then \
+		echo "❌ golangci-lint 版本不匹配，需要 $(GOLANGCI_LINT_VERSION_NORMALIZED)"; \
+		echo "   安装命令: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION_NORMALIZED)"; \
 		exit 1; \
 	fi
 	@golangci-lint run --config .golangci.yaml ./...
