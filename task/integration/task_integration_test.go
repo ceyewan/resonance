@@ -220,7 +220,10 @@ func setupInfra(t *testing.T, logger clog.Logger) *infra {
 			"POSTGRES_USER":     "resonance",
 			"POSTGRES_PASSWORD": "resonance123",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(90 * time.Second),
+		// The image starts a temporary PostgreSQL during initialization, then
+		// restarts it. Waiting for the port alone can race with that restart.
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).WithStartupTimeout(90 * time.Second),
 	}, "5432/tcp")
 	redisContainer, redisHost, redisPort := mustStartContainer(t, testcontainers.ContainerRequest{
 		Image:        "redis:7.2-alpine",

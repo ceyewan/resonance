@@ -18,15 +18,16 @@ import (
 )
 
 type Host struct {
-	config  *Config
-	logger  clog.Logger
-	runtime *pi.Adapter
-	relay   *relay.Relay
-	server  *remote.Server
-	health  *health.Server
-	errors  chan error
-	done    chan struct{}
-	cancel  context.CancelFunc
+	config   *Config
+	logger   clog.Logger
+	runtime  *pi.Adapter
+	relay    *relay.Relay
+	server   *remote.Server
+	provider *deterministicProvider
+	health   *health.Server
+	errors   chan error
+	done     chan struct{}
+	cancel   context.CancelFunc
 
 	mu        sync.Mutex
 	started   bool
@@ -99,8 +100,12 @@ func newHost(config *Config, logger clog.Logger) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime host remote server: %w", err)
 	}
+	provider, err := newDeterministicProviderFromEnvironment()
+	if err != nil {
+		return nil, err
+	}
 	return &Host{
-		config: config, logger: logger, runtime: adapter, relay: toolRelay, server: server,
+		config: config, logger: logger, runtime: adapter, relay: toolRelay, server: server, provider: provider,
 		health: health.NewServer(config.HTTPAddr(), logger), errors: make(chan error, 1), done: make(chan struct{}),
 	}, nil
 }
@@ -121,6 +126,7 @@ func (h *Host) Run() error {
 		defer closeCancel()
 		_ = h.server.Close(closeContext)
 		_ = h.relay.Close(closeContext)
+		_ = h.provider.Close(closeContext)
 		_ = h.health.Stop(closeContext)
 		cancel()
 		return cause
@@ -131,6 +137,9 @@ func (h *Host) Run() error {
 	if err := h.relay.Start(); err != nil {
 		return rollback(fmt.Errorf("runtime host relay: %w", err))
 	}
+	if err := h.provider.Start(); err != nil {
+		return rollback(fmt.Errorf("runtime host deterministic Provider: %w", err))
+	}
 	if err := h.runtime.Probe(ctx); err != nil {
 		return rollback(fmt.Errorf("runtime host Pi probe: %w", err))
 	}
@@ -140,6 +149,9 @@ func (h *Host) Run() error {
 	h.health.SetReady(true)
 	go h.watch(ctx, h.relay.Errors())
 	go h.watch(ctx, h.server.Errors())
+	if h.provider != nil {
+		go h.watch(ctx, h.provider.Errors())
+	}
 	go h.watchShutdown(ctx)
 	h.logger.Info("isolated Pi runtime host ready")
 	return nil
@@ -180,7 +192,7 @@ func (h *Host) Close() error {
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		h.closeErr = errors.Join(h.server.Close(ctx), h.relay.Close(ctx), h.health.Stop(ctx))
+		h.closeErr = errors.Join(h.server.Close(ctx), h.relay.Close(ctx), h.provider.Close(ctx), h.health.Stop(ctx))
 	})
 	return h.closeErr
 }

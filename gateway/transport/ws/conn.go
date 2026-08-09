@@ -33,6 +33,7 @@ type Conn struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	closeOnce  sync.Once
+	onClose    func()
 	remoteAddr string
 
 	// 配置
@@ -109,8 +110,15 @@ func (c *Conn) Close() error {
 	c.closeOnce.Do(func() {
 		c.cancel()
 		_ = c.conn.Close()
+		if c.onClose != nil {
+			c.onClose()
+		}
 	})
 	return nil
+}
+
+func (c *Conn) setOnClose(onClose func()) {
+	c.onClose = onClose
 }
 
 // Run 启动连接的读写协程

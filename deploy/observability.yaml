@@ -1,0 +1,291 @@
+services:
+  etcd:
+    container_name: !reset null
+    ports: !reset []
+    mem_limit: 512m
+    cpus: 1.0
+
+  postgres:
+    container_name: !reset null
+    ports: !reset []
+    mem_limit: 1g
+    cpus: 1.5
+
+  redis:
+    container_name: !reset null
+    ports: !reset []
+    mem_limit: 512m
+    cpus: 1.0
+
+  nats:
+    container_name: !reset null
+    ports: !reset []
+    mem_limit: 512m
+    cpus: 1.0
+
+  logic:
+    container_name: !reset null
+    environment:
+      RESONANCE_LOG_FORMAT: json
+      RESONANCE_LOG_OUTPUT: stdout
+      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-69f02a11319e}
+      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
+      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
+      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
+      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
+      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
+    mem_limit: 768m
+    cpus: 1.5
+
+  init:
+    container_name: !reset null
+    mem_limit: 512m
+    cpus: 1.0
+
+  task:
+    container_name: !reset null
+    environment:
+      RESONANCE_LOG_FORMAT: json
+      RESONANCE_LOG_OUTPUT: stdout
+      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-69f02a11319e}
+      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
+      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
+      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
+      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
+      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:15092/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 1.5
+
+  gateway:
+    container_name: !reset null
+    environment:
+      RESONANCE_LOG_FORMAT: json
+      RESONANCE_LOG_OUTPUT: stdout
+      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-69f02a11319e}
+      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
+      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
+      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
+      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
+      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
+    ports: !override
+      - "127.0.0.1:${RESONANCE_V1_GATEWAY_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    mem_limit: 768m
+    cpus: 1.5
+
+  pilot:
+    container_name: !reset null
+    environment:
+      RESONANCE_LOG_FORMAT: json
+      RESONANCE_LOG_OUTPUT: stdout
+      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-69f02a11319e}
+      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
+      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
+      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
+      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
+      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
+
+  pilot-iam-admin:
+    container_name: !reset null
+    environment:
+      RESONANCE_LOG_FORMAT: json
+      RESONANCE_LOG_OUTPUT: stdout
+      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-69f02a11319e}
+      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
+      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
+      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
+      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
+      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
+
+  web:
+    container_name: !reset null
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:4173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
+    environment:
+      RESONANCE_WEB_API_BASE_URL: http://127.0.0.1:${RESONANCE_V1_GATEWAY_PORT:-18080}
+      RESONANCE_WEB_WS_BASE_URL: ws://127.0.0.1:${RESONANCE_V1_GATEWAY_PORT:-18080}/ws
+    ports: !override
+      - "127.0.0.1:${RESONANCE_V1_WEB_PORT:-14173}:4173"
+    mem_limit: 256m
+    cpus: 0.5
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    logging: &observability-logging
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+  loki:
+    image: grafana/loki:3.4.2
+    command: ["-config.file=/etc/loki/config.yml"]
+    volumes:
+      - ./observability/loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "/usr/bin/loki", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *observability-logging
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    command: ["-config.file=/etc/tempo/config.yml"]
+    volumes:
+      - ./observability/tempo/config.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/var/tempo
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "/tempo", "-version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *observability-logging
+
+  alloy:
+    image: grafana/alloy:v1.8.2
+    command:
+      [
+        "run",
+        "--server.http.listen-addr=0.0.0.0:12345",
+        "--storage.path=/var/lib/alloy",
+        "/etc/alloy/config.alloy",
+      ]
+    volumes:
+      - ./observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    depends_on:
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "/bin/alloy", "--version"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *observability-logging
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    privileged: true
+    devices: [/dev/kmsg]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.75
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *observability-logging
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-resonance-local}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports: ["127.0.0.1:${RESONANCE_V1_GRAFANA_PORT:-13000}:3000"]
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks: [resonance-net]
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    depends_on:
+      prometheus: { condition: service_healthy }
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+      start_period: 15s
+    logging: *observability-logging
+
+  provider-egress-proxy:
+    container_name: !reset null
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "18080"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    logging: *observability-logging
+
+  pilot-storage-init:
+    container_name: !reset null
+    mem_limit: 128m
+    cpus: 0.25
+    logging: *observability-logging
+
+  pilot-runtime:
+    container_name: !reset null
+    logging: *observability-logging
+
+  pilot-iam-admin-runtime:
+    container_name: !reset null
+    logging: *observability-logging
+
+volumes:
+  prometheus-data:
+  loki-data:
+  tempo-data:
+  alloy-data:
+  grafana-data:

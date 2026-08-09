@@ -1,0 +1,27 @@
+Client:
+ Version:           29.4.0
+ API version:       1.54
+ Go version:        go1.26.4
+ Git commit:        9d7ad9f
+ Built:             Thu Jul 30 02:36:38 2026
+ OS/Arch:           darwin/arm64
+ Context:           orbstack
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          29.4.0
+  API version:      1.54 (minimum version 1.40)
+  Go version:       go1.26.1
+  Git commit:       daa0cb7f
+  Built:            Tue Apr  7 08:35:43 2026
+  OS/Arch:          linux/arm64
+  Experimental:     true
+ containerd:
+  Version:          v2.2.2
+  GitCommit:        301b2dac98f15c27117da5c8af12118a041a31d9
+ runc:
+  Version:          1.5.1
+  GitCommit:        bb14dabeb7185bb72c8c86735d090dcb20f36587
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0

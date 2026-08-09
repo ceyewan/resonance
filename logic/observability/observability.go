@@ -38,6 +38,7 @@ var (
 	sendMessageDuration          metrics.Histogram
 	createSessionDuration        metrics.Histogram
 	defaultAgentSessionProvision metrics.Counter
+	outboxBacklog                metrics.Gauge
 )
 
 // Init 初始化可观测性组件
@@ -171,6 +172,10 @@ func initBusinessMetrics() {
 		"logic_default_agent_session_provision_total",
 		"Default Agent session provisioning attempts by bounded trigger and outcome",
 	)
+	outboxBacklog, _ = meter.Gauge(
+		"logic_outbox_backlog",
+		"Current pending outbox batch size observed by the relay",
+	)
 }
 
 // ============================================================================
@@ -242,6 +247,13 @@ func RecordCreateSessionDuration(ctx context.Context, duration time.Duration, la
 func RecordDefaultAgentSessionProvision(ctx context.Context, trigger, outcome string) {
 	if defaultAgentSessionProvision != nil {
 		defaultAgentSessionProvision.Inc(ctx, metrics.L("trigger", trigger), metrics.L("outcome", outcome))
+	}
+}
+
+// SetOutboxBacklog records the bounded pending batch observed by the relay.
+func SetOutboxBacklog(ctx context.Context, count int) {
+	if outboxBacklog != nil {
+		outboxBacklog.Set(ctx, float64(count))
 	}
 }
 

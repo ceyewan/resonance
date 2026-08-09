@@ -37,12 +37,7 @@ func (s *Service) PushEvent(ctx context.Context, req *gatewayv1.PushEventRequest
 	}
 
 	for _, username := range req.ToUsernames {
-		conn, ok := s.connMgr.GetConnection(username)
-		if !ok {
-			failedUsernames = append(failedUsernames, username)
-			continue
-		}
-		if err := conn.Send(packet); err != nil {
+		if err := s.connMgr.SendToUser(username, packet); err != nil {
 			s.logger.Error("failed to send event to user", clog.String("username", username), clog.Error(err))
 			failedUsernames = append(failedUsernames, username)
 		}
@@ -85,12 +80,7 @@ func (s *Service) PushStream(ctx context.Context, req *gatewayv1.PushStreamReque
 	}
 
 	for _, username := range req.ToUsernames {
-		conn, ok := s.connMgr.GetConnection(username)
-		if !ok {
-			failedUsernames = append(failedUsernames, username)
-			continue
-		}
-		if err := conn.Send(packet); err != nil {
+		if err := s.connMgr.SendToUser(username, packet); err != nil {
 			failedUsernames = append(failedUsernames, username)
 		}
 	}

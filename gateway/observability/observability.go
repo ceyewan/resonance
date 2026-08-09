@@ -46,9 +46,7 @@ var (
 	pushFailed   metrics.Counter
 
 	// 业务指标 - HTTP
-	httpRequestsTotal   metrics.Counter
-	httpRequestDuration metrics.Histogram
-	httpErrorsTotal     metrics.Counter
+	httpServerMetrics *metrics.HTTPServerMetrics
 
 	// 业务指标 - gRPC (Push Service)
 	grpcRequestsTotal   metrics.Counter
@@ -195,25 +193,12 @@ func initBusinessMetrics() {
 		"Total number of failed push messages",
 	)
 
-	// HTTP 请求总数
-	httpRequestsTotal, _ = meter.Counter(
-		"gateway_http_requests_total",
-		"Total number of HTTP requests",
-	)
-
-	// HTTP 请求延迟（秒）
-	httpRequestDuration, _ = meter.Histogram(
-		"gateway_http_request_duration_seconds",
-		"HTTP request latency",
-		metrics.WithUnit("s"),
-		metrics.WithBuckets([]float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}),
-	)
-
-	// HTTP 错误总数
-	httpErrorsTotal, _ = meter.Counter(
-		"gateway_http_errors_total",
-		"Total number of HTTP errors",
-	)
+	// HTTP RED 指标由全局 Gin 中间件记录。outcome/status_class 标签用于
+	// 在 Prometheus 中计算真实 4xx/5xx 错误率。
+	httpConfig := metrics.DefaultHTTPServerMetricsConfig(ServiceName)
+	httpConfig.RequestTotalName = "gateway_http_requests_total"
+	httpConfig.RequestDurationName = "gateway_http_request_duration_seconds"
+	httpServerMetrics, _ = metrics.NewHTTPServerMetrics(meter, httpConfig)
 
 	// gRPC 请求总数
 	grpcRequestsTotal, _ = meter.Counter(
@@ -334,29 +319,10 @@ func RecordPushFailed(ctx context.Context, count int, labels ...metrics.Label) {
 }
 
 // ============================================================================
-// Metrics 记录函数 - HTTP
+// HTTPServerMetrics 返回 Gateway HTTP RED 指标集。
 // ============================================================================
 
-// RecordHTTPRequest 记录 HTTP 请求
-func RecordHTTPRequest(ctx context.Context) {
-	if httpRequestsTotal != nil {
-		httpRequestsTotal.Inc(ctx)
-	}
-}
-
-// RecordHTTPRequestDuration 记录 HTTP 请求延迟
-func RecordHTTPRequestDuration(ctx context.Context, duration time.Duration, labels ...metrics.Label) {
-	if httpRequestDuration != nil {
-		httpRequestDuration.Record(ctx, duration.Seconds(), labels...)
-	}
-}
-
-// RecordHTTPError 记录 HTTP 错误
-func RecordHTTPError(ctx context.Context, labels ...metrics.Label) {
-	if httpErrorsTotal != nil {
-		httpErrorsTotal.Inc(ctx, labels...)
-	}
-}
+func HTTPServerMetrics() *metrics.HTTPServerMetrics { return httpServerMetrics }
 
 // ============================================================================
 // Metrics 记录函数 - gRPC

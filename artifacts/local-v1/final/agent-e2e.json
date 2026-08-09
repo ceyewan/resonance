@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-09T11:16:12Z",
+  "read_tool_run_id": "e7c2d692fce81929a97f24db0714e3cb",
+  "mutation_run_id": "f03d9ede3328b1df19bca6192da1204f",
+  "approval_call_id": "deterministic-4a1cb2ab59607a2b",
+  "first_token_ms": 625.155,
+  "read_tool_run_ms": 688.861,
+  "approval_mutation_ms": 702.151
+}
