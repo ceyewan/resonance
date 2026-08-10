@@ -16,6 +16,17 @@ import (
 
 type ConnOption func(*Conn)
 
+func WithParentContext(parent context.Context) ConnOption {
+	return func(conn *Conn) {
+		if parent != nil {
+			// The HTTP upgrade request ends immediately after the socket is handed
+			// off. Preserve its trace/principal values without inheriting request
+			// cancellation into the long-lived WebSocket lifecycle.
+			conn.ctx = context.WithoutCancel(parent)
+		}
+	}
+}
+
 func WithUserPrincipal(principal *userauth.Principal) ConnOption {
 	return func(conn *Conn) {
 		conn.ctx = userauth.WithPrincipal(conn.ctx, principal)
@@ -54,11 +65,6 @@ func NewConn(
 	pongTimeout time.Duration,
 	options ...ConnOption,
 ) *Conn {
-	ctx, cancel := context.WithCancel(context.Background())
-	// 将 trace_id 注入到 Context
-	if traceID != "" {
-		ctx = middleware.WithTraceID(ctx, traceID)
-	}
 	wrapped := &Conn{
 		username:       username,
 		traceID:        traceID,
@@ -66,8 +72,7 @@ func NewConn(
 		send:           make(chan *gatewayv1.WsPacket, 256),
 		logger:         logger,
 		handler:        handler,
-		ctx:            ctx,
-		cancel:         cancel,
+		ctx:            context.Background(),
 		remoteAddr:     conn.RemoteAddr().String(),
 		maxMessageSize: maxMessageSize,
 		pingInterval:   pingInterval,
@@ -76,6 +81,12 @@ func NewConn(
 	for _, option := range options {
 		option(wrapped)
 	}
+	ctx, cancel := context.WithCancel(wrapped.ctx)
+	if traceID != "" {
+		ctx = middleware.WithTraceID(ctx, traceID)
+	}
+	wrapped.ctx = ctx
+	wrapped.cancel = cancel
 	return wrapped
 }
 

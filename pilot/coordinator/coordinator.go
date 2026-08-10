@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ceyewan/genesis/clog"
+
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pilot/identity"
 	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
@@ -109,6 +111,15 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 	runContext = pilotobservability.ExtractPersistedTraceContext(runContext, claimed.TraceContext)
 	runContext, finishSpan := pilotobservability.StartSpan(runContext, "agent.run")
 	defer finishSpan()
+	if c.deps.Logger != nil {
+		c.deps.Logger.InfoContext(runContext, "agent run started",
+			clog.String("tenant_id", claimed.TenantID),
+			clog.String("run_id", claimed.RunID),
+			clog.String("conversation_id", claimed.ConversationID),
+			clog.String("profile_id", claimed.ProfileID),
+			clog.Int("attempt", claimed.Attempt),
+		)
+	}
 	guard := newLeaseGuard(c.deps.Runs, claimed, c.config.LeaseDuration, c.config.HeartbeatInterval, c.now)
 	guard.start(cancelRun)
 	defer guard.stop()

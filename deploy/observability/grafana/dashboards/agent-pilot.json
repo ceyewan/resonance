@@ -59,6 +59,33 @@
           "legendFormat": "stream dropped/s"
         }
       ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Approval / commit / run status",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "type": "datasource", "uid": "-- Mixed --" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (outcome) (rate(pilot_run_duration_seconds_count[5m]))",
+          "legendFormat": "run {{outcome}}/s"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({service_name=~\"logic|pilot\"} | json | msg=~\".*approval.*\" [5m]))",
+          "legendFormat": "approval logs"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({service_name=~\"logic|pilot\"} | json | msg=~\".*(commit|mutation).*\" [5m]))",
+          "legendFormat": "commit/mutation logs"
+        }
+      ]
     }
   ]
 }

@@ -169,11 +169,58 @@ func TestAgentServiceDeterministicCompose(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
+	approvedMutationDuration := time.Since(mutationStarted)
+
+	mutationAgent.ask(t,
+		fmt.Sprintf("[deterministic:set_tenant_member_status username=%s status=ACTIVE]", targetUsername),
+		"resonance-deterministic-tool-complete",
+	)
+	rejectedListRequest := connect.NewRequest(&gatewayv1.ListApprovalsRequest{Status: gatewayv1.AgentApprovalStatus_AGENT_APPROVAL_STATUS_PENDING, PageSize: 100})
+	rejectedListRequest.Header().Set("Authorization", "Bearer "+adminToken)
+	var rejectedApproval *gatewayv1.AgentApproval
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline) && rejectedApproval == nil; {
+		listed, listErr := approvalClient.ListApprovals(ctx, rejectedListRequest)
+		if listErr == nil {
+			for _, candidate := range listed.Msg.GetApprovals() {
+				if candidate.GetRunId() == mutationAgent.lastRunID && candidate.GetToolName() == "set_tenant_member_status" {
+					rejectedApproval = candidate
+					break
+				}
+			}
+		}
+		if rejectedApproval == nil {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	if rejectedApproval == nil {
+		t.Fatal("rejection path did not create a pending approval")
+	}
+	rejectRequest := connect.NewRequest(&gatewayv1.DecideApprovalRequest{
+		CallId: rejectedApproval.GetCallId(), ArgsHash: rejectedApproval.GetArgsHash(), ExpectedVersion: rejectedApproval.GetVersion(),
+		Decision: gatewayv1.AgentApprovalDecision_AGENT_APPROVAL_DECISION_REJECT,
+		Reason:   "local deterministic rejection E2E",
+	})
+	rejectRequest.Header().Set("Authorization", "Bearer "+adminToken)
+	rejected, err := approvalClient.DecideApproval(ctx, rejectRequest)
+	if err != nil || !rejected.Msg.GetChanged() || rejected.Msg.GetApproval().GetStatus() != gatewayv1.AgentApprovalStatus_AGENT_APPROVAL_STATUS_REJECTED {
+		t.Fatalf("reject deterministic mutation: response=%v error=%v", rejected, err)
+	}
+	if loginErr := loginTarget(); connect.CodeOf(loginErr) != connect.CodePermissionDenied && connect.CodeOf(loginErr) != connect.CodeUnauthenticated {
+		t.Fatalf("rejected mutation unexpectedly re-enabled target membership: %v", loginErr)
+	}
+	// Run quota-consuming failures last so their retries cannot starve the
+	// successful Tool and approval paths in the same deterministic E2E.
+	runtimeFailureAgent := newLiveAgent(t, "Deterministic Runtime Failure E2E")
+	runtimeFailureRunID := runtimeFailureAgent.startFailure(t, "[deterministic:runtime_failure]")
+	timeoutAgent := newLiveAgent(t, "Deterministic Timeout E2E")
+	timeoutRunID := timeoutAgent.startFailure(t, "[deterministic:timeout]")
 	writeDeterministicAgentReport(t, deterministicAgentReport{
 		SchemaVersion: 1, GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		ReadToolRunID: ordinary.lastRunID, MutationRunID: mutationAgent.lastRunID, ApprovalCallID: approval.GetCallId(),
+		RejectedApprovalCallID: rejectedApproval.GetCallId(), RuntimeFailureRunID: runtimeFailureRunID,
+		TimeoutRunID: timeoutRunID,
 		FirstTokenMS: durationMS(ordinary.lastFirstTokenDuration), ReadToolRunMS: durationMS(ordinary.lastRunDuration),
-		ApprovalMutationMS: durationMS(time.Since(mutationStarted)),
+		ApprovalMutationMS: durationMS(approvedMutationDuration),
 	})
 	t.Logf("deterministic Agent E2E passed: tool_run=%s mutation_run=%s approval=%s target=%s",
 		ordinary.lastRunID, mutationAgent.lastRunID, approval.GetCallId(), targetUsername)
@@ -190,14 +237,17 @@ type liveAgent struct {
 }
 
 type deterministicAgentReport struct {
-	SchemaVersion      int     `json:"schema_version"`
-	GeneratedAt        string  `json:"generated_at"`
-	ReadToolRunID      string  `json:"read_tool_run_id"`
-	MutationRunID      string  `json:"mutation_run_id"`
-	ApprovalCallID     string  `json:"approval_call_id"`
-	FirstTokenMS       float64 `json:"first_token_ms"`
-	ReadToolRunMS      float64 `json:"read_tool_run_ms"`
-	ApprovalMutationMS float64 `json:"approval_mutation_ms"`
+	SchemaVersion          int     `json:"schema_version"`
+	GeneratedAt            string  `json:"generated_at"`
+	ReadToolRunID          string  `json:"read_tool_run_id"`
+	MutationRunID          string  `json:"mutation_run_id"`
+	ApprovalCallID         string  `json:"approval_call_id"`
+	RejectedApprovalCallID string  `json:"rejected_approval_call_id"`
+	RuntimeFailureRunID    string  `json:"runtime_failure_run_id"`
+	TimeoutRunID           string  `json:"timeout_run_id"`
+	FirstTokenMS           float64 `json:"first_token_ms"`
+	ReadToolRunMS          float64 `json:"read_tool_run_ms"`
+	ApprovalMutationMS     float64 `json:"approval_mutation_ms"`
 }
 
 func requireLiveAgentE2E(t *testing.T) {
@@ -416,6 +466,59 @@ func (agent *liveAgent) ask(t *testing.T, prompt, expected string) string {
 	agent.lastRunID = runID
 	agent.lastRunDuration = time.Since(startedAt)
 	return streamed.String()
+}
+
+func (agent *liveAgent) startFailure(t *testing.T, prompt string) string {
+	t.Helper()
+	if err := agent.connection.SetReadDeadline(time.Now().Add(2 * time.Minute)); err != nil {
+		t.Fatalf("set websocket deadline: %v", err)
+	}
+	clientSequence := fmt.Sprintf("failure-%d", time.Now().UnixNano())
+	packet := &gatewayv1.WsPacket{
+		ClientSeq: clientSequence,
+		Payload: &gatewayv1.WsPacket_ChatRequest{ChatRequest: &gatewayv1.ChatRequest{
+			SessionId: agent.sessionID,
+			Message: &commonv1.Message{Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: prompt,
+				ClientMsgId: fmt.Sprintf("failure-message-%d", time.Now().UnixNano())},
+		}},
+	}
+	payload, err := proto.Marshal(packet)
+	if err != nil {
+		t.Fatalf("marshal failure-path packet: %v", err)
+	}
+	if err := agent.connection.WriteMessage(websocket.BinaryMessage, payload); err != nil {
+		t.Fatalf("send failure-path packet: %v", err)
+	}
+	var ackSeen bool
+	var sourceEventID int64
+	var runID string
+	for {
+		messageType, data, readErr := agent.connection.ReadMessage()
+		if readErr != nil {
+			t.Fatalf("read Agent failure response: %v (ack=%t run=%q)", readErr, ackSeen, runID)
+		}
+		if messageType != websocket.BinaryMessage {
+			continue
+		}
+		incoming := &gatewayv1.WsPacket{}
+		if err := proto.Unmarshal(data, incoming); err != nil {
+			t.Fatalf("unmarshal Agent failure response: %v", err)
+		}
+		switch value := incoming.GetPayload().(type) {
+		case *gatewayv1.WsPacket_Ack:
+			if value.Ack.GetRefClientSeq() == clientSequence && value.Ack.GetEventId() > 0 {
+				ackSeen = true
+				sourceEventID = value.Ack.GetEventId()
+			}
+		case *gatewayv1.WsPacket_StreamBegin:
+			if ackSeen && value.StreamBegin.GetSourceEventId() == sourceEventID {
+				runID := value.StreamBegin.GetRunId()
+				if runID != "" {
+					return runID
+				}
+			}
+		}
+	}
 }
 
 func writeDeterministicAgentReport(t *testing.T, report deterministicAgentReport) {

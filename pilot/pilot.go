@@ -394,7 +394,8 @@ func newProduction(cfg *config.Config, logger clog.Logger) (_ *Pilot, returnedEr
 		HeartbeatInterval: cfg.Worker.HeartbeatInterval, RunTimeout: cfg.Worker.RunTimeout,
 		RetryBackoff: cfg.Worker.RetryBackoff, MaxProviderCalls: cfg.Profile.MaxProviderCalls,
 	}, coordinator.Dependencies{
-		Runs: runRepo, Runtime: runtimeAdapter, Sessions: sessionManager, Profiles: profiles,
+		Logger: logger,
+		Runs:   runRepo, Runtime: runtimeAdapter, Sessions: sessionManager, Profiles: profiles,
 		Principals: principals, Capabilities: capabilities, FinalMessages: finalWriter,
 		History: historyBuilder, Events: observedStreamSink,
 	})

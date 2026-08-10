@@ -56,6 +56,15 @@ func TestDeterministicProviderRejectsUnauthorizedRequests(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, response.Code)
 }
 
+func TestDeterministicProviderFailureMarkersSurviveProviderRetryHistory(t *testing.T) {
+	messages := []deterministicChatMessage{
+		{Role: "user", Content: "[deterministic:runtime_failure]"},
+		{Role: "assistant", Content: "provider retry context"},
+	}
+	require.True(t, deterministicUserHistoryContains(messages, "[deterministic:runtime_failure]"))
+	require.False(t, deterministicUserHistoryContains(messages, "[deterministic:timeout]"))
+}
+
 func quoteJSON(value string) string {
 	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value) + `"`
 }

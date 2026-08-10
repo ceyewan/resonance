@@ -9,12 +9,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-printf '%s\n' '{"Status":"running","Running":true,"Health":"healthy","RestartCount":0}' \
+printf '%s\n' '{"Status":"running","Running":true,"Health":"healthy","RestartCount":0,"first_token_ms":12,"model_tokens":15}' \
   >"$test_dir/safe.json"
 deploy/scripts/check-evidence-secrets.sh "$test_dir/safe.json" >/dev/null
 
 printf '%s\n' '{"SERVICE_SIGNING_SECRET":"synthetic-test-value"}' \
   >"$test_dir/unsafe.json"
+printf '%s\n' '{"access_token":"synthetic-test-value"}' \
+  >"$test_dir/unsafe-token.json"
 set +e
 deploy/scripts/check-evidence-secrets.sh "$test_dir" >/dev/null 2>&1
 match_rc=$?

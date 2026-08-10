@@ -120,9 +120,23 @@ func (p *deterministicProvider) handleChatCompletion(writer http.ResponseWriter,
 	}
 	last := chatRequest.Messages[len(chatRequest.Messages)-1]
 	text := deterministicMessageText(last.Content)
-	if last.Role == "user" && strings.Contains(text, "[deterministic:runtime_failure]") {
+	if deterministicUserHistoryContains(chatRequest.Messages, "[deterministic:runtime_failure]") {
 		http.Error(writer, "deterministic runtime failure", http.StatusServiceUnavailable)
 		return
+	}
+	if deterministicUserHistoryContains(chatRequest.Messages, "[deterministic:timeout]") {
+		// The local Runtime request timeout is five seconds. Keeping this path
+		// deterministic and just beyond that bound gives the Compose E2E a real
+		// timeout without contacting a cloud Provider.
+		timer := time.NewTimer(6 * time.Second)
+		defer timer.Stop()
+		select {
+		case <-request.Context().Done():
+			return
+		case <-timer.C:
+			http.Error(writer, "deterministic timeout exceeded", http.StatusGatewayTimeout)
+			return
+		}
 	}
 
 	writer.Header().Set("Content-Type", "text/event-stream")
@@ -148,6 +162,15 @@ func (p *deterministicProvider) handleChatCompletion(writer http.ResponseWriter,
 		reply = "resonance-deterministic-tool-complete"
 	}
 	p.writeText(writer, completionID, reply)
+}
+
+func deterministicUserHistoryContains(messages []deterministicChatMessage, marker string) bool {
+	for _, message := range messages {
+		if message.Role == "user" && strings.Contains(deterministicMessageText(message.Content), marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func deterministicMessageText(content any) string {

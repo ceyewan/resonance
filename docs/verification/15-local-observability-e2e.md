@@ -2,6 +2,11 @@
 
 Date: 2026-08-09. Compose project: `resonance-v1`.
 
+> Historical RC1 evidence only. This record must not be used as proof that
+> Resonance adopted the public Genesis RC2 module. The RC2 adoption closeout
+> has a separate immutable bundle and manifest defined in
+> `23-genesis-rc2-adoption-stage3.md`.
+
 ## Release binding
 
 - Resonance base: `69f02a11319e2adb58b20d7671647f523c18b8b2`.

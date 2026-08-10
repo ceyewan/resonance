@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/ceyewan/resonance/gateway/pushserver"
-	"github.com/ceyewan/resonance/pkg/grpctrace"
 )
 
 // GRPCServer gRPC 服务包装器
@@ -34,13 +34,12 @@ func NewGRPCServer(addr string, logger clog.Logger, pushService *pushserver.Serv
 // Start 启动 gRPC 服务
 func (s *GRPCServer) Start() error {
 	s.server = grpc.NewServer(
+		grpc.StatsHandler(genesistrace.GRPCServerStatsHandler()),
 		grpc.ChainUnaryInterceptor(
-			grpctrace.UnaryServerInterceptor(),
 			s.recoveryUnaryInterceptor,
 			s.loggerUnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
-			grpctrace.StreamServerInterceptor(),
 			s.recoveryStreamInterceptor,
 			s.loggerStreamInterceptor,
 		),

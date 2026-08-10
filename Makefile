@@ -256,3 +256,7 @@ benchmark-local: ## 生成固定参数、机器可读的本地性能基线
 down-observability: ## 停止隔离环境但保留全部 volumes
 	@chmod +x deploy/scripts/local-v1.sh
 	@./deploy/scripts/local-v1.sh down
+
+finalize-stage3-rc2: ## 从 stopped main 运行并归档 Genesis RC2 阶段三最终矩阵
+	@chmod +x deploy/scripts/finalize-stage3-rc2.sh
+	@./deploy/scripts/finalize-stage3-rc2.sh
