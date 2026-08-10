@@ -50,7 +50,7 @@ jobs:
       - name: Verify published Genesis module identity
         run: |
           go mod verify
-          test "$(go list -m -f '{{.Version}} {{.Sum}} {{.GoModSum}}' github.com/ceyewan/genesis)" = "v1.0.0-rc.1 h1:X3VK5VpPxIrgyzQsPPPSHQHaiNvMhhT/wcGCWkuFS8U= h1:VUPsG33Toz8lKJk2tEkgeWd7SFMIDjYtwvzYOuQmRU4="
+          test "$(go list -m -f '{{.Version}} {{.Sum}} {{.GoModSum}}' github.com/ceyewan/genesis)" = "v1.0.0-rc.2 h1:YtB2IJHqJ5ZucCDL7KfDPU3pyM9/yAotI0xUNlFEIaA= h1:Uysrd3364pkU2OguYEWKyMVkgGvq3x/4dpC/QD8v8OA="
 
       # repo/ 层测试依赖 testcontainers 自动拉起 postgres/redis 镜像，
       # ubuntu-latest runner 自带 Docker daemon，无需额外 services。
