@@ -73,6 +73,8 @@ must_reject hosted-ci "$fixtures/ci-wrong-name.json" abc
 jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t1",delivered:{stream_seq:10},ack_floor:{stream_seq:10}}]}]}]}' >"$fixtures/nats-before.json"
 jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"replacement",created:"t2",delivered:{stream_seq:11},ack_floor:{stream_seq:11}}]}]}]}' >"$fixtures/nats-replaced.json"
 must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-replaced.json"
+jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t2",delivered:{stream_seq:11},ack_floor:{stream_seq:11}}]}]}]}' >"$fixtures/nats-recreated-same-name.json"
+must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-recreated-same-name.json"
 jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t1",delivered:{stream_seq:11},ack_floor:{stream_seq:10}}]}]}]}' >"$fixtures/nats-valid.json"
 "$validator" nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-valid.json"
 
@@ -85,6 +87,8 @@ jq -n '{sequencer:{key:"seq",value:"11"},allocators:[{key:"a",value:"1",pttl_ms:
 jq -n '{registrations:[{key:"logic/1",value:"v",lease_id:1},{key:"gateway/1",value:"v",lease_id:2}],watch_probe:{service_name:"logic-service",before:2,after:2}}' >"$fixtures/etcd-before.json"
 cp "$fixtures/etcd-before.json" "$fixtures/etcd-no-watch.json"
 must_reject etcd-continuity "$fixtures/etcd-before.json" "$fixtures/etcd-no-watch.json"
+jq '(.registrations[0].lease_id)=3 | (.registrations[1].lease_id)=4 | .watch_probe.after=3' "$fixtures/etcd-before.json" >"$fixtures/etcd-recreated-leases.json"
+must_reject etcd-continuity "$fixtures/etcd-before.json" "$fixtures/etcd-recreated-leases.json"
 jq '.watch_probe.after=3' "$fixtures/etcd-before.json" >"$fixtures/etcd-valid.json"
 "$validator" etcd-continuity "$fixtures/etcd-before.json" "$fixtures/etcd-valid.json"
 

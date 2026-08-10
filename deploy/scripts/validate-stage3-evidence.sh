@@ -81,6 +81,7 @@ case "${1:-}" in
       ($b | length) > 0 and
       ([$b[].key] == [$a[].key]) and
       all(range(0; $b|length);
+        $a[.].created == $b[.].created and
         $a[.].delivered >= $b[.].delivered and
         $a[.].ack_floor >= $b[.].ack_floor)
     ' >/dev/null
@@ -104,8 +105,9 @@ case "${1:-}" in
     jq -n -e --slurpfile before "$before" --slurpfile after "$after" '
       $before[0] as $b | $after[0] as $a |
       ($b.registrations | length) >= 2 and
-      ([$b.registrations[] | {key,value}] | sort_by(.key)) ==
-        ([$a.registrations[] | {key,value}] | sort_by(.key)) and
+      ([$b.registrations[] | {key,value,lease_id}] | sort_by(.key)) ==
+        ([$a.registrations[] | {key,value,lease_id}] | sort_by(.key)) and
+      all($b.registrations[]; .lease_id > 0) and
       all($a.registrations[]; .lease_id > 0) and
       $a.watch_probe.service_name == "logic-service" and
       $a.watch_probe.after > $a.watch_probe.before
