@@ -49,6 +49,12 @@ Task 当前采用单消费者模型：
 
 - 存储失败：返回 error，Consumer `NAK`，等待 MQ 重试
 - 推送失败：只记录日志与指标，不 `NAK`，依赖 Inbox 与客户端重连补偿
+- 每个 Task 实例使用无缓冲 worker 交接和单条 JetStream pull 预取；不改写共享 durable 的集群级 `MaxAckPending`
+- 长处理期间每隔 `progress_interval` 调用 JetStream `InProgress`，避免超过 `ack_wait`
+
+JetStream 的实例级 pull 限制与 `InProgress` 由 Genesis `v1.0.0-rc.2`
+提供。候选代码可在 rc1 上编译以便预发布联测，但合并/部署前必须把 `go.mod`
+升级到已发布的 rc2；否则这两项运行时能力不会生效。
 
 ## 核心模块
 

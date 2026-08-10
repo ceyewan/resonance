@@ -37,7 +37,7 @@ jobs:
 
   go-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,6 +56,9 @@ jobs:
       # ubuntu-latest runner 自带 Docker daemon，无需额外 services。
       - name: Run Go tests
         run: make test-go
+
+      - name: Run full Go race suite
+        run: go test -race -count=1 ./...
 
       - name: Run Agent multi-tenant isolation race gate
         run: go test -race ./pilot/isolation -run '^TestConcurrentTenantIsolation$' -count=5

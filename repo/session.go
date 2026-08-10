@@ -144,16 +144,7 @@ func NewSessionRepo(database db.DB, opts ...SessionRepoOption) (SessionRepo, err
 	if options.logger != nil {
 		logger = options.logger.WithNamespace("session_repo")
 	} else {
-		var err error
-		logger, err = clog.New(&clog.Config{
-			Level:  "info",
-			Format: "json",
-			Output: "/dev/null",
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default logger: %w", err)
-		}
-		logger = logger.WithNamespace("session_repo")
+		logger = clog.Discard().WithNamespace("session_repo")
 	}
 
 	return &sessionRepo{

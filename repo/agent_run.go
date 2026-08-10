@@ -66,11 +66,7 @@ func NewAgentRunRepo(database db.DB, opts ...AgentRunRepoOption) (AgentRunRepo, 
 
 	logger := options.logger
 	if logger == nil {
-		var err error
-		logger, err = clog.New(&clog.Config{Level: "info", Format: "json", Output: "/dev/null"})
-		if err != nil {
-			return nil, fmt.Errorf("create default logger: %w", err)
-		}
+		logger = clog.Discard()
 	}
 
 	return &agentRunRepo{

@@ -158,15 +158,9 @@ func (l *Logic) initComponents() error {
 		return fmt.Errorf("msgID generator init: %w", err)
 	}
 	res.msgIDGen = msgIDGen
-
-	sessionIDGen, err := idgen.NewGenerator(&idgen.GeneratorConfig{
-		Mode:     idgen.GeneratorModeSingleDC,
-		WorkerID: instanceID,
-	}, idgen.WithMeter(observability.Meter()))
-	if err != nil {
-		return fmt.Errorf("sessionID generator init: %w", err)
-	}
-	res.sessionIDGen = sessionIDGen
+	// Message/Event ID 与生成型 Session ID 共享同一状态机。即使未来两个
+	// namespace 被汇总或比较，也不会因两个相同 worker tuple 的独立序列而碰撞。
+	res.sessionIDGen = msgIDGen
 
 	// 监听保活失败
 	go func() {

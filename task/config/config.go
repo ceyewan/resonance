@@ -85,12 +85,13 @@ func (c *RegistryConfig) ToRegistryConfig() *registry.Config {
 
 // ConsumerConfig MQ 消费者配置
 type ConsumerConfig struct {
-	Topic         string `mapstructure:"topic"`          // 订阅的主题
-	QueueGroup    string `mapstructure:"queue_group"`    // 队列组名称
-	WorkerCount   int    `mapstructure:"worker_count"`   // 并发处理协程数
-	MaxRetry      int    `mapstructure:"max_retry"`      // 最大重试次数
-	RetryInterval int    `mapstructure:"retry_interval"` // 重试间隔（秒）
-	DLQTopic      string `mapstructure:"dlq_topic"`      // 死信队列主题（无法解析的消息转投此处）
+	Topic            string        `mapstructure:"topic"`             // 订阅的主题
+	QueueGroup       string        `mapstructure:"queue_group"`       // 队列组名称
+	WorkerCount      int           `mapstructure:"worker_count"`      // 单实例并发处理协程数
+	MaxRetry         int           `mapstructure:"max_retry"`         // 最大重试次数
+	RetryInterval    int           `mapstructure:"retry_interval"`    // 重试间隔（秒）
+	ProgressInterval time.Duration `mapstructure:"progress_interval"` // JetStream 长处理续期周期
+	DLQTopic         string        `mapstructure:"dlq_topic"`         // 死信队列主题（无法解析的消息转投此处）
 }
 
 // GetHTTPAddr 获取 HTTP 健康检查地址，默认 :15092
@@ -142,6 +143,9 @@ func Load() (*Config, error) {
 	if cfg.Consumer.RetryInterval <= 0 {
 		cfg.Consumer.RetryInterval = 5
 	}
+	if cfg.Consumer.ProgressInterval == 0 {
+		cfg.Consumer.ProgressInterval = 10 * time.Second
+	}
 	if cfg.Consumer.Topic == "" {
 		cfg.Consumer.Topic = "resonance.chat.event.v1"
 	}
@@ -156,6 +160,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.StreamConsumer.MaxRetry <= 0 {
 		cfg.StreamConsumer.MaxRetry = 2
+	}
+	if cfg.StreamConsumer.ProgressInterval == 0 {
+		cfg.StreamConsumer.ProgressInterval = 10 * time.Second
 	}
 	if cfg.StreamConsumer.Topic == "" {
 		cfg.StreamConsumer.Topic = "resonance.agent.stream.v1"
@@ -180,17 +187,24 @@ func Load() (*Config, error) {
 
 func (c *Config) Validate() error {
 	if c.Consumer.Topic == "" || c.Consumer.QueueGroup == "" || c.Consumer.WorkerCount < 1 ||
-		c.Consumer.MaxRetry < 1 || c.Consumer.RetryInterval < 0 || c.Consumer.DLQTopic == "" {
+		c.Consumer.MaxRetry < 1 || c.Consumer.RetryInterval < 0 || c.Consumer.ProgressInterval < 0 || c.Consumer.DLQTopic == "" {
 		return fmt.Errorf("task durable consumer configuration is invalid")
 	}
 	if c.StreamConsumer.Topic == "" || c.StreamConsumer.QueueGroup == "" || c.StreamConsumer.WorkerCount < 1 ||
-		c.StreamConsumer.MaxRetry < 1 || c.StreamConsumer.RetryInterval < 0 || c.StreamConsumer.DLQTopic == "" ||
+		c.StreamConsumer.MaxRetry < 1 || c.StreamConsumer.RetryInterval < 0 || c.StreamConsumer.ProgressInterval < 0 || c.StreamConsumer.DLQTopic == "" ||
 		c.StreamMaxDeltaBytes < 1 {
 		return fmt.Errorf("task agent stream consumer configuration is invalid")
 	}
 	if c.StreamConsumer.Topic == c.Consumer.Topic || c.StreamConsumer.QueueGroup == c.Consumer.QueueGroup ||
 		c.StreamConsumer.DLQTopic == c.Consumer.DLQTopic {
 		return fmt.Errorf("task agent stream channel must be isolated from durable chat events")
+	}
+	ackWait := c.JetStream.AckWait
+	if ackWait == 0 {
+		ackWait = 30 * time.Second
+	}
+	if c.Consumer.ProgressInterval >= ackWait || c.StreamConsumer.ProgressInterval >= ackWait {
+		return fmt.Errorf("task consumer progress_interval must be less than jetstream ack_wait")
 	}
 	return nil
 }
