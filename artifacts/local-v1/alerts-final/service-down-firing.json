@@ -1,0 +1,19 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": {
+          "alertname": "ServiceDown",
+          "instance": "task:9090",
+          "job": "resonance",
+          "severity": "critical"
+        },
+        "annotations": { "summary": "Resonance service target is down" },
+        "state": "firing",
+        "activeAt": "2026-08-09T12:41:52.080619359Z",
+        "value": "0e+00"
+      }
+    ]
+  }
+}

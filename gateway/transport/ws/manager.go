@@ -14,7 +14,8 @@ import (
 
 // Manager 管理所有 WebSocket 连接
 type Manager struct {
-	connections sync.Map // username -> *Conn
+	mu          sync.RWMutex
+	connections map[string]map[*Conn]struct{}
 	logger      clog.Logger
 	upgrader    *websocket.Upgrader
 
@@ -31,6 +32,7 @@ func NewManager(
 	onDisconnect func(username string) error,
 ) *Manager {
 	return &Manager{
+		connections:  make(map[string]map[*Conn]struct{}),
 		logger:       logger,
 		upgrader:     upgrader,
 		onConnect:    onConnect,
@@ -40,14 +42,19 @@ func NewManager(
 
 // AddConnection 添加连接
 func (m *Manager) AddConnection(username string, conn *Conn) error {
-	// 检查是否已存在连接，如果存在则关闭旧连接
-	if oldConn, ok := m.connections.Load(username); ok {
-		m.logger.Warn("user already connected, closing old connection",
-			clog.String("username", username))
-		_ = oldConn.(*Conn).Close()
+	m.mu.Lock()
+	userConnections, ok := m.connections[username]
+	if !ok {
+		userConnections = make(map[*Conn]struct{})
+		m.connections[username] = userConnections
 	}
-
-	m.connections.Store(username, conn)
+	_, exists := userConnections[conn]
+	userConnections[conn] = struct{}{}
+	m.mu.Unlock()
+	if exists {
+		return nil
+	}
+	conn.setOnClose(func() { m.RemoveConnection(username, conn) })
 	m.logger.Info("user connected",
 		clog.String("username", username),
 		clog.String("remote_addr", conn.RemoteAddr()))
@@ -56,12 +63,15 @@ func (m *Manager) AddConnection(username string, conn *Conn) error {
 	observability.RecordWebSocketConnectionEstablished(context.Background())
 	m.OnlineCount()
 
-	// 触发上线回调
-	if m.onConnect != nil {
+	// A user is online while any of their devices is connected. Only publish the
+	// presence transition for the first device.
+	if !ok && m.onConnect != nil {
 		if err := m.onConnect(username, conn.RemoteAddr()); err != nil {
 			m.logger.Error("failed to notify user online",
 				clog.String("username", username),
 				clog.Error(err))
+			m.removeConnection(username, conn, false)
+			_ = conn.Close()
 			return err
 		}
 	}
@@ -70,18 +80,89 @@ func (m *Manager) AddConnection(username string, conn *Conn) error {
 }
 
 // RemoveConnection 移除连接
-func (m *Manager) RemoveConnection(username string) {
-	if conn, ok := m.connections.LoadAndDelete(username); ok {
-		_ = conn.(*Conn).Close()
-		m.logger.Info("user disconnected", clog.String("username", username))
+func (m *Manager) RemoveConnection(username string, conn *Conn) {
+	m.removeConnection(username, conn, true)
+}
 
-		// 更新在线连接数
-		m.OnlineCount()
+func (m *Manager) removeConnection(username string, conn *Conn, notify bool) {
+	m.mu.Lock()
+	userConnections, ok := m.connections[username]
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	if _, ok = userConnections[conn]; !ok {
+		m.mu.Unlock()
+		return
+	}
+	delete(userConnections, conn)
+	lastConnection := len(userConnections) == 0
+	if lastConnection {
+		delete(m.connections, username)
+	}
+	m.mu.Unlock()
 
-		// 触发下线回调
-		if m.onDisconnect != nil {
-			if err := m.onDisconnect(username); err != nil {
-				m.logger.Error("failed to notify user offline",
+	m.logger.Info("user device disconnected", clog.String("username", username))
+	m.OnlineCount()
+	if notify && lastConnection && m.onDisconnect != nil {
+		if err := m.onDisconnect(username); err != nil {
+			m.logger.Error("failed to notify user offline",
+				clog.String("username", username),
+				clog.Error(err))
+		}
+	}
+}
+
+// GetConnection 获取连接
+func (m *Manager) GetConnection(username string) (*Conn, bool) {
+	connections := m.GetConnections(username)
+	if len(connections) > 0 {
+		return connections[0], true
+	}
+	return nil, false
+}
+
+// GetConnections returns a stable snapshot of all connected devices for a user.
+func (m *Manager) GetConnections(username string) []*Conn {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	userConnections := m.connections[username]
+	connections := make([]*Conn, 0, len(userConnections))
+	for conn := range userConnections {
+		connections = append(connections, conn)
+	}
+	return connections
+}
+
+// SendToUser 发送消息给指定用户
+func (m *Manager) SendToUser(username string, packet *gatewayv1.WsPacket) error {
+	connections := m.GetConnections(username)
+	if len(connections) == 0 {
+		return fmt.Errorf("user not connected: %s", username)
+	}
+	var sendErr error
+	for _, conn := range connections {
+		if err := conn.Send(packet); err != nil {
+			sendErr = fmt.Errorf("send to device: %w", err)
+		}
+	}
+	return sendErr
+}
+
+// Broadcast 广播消息给所有在线用户
+func (m *Manager) Broadcast(packet *gatewayv1.WsPacket) {
+	m.mu.RLock()
+	connections := make(map[string][]*Conn, len(m.connections))
+	for username, userConnections := range m.connections {
+		for conn := range userConnections {
+			connections[username] = append(connections[username], conn)
+		}
+	}
+	m.mu.RUnlock()
+	for username, userConnections := range connections {
+		for _, conn := range userConnections {
+			if err := conn.Send(packet); err != nil {
+				m.logger.Error("failed to broadcast message",
 					clog.String("username", username),
 					clog.Error(err))
 			}
@@ -89,43 +170,14 @@ func (m *Manager) RemoveConnection(username string) {
 	}
 }
 
-// GetConnection 获取连接
-func (m *Manager) GetConnection(username string) (*Conn, bool) {
-	if conn, ok := m.connections.Load(username); ok {
-		return conn.(*Conn), true
-	}
-	return nil, false
-}
-
-// SendToUser 发送消息给指定用户
-func (m *Manager) SendToUser(username string, packet *gatewayv1.WsPacket) error {
-	conn, ok := m.GetConnection(username)
-	if !ok {
-		return fmt.Errorf("user not connected: %s", username)
-	}
-	return conn.Send(packet)
-}
-
-// Broadcast 广播消息给所有在线用户
-func (m *Manager) Broadcast(packet *gatewayv1.WsPacket) {
-	m.connections.Range(func(key, value any) bool {
-		conn := value.(*Conn)
-		if err := conn.Send(packet); err != nil {
-			m.logger.Error("failed to broadcast message",
-				clog.String("username", key.(string)),
-				clog.Error(err))
-		}
-		return true
-	})
-}
-
 // OnlineCount 获取在线用户数
 func (m *Manager) OnlineCount() int {
+	m.mu.RLock()
 	count := 0
-	m.connections.Range(func(key, value any) bool {
-		count++
-		return true
-	})
+	for _, userConnections := range m.connections {
+		count += len(userConnections)
+	}
+	m.mu.RUnlock()
 	// 更新可观测性指标
 	observability.SetWebSocketConnectionsActive(context.Background(), count)
 	return count
@@ -133,11 +185,17 @@ func (m *Manager) OnlineCount() int {
 
 // Close 关闭所有连接
 func (m *Manager) Close() error {
-	m.connections.Range(func(key, value any) bool {
-		conn := value.(*Conn)
+	m.mu.RLock()
+	connections := make([]*Conn, 0)
+	for _, userConnections := range m.connections {
+		for conn := range userConnections {
+			connections = append(connections, conn)
+		}
+	}
+	m.mu.RUnlock()
+	for _, conn := range connections {
 		_ = conn.Close()
-		return true
-	})
+	}
 	return nil
 }
 

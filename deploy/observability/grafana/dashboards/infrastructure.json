@@ -1,0 +1,63 @@
+{
+  "uid": "resonance-infrastructure",
+  "title": "Infrastructure",
+  "tags": ["resonance", "infra"],
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Container CPU",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"resonance-.*\"}[1m]))",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Container memory",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "container_memory_working_set_bytes{name=~\"resonance-.*\"}",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Go runtime and DB pools",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (job) (go_goroutines)",
+          "legendFormat": "goroutines {{job}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (job) (go_memstats_heap_alloc_bytes)",
+          "legendFormat": "heap {{job}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (job) (go_sql_connections_open)",
+          "legendFormat": "db conns {{job}}"
+        }
+      ]
+    }
+  ]
+}

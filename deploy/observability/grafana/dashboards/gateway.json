@@ -1,0 +1,51 @@
+{
+  "uid": "resonance-gateway",
+  "title": "Gateway",
+  "tags": ["resonance"],
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "HTTP and gRPC rate",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "rate(gateway_http_requests_total[1m])", "legendFormat": "HTTP" },
+        { "refId": "B", "expr": "rate(gateway_grpc_requests_total[1m])", "legendFormat": "gRPC" }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "WebSocket connections",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "gateway_websocket_connections_active", "legendFormat": "active" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Push failures and latency",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(gateway_push_failed_total[1m])",
+          "legendFormat": "failures/s"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(gateway_push_duration_seconds_bucket[5m])))",
+          "legendFormat": "P95"
+        }
+      ]
+    }
+  ]
+}

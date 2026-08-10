@@ -1,0 +1,14 @@
+{
+  "status": "success",
+  "data": {
+    "alerts": [
+      {
+        "labels": { "alertname": "APIHighErrorRate", "severity": "warning" },
+        "annotations": { "summary": "Gateway HTTP 4xx/5xx error rate exceeds 20%" },
+        "state": "firing",
+        "activeAt": "2026-08-09T12:45:12.080619359Z",
+        "value": "9.939759036144578e-01"
+      }
+    ]
+  }
+}

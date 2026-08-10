@@ -69,6 +69,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install evidence scanner dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
+      - name: Test evidence scanner fail-closed behavior
+        run: ./deploy/scripts/test-evidence-secret-scan.sh
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

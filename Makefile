@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod rollback-agent-validate down down-prod logs logs-prod clean
+.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod rollback-agent-validate down down-prod logs logs-prod clean up-observability verify-local-v1 recovery-local-v1 alerts-local-v1 benchmark-local down-observability
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -232,3 +232,27 @@ clean: ## 清理所有数据（包括 volumes）
 	@echo "🗑️  清理数据..."
 	@$(COMPOSE) down -v
 	@echo "✅ 已清理"
+
+up-observability: ## 从精确 v1 候选构建并启动隔离的本地完整环境
+	@chmod +x deploy/scripts/local-v1.sh
+	@./deploy/scripts/local-v1.sh up
+
+verify-local-v1: ## 验证业务 E2E 与 Prometheus/Loki/Tempo 数据链路
+	@chmod +x deploy/scripts/verify-local-v1.sh
+	@./deploy/scripts/verify-local-v1.sh
+
+recovery-local-v1: ## 非破坏性执行服务、依赖与 telemetry 恢复验证
+	@chmod +x deploy/scripts/recovery-local-v1.sh
+	@./deploy/scripts/recovery-local-v1.sh
+
+alerts-local-v1: ## 实际触发并保存本地告警证据
+	@chmod +x deploy/scripts/alerts-local-v1.sh
+	@./deploy/scripts/alerts-local-v1.sh
+
+benchmark-local: ## 生成固定参数、机器可读的本地性能基线
+	@chmod +x deploy/scripts/benchmark-local.sh
+	@./deploy/scripts/benchmark-local.sh
+
+down-observability: ## 停止隔离环境但保留全部 volumes
+	@chmod +x deploy/scripts/local-v1.sh
+	@./deploy/scripts/local-v1.sh down

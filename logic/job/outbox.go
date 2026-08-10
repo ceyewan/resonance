@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/mq"
 
 	"github.com/ceyewan/resonance/logic/config"
+	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/repo"
 )
@@ -84,6 +85,7 @@ func (j *OutboxRelay) processPendingMessages(ctx context.Context) {
 		j.logger.Error("failed to get pending messages", clog.Error(err))
 		return
 	}
+	observability.SetOutboxBacklog(ctx, len(messages))
 
 	if len(messages) == 0 {
 		return

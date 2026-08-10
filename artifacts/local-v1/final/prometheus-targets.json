@@ -1,0 +1,209 @@
+{
+  "status": "success",
+  "data": {
+    "activeTargets": [
+      {
+        "discoveredLabels": {
+          "__address__": "alloy:12345",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "alloy"
+        },
+        "labels": { "instance": "alloy:12345", "job": "alloy" },
+        "scrapePool": "alloy",
+        "scrapeUrl": "http://alloy:12345/metrics",
+        "globalUrl": "http://alloy:12345/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:06.584498375Z",
+        "lastScrapeDuration": 0.007870324,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "cadvisor:8080",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "cadvisor"
+        },
+        "labels": { "instance": "cadvisor:8080", "job": "cadvisor" },
+        "scrapePool": "cadvisor",
+        "scrapeUrl": "http://cadvisor:8080/metrics",
+        "globalUrl": "http://cadvisor:8080/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:05.313516371Z",
+        "lastScrapeDuration": 0.085633226,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "loki:3100",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "loki"
+        },
+        "labels": { "instance": "loki:3100", "job": "loki" },
+        "scrapePool": "loki",
+        "scrapeUrl": "http://loki:3100/metrics",
+        "globalUrl": "http://loki:3100/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:15:59.389632873Z",
+        "lastScrapeDuration": 0.017553937,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "prometheus:9090",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "prometheus"
+        },
+        "labels": { "instance": "prometheus:9090", "job": "prometheus" },
+        "scrapePool": "prometheus",
+        "scrapeUrl": "http://prometheus:9090/metrics",
+        "globalUrl": "http://prometheus:9090/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:00.341822612Z",
+        "lastScrapeDuration": 0.014317828,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "logic:9091",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "resonance"
+        },
+        "labels": { "instance": "logic:9091", "job": "resonance" },
+        "scrapePool": "resonance",
+        "scrapeUrl": "http://logic:9091/metrics",
+        "globalUrl": "http://logic:9091/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:01.793859128Z",
+        "lastScrapeDuration": 0.004216534,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "gateway:9092",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "resonance"
+        },
+        "labels": { "instance": "gateway:9092", "job": "resonance" },
+        "scrapePool": "resonance",
+        "scrapeUrl": "http://gateway:9092/metrics",
+        "globalUrl": "http://gateway:9092/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:02.209094395Z",
+        "lastScrapeDuration": 0.002355613,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "task:9090",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "resonance"
+        },
+        "labels": { "instance": "task:9090", "job": "resonance" },
+        "scrapePool": "resonance",
+        "scrapeUrl": "http://task:9090/metrics",
+        "globalUrl": "http://task:9090/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:15:59.747020637Z",
+        "lastScrapeDuration": 0.002423247,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "pilot:9093",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "resonance"
+        },
+        "labels": { "instance": "pilot:9093", "job": "resonance" },
+        "scrapePool": "resonance",
+        "scrapeUrl": "http://pilot:9093/metrics",
+        "globalUrl": "http://pilot:9093/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:08.377998591Z",
+        "lastScrapeDuration": 0.007217652,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "pilot-iam-admin:9093",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "resonance"
+        },
+        "labels": { "instance": "pilot-iam-admin:9093", "job": "resonance" },
+        "scrapePool": "resonance",
+        "scrapeUrl": "http://pilot-iam-admin:9093/metrics",
+        "globalUrl": "http://pilot-iam-admin:9093/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:15:59.74715678Z",
+        "lastScrapeDuration": 0.002891769,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      },
+      {
+        "discoveredLabels": {
+          "__address__": "tempo:3200",
+          "__metrics_path__": "/metrics",
+          "__scheme__": "http",
+          "__scrape_interval__": "10s",
+          "__scrape_timeout__": "10s",
+          "job": "tempo"
+        },
+        "labels": { "instance": "tempo:3200", "job": "tempo" },
+        "scrapePool": "tempo",
+        "scrapeUrl": "http://tempo:3200/metrics",
+        "globalUrl": "http://tempo:3200/metrics",
+        "lastError": "",
+        "lastScrape": "2026-08-09T11:16:03.576684946Z",
+        "lastScrapeDuration": 0.002864474,
+        "health": "up",
+        "scrapeInterval": "10s",
+        "scrapeTimeout": "10s"
+      }
+    ],
+    "droppedTargets": [],
+    "droppedTargetCounts": null
+  }
+}

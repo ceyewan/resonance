@@ -2,6 +2,8 @@ package middleware
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
@@ -42,7 +44,7 @@ func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 		// 4. 记录开始时间
 		start := time.Now()
 		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
+		query := redactQuery(c.Request.URL.RawQuery)
 
 		// 5. 处理请求
 		c.Next()
@@ -78,6 +80,23 @@ func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 			logger.InfoContext(ctx, "request", fields...)
 		}
 	}
+}
+
+func redactQuery(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return "<redacted-invalid-query>"
+	}
+	for key := range values {
+		switch strings.ToLower(key) {
+		case "token", "access_token", "refresh_token", "password", "secret", "api_key", "apikey", "code":
+			values[key] = []string{"<redacted>"}
+		}
+	}
+	return values.Encode()
 }
 
 // SkipLogger 返回一个可以跳过某些路径的日志中间件

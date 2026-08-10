@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-09T09:26:42Z",
+  "seed": 20260809,
+  "concurrency": 1,
+  "message_count": 20,
+  "host": "ceyewan-air.local",
+  "go_version": "go1.26.5",
+  "online_push": {
+    "samples": 20,
+    "p50_ms": 3.524,
+    "p95_ms": 10.064,
+    "p99_ms": 922.73
+  },
+  "offline_inbox_recovery": {
+    "samples": 1,
+    "p50_ms": 515.179,
+    "p95_ms": 515.179,
+    "p99_ms": 515.179
+  },
+  "websocket_connect": {
+    "samples": 2,
+    "p50_ms": 1.65,
+    "p95_ms": 1.65,
+    "p99_ms": 1.65
+  },
+  "message_delivery_success_rate": 1
+}

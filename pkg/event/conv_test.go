@@ -23,3 +23,15 @@ func TestBuildMessageEventFromModelRedactsRecalledContent(t *testing.T) {
 	require.True(t, event.GetMessage().GetRecalled())
 	require.NotContains(t, event.String(), "private recalled text")
 }
+
+func TestBuildMessageEventFromModelPreservesMessageIdentity(t *testing.T) {
+	createdAt := time.Date(2026, 8, 9, 3, 0, 0, 0, time.UTC)
+	event := BuildMessageEventFromModel("conversation-a", &model.MessageContent{
+		EventID: 10, SeqID: 2, SessionID: "conversation-a", SenderUsername: "alice",
+		MsgType: int(commonv1.MessageType_MESSAGE_TYPE_TEXT), Content: "hello",
+		ReplyToEventID: 8, ClientMsgID: "client-message-1", CreatedAt: createdAt,
+	})
+
+	require.Equal(t, int64(8), event.GetMessage().GetReplyToEventId())
+	require.Equal(t, "client-message-1", event.GetMessage().GetClientMsgId())
+}

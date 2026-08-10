@@ -1,0 +1,64 @@
+{
+  "uid": "resonance-agent-pilot",
+  "title": "Agent / Pilot",
+  "tags": ["resonance", "agent"],
+  "schemaVersion": 40,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Queue wait / first token",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(pilot_run_queue_wait_seconds_bucket[5m])))",
+          "legendFormat": "queue P95"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(pilot_first_token_seconds_bucket[5m])))",
+          "legendFormat": "first token P95"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Runs / runtime failures",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum(pilot_active_runs)", "legendFormat": "active" },
+        {
+          "refId": "B",
+          "expr": "sum(rate(pilot_runtime_failures_total[1m]))",
+          "legendFormat": "failures/s"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Tool and stream outcomes",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (outcome) (rate(pilot_tool_calls_total[5m]))",
+          "legendFormat": "tool {{outcome}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(pilot_stream_publish_dropped_total[5m]))",
+          "legendFormat": "stream dropped/s"
+        }
+      ]
+    }
+  ]
+}

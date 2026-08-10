@@ -1,0 +1,8 @@
+{
+  "ContainerID": "edede0b172f972bd1a74c08db18255cec922626a6676f59b4183c5ffa6858c78",
+  "Status": "running",
+  "Running": true,
+  "Health": "healthy",
+  "RestartCount": 0,
+  "StartedAt": "2026-08-09T12:10:47.971296651Z"
+}

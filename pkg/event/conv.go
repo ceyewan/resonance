@@ -78,9 +78,11 @@ func BuildMessageEventFromModel(sessionID string, msg *model.MessageContent) *co
 		TimestampMs:  msg.CreatedAt.UnixMilli(),
 		Payload: &commonv1.ChatEvent_Message{
 			Message: &commonv1.Message{
-				Type:     messageType,
-				Content:  content,
-				Recalled: recalled,
+				Type:           messageType,
+				Content:        content,
+				ReplyToEventId: msg.ReplyToEventID,
+				ClientMsgId:    msg.ClientMsgID,
+				Recalled:       recalled,
 			},
 		},
 	}

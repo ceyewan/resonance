@@ -102,6 +102,26 @@ describe("trusted environment", () => {
     );
   });
 
+  it("accepts only the exact loopback deterministic Provider contract", () => {
+    expect(
+      readDashScopeProvider({
+        DASHSCOPE_API_KEY: "resonance-local-deterministic-key",
+        DASHSCOPE_BASE_URL: "http://127.0.0.1:18096/compatible-mode/v1",
+        DASHSCOPE_MODEL: "resonance-deterministic-v1",
+      }),
+    ).toEqual({
+      baseUrl: "http://127.0.0.1:18096/compatible-mode/v1",
+      model: "resonance-deterministic-v1",
+    });
+    expect(() =>
+      readDashScopeProvider({
+        DASHSCOPE_API_KEY: "resonance-local-deterministic-key",
+        DASHSCOPE_BASE_URL: "http://127.0.0.1:18097/compatible-mode/v1",
+        DASHSCOPE_MODEL: "resonance-deterministic-v1",
+      }),
+    ).toThrow(/Provider environment is invalid/);
+  });
+
   it("rejects placeholder secrets and unsafe Provider URLs", () => {
     for (const candidate of [
       {
