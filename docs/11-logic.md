@@ -43,6 +43,10 @@ Gateway ── gRPC ──▶ Logic ── PostgreSQL / Redis
 
 从这个位置可以看出，Logic 是同步业务链路的终点，也是异步事件链路的起点。
 
+Logic 从 Redis allocator 获得进程唯一 Worker ID，并让消息/事件 ID 与生成型 Session
+ID 共用同一个 Snowflake `Generator`。不能为同一 worker tuple 创建两个独立状态机，
+否则它们在同一毫秒可能产生相同 ID；共享实例也为未来跨 namespace 汇总保留唯一性。
+
 ---
 
 ## 4. 职责边界

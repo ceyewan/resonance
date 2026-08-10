@@ -100,6 +100,15 @@ MQEvent 到达 Task
 | 在线推送失败 | 记录日志与指标，不 NAK | 因为 Inbox 已经承担一致性兜底 |
 | 未知 payload | 直接跳过，避免无意义反复重试 | 防止异步链路被不支持类型卡死 |
 
+Task 使用无缓冲 worker 交接，并把每个订阅实例的 JetStream pull 预取设为 1；它不会
+把单实例 `worker_count` 写成共享 durable 的集群级 `MaxAckPending`。对于已从 broker
+交付、正在等待 worker 或已经处理中的长任务，持久事件与 Agent stream 两个 Consumer
+都通过 Genesis 的可选 `InProgress` 消息能力按 `progress_interval` 发送心跳，持续延长
+JetStream Ack deadline。该间隔必须小于 broker 的 `ack_wait`；默认分别为 10 秒和
+30 秒。这样重试预算和处理时延不会让同一条仍在执行的消息被提前重投。
+这两项 JetStream 能力以 Genesis `v1.0.0-rc.2` 为运行时下限；发布前的
+candidate-replace 门禁通过后，Resonance 仍需在 rc2 tag 可下载时更新 `go.mod`。
+
 这套语义之所以成立，前提就是系统已经把“一致性”交给 Inbox，把“在线体验”交给 Push。只要这两个角色不混，Task 的行为就始终可解释。
 
 ---

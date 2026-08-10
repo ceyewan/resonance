@@ -47,16 +47,7 @@ func NewUserRepo(database db.DB, opts ...UserRepoOption) (UserRepo, error) {
 	if options.logger != nil {
 		logger = options.logger.WithNamespace("user_repo")
 	} else {
-		var err error
-		logger, err = clog.New(&clog.Config{
-			Level:  "info",
-			Format: "json",
-			Output: "/dev/null",
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create default logger: %w", err)
-		}
-		logger = logger.WithNamespace("user_repo")
+		logger = clog.Discard().WithNamespace("user_repo")
 	}
 
 	return &userRepo{

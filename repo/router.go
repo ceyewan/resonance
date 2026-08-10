@@ -68,19 +68,12 @@ func NewRouterRepo(redisConn connector.RedisConnector, opts ...RouterRepoOption)
 		return nil, fmt.Errorf("failed to create cache instance: %w", err)
 	}
 
-	// 创建带有命名空间的子 logger
-	// 如果没有提供 logger，创建一个默认的（输出到 /dev/null 或使用 NOP logger）
+	// 创建带有命名空间的子 logger。
 	var logger clog.Logger
 	if options.logger != nil {
 		logger = options.logger.WithNamespace("router")
 	} else {
-		// 创建一个默认的 logger，避免 nil 指针
-		logger, _ = clog.New(&clog.Config{
-			Level:  "info",
-			Format: "json",
-			Output: "/dev/null", // 默认不输出日志
-		})
-		logger = logger.WithNamespace("router")
+		logger = clog.Discard().WithNamespace("router")
 	}
 
 	repo := &routerRepo{

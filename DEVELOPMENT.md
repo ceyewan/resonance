@@ -225,6 +225,9 @@
 - [x] IAM Tool Result 区分审批待执行与 durable receipt 已执行，模型不得提前声称成功
 - [x] Recall 历史使用显式 tombstone；默认 Bot provisioning 以指标观测并由 Login/List 最终一致修复
 - [x] RFC 2544 DNS 兼容只存在于本地 Compose override；付费 Provider Smoke E2E 默认拒绝远程环境
+- [x] Task consumer 使用无缓冲 worker 交接与实例级单条 pull 预取，并用 JetStream `InProgress` 为长处理续期（随 Genesis rc2 依赖升级激活）
+- [x] Repo 缺省日志统一使用 `clog.Discard`，不再为每个实例打开无法归还的 `/dev/null` writer
+- [x] Logic 的消息/事件与生成型 Session ID 共用一个 Snowflake 状态机，杜绝相同 worker tuple 的实例内碰撞
 
 ### 验证标准
 

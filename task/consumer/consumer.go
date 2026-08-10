@@ -20,6 +20,15 @@ import (
 // HandlerFunc 消息处理函数
 type HandlerFunc func(context.Context, *mqv1.MQEvent) error
 
+type progressMessage interface {
+	InProgress() error
+}
+
+type queuedMessage struct {
+	message      mq.Message
+	stopProgress func()
+}
+
 // Consumer MQ 消费者
 type Consumer struct {
 	mqClient mq.MQ
@@ -29,7 +38,7 @@ type Consumer struct {
 	name     string // 消费者名称（用于指标区分）
 
 	subscription mq.Subscription
-	jobsCh       chan mq.Message // 任务通道
+	jobsCh       chan queuedMessage // 任务通道
 	ctx          context.Context
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup // 等待所有 worker 退出
@@ -52,13 +61,16 @@ func NewConsumer(
 	if config.WorkerCount <= 0 {
 		config.WorkerCount = 10 // 默认 10 个 worker
 	}
+	if config.ProgressInterval <= 0 {
+		config.ProgressInterval = 10 * time.Second
+	}
 
 	return &Consumer{
 		mqClient: mqClient,
 		handler:  handler,
 		config:   config,
 		logger:   logger,
-		jobsCh:   make(chan mq.Message, config.WorkerCount*10),
+		jobsCh:   make(chan queuedMessage),
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -88,15 +100,17 @@ func (c *Consumer) Start() error {
 	}
 
 	// 2. 使用队列订阅（负载均衡）
-	// WithMaxInflight 限制 JetStream 最多推送 channel 容量条未 Ack 消息，实现背压
-	bufferSize := c.config.WorkerCount * 10
 	sub, err := c.mqClient.Subscribe(c.ctx, c.config.Topic, c.receiveMessage,
 		mq.WithQueueGroup(c.config.QueueGroup),
 		mq.WithManualAck(),
-		mq.WithMaxInflight(bufferSize),
+		// Keep the pull buffer instance-local. WithMaxInflight would mutate the
+		// shared durable's cluster-wide MaxAckPending and cap horizontal scaling.
+		mq.WithBatchSize(1),
 		mq.FromBeginning(),
 	)
 	if err != nil {
+		c.cancel()
+		c.wg.Wait()
 		return xerrors.Wrapf(err, "failed to subscribe to topic %s", c.config.Topic)
 	}
 
@@ -106,12 +120,13 @@ func (c *Consumer) Start() error {
 }
 
 // receiveMessage 接收消息并放入任务通道。
-// WithMaxInflight 保证 JetStream 推送量不超过 channel 容量，正常情况下此处不会阻塞。
 func (c *Consumer) receiveMessage(msg mq.Message) error {
+	stopProgress := c.startProgressHeartbeat(c.ctx, msg)
 	select {
-	case c.jobsCh <- msg:
+	case c.jobsCh <- queuedMessage{message: msg, stopProgress: stopProgress}:
 		return nil
 	case <-c.ctx.Done():
+		stopProgress()
 		return c.ctx.Err()
 	}
 }
@@ -123,15 +138,16 @@ func (c *Consumer) worker(id int) {
 
 	for {
 		select {
-		case msg, ok := <-c.jobsCh:
+		case job, ok := <-c.jobsCh:
 			if !ok {
 				c.logger.Debug("jobs channel closed", clog.Int("worker_id", id))
 				return
 			}
-			if msg == nil {
+			if job.message == nil {
+				job.stopProgress()
 				continue
 			}
-			if err := c.handleMessage(c.ctx, msg); err != nil {
+			if err := c.handleMessageWithProgress(c.ctx, job.message, job.stopProgress); err != nil {
 				c.logger.Warn("worker failed to handle message", clog.Int("worker_id", id), clog.Error(err))
 			}
 		case <-c.ctx.Done():
@@ -147,14 +163,15 @@ func (c *Consumer) worker(id int) {
 func (c *Consumer) drainJobs() {
 	for {
 		select {
-		case msg, ok := <-c.jobsCh:
+		case job, ok := <-c.jobsCh:
 			if !ok {
 				return
 			}
-			if msg == nil {
+			if job.message == nil {
+				job.stopProgress()
 				continue
 			}
-			if err := c.handleMessage(c.ctx, msg); err != nil {
+			if err := c.handleMessageWithProgress(c.ctx, job.message, job.stopProgress); err != nil {
 				c.logger.Warn("drain job failed", clog.Error(err))
 			}
 		default:
@@ -166,7 +183,13 @@ func (c *Consumer) drainJobs() {
 
 // handleMessage 处理单条消息
 func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
+	stopProgress := c.startProgressHeartbeat(ctx, msg)
+	return c.handleMessageWithProgress(ctx, msg, stopProgress)
+}
+
+func (c *Consumer) handleMessageWithProgress(ctx context.Context, msg mq.Message, stopProgress func()) error {
 	start := time.Now()
+	defer stopProgress()
 
 	// 1. 解析 MQEvent
 	event := &mqv1.MQEvent{}
@@ -187,9 +210,16 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 			c.logger.Error("failed to publish malformed message to DLQ",
 				clog.String("dlq_topic", c.config.DLQTopic),
 				clog.Error(dlqErr))
+			stopProgress()
+			if nakErr := msg.Nak(); nakErr != nil {
+				return xerrors.Join(dlqErr, nakErr)
+			}
+			return dlqErr
 		}
+		stopProgress()
 		if ackErr := msg.Ack(); ackErr != nil {
 			c.logger.Warn("failed to ack malformed mq event", clog.Error(ackErr))
+			return ackErr
 		}
 		return nil
 	}
@@ -229,13 +259,16 @@ func (c *Consumer) handleMessage(ctx context.Context, msg mq.Message) error {
 		// 记录失败指标
 		c.recordMetrics(ctx, start, "fail")
 
-		if err := msg.Nak(); err != nil {
-			c.logger.Warn("failed to nak mq event", clog.Error(err))
+		stopProgress()
+		if nakErr := msg.Nak(); nakErr != nil {
+			c.logger.Warn("failed to nak mq event", clog.Error(nakErr))
+			return xerrors.Join(err, nakErr)
 		}
 		return err
 	}
 
 	// 5. 处理成功，Ack 确认
+	stopProgress()
 	if err := msg.Ack(); err != nil {
 		c.logger.Warn("failed to ack mq event", clog.Error(err))
 		return err
@@ -259,7 +292,16 @@ func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.MQEvent) er
 				clog.Int64("event_id", event.GetEvent().GetEventId()),
 				clog.Int("attempt", i+1),
 				clog.Int("max_retry", c.config.MaxRetry))
-			time.Sleep(time.Duration(c.config.RetryInterval) * time.Second)
+			timer := time.NewTimer(time.Duration(c.config.RetryInterval) * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-c.ctx.Done():
+				timer.Stop()
+				return c.ctx.Err()
+			case <-timer.C:
+			}
 		}
 
 		// 调用注入的处理函数
@@ -272,6 +314,43 @@ func (c *Consumer) processWithRetry(ctx context.Context, event *mqv1.MQEvent) er
 	}
 
 	return lastErr
+}
+
+func (c *Consumer) startProgressHeartbeat(ctx context.Context, msg mq.Message) func() {
+	progress, ok := msg.(progressMessage)
+	if !ok || c.config.ProgressInterval <= 0 {
+		return func() {}
+	}
+
+	report := func() {
+		if err := progress.InProgress(); err != nil {
+			c.logger.Warn("failed to extend mq ack deadline", clog.Error(err))
+		}
+	}
+	report()
+
+	heartbeatCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(c.config.ProgressInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				report()
+			case <-heartbeatCtx.Done():
+				return
+			case <-c.ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 // recordMetrics 记录处理指标
@@ -313,9 +392,8 @@ func (c *Consumer) Stop() error {
 			c.stopErr = c.subscription.Drain(drainCtx)
 			cancel()
 		}
-		close(c.jobsCh)
-		c.wg.Wait()
 		c.cancel()
+		c.wg.Wait()
 		c.logger.Info("consumer stopped")
 	})
 	return c.stopErr

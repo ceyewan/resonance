@@ -199,7 +199,6 @@ func TestAgentRunRepo_ConcurrentClaimAllowsOneActiveRunPerConversation(t *testin
 	start := make(chan struct{})
 	var workers sync.WaitGroup
 	for worker := range 8 {
-		worker := worker
 		workers.Go(func() {
 			<-start
 			run, claimErr := runRepo.ClaimNextAgentRun(ctx, testClaim(
