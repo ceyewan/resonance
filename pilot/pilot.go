@@ -633,6 +633,7 @@ func (p *Pilot) Close() error {
 		p.cancel()
 		p.watchWG.Wait()
 		if p.closeResources != nil {
+			pilotobservability.RecordShutdownFlushProbe(p.logger)
 			closeErr = errors.Join(closeErr, p.closeResources())
 		}
 		if p.health != nil {

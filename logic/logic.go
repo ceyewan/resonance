@@ -665,6 +665,7 @@ func (l *Logic) close() error {
 
 	// 5. 关闭可观测性组件
 	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
+	observability.RecordShutdownFlushProbe(l.logger)
 	result = errors.Join(result, observability.Shutdown(observabilityCtx))
 	cancelObservability()
 	return result

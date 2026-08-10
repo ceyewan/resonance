@@ -25,6 +25,9 @@ remote_main_sha=$(gh api repos/ceyewan/resonance/git/ref/heads/main --jq '.objec
 }
 
 deploy/scripts/verify-genesis-rc2-identity.sh >/dev/null
+start_tree=$(git rev-parse HEAD^{tree})
+start_compose_sha=$("${COMPOSE[@]}" config | shasum -a 256 | awk '{print $1}')
+start_env_sha=$(shasum -a 256 .env | awk '{print $1}')
 run_id=${RESONANCE_STAGE3_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}
 [[ "$run_id" =~ ^[0-9]{8}T[0-9]{6}Z$ ]] || { echo "invalid Stage 3 run id" >&2; exit 2; }
 run_root="artifacts/local-v1/rc2-adoption-final/$run_id"
@@ -60,10 +63,7 @@ gh api -H 'Accept: application/vnd.github+json' \
   "repos/ceyewan/resonance/commits/$head_sha/check-runs?per_page=100" \
   | jq '{total_count,checks:[.check_runs[] | {name,status,conclusion,details_url,head_sha}]}' \
   >"$run_root/hosted-ci.json"
-jq -e --arg sha "$head_sha" '
-  .total_count == 9 and (.checks | length) == 9 and
-  all(.checks[]; .head_sha == $sha and .status == "completed" and .conclusion == "success")
-' "$run_root/hosted-ci.json" >/dev/null
+deploy/scripts/validate-stage3-evidence.sh hosted-ci "$run_root/hosted-ci.json" "$head_sha"
 
 deploy/scripts/verify-genesis-rc2-identity.sh >"$run_root/genesis-rc2-identity.json"
 shasum -a 256 deploy/base.yaml deploy/services.yaml deploy/services.local.yaml deploy/observability.yaml \
@@ -83,6 +83,34 @@ jq -n \
   --arg docker_context "$docker_context" \
   '{schema_version:1,host_kernel:$host_kernel,go_version:$go_version,git_version:$git_version,docker:{client_version:$docker_client_version,server_version:$docker_server_version,context:$docker_context}}' \
   >"$run_root/environment.json"
+# The long matrix is valid only if its code, resolved Compose input, and local
+# environment remained identical from the first build through final teardown.
+end_head=$(git rev-parse HEAD)
+end_tree=$(git rev-parse HEAD^{tree})
+end_compose_sha=$("${COMPOSE[@]}" config | shasum -a 256 | awk '{print $1}')
+end_env_sha=$(shasum -a 256 .env | awk '{print $1}')
+[[ "$end_head" == "$head_sha" && "$end_tree" == "$start_tree" &&
+   "$end_compose_sha" == "$start_compose_sha" && "$end_env_sha" == "$start_env_sha" ]] || {
+  echo "Stage 3 input fingerprint changed during the matrix" >&2
+  exit 1
+}
+git diff --quiet && git diff --cached --quiet || {
+  echo "tracked files changed during the Stage 3 matrix" >&2
+  exit 1
+}
+unexpected_untracked=$(git ls-files --others --exclude-standard | awk -v allowed="artifacts/local-v1/rc2-adoption-final/$run_id/" 'index($0,allowed)!=1')
+[[ -z "$unexpected_untracked" ]] || {
+  echo "unexpected untracked files appeared during the Stage 3 matrix:" >&2
+  printf '%s\n' "$unexpected_untracked" >&2
+  exit 1
+}
+deploy/scripts/verify-genesis-rc2-identity.sh >"$run_root/genesis-rc2-identity-final.json"
+jq -e --slurpfile initial "$run_root/genesis-rc2-identity.json" '. == $initial[0]' \
+  "$run_root/genesis-rc2-identity-final.json" >/dev/null
+jq -n --arg head "$head_sha" --arg tree "$start_tree" --arg compose_sha "$start_compose_sha" \
+  --arg env_sha "$start_env_sha" \
+  '{head:$head,tree:$tree,resolved_compose_sha256:$compose_sha,env_sha256:$env_sha,unchanged_after_matrix:true}' \
+  >"$run_root/input-fingerprint.json"
 deploy/scripts/check-evidence-secrets.sh "$run_root" >"$run_root/sensitive-field-scan.log"
 (cd "$run_root" && find . -type f ! -name bundle.sha256 -print | LC_ALL=C sort | while IFS= read -r evidence_file; do
   shasum -a 256 "$evidence_file"

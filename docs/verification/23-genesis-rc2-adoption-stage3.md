@@ -23,7 +23,8 @@ docs/verification/evidence/resonance-stage3-genesis-v1.0.0-rc.2.json
 - go.mod sum: `h1:Uysrd3364pkU2OguYEWKyMVkgGvq3x/4dpC/QD8v8OA=`
 
 `deploy/scripts/verify-genesis-rc2-identity.sh` rejects workspaces, module
-replacements and repository-local Genesis source. All local commands run with
+replacements, a repository-local Genesis tree, and `vendor/`. Docker build
+contexts also exclude all of those paths. All local commands run with
 `GOWORK=off`.
 
 ## Final execution
@@ -48,6 +49,23 @@ on the same input set. A change to the Resonance SHA, Genesis identity,
 Compose file, image identity, required Hosted CI result, bundle bytes, or
 bundle availability invalidates the entire result and requires a new run ID.
 
+### Two-commit closure model
+
+The implementation commit `T` is the immutable tested SHA. It must already be
+merged to `main` with the exact nine required checks before the matrix starts.
+The finalizer rechecks `T`, its Git tree, the fully rendered Compose checksum,
+the `.env` checksum, and the RC2 module identity after the long matrix and
+before it emits a PASS manifest.
+
+The generated bundle and manifest are then submitted as a separate
+evidence-only commit `E`. `E` does not become a new tested application SHA:
+its manifest keeps `tested_resonance_sha: T`. Before merging `E`, run
+`deploy/scripts/verify-stage3-evidence-only-commit.sh T E`; it rejects every
+change outside the one final bundle and adoption manifest and verifies every
+bundle hash. Stage 3 closes only after `E` is merged and its commit SHA is
+recorded in the handoff. Any runtime or build-input edit requires a new tested
+SHA and a full new matrix, never an evidence-only update.
+
 ## Telemetry and recovery assertions
 
 The RC2 closeout captures JSON logs after the E2E, not before it. It requires
@@ -57,8 +75,11 @@ structure. The stored log and trace evidence is a field allowlist, so transport
 headers, container environments and credentials cannot enter the bundle.
 
 Recovery starts with durable facts, restarts each dependency without deleting
-volumes, and proves PostgreSQL Outbox/Inbox growth, NATS JetStream consumer
-position continuity, Redis allocator keys, etcd registry recovery, graceful
-zero-exit shutdown, port release and lease removal. Benchmark evidence fixes
-the seed, concurrency, sample count and timeouts and binds results to the host,
-Compose inputs and image IDs.
+volumes, and proves PostgreSQL Outbox/Inbox growth, exact NATS durable consumer
+identity and position continuity, the Redis sequencer and exact allocator
+leases, exact etcd registrations plus a service-specific watch event, graceful
+zero-exit shutdown, port release and lease removal. Each graceful stop must
+also produce that service's exact `stage3.shutdown.flush` span in Tempo, bound
+through its Loki log trace ID. Benchmark evidence fixes the seed, concurrency,
+sample count and timeouts, and samples container and Prometheus resources for
+the full workload window rather than after it.

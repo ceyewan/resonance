@@ -100,6 +100,17 @@ func Shutdown(ctx context.Context) error {
 	return errors.Join(traceErr, metricsErr)
 }
 
+// RecordShutdownFlushProbe creates a service-specific span immediately before
+// the trace provider is flushed. Its context-bound log is the recovery proof.
+func RecordShutdownFlushProbe(logger clog.Logger) {
+	if logger == nil {
+		return
+	}
+	ctx, span := otel.Tracer(TracerName).Start(context.Background(), "stage3.shutdown.flush")
+	logger.InfoContext(ctx, "stage3 shutdown trace flush probe", clog.String("service", ServiceName))
+	span.End()
+}
+
 // initTrace 初始化 Trace
 func initTrace(cfg *Config) (func(context.Context) error, error) {
 	if cfg.Trace.Disable {

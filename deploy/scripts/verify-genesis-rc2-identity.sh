@@ -11,18 +11,33 @@ readonly EXPECTED_GO_MOD_SUM='h1:Uysrd3364pkU2OguYEWKyMVkgGvq3x/4dpC/QD8v8OA='
 command -v go >/dev/null 2>&1 || { echo "go is required" >&2; exit 2; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 2; }
 
+check_source_layout() {
+  local source_root=$1
+  [[ ! -e "$source_root/go.work" && ! -e "$source_root/go.work.sum" ]] || {
+    echo "go.work/go.work.sum is forbidden for the RC2 adoption gate" >&2
+    return 1
+  }
+  [[ ! -d "$source_root/genesis" ]] || {
+    echo "repository-local Genesis source is forbidden for the RC2 adoption gate" >&2
+    return 1
+  }
+  [[ ! -d "$source_root/vendor" ]] || {
+    echo "vendor is forbidden: Stage 3 must compile the public RC2 module cache source" >&2
+    return 1
+  }
+}
+
+if [[ "${1:-}" == "--check-source-layout" ]]; then
+  [[ $# -eq 2 ]] || { echo "usage: $0 --check-source-layout ROOT" >&2; exit 2; }
+  check_source_layout "$2"
+  exit
+fi
+
 # Stage 3 must exercise the public RC2 module. A workspace, replacement, or
 # repository-local Genesis tree would make the evidence describe different
 # source code even if go.mod still displayed the expected version.
 export GOWORK=off
-[[ ! -e go.work && ! -e go.work.sum ]] || {
-  echo "go.work/go.work.sum is forbidden for the RC2 adoption gate" >&2
-  exit 1
-}
-[[ ! -d genesis ]] || {
-  echo "repository-local Genesis source is forbidden for the RC2 adoption gate" >&2
-  exit 1
-}
+check_source_layout "$ROOT"
 
 module_edit=$(go mod edit -json)
 test "$(jq '.Replace | length' <<<"$module_edit")" -eq 0 || {

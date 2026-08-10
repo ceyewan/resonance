@@ -73,8 +73,8 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (service_name) (rate(registry_watch_events_total[5m]))",
-          "legendFormat": "etcd watch {{service_name}}"
+          "expr": "sum by (instance, service) (rate(registry_watch_events_total[5m]))",
+          "legendFormat": "etcd watch {{instance}} → {{service}}"
         },
         {
           "refId": "C",

@@ -11,7 +11,12 @@ if [[ ! "$PREFIX" =~ ^[A-Za-z0-9_-]{1,24}$ ]]; then
   echo "unsafe benchmark prefix" >&2
   exit 2
 fi
+sampler_pid=""
 cleanup() {
+  if [[ -n "$sampler_pid" ]]; then
+    kill "$sampler_pid" >/dev/null 2>&1 || true
+    wait "$sampler_pid" >/dev/null 2>&1 || true
+  fi
   deploy/scripts/cleanup-local-test-data.sh "$PREFIX"
 }
 trap cleanup EXIT
@@ -26,14 +31,33 @@ jq -n '{
   agent_provider:"local-deterministic",agent_cloud_access:false
 }' >"$OUT_DIR/benchmark-parameters.json"
 
+benchmark_started_s=$(date +%s)
+sample_container_resources() {
+  while true; do
+    collected_at=$(date +%s)
+    docker stats --no-stream --format '{{json .}}' |
+      jq -c --argjson collected_at "$collected_at" '. + {collected_at_unix:$collected_at}'
+    sleep 1
+  done
+}
+sample_container_resources >"$OUT_DIR/container-resources.jsonl" &
+sampler_pid=$!
 go run ./cmd/local-benchmark -base-url http://127.0.0.1:18080 -count 20 \
   -prefix "$PREFIX-business" -output "$OUT_DIR/business.json"
 deploy/scripts/run-deterministic-agent-e2e.sh "$PREFIX" "$OUT_DIR/agent.json" \
   >"$OUT_DIR/agent-e2e.log"
 go test ./pilot/coordinator ./pilot/toolbroker ./pilot/mutation -count=1 \
   >"$OUT_DIR/agent-contract.log"
+benchmark_finished_s=$(date +%s)
+kill "$sampler_pid" >/dev/null 2>&1 || true
+wait "$sampler_pid" >/dev/null 2>&1 || true
+sampler_pid=""
+jq -s '.' "$OUT_DIR/container-resources.jsonl" >"$OUT_DIR/container-resources.json"
+jq -e 'length > 0' "$OUT_DIR/container-resources.json" >/dev/null
+jq -n --argjson start "$benchmark_started_s" --argjson end "$benchmark_finished_s" \
+  '{start_unix:$start,end_unix:$end,duration_seconds:($end-$start),requested_sample_interval_seconds:1}' \
+  >"$OUT_DIR/resource-sampling-window.json"
 
-docker stats --no-stream --format '{{json .}}' | jq -s '.' >"$OUT_DIR/container-resources.json"
 "${COMPOSE[@]}" images --format json | jq '
   map({
     service:(.ContainerName | sub("^resonance-v1-"; "") | sub("-[0-9]+$"; "")),
@@ -48,8 +72,8 @@ docker stats --no-stream --format '{{json .}}' | jq -s '.' >"$OUT_DIR/container-
 metric_query='{__name__=~"go_goroutines|go_sql_.*|logic_outbox_backlog|task_gateway_queue_depth|task_push_enqueue_failed_total|pilot_run_queue_wait_seconds_.*|pilot_first_token_seconds_.*|pilot_run_duration_seconds_.*|pilot_active_runs|container_cpu_usage_seconds_total|container_memory_working_set_bytes"}'
 encoded_query=$(jq -rn --arg query "$metric_query" '$query|@uri')
 "${COMPOSE[@]}" exec -T grafana wget -qO- \
-  "http://prometheus:9090/api/v1/query?query=$encoded_query" >"$OUT_DIR/prometheus-resources.json"
-jq -e '.status=="success" and (.data.result|length)>0' "$OUT_DIR/prometheus-resources.json" >/dev/null
+  "http://prometheus:9090/api/v1/query_range?query=$encoded_query&start=$benchmark_started_s&end=$benchmark_finished_s&step=1" >"$OUT_DIR/prometheus-resources.json"
+jq -e '.status=="success" and (.data.result|length)>0 and any(.data.result[]; (.values|length)>0)' "$OUT_DIR/prometheus-resources.json" >/dev/null
 host_kernel=$(uname -a)
 docker_client_version=$(docker version --format '{{.Client.Version}}')
 docker_server_version=$(docker version --format '{{.Server.Version}}')

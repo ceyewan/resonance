@@ -260,3 +260,7 @@ down-observability: ## 停止隔离环境但保留全部 volumes
 finalize-stage3-rc2: ## 从 stopped main 运行并归档 Genesis RC2 阶段三最终矩阵
 	@chmod +x deploy/scripts/finalize-stage3-rc2.sh
 	@./deploy/scripts/finalize-stage3-rc2.sh
+
+test-stage3-evidence-gates: ## 运行阶段三证据门禁的正反向 fixture
+	@chmod +x deploy/scripts/test-stage3-evidence-gates.sh deploy/scripts/validate-stage3-evidence.sh
+	@./deploy/scripts/test-stage3-evidence-gates.sh

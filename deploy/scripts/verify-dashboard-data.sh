@@ -15,11 +15,7 @@ encoded_query=$(jq -rn --arg query "$query" '$query|@uri')
 metrics=$("${COMPOSE[@]}" exec -T grafana wget -qO- "http://prometheus:9090/api/v1/query?query=$encoded_query")
 jq -e '.status == "success"' <<<"$metrics" >/dev/null
 
-metric_names=$(jq '[.data.result[].metric.__name__] | unique' <<<"$metrics")
-jq -e '
-  ["logic_outbox_backlog","mq_publish_total","task_storage_process_duration_seconds_count","pilot_run_duration_seconds_count"] as $required |
-  all($required[]; . as $name | index($name))
-' <<<"$metric_names" >/dev/null
+deploy/scripts/validate-stage3-evidence.sh dashboard-metrics <(printf '%s\n' "$metrics")
 jq -e '
   map(select(.kind=="im"))[0] as $im |
   map(select(.kind=="agent"))[0] as $agent |

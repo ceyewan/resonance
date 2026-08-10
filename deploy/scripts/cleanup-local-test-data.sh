@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 prefix=${1:-}
-if [[ ! "$prefix" =~ ^[A-Za-z0-9_-]{1,80}$ ]]; then
+if [[ ! "$prefix" =~ ^(lv1|rc|al|lb|cln)-?[A-Za-z0-9_-]{8,72}$ ]]; then
   echo "refusing cleanup: test prefix is missing or unsafe" >&2
   exit 2
 fi
@@ -29,6 +29,24 @@ CREATE TEMP TABLE cleanup_runs ON COMMIT DROP AS
   SELECT run_id FROM t_agent_run
   WHERE actor_username IN (SELECT username FROM cleanup_users)
      OR conversation_id IN (SELECT session_id FROM cleanup_sessions);
+-- The run row is the synchronization point shared with claiming, retry, and
+-- settlement. Hold it until COMMIT and reject anything that is not fully
+-- terminal before examining its budget attempts.
+DO $$
+BEGIN
+  PERFORM 1 FROM t_agent_run
+  WHERE run_id IN (SELECT run_id FROM cleanup_runs)
+  ORDER BY run_id
+  FOR UPDATE;
+  IF EXISTS (
+    SELECT 1 FROM t_agent_run
+    WHERE run_id IN (SELECT run_id FROM cleanup_runs)
+      AND (status NOT IN ('SUCCEEDED', 'FAILED_FINAL', 'CANCELLED')
+        OR lease_owner <> '' OR lease_token <> '' OR lease_expires_at IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'refusing cleanup: Agent run is active or still leased';
+  END IF;
+END $$;
 -- Lock the attempts before deriving the inverse bucket entries. A concurrent
 -- settlement must not change an attempt between the snapshot and deletion.
 CREATE TEMP TABLE cleanup_budget_attempts ON COMMIT DROP AS

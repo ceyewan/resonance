@@ -170,6 +170,7 @@ func TestAgentServiceDeterministicCompose(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	approvedMutationDuration := time.Since(mutationStarted)
+	approvedMutationRunID := mutationAgent.lastRunID
 
 	mutationAgent.ask(t,
 		fmt.Sprintf("[deterministic:set_tenant_member_status username=%s status=ACTIVE]", targetUsername),
@@ -216,7 +217,8 @@ func TestAgentServiceDeterministicCompose(t *testing.T) {
 	timeoutRunID := timeoutAgent.startFailure(t, "[deterministic:timeout]")
 	writeDeterministicAgentReport(t, deterministicAgentReport{
 		SchemaVersion: 1, GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		ReadToolRunID: ordinary.lastRunID, MutationRunID: mutationAgent.lastRunID, ApprovalCallID: approval.GetCallId(),
+		ReadToolRunID: ordinary.lastRunID, MutationRunID: approvedMutationRunID, ApprovalCallID: approval.GetCallId(),
+		RejectedRunID:          rejectedApproval.GetRunId(),
 		RejectedApprovalCallID: rejectedApproval.GetCallId(), RuntimeFailureRunID: runtimeFailureRunID,
 		TimeoutRunID: timeoutRunID,
 		FirstTokenMS: durationMS(ordinary.lastFirstTokenDuration), ReadToolRunMS: durationMS(ordinary.lastRunDuration),
@@ -243,6 +245,7 @@ type deterministicAgentReport struct {
 	MutationRunID          string  `json:"mutation_run_id"`
 	ApprovalCallID         string  `json:"approval_call_id"`
 	RejectedApprovalCallID string  `json:"rejected_approval_call_id"`
+	RejectedRunID          string  `json:"rejected_run_id"`
 	RuntimeFailureRunID    string  `json:"runtime_failure_run_id"`
 	TimeoutRunID           string  `json:"timeout_run_id"`
 	FirstTokenMS           float64 `json:"first_token_ms"`

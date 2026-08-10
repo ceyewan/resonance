@@ -5,8 +5,10 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 output_dir=${1:-}
 start_ns=${2:-}
-if [[ -z "$output_dir" || ! "$start_ns" =~ ^[0-9]{16,20}$ ]]; then
-  echo "usage: $0 <evidence-directory> <e2e-start-unix-nanoseconds>" >&2
+im_evidence=${3:-}
+agent_evidence=${4:-}
+if [[ -z "$output_dir" || ! "$start_ns" =~ ^[0-9]{16,20}$ || ! -f "$im_evidence" || ! -f "$agent_evidence" ]]; then
+  echo "usage: $0 <evidence-directory> <e2e-start-unix-nanoseconds> <im-evidence-json> <agent-evidence-json>" >&2
   exit 2
 fi
 mkdir -p "$output_dir"
@@ -49,7 +51,9 @@ for service in gateway logic task pilot; do
 done
 jq '[
   .[] | select(.json.time and .json.level and .json.msg) |
-  {timestamp,service,time:.json.time,level:.json.level,msg:.json.msg,trace_id:(.json.trace_id // null),span_id:(.json.span_id // null)}
+  {timestamp,service,time:.json.time,level:.json.level,msg:.json.msg,
+   trace_id:(.json.trace_id // null),span_id:(.json.span_id // null),
+   event_id:(.json.event_id // null),run_id:(.json.run_id // null)}
 ]' <<<"$entries" >"$output_dir/loki-e2e-logs.json"
 
 jq -e '
@@ -64,21 +68,16 @@ trace_groups=$(jq '[
   {trace_id:.json.trace_id,service:.service}
 ] | group_by(.trace_id) | map({trace_id:.[0].trace_id,services:([.[].service] | unique)})' <<<"$entries")
 
-find_trace() {
-  local required_json=$1
-  jq -r --argjson required "$required_json" '
-    [.[] | . as $candidate |
-      select(all($required[]; . as $service | $candidate.services | index($service)))
-    ] | first | .trace_id // empty
-  ' <<<"$trace_groups"
-}
-
-im_trace_id=$(find_trace '["gateway","logic","task"]')
-agent_trace_id=$(find_trace '["gateway","logic","pilot"]')
-[[ -n "$im_trace_id" && -n "$agent_trace_id" ]] || {
-  echo "no E2E trace_id correlated across the required services" >&2
-  exit 1
-}
+deploy/scripts/validate-stage3-evidence.sh telemetry-bindings \
+  "$output_dir/loki-e2e-logs.json" "$im_evidence" "$agent_evidence"
+im_event_id=$(jq -r '.message_event_id' "$im_evidence")
+agent_run_id=$(jq -r '.read_tool_run_id' "$agent_evidence")
+im_trace_id=$(jq -r --argjson event_id "$im_event_id" '
+  [.[] | select(.service == "task" and .event_id == $event_id) | .trace_id] | unique | .[0]
+' "$output_dir/loki-e2e-logs.json")
+agent_trace_id=$(jq -r --arg run_id "$agent_run_id" '
+  [.[] | select(.service == "pilot" and .run_id == $run_id and .msg == "agent run started") | .trace_id] | unique | .[0]
+' "$output_dir/loki-e2e-logs.json")
 
 verify_tempo_trace() {
 	local name=$1 trace_id=$2 required_json=$3
@@ -109,7 +108,18 @@ verify_tempo_trace() {
 verify_tempo_trace im "$im_trace_id" '["resonance-gateway","resonance-logic","resonance-task"]'
 verify_tempo_trace agent "$agent_trace_id" '["resonance-gateway","resonance-logic","resonance-pilot"]'
 
+"${COMPOSE[@]}" exec -T grafana sh -c \
+  'auth=$(printf "%s:%s" "$GF_SECURITY_ADMIN_USER" "$GF_SECURITY_ADMIN_PASSWORD" | base64); wget -qO- --header "Authorization: Basic $auth" http://127.0.0.1:3000/api/datasources/uid/loki' \
+  >"$output_dir/grafana-loki-datasource.json"
+"${COMPOSE[@]}" exec -T grafana sh -c \
+  'auth=$(printf "%s:%s" "$GF_SECURITY_ADMIN_USER" "$GF_SECURITY_ADMIN_PASSWORD" | base64); wget -qO- --header "Authorization: Basic $auth" http://127.0.0.1:3000/api/datasources/uid/tempo' \
+  >"$output_dir/grafana-tempo-datasource.json"
+deploy/scripts/validate-stage3-evidence.sh grafana-links \
+  "$output_dir/grafana-loki-datasource.json" "$output_dir/grafana-tempo-datasource.json"
+
 jq -n \
+  --argjson im_event_id "$im_event_id" \
+  --arg agent_run_id "$agent_run_id" \
   --arg im_trace_id "$im_trace_id" \
   --arg agent_trace_id "$agent_trace_id" \
   --argjson trace_groups "$trace_groups" \
@@ -119,8 +129,10 @@ jq -n \
     four_service_json_logs:true,
     loki_to_tempo:true,
     tempo_to_loki:true,
-    im_trace:{trace_id:$im_trace_id,loki_services:["gateway","logic","task"],tempo_services:["resonance-gateway","resonance-logic","resonance-task"]},
-    agent_trace:{trace_id:$agent_trace_id,loki_services:["gateway","logic","pilot"],tempo_services:["resonance-gateway","resonance-logic","resonance-pilot"]},
+    im_trace:{event_id:$im_event_id,trace_id:$im_trace_id,loki_services:["gateway","logic","task"],tempo_services:["resonance-gateway","resonance-logic","resonance-task"]},
+    agent_trace:{run_id:$agent_run_id,trace_id:$agent_trace_id,loki_services:["gateway","logic","pilot"],tempo_services:["resonance-gateway","resonance-logic","resonance-pilot"]},
+    traces_are_distinct:($im_trace_id != $agent_trace_id),
+    grafana_runtime_links_validated:true,
     json_log_counts:($entries | map(select(.json.time and .json.level and .json.msg)) | group_by(.service) | map({key:.[0].service,value:length}) | from_entries),
     trace_groups:$trace_groups
   }' >"$output_dir/telemetry-summary.json"

@@ -158,7 +158,8 @@ jq -e '
 deploy/scripts/verify-dashboard-data.sh "$EVIDENCE_DIR/dashboard-data-proof.json" "$EVIDENCE_DIR/business-storage.json"
 
 curl --silent --output /dev/null http://127.0.0.1:18080/health
-deploy/scripts/verify-e2e-telemetry.sh "$EVIDENCE_DIR" "$e2e_started_ns"
+deploy/scripts/verify-e2e-telemetry.sh "$EVIDENCE_DIR" "$e2e_started_ns" \
+  "$EVIDENCE_DIR/im-e2e.json" "$EVIDENCE_DIR/agent-e2e.json"
 
 git rev-parse HEAD >"$EVIDENCE_DIR/resonance-sha.txt"
 docker version >"$EVIDENCE_DIR/docker-version.txt"

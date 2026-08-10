@@ -42,3 +42,52 @@ RESONANCE_E2E_IAM_REQUESTER_USERNAME="$requester_username" \
 RESONANCE_E2E_IAM_REQUESTER_PASSWORD="$requester_password" \
 RESONANCE_AGENT_E2E_REPORT="$report_path" \
   go test ./test/live -run '^TestAgentServiceDeterministicCompose$' -count=1 -v
+
+read_tool_run=$(jq -er '.read_tool_run_id' "$report_path")
+mutation_run=$(jq -er '.mutation_run_id' "$report_path")
+rejected_run=$(jq -er '.rejected_run_id' "$report_path")
+runtime_failure_run=$(jq -er '.runtime_failure_run_id' "$report_path")
+timeout_run=$(jq -er '.timeout_run_id' "$report_path")
+rejected_call=$(jq -er '.rejected_approval_call_id' "$report_path")
+settlement=''
+for _ in $(seq 1 240); do
+  settlement=$("${COMPOSE[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 \
+    -v read_tool_run="$read_tool_run" -v mutation_run="$mutation_run" \
+    -v rejected_run="$rejected_run" -v runtime_failure_run="$runtime_failure_run" \
+    -v timeout_run="$timeout_run" -v rejected_call="$rejected_call" \
+    -U "$db_user" -d "$db_name" -At <<'SQL'
+SELECT json_build_object(
+  'terminal_runs',(
+    SELECT count(*) FROM t_agent_run
+    WHERE run_id IN (:'read_tool_run', :'mutation_run', :'rejected_run', :'runtime_failure_run', :'timeout_run')
+      AND status IN ('SUCCEEDED','FAILED_FINAL','CANCELLED')
+      AND coalesce(lease_owner,'')='' AND lease_expires_at IS NULL
+  ),
+  'failed_final_runs',(
+    SELECT count(*) FROM t_agent_run
+    WHERE run_id IN (:'runtime_failure_run', :'timeout_run')
+      AND status='FAILED_FINAL' AND attempt=max_attempts
+      AND last_error_code IN ('runtime_start_failed','runtime_failed')
+  ),
+  'active_budget_attempts',(
+    SELECT count(*) FROM t_agent_budget_attempt
+    WHERE run_id IN (:'read_tool_run', :'mutation_run', :'rejected_run', :'runtime_failure_run', :'timeout_run')
+      AND status='RESERVED'
+  ),
+  'rejected_execution_terminal',(
+    SELECT count(*) FROM t_agent_tool_execution
+    WHERE call_id=:'rejected_call' AND status='FAILED_FINAL' AND error_code='APPROVAL_NOT_EXECUTABLE'
+  )
+)::text;
+SQL
+  )
+  if jq -e '.terminal_runs == 5 and .failed_final_runs == 2 and .active_budget_attempts == 0 and .rejected_execution_terminal == 1' \
+    <<<"$settlement" >/dev/null; then
+    break
+  fi
+  sleep 1
+done
+jq -e '.terminal_runs == 5 and .failed_final_runs == 2 and .active_budget_attempts == 0 and .rejected_execution_terminal == 1' \
+  <<<"$settlement" >/dev/null
+settlement_path=${report_path%.json}-settlement.json
+printf '%s\n' "$settlement" | jq . >"$settlement_path"
