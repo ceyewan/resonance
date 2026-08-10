@@ -64,7 +64,7 @@ jq '(.batches[0].scopeSpans[0].spans[0].name)="stage3.shutdown.flush"' "$fixture
 "$validator" shutdown-flush "$fixtures/shutdown-valid.json" resonance-task aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 jq -n '{checks:[
-  "check-gen","docs-and-format","go-lint","go-security","go-test","pilot-bridge","pilot-images","proto-lint","web"
+  "check-gen","docs-and-format","go-lint","go-security","go-test","pilot-bridge","pilot-image","proto-lint","web"
 ] | map({name:.,head_sha:"abc",status:"completed",conclusion:"success"})}' >"$fixtures/ci-valid.json"
 "$validator" hosted-ci "$fixtures/ci-valid.json" abc
 jq '(.checks[] | select(.name=="web")).name="unrelated-green"' "$fixtures/ci-valid.json" >"$fixtures/ci-wrong-name.json"

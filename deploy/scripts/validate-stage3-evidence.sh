@@ -115,7 +115,7 @@ case "${1:-}" in
     input=${2:-}
     sha=${3:-}
     jq -e --arg sha "$sha" '
-      ["check-gen","docs-and-format","go-lint","go-security","go-test","pilot-bridge","pilot-images","proto-lint","web"] as $required |
+      ["check-gen","docs-and-format","go-lint","go-security","go-test","pilot-bridge","pilot-image","proto-lint","web"] as $required |
       ([.checks[].name] | sort) == ($required | sort) and
       (.checks | length) == 9 and
       all(.checks[]; .head_sha == $sha and .status == "completed" and .conclusion == "success")
