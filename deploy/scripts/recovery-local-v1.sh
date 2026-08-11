@@ -150,7 +150,7 @@ SELECT json_build_object(
   'inbox',(SELECT count(*) FROM t_inbox WHERE owner_username LIKE :'test_prefix')
 )::text;
 SQL
-  "${COMPOSE[@]}" exec -T grafana wget -qO- 'http://nats:8222/jsz?streams=true&consumers=true' \
+  "${COMPOSE[@]}" exec -T grafana wget -qO- 'http://nats:8222/jsz?streams=true&consumers=true&config=true' \
     >"$EVIDENCE_DIR/$name-nats-jetstream.json"
   [[ -n "$sequencer_key" ]] || { echo "sequencer probe key is not bound" >&2; return 1; }
   sequencer_value=$("${COMPOSE[@]}" exec -T redis redis-cli --raw GET "$sequencer_key")
@@ -349,7 +349,12 @@ deploy/scripts/validate-stage3-evidence.sh redis-continuity \
 deploy/scripts/validate-stage3-evidence.sh etcd-continuity \
   "$EVIDENCE_DIR/dependency-before-etcd-continuity.json" "$EVIDENCE_DIR/after-etcd-continuity.json"
 deploy/scripts/validate-stage3-evidence.sh nats-continuity \
-  "$EVIDENCE_DIR/dependency-before-nats-jetstream.json" "$EVIDENCE_DIR/after-nats-jetstream.json"
+  "$EVIDENCE_DIR/dependency-before-nats-jetstream.json" "$EVIDENCE_DIR/after-nats-jetstream.json" \
+  "$EVIDENCE_DIR/nats-im.json"
+deploy/scripts/validate-stage3-evidence.sh nats-created-audit \
+  "$EVIDENCE_DIR/dependency-before-nats-jetstream.json" "$EVIDENCE_DIR/after-nats-jetstream.json" \
+  "https://github.com/ceyewan/genesis/issues/67" \
+  >"$EVIDENCE_DIR/nats-consumer-created-audit.json"
 
 "${COMPOSE[@]}" pause alloy loki tempo
 telemetry_paused=1

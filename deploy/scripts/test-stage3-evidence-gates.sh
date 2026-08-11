@@ -70,13 +70,20 @@ jq -n '{checks:[
 jq '(.checks[] | select(.name=="web")).name="unrelated-green"' "$fixtures/ci-valid.json" >"$fixtures/ci-wrong-name.json"
 must_reject hosted-ci "$fixtures/ci-wrong-name.json" abc
 
-jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t1",delivered:{stream_seq:10},ack_floor:{stream_seq:10}}]}]}]}' >"$fixtures/nats-before.json"
-jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"replacement",created:"t2",delivered:{stream_seq:11},ack_floor:{stream_seq:11}}]}]}]}' >"$fixtures/nats-replaced.json"
-must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-replaced.json"
-jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t2",delivered:{stream_seq:11},ack_floor:{stream_seq:11}}]}]}]}' >"$fixtures/nats-recreated-same-name.json"
-must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-recreated-same-name.json"
-jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t1",delivered:{stream_seq:11},ack_floor:{stream_seq:10}}]}]}]}' >"$fixtures/nats-valid.json"
-"$validator" nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-valid.json"
+jq -n '{schema_version:1,message_event_id:42,message_seq_id:1,duplicate_event_id:42,offline_message_event_id:43,offline_message_seq_id:2,recall_event_id:44,inbox_recovery_verified:true,multi_device_read_seen:true,idempotency_verified:true}' >"$fixtures/nats-im-valid.json"
+jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t1",config:{durable_name:"durable",filter_subject:"events",ack_policy:"explicit"},delivered:{consumer_seq:10,stream_seq:10},ack_floor:{consumer_seq:10,stream_seq:10}}]}]}]}' >"$fixtures/nats-before.json"
+jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"replacement",created:"t2",config:{durable_name:"replacement",filter_subject:"events",ack_policy:"explicit"},delivered:{consumer_seq:11,stream_seq:11},ack_floor:{consumer_seq:11,stream_seq:11}}]}]}]}' >"$fixtures/nats-replaced.json"
+must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-replaced.json" "$fixtures/nats-im-valid.json"
+jq -n '{account_details:[{stream_detail:[{name:"S",consumer_detail:[{name:"durable",created:"t2",config:{durable_name:"durable",filter_subject:"events",ack_policy:"explicit"},delivered:{consumer_seq:11,stream_seq:11},ack_floor:{consumer_seq:11,stream_seq:11}}]}]}]}' >"$fixtures/nats-created-drift.json"
+"$validator" nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-created-drift.json" "$fixtures/nats-im-valid.json"
+"$validator" nats-created-audit "$fixtures/nats-before.json" "$fixtures/nats-created-drift.json" "https://github.com/ceyewan/genesis/issues/67" >"$fixtures/nats-created-audit.json"
+jq -e '.created_is_durable_identity == false and .changed_count == 1 and .changed_consumers[0].key == "S/durable"' "$fixtures/nats-created-audit.json" >/dev/null
+jq '(.account_details[0].stream_detail[0].consumer_detail[0].config.max_deliver)=9' "$fixtures/nats-created-drift.json" >"$fixtures/nats-config-drift.json"
+must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-config-drift.json" "$fixtures/nats-im-valid.json"
+jq '(.account_details[0].stream_detail[0].consumer_detail[0].ack_floor.stream_seq)=9' "$fixtures/nats-created-drift.json" >"$fixtures/nats-position-regressed.json"
+must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-position-regressed.json" "$fixtures/nats-im-valid.json"
+jq '.duplicate_event_id=99' "$fixtures/nats-im-valid.json" >"$fixtures/nats-im-duplicate.json"
+must_reject nats-continuity "$fixtures/nats-before.json" "$fixtures/nats-created-drift.json" "$fixtures/nats-im-duplicate.json"
 
 jq -n '{sequencer:{key:"seq",value:"10"},allocators:[{key:"a",value:"1",pttl_ms:100},{key:"b",value:"2",pttl_ms:100}]}' >"$fixtures/redis-before.json"
 jq -n '{sequencer:{key:"seq",value:"9"},allocators:[{key:"a",value:"1",pttl_ms:100},{key:"c",value:"2",pttl_ms:100}]}' >"$fixtures/redis-regressed.json"

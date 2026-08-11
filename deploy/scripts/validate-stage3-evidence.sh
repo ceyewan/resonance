@@ -70,21 +70,65 @@ case "${1:-}" in
   nats-continuity)
     before=${2:-}
     after=${3:-}
-    jq -n -e --slurpfile before "$before" --slurpfile after "$after" '
+    probe=${4:-}
+    jq -n -e --slurpfile before "$before" --slurpfile after "$after" --slurpfile probe "$probe" '
       def snapshot($root):
         [ $root.account_details[]?.stream_detail[]? as $stream |
           $stream.consumer_detail[]? |
-          {key:($stream.name + "/" + .name),created,
-           delivered:(.delivered.stream_seq // 0),ack_floor:(.ack_floor.stream_seq // 0)}
+          {key:($stream.name + "/" + .name),created,config:(.config // null),
+           delivered_consumer:(.delivered.consumer_seq // 0),
+           delivered_stream:(.delivered.stream_seq // 0),
+           ack_consumer:(.ack_floor.consumer_seq // 0),
+           ack_stream:(.ack_floor.stream_seq // 0)}
         ] | sort_by(.key);
       snapshot($before[0]) as $b | snapshot($after[0]) as $a |
+      $probe[0] as $p |
       ($b | length) > 0 and
       ([$b[].key] == [$a[].key]) and
       all(range(0; $b|length);
-        $a[.].created == $b[.].created and
-        $a[.].delivered >= $b[.].delivered and
-        $a[.].ack_floor >= $b[.].ack_floor)
+        ($b[.].config | type) == "object" and
+        $a[.].config == $b[.].config and
+        $a[.].delivered_consumer >= $b[.].delivered_consumer and
+        $a[.].delivered_stream >= $b[.].delivered_stream and
+        $a[.].ack_consumer >= $b[.].ack_consumer and
+        $a[.].ack_stream >= $b[.].ack_stream and
+        $a[.].ack_consumer <= $a[.].delivered_consumer and
+        $a[.].ack_stream <= $a[.].delivered_stream) and
+      $p.schema_version == 1 and
+      $p.message_event_id > 0 and $p.message_seq_id > 0 and
+      $p.duplicate_event_id == $p.message_event_id and
+      $p.offline_message_event_id > 0 and $p.offline_message_seq_id > 0 and
+      $p.recall_event_id > 0 and
+      $p.inbox_recovery_verified == true and
+      $p.multi_device_read_seen == true and
+      $p.idempotency_verified == true
     ' >/dev/null
+    ;;
+  nats-created-audit)
+    before=${2:-}
+    after=${3:-}
+    issue=${4:-}
+    jq -n --slurpfile before "$before" --slurpfile after "$after" --arg issue "$issue" '
+      def snapshot($root):
+        [ $root.account_details[]?.stream_detail[]? as $stream |
+          $stream.consumer_detail[]? |
+          {key:($stream.name + "/" + .name),created}
+        ] | sort_by(.key);
+      snapshot($before[0]) as $b | snapshot($after[0]) as $a |
+      [range(0; $b|length) |
+        select($b[.].key == $a[.].key and $b[.].created != $a[.].created) |
+        {key:$b[.].key,before_created:$b[.].created,after_created:$a[.].created}
+      ] as $changed |
+      {
+        schema_version:1,
+        compatibility_issue:$issue,
+        created_is_durable_identity:false,
+        total_consumers:($b|length),
+        changed_count:($changed|length),
+        changed_consumers:$changed,
+        conclusion:(if ($changed|length) == 0 then "created_stable" else "created_metadata_drift_observed" end)
+      }
+    '
     ;;
   redis-continuity)
     before=${2:-}
@@ -124,7 +168,7 @@ case "${1:-}" in
     ' "$input" >/dev/null
     ;;
   *)
-    echo "usage: $0 {dashboard-metrics|telemetry-bindings|grafana-links|shutdown-flush|nats-continuity|redis-continuity|etcd-continuity|hosted-ci} ..." >&2
+    echo "usage: $0 {dashboard-metrics|telemetry-bindings|grafana-links|shutdown-flush|nats-continuity|nats-created-audit|redis-continuity|etcd-continuity|hosted-ci} ..." >&2
     exit 2
     ;;
 esac

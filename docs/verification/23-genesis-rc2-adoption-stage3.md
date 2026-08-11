@@ -75,8 +75,18 @@ structure. The stored log and trace evidence is a field allowlist, so transport
 headers, container environments and credentials cannot enter the bundle.
 
 Recovery starts with durable facts, restarts each dependency without deleting
-volumes, and proves PostgreSQL Outbox/Inbox growth, exact NATS durable consumer
-identity and position continuity, the Redis sequencer and exact allocator
+volumes, and proves PostgreSQL Outbox/Inbox growth; exact NATS stream/durable
+names and effective configuration; non-regressing consumer and stream delivery
+plus acknowledgement positions; and a post-restart IM probe with one durable
+event for an idempotent client message, online delivery and Inbox recovery.
+NATS `created` metadata is recorded separately and is not treated as durable
+identity: RC2 can report a new value after an unconditional no-op consumer
+update followed by a server restart. That compatibility defect is tracked in
+[Genesis #67](https://github.com/ceyewan/genesis/issues/67) and must be fixed
+before stable Genesis v1, but a `created` change alone does not prove consumer
+replacement or a data-plane failure.
+
+The same recovery run also proves the Redis sequencer and exact allocator
 leases, exact etcd registrations plus a service-specific watch event, graceful
 zero-exit shutdown, port release and lease removal. Each graceful stop must
 also produce that service's exact `stage3.shutdown.flush` span in Tempo, bound
