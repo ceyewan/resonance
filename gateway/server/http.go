@@ -6,6 +6,7 @@ import (
 
 	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"github.com/gin-gonic/gin"
 
 	"github.com/ceyewan/resonance/gateway/config"
@@ -45,6 +46,9 @@ func (s *HTTPServer) Start() error {
 	// 应用中间件（CORS 必须在最前）
 	router.Use(s.middlewares.CORS)
 	router.Use(metrics.GinHTTPMiddleware(observability.HTTPServerMetrics()))
+	// Run tracing before request logging and handlers so clog and downstream
+	// clients observe the same active OTel span.
+	router.Use(genesistrace.GinMiddleware("resonance-gateway"))
 	router.Use(s.middlewares.Recovery)
 
 	// 注册 API 路由

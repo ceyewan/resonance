@@ -6,3 +6,8 @@ bin/
 **/node_modules
 *.log
 .DS_Store
+vendor/
+genesis/
+go.work
+go.work.sum
+artifacts/

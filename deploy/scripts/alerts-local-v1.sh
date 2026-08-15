@@ -4,8 +4,11 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$ROOT"
 COMPOSE=(docker compose --env-file .env -p resonance-v1 -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml -f deploy/observability.yaml)
+export GOWORK=off
+export RESONANCE_VERSION=${RESONANCE_VERSION:-$(git rev-parse --short=12 HEAD)}
 OUT=${ALERT_EVIDENCE_DIR:-artifacts/local-v1/alerts-$(date -u +%Y%m%dT%H%M%SZ)}
 mkdir -p "$OUT"
+deploy/scripts/verify-genesis-rc2-identity.sh >"$OUT/genesis-rc2-identity.json"
 PREFIX=${RESONANCE_ALERT_PREFIX:-al-$(date -u +%m%d%H%M%S)-$$}
 if [[ ! "$PREFIX" =~ ^[A-Za-z0-9_-]{1,24}$ ]]; then
   echo "unsafe alert test prefix" >&2

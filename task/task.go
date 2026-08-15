@@ -151,7 +151,10 @@ func (t *Task) initComponents() error {
 		t.config.Consumer,
 		logger.WithNamespace("consumer"),
 	)
-	t.consumer.SetName("chat_event")
+	// The chat event consumer persists the message before dispatching pushes;
+	// identify it as storage so its dedicated Stage 3 latency histogram is
+	// recorded on every handled event.
+	t.consumer.SetName("storage")
 
 	streamDispatcher, err := streaming.NewDispatcher(res.routerRepo, t.pusherMgr, logger.WithNamespace("agent_stream_dispatcher"))
 	if err != nil {
@@ -411,6 +414,7 @@ func (t *Task) close() error {
 
 	// 5. 关闭可观测性组件
 	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
+	observability.RecordShutdownFlushProbe(t.logger)
 	result = errors.Join(result, observability.Shutdown(observabilityCtx))
 	cancelObservability()
 	return result

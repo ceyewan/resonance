@@ -32,5 +32,5 @@ datasources:
         spanEndTimeShift: 5m
         filterByTraceID: true
         filterBySpanID: false
-        tags: [{ key: service.name, value: service_name }]
+        tags: [{ key: service.name, value: otel_service_name }]
       nodeGraph: { enabled: true }

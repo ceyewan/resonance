@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
 	genesistrace "github.com/ceyewan/genesis/trace"
 	"go.opentelemetry.io/otel"
@@ -154,6 +155,17 @@ func (t *Telemetry) Close(ctx context.Context) error {
 		t.closeErr = errors.Join(t.traceShutdown(ctx), t.meter.Shutdown(ctx))
 	})
 	return t.closeErr
+}
+
+// RecordShutdownFlushProbe creates a service-specific span immediately before
+// the trace provider is flushed. Its context-bound log is the recovery proof.
+func RecordShutdownFlushProbe(logger clog.Logger) {
+	if logger == nil {
+		return
+	}
+	ctx, span := otel.Tracer(tracerName).Start(context.Background(), "stage3.shutdown.flush")
+	logger.InfoContext(ctx, "stage3 shutdown trace flush probe", clog.String("service", serviceName))
+	span.End()
 }
 
 func (t *Telemetry) recordUsage(ctx context.Context, usage *pilotruntime.Usage) {

@@ -58,6 +58,30 @@
           "legendFormat": "db conns {{job}}"
         }
       ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "PostgreSQL / Redis / NATS / etcd health",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (driver, name, status) (rate(connector_health_checks_total[5m]))",
+          "legendFormat": "{{driver}} {{name}} {{status}}"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (instance, service) (rate(registry_watch_events_total[5m]))",
+          "legendFormat": "etcd watch {{instance}} → {{service}}"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (service_name) (rate(registry_lease_failures_total[5m]))",
+          "legendFormat": "etcd lease failures {{service_name}}"
+        }
+      ]
     }
   ]
 }

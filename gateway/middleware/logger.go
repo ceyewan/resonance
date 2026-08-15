@@ -10,6 +10,7 @@ import (
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Logger 返回一个请求日志中间件
@@ -18,7 +19,15 @@ import (
 func Logger(logger clog.Logger, idgen idgen.Generator) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 1. 处理 trace_id
-		traceID := c.GetHeader(TraceIDHeader)
+		// Genesis trace.GinMiddleware has already created the server span. Its
+		// canonical TraceID is shared by JSON logs and downstream propagation.
+		traceID := ""
+		if spanContext := trace.SpanContextFromContext(c.Request.Context()); spanContext.IsValid() {
+			traceID = spanContext.TraceID().String()
+		}
+		if traceID == "" {
+			traceID = c.GetHeader(TraceIDHeader)
+		}
 		if traceID == "" {
 			if id, err := idgen.Next(); err == nil {
 				traceID = fmt.Sprintf("%d", id)

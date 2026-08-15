@@ -175,7 +175,10 @@ func setupInfra(t *testing.T, logger clog.Logger) *infra {
 			"POSTGRES_USER":     "resonance",
 			"POSTGRES_PASSWORD": "resonance123",
 		},
-		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(90 * time.Second),
+		// The image starts a temporary PostgreSQL during initialization, then
+		// restarts it. Waiting for the port alone can race with that restart.
+		WaitingFor: wait.ForLog("database system is ready to accept connections").
+			WithOccurrence(2).WithStartupTimeout(90 * time.Second),
 	}, "5432/tcp")
 	redisContainer, redisHost, redisPort := mustStartContainer(t, testcontainers.ContainerRequest{
 		Image:        "redis:7.2-alpine",
@@ -306,29 +309,27 @@ func mustFreeAddr(t *testing.T) string {
 
 func dialWithRetry(t *testing.T, addr string, timeout time.Duration) *grpc.ClientConn {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			lastErr = err
-			time.Sleep(100 * time.Millisecond)
-			continue
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if t.Failed() {
+			_ = conn.Close()
 		}
-		conn.Connect()
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	conn.Connect()
+	for {
 		state := conn.GetState()
-		if state == connectivity.Ready || state == connectivity.Idle || conn.WaitForStateChange(ctx, state) {
-			cancel()
+		if state == connectivity.Ready {
 			return conn
 		}
-		cancel()
-		lastErr = fmt.Errorf("grpc not ready, state=%s", conn.GetState())
-		_ = conn.Close()
-		time.Sleep(100 * time.Millisecond)
+		if state == connectivity.Shutdown || !conn.WaitForStateChange(ctx, state) {
+			require.NoError(t, fmt.Errorf("grpc not ready before timeout: state=%s: %w", conn.GetState(), ctx.Err()))
+			return nil
+		}
 	}
-	require.NoError(t, lastErr)
-	return nil
 }
 
 func callWithRetry(timeout time.Duration, fn func() error) error {

@@ -59,6 +59,26 @@
           "legendFormat": "enqueue failures/s"
         }
       ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Outbox / JetStream / Inbox continuity",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "max(logic_outbox_backlog)", "legendFormat": "pending Outbox" },
+        {
+          "refId": "B",
+          "expr": "sum by (status) (rate(mq_publish_total{driver=\"nats_jetstream\"}[5m]))",
+          "legendFormat": "JetStream publish {{status}}/s"
+        },
+        {
+          "refId": "C",
+          "expr": "sum(rate(task_storage_process_duration_seconds_count[5m]))",
+          "legendFormat": "Inbox storage events/s"
+        }
+      ]
     }
   ]
 }

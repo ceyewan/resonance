@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/ceyewan/genesis/clog"
+
 	"github.com/ceyewan/resonance/model"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
 	"github.com/ceyewan/resonance/pilot/session"
@@ -80,6 +82,7 @@ type FinalMessageAck struct {
 }
 
 type Dependencies struct {
+	Logger        clog.Logger
 	Runs          RunStore
 	Runtime       pilotruntime.AgentRuntime
 	Sessions      session.Manager

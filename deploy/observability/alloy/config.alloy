@@ -35,6 +35,12 @@ discovery.relabel "resonance_logs" {
     target_label  = "service_name"
   }
   rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex         = "(gateway|logic|task|pilot)"
+    replacement   = "resonance-$1"
+    target_label  = "otel_service_name"
+  }
+  rule {
     target_label = "deployment_environment"
     replacement  = "local-v1"
   }

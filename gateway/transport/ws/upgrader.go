@@ -93,6 +93,7 @@ func (h *Upgrader) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		int64(h.config.MaxMessageSize*1024),
 		h.config.GetPingInterval(),
 		h.config.GetPongTimeout(),
+		WithParentContext(r.Context()),
 		WithUserPrincipal(principal),
 	)
 

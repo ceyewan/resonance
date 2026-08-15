@@ -275,6 +275,10 @@ func (c *Consumer) handleMessageWithProgress(ctx context.Context, msg mq.Message
 	}
 	c.logger.Debug("mq event processed successfully",
 		clog.Int64("event_id", event.GetEvent().GetEventId()))
+	// Keep one INFO record bound to the durable event identity so Stage 3 can
+	// correlate the exact IM evidence row to its cross-service trace in Loki.
+	c.logger.InfoContext(ctx, "mq event processed",
+		clog.Int64("event_id", event.GetEvent().GetEventId()))
 
 	// 记录成功指标
 	c.recordMetrics(ctx, start, "success")

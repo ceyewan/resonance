@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ceyewan/genesis/clog"
+	genesistrace "github.com/ceyewan/genesis/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -13,7 +14,6 @@ import (
 
 	logicv1 "github.com/ceyewan/resonance/api/gen/go/logic/v1"
 	"github.com/ceyewan/resonance/logic/service"
-	"github.com/ceyewan/resonance/pkg/grpctrace"
 	"github.com/ceyewan/resonance/pkg/serviceauth"
 )
 
@@ -122,14 +122,13 @@ func NewGRPCServer(
 func (s *GRPCServer) Start() error {
 	// 创建 gRPC Server，添加通用拦截器
 	s.server = grpc.NewServer(
+		grpc.StatsHandler(genesistrace.GRPCServerStatsHandler()),
 		grpc.ChainUnaryInterceptor(
-			grpctrace.UnaryServerInterceptor(),
 			s.recoveryUnaryInterceptor,
 			s.authUnaryInterceptor,
 			s.loggerUnaryInterceptor,
 		),
 		grpc.ChainStreamInterceptor(
-			grpctrace.StreamServerInterceptor(),
 			s.recoveryStreamInterceptor,
 			s.loggerStreamInterceptor,
 		),

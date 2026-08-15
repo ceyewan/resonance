@@ -28,6 +28,11 @@ x-resonance-service: &resonance-service
   networks:
     - resonance-net
   restart: unless-stopped
+  logging: &resonance-logging
+    driver: json-file
+    options:
+      max-size: "5m"
+      max-file: "2"
 
 x-pilot-control-build: &pilot-control-build
   context: ..

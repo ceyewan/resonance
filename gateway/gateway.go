@@ -456,6 +456,7 @@ func (g *Gateway) close() error {
 	// 5. 关闭可观测性组件
 	observabilityCtx, cancelObservability := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelObservability()
+	observability.RecordShutdownFlushProbe(g.logger)
 	result = errors.Join(result, observability.Shutdown(observabilityCtx))
 	return result
 }

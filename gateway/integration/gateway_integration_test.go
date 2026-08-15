@@ -119,27 +119,25 @@ func mustFreeAddr(t *testing.T) string {
 
 func dialWithRetry(t *testing.T, addr string, timeout time.Duration) *grpc.ClientConn {
 	t.Helper()
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			lastErr = err
-			time.Sleep(100 * time.Millisecond)
-			continue
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if t.Failed() {
+			_ = conn.Close()
 		}
-		conn.Connect()
-		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	conn.Connect()
+	for {
 		state := conn.GetState()
-		if state == connectivity.Ready || state == connectivity.Idle || conn.WaitForStateChange(ctx, state) {
-			cancel()
+		if state == connectivity.Ready {
 			return conn
 		}
-		cancel()
-		lastErr = fmt.Errorf("grpc not ready, state=%s", conn.GetState())
-		_ = conn.Close()
-		time.Sleep(100 * time.Millisecond)
+		if state == connectivity.Shutdown || !conn.WaitForStateChange(ctx, state) {
+			require.NoError(t, fmt.Errorf("grpc not ready before timeout: state=%s: %w", conn.GetState(), ctx.Err()))
+			return nil
+		}
 	}
-	require.NoError(t, lastErr)
-	return nil
 }

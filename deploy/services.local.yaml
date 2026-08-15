@@ -9,10 +9,14 @@ services:
   pilot:
     environment:
       RESONANCE_PROFILE_MODEL: resonance-deterministic-v1
+      # Two retries prove retry/finalization semantics while allowing the two
+      # concurrent negative runs to coexist under the default local budget.
+      RESONANCE_WORKER_MAX_ATTEMPTS: "2"
 
   pilot-iam-admin:
     environment:
       RESONANCE_PROFILE_MODEL: resonance-deterministic-v1
+      RESONANCE_WORKER_MAX_ATTEMPTS: "2"
 
   pilot-runtime:
     environment:
