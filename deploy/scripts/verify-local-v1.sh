@@ -29,6 +29,10 @@ db_name=$(sed -n 's/^RESONANCE_POSTGRES_DATABASE=//p' .env | tail -n 1)
 db_user=${db_user:-resonance}
 db_name=${db_name:-resonance}
 snapshot_budget() {
+  # Reserve materializes day/month buckets and cleanup reverses their counters;
+  # an all-zero row is therefore storage identity, not remaining budget usage.
+  # Compare only non-zero accounting state so a first run in a new period does
+  # not report drift after every token and cost counter was restored exactly.
   "${COMPOSE[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U "$db_user" -d "$db_name" -At <<'SQL' | jq -S .
 SELECT coalesce(json_agg(json_build_object(
   'tenant_id',tenant_id,
@@ -41,7 +45,13 @@ SELECT coalesce(json_agg(json_build_object(
   'settled_cost_micros',settled_cost_micros,
   'unknown_reserved_cost_micros',unknown_reserved_cost_micros
 ) ORDER BY tenant_id,period_kind,period_start), '[]'::json)
-FROM t_agent_budget_bucket;
+FROM t_agent_budget_bucket
+WHERE reserved_tokens <> 0
+   OR settled_tokens <> 0
+   OR unknown_reserved_tokens <> 0
+   OR reserved_cost_micros <> 0
+   OR settled_cost_micros <> 0
+   OR unknown_reserved_cost_micros <> 0;
 SQL
 }
 
