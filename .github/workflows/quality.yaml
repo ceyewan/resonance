@@ -11,7 +11,7 @@ concurrency:
 
 env:
   GOWORK: "off"
-  GO_VERSION: "1.26.5"
+  GO_VERSION: "1.26.6"
   NODE_VERSION: "22"
   BUF_VERSION: "1.66.1"
   GOLANGCI_LINT_VERSION: "v2.12.2"
