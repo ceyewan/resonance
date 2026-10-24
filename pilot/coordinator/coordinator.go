@@ -289,7 +289,7 @@ func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, ru
 		// 消息一旦落库就收不回来了。
 		if err := c.ensureStillCommittable(ctx, guard); err != nil {
 			if errors.Is(err, errHistoryInvalidated) {
-				c.abandonInvalidatedRun(guard)
+				c.cancelInvalidatedRun(guard)
 			}
 			return current, err
 		}
@@ -328,35 +328,11 @@ func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, ru
 
 var errHistoryInvalidated = errors.New("authoritative history changed before final commit")
 
-// abandonInvalidatedRun 立刻把被失效的 Run 释放回队列。
-//
-// 只返回错误不作为是不行的：worker 对非致命错误只记 Warn，Run 会继续持有租约，
-// 用户要等 lease_ttl(30s) + recovery_interval(15s) + retry_backoff(5s) 才等到基于
-// 新历史的回复。ingress 已经把它取消成终态时这里会 fence lost，属于正常情况。
-func (c *Coordinator) abandonInvalidatedRun(guard *leaseGuard) {
-	guard.stop()
-	current := guard.snapshot()
-	now := c.now().UTC()
-	failed, err := c.deps.Runs.AbandonInvalidatedAgentRun(context.Background(), repo.AgentRunLease{
-		TenantID: current.TenantID, RunID: current.RunID,
-		WorkerID: current.LeaseOwner, LeaseToken: current.LeaseToken,
-		ExpectedVersion: current.Version, Now: now,
-	}, now, now.Add(c.config.RetryBackoff))
-	switch {
-	case errors.Is(err, repo.ErrAgentRunFenceLost):
-		// ingress 的 InvalidateAgentConversation 已经把它取消并清空租约。
-	case err != nil:
-		if c.deps.Logger != nil {
-			c.deps.Logger.Warn("failed to release invalidated agent run", clog.Error(err))
-		}
-	case c.deps.Logger != nil && failed != nil:
-		c.deps.Logger.Info("agent run released for retry after history invalidation",
-			clog.String("run_id", failed.RunID), clog.String("status", failed.Status))
-	}
-}
-
 // ensureStillCommittable 是最终回复写入 Logic 之前的最后一道闸门。撤回/编辑事件由
 // Pilot 自己在 ingress 侧处理，因此这里的复查完全不依赖 Logic 认识 Agent 表。
+//
+// 比的是 binding 版本而不是 generation：同一个 DIRTY(G) 既可能是"本轮执行期间被
+// 置脏"（必须拦），也可能是"本轮就是从 DIRTY 重建的"（必须放行晋升）。
 func (c *Coordinator) ensureStillCommittable(ctx context.Context, guard *leaseGuard) error {
 	current := guard.snapshot()
 	stored, err := c.deps.Runs.GetAgentRun(ctx, current.TenantID, current.RunID)
@@ -380,6 +356,42 @@ func (c *Coordinator) ensureStillCommittable(ctx context.Context, guard *leaseGu
 		return fmt.Errorf("%w: session snapshot was invalidated during this run", errHistoryInvalidated)
 	}
 	return nil
+}
+
+// cancelInvalidatedRun 把被失效的 Run 立刻终止。
+//
+// 为什么是终止而不是重试：撤回与编辑都受 2 分钟窗口限制（logic/service 的
+// recallTimeWindow），被失效的消息必然是刚刚这几句、很可能就是触发本轮的这条。
+// 用户刚撤回自己说的话，此时补一条基于新历史的回答既不是他要的，也会让"撤回了
+// 却还是收到回复"变成可见行为。因此不消耗 attempt、不重新推理。
+//
+// 只返回错误不作为是不行的：worker 对非致命错误只记 Warn，Run 会继续持有租约，
+// 用户要等 lease_ttl(30s) + recovery_interval(15s) 才看到它变成终态。
+// ingress 抢先取消时这里会 fence lost，属于正常情况。
+func (c *Coordinator) cancelInvalidatedRun(guard *leaseGuard) {
+	guard.stop()
+	current := guard.snapshot()
+	now := c.now().UTC()
+	cancelled, err := c.deps.Runs.CancelAgentRun(context.Background(), repo.AgentRunCancellation{
+		Lease: repo.AgentRunLease{
+			TenantID: current.TenantID, RunID: current.RunID,
+			WorkerID: current.LeaseOwner, LeaseToken: current.LeaseToken,
+			ExpectedVersion: current.Version, Now: now,
+		},
+		ErrorCode:    "history_invalidated",
+		ErrorSummary: "authoritative conversation history changed before final commit",
+	})
+	switch {
+	case errors.Is(err, repo.ErrAgentRunFenceLost):
+		// ingress 的 InvalidateAgentConversation 已经把它取消并清空租约。
+	case err != nil:
+		if c.deps.Logger != nil {
+			c.deps.Logger.Warn("failed to cancel invalidated agent run", clog.Error(err))
+		}
+	case c.deps.Logger != nil && cancelled != nil:
+		c.deps.Logger.Info("agent run cancelled after history invalidation",
+			clog.String("run_id", cancelled.RunID))
+	}
 }
 
 func (c *Coordinator) newClaim() (repo.AgentRunClaim, error) {

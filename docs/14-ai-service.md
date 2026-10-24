@@ -49,7 +49,12 @@ Pilot 自己订阅 Recall/Edit 事件：取消该会话所有未落地的 Run、
 
 - Run 启动时把当时读到的 `binding.Version` 记进 `base_binding_version`；
 - 写入前重读 Run 与 Binding，要求 Run 仍是 `COMMITTING` 且 `binding.Version` 未变；
-- 不满足就把 Run 立刻退回队列（`FAILED_RETRYABLE`，`history_invalidated`），不写消息。
+- 不满足就立刻**取消**这个 Run（`CANCELLED`，`history_invalidated`），不写消息、不重试。
+
+这里选择终止而不是重试，依据是一个产品约束：撤回与编辑都只有 2 分钟窗口
+（`logic/service` 的 `recallTimeWindow`，edit 复用同一常量），所以被失效的消息必然
+是刚刚这几句、很可能就是触发本轮的这条。用户刚撤回自己说的话，此时补一条基于新历史的
+回答既不是他要的，也会让"撤回了却还是收到回复"变成可见行为。因此取消不消耗 attempt。
 
 这里比的是 **binding 版本而不是 generation**：同一个 `DIRTY(G)` 有两种含义——"本轮执行期间被置脏"（必须拦）
 和"本轮就是从 DIRTY 重建的"（必须放行并晋升）。只比 generation 会把后者也误伤，让会话永远停在 DIRTY。

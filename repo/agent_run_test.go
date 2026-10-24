@@ -500,9 +500,9 @@ func TestAgentRunRepo_StaleBindingVersionIsNotPromoted(t *testing.T) {
 	require.Equal(t, model.AgentRunStatusSucceeded, replayed.Status)
 }
 
-// 普通失败路径仍然禁止把 prepared 结果送回执行队列；只有"历史失效"能退场，
-// 且必须清空冻结的候选（否则会把旧候选当成新一轮的输入）。
-func TestAgentRunRepo_AbandonInvalidatedRunClearsFrozenCandidate(t *testing.T) {
+// 撤回/编辑只能命中 2 分钟窗口内的消息（必然包含触发本轮的这条），所以执行中途被
+// 失效时必须终止而不是重试：不消耗 attempt、不重新推理、不补一条回答。
+func TestAgentRunRepo_CancelInvalidatedRunIsTerminal(t *testing.T) {
 	database, cleanup := setupTestContext(t)
 	defer cleanup()
 	runRepo, err := NewAgentRunRepo(database)
@@ -511,29 +511,29 @@ func TestAgentRunRepo_AbandonInvalidatedRunClearsFrozenCandidate(t *testing.T) {
 	base := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 
 	prepared := prepareTestAgentRun(t, ctx, runRepo, newTestAgentRun(
-		"run-abandon", "tenant-a", "conversation-abandon", 9951, 1, base,
+		"run-cancel-invalidated", "tenant-a", "conversation-cancel-invalidated", 9951, 1, base,
 	), 0, "session-abandon", base)
 	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(5*time.Second)))
 	require.NoError(t, err)
-	require.NotEmpty(t, committing.FrozenFinalText)
+	attemptsBefore := committing.Attempt
 
-	abandoned, err := runRepo.AbandonInvalidatedAgentRun(
-		ctx, leaseFor(committing, base.Add(6*time.Second)), base.Add(6*time.Second), base.Add(11*time.Second),
-	)
+	cancelled, err := runRepo.CancelAgentRun(ctx, AgentRunCancellation{
+		Lease:        leaseFor(committing, base.Add(6*time.Second)),
+		ErrorCode:    "history_invalidated",
+		ErrorSummary: "authoritative conversation history changed before final commit",
+	})
 	require.NoError(t, err)
-	require.Equal(t, model.AgentRunStatusFailedRetryable, abandoned.Status)
-	require.Equal(t, "history_invalidated", abandoned.LastErrorCode)
-	require.Empty(t, abandoned.LeaseToken)
-	require.Empty(t, abandoned.FrozenFinalText, "旧候选必须清空")
-	require.Empty(t, abandoned.CandidateSessionRef)
-	require.Empty(t, abandoned.FinalClientMsgID)
-	require.Zero(t, abandoned.FinalEventID)
-	require.Equal(t, base.Add(11*time.Second), abandoned.AvailableAt.UTC())
+	require.Equal(t, model.AgentRunStatusCancelled, cancelled.Status)
+	require.Equal(t, "history_invalidated", cancelled.LastErrorCode)
+	require.False(t, cancelled.LastErrorRetryable)
+	require.Empty(t, cancelled.LeaseToken)
+	require.Empty(t, cancelled.FinalClientMsgID)
+	require.Zero(t, cancelled.FinalEventID)
+	require.Equal(t, attemptsBefore, cancelled.Attempt, "终止不消耗 attempt")
 
-	// 清空后它是一条普通的重试 Run，可以被重新领取并重新推理。
-	claimed, err := runRepo.ClaimNextAgentRun(ctx, testClaim("tenant-a", "worker-retry", "token-retry", base.Add(12*time.Second)))
-	require.NoError(t, err)
-	require.Equal(t, "run-abandon", claimed.RunID)
+	// 终态不会被重新领取，也不会回到执行队列。
+	_, err = runRepo.ClaimNextAgentRun(ctx, testClaim("tenant-a", "worker-after-cancel", "token-after-cancel", base.Add(20*time.Second)))
+	require.ErrorIs(t, err, ErrNoAgentRunAvailable)
 }
 
 // 撤回/编辑必须取消该会话所有尚未落地的 Run，并保留已写出最终消息的 Run。

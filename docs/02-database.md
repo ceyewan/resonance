@@ -77,7 +77,7 @@ Pilot 仅保留 `t_agent_run` 与 `t_agent_session_binding`：前者负责 durab
 `t_agent_run` 里有两个只服务于提交闸门的字段（语义见 `docs/14`）：
 
 - `base_binding_version`：Run 启动时读到的 `t_agent_session_binding.version`。提交时不一致说明权威历史在本轮
-  执行期间被改动，此时既不写最终消息，也不晋升快照。
+  执行期间被改动，此时既不写最终消息，也不晋升快照，Run 直接取消（撤回窗口只有 2 分钟，补回答是错的）。
 - `committed_generation = 0`：Run 正常成功、但快照没有晋升（历史已失效）。它与 `SUCCEEDED` 组合表示
   "回复已发出、基线未推进"，下一轮必须从有效历史重建；重放该收尾是幂等的，不会 fence lost。
 

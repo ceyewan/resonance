@@ -23,7 +23,6 @@ type RunStore interface {
 	HeartbeatAgentRun(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)
 	AdvanceAgentRun(ctx context.Context, transition repo.AgentRunTransition) (*model.AgentRun, error)
 	FailAgentRun(ctx context.Context, failure repo.AgentRunFailure) (*model.AgentRun, error)
-	AbandonInvalidatedAgentRun(ctx context.Context, lease repo.AgentRunLease, now, retryAt time.Time) (*model.AgentRun, error)
 	CancelAgentRun(ctx context.Context, cancellation repo.AgentRunCancellation) (*model.AgentRun, error)
 	PrepareAgentRun(ctx context.Context, prepared repo.AgentRunPreparedResult) (*model.AgentRun, error)
 	BeginAgentRunCommit(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)

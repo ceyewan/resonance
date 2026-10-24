@@ -118,8 +118,12 @@ Recall/Edit 事件会流到 Pilot 的 ingress，那里做两件事（同一事�
 已经写出最终消息的 Run 不取消——那是用户可见的既成事实，回滚不了。
 
 对"执行中途被撤回/编辑"的情况，还有一道写前闸门：Run 在启动时把读到的 `binding.Version` 记进 `base_binding_version`，
-提交最终回复之前重读 Run 与 Binding，要求 Run 仍是 `COMMITTING` 且版本未变；否则立刻把 Run 退回队列（`FAILED_RETRYABLE`），
-**消息不写入 Logic**，下一轮从有效历史重建。
+提交最终回复之前重读 Run 与 Binding，要求 Run 仍是 `COMMITTING` 且版本未变；否则立刻**取消**这个 Run
+（`CANCELLED` / `history_invalidated`），**消息不写入 Logic**，也不重试。
+
+不重试是刻意的：撤回与编辑都受 2 分钟窗口限制（`logic/service/recall.go` 的 `recallTimeWindow`，edit 复用同一常量），
+被失效的消息必然是刚说的话、很可能就是触发本轮的这条。撤回之后再补一条回答，对用户来说是意外行为；
+所以取消不消耗 attempt，用户重新发一句即可。
 
 这条闸门是 best-effort 而非原子保证：检查与写入之间有毫秒级窗口。窗口内回复可能发出，但
 `commitAgentSessionBinding` 会因版本不一致拒绝晋升快照（`committed_generation = 0`，快照保持 `DIRTY`），
