@@ -9,7 +9,7 @@ import "common/v1/view.proto";
 option go_package = "github.com/ceyewan/resonance/api/gen/go/logic/v1;logicv1";
 
 // SessionService 内部会话接口（Gateway -> Logic，gRPC）
-// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// 身份来自经过服务签名校验的 context，body 不携带
 // DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 service SessionService {
   rpc GetSessionList(GetSessionListRequest) returns (GetSessionListResponse);
@@ -38,8 +38,9 @@ message CreateSessionResponse {
   string session_id = 1;
 }
 
+// 幂等获取当前用户唯一的 Pilot 私聊，不接受 Profile 或用户身份。
 message CreateAgentSessionRequest {
-  resonance.common.v1.AgentProfile profile = 1;
+  reserved 1;
 }
 
 message CreateAgentSessionResponse {

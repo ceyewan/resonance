@@ -96,18 +96,6 @@ services:
       RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
       RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
 
-  pilot-iam-admin:
-    container_name: !reset null
-    environment:
-      RESONANCE_LOG_FORMAT: json
-      RESONANCE_LOG_OUTPUT: stdout
-      RESONANCE_OBSERVABILITY_VERSION: ${RESONANCE_VERSION:-unknown}
-      RESONANCE_OBSERVABILITY_ENVIRONMENT: local-v1
-      RESONANCE_OBSERVABILITY_TRACE_DISABLE: "false"
-      RESONANCE_OBSERVABILITY_TRACE_ENDPOINT: alloy:4317
-      RESONANCE_OBSERVABILITY_TRACE_INSECURE: "true"
-      RESONANCE_OBSERVABILITY_TRACE_SAMPLER: "1"
-
   web:
     container_name: !reset null
     healthcheck:
@@ -257,30 +245,6 @@ services:
       timeout: 3s
       retries: 8
       start_period: 15s
-    logging: *observability-logging
-
-  provider-egress-proxy:
-    container_name: !reset null
-    healthcheck:
-      test: ["CMD", "nc", "-z", "127.0.0.1", "18080"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-      start_period: 10s
-    logging: *observability-logging
-
-  pilot-storage-init:
-    container_name: !reset null
-    mem_limit: 128m
-    cpus: 0.25
-    logging: *observability-logging
-
-  pilot-runtime:
-    container_name: !reset null
-    logging: *observability-logging
-
-  pilot-iam-admin-runtime:
-    container_name: !reset null
     logging: *observability-logging
 
 volumes:

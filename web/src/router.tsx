@@ -12,7 +12,6 @@ import { EmptyChat } from "./features/chat/EmptyChat";
 import { ChatRoom } from "./features/chat/ChatRoom";
 import { ContactsPage } from "./features/contact/ContactsPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
-import { ApprovalsPage } from "./features/approval/ApprovalsPage";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -56,12 +55,6 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const approvalsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/approvals",
-  component: ApprovalsPage,
-});
-
 const chatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/chat",
@@ -86,7 +79,6 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   contactsRoute,
   settingsRoute,
-  approvalsRoute,
   chatRoute.addChildren([chatIndexRoute, chatRoomRoute]),
 ]);
 

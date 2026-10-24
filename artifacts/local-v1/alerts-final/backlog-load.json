@@ -1,9 +1,0 @@
-{
-  "schema_version": 1,
-  "injection": "NATS paused while local benchmark submitted a message",
-  "alert": {
-    "state": "firing",
-    "observed_backlog": 1,
-    "summary": "Logic outbox has pending records"
-  }
-}

@@ -38,7 +38,7 @@ func TestHistoryPromptBuilder_UsesAuthoritativeOrderedHistoryAndServiceIdentity(
 	require.NoError(t, err)
 	prompt, err := builder.RebuildPrompt(context.Background(), &model.AgentRun{
 		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
-		ActorUsername: "alice", Prompt: "current question",
+		SourceSeqID: 3, ActorUsername: "alice", Prompt: "current question",
 	})
 	require.NoError(t, err)
 	require.Contains(t, prompt, `"current_event_id":12`)
@@ -53,7 +53,7 @@ func TestHistoryPromptBuilderRejectsRecalledCurrentEvent(t *testing.T) {
 	require.NoError(t, err)
 	_, err = builder.RebuildPrompt(context.Background(), &model.AgentRun{
 		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
-		ActorUsername: "alice", Prompt: "private recalled text",
+		SourceSeqID: 1, ActorUsername: "alice", Prompt: "private recalled text",
 	})
 	require.ErrorContains(t, err, "was recalled")
 }
@@ -66,7 +66,7 @@ func TestHistoryPromptBuilderRejectsMalformedRecalledTombstone(t *testing.T) {
 	require.NoError(t, err)
 	_, err = builder.RebuildPrompt(context.Background(), &model.AgentRun{
 		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
-		ActorUsername: "alice", Prompt: "current question",
+		SourceSeqID: 2, ActorUsername: "alice", Prompt: "current question",
 	})
 	require.ErrorContains(t, err, "invalid recalled tombstone")
 }
@@ -77,7 +77,7 @@ func TestHistoryPromptBuilder_FailsClosedOnTamperedOrMissingCurrentEvent(t *test
 	require.NoError(t, err)
 	_, err = builder.RebuildPrompt(context.Background(), &model.AgentRun{
 		RunID: "run-1", TenantID: "tenant-a", ConversationID: "conversation-a", SourceEventID: 12,
-		ActorUsername: "alice", Prompt: "current question",
+		SourceSeqID: 1, ActorUsername: "alice", Prompt: "current question",
 	})
 	require.ErrorContains(t, err, "does not match")
 }

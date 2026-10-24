@@ -9,8 +9,6 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-
-	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
 )
 
 type wireHeader struct {
@@ -207,13 +205,11 @@ type commandsData struct {
 }
 
 type bridgeReadiness struct {
-	ProtocolVersion int    `json:"bridge_protocol"`
-	ProfileID       string `json:"profile_id"`
-	ProfileVersion  int64  `json:"profile_version"`
-	ToolCount       int    `json:"tool_count"`
+	ProtocolVersion int `json:"bridge_protocol"`
+	ToolCount       int `json:"tool_count"`
 }
 
-func verifyBridgeCommands(data commandsData, profile pilotruntime.ProfileSnapshot) error {
+func verifyBridgeCommands(data commandsData) error {
 	ready := false
 	for _, command := range data.Commands {
 		switch {
@@ -231,8 +227,7 @@ func verifyBridgeCommands(data commandsData, profile pilotruntime.ProfileSnapsho
 			if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
 				return fmt.Errorf("trusted Bridge readiness payload contains trailing data")
 			}
-			if readiness.ProtocolVersion != 1 || readiness.ProfileID != profile.ID ||
-				readiness.ProfileVersion != profile.Version || readiness.ToolCount < 1 || readiness.ToolCount > 32 {
+			if readiness.ProtocolVersion != 1 || readiness.ToolCount != 0 {
 				return fmt.Errorf("trusted Bridge readiness does not match the Run profile")
 			}
 			ready = true

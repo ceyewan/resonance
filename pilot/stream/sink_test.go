@@ -80,24 +80,6 @@ func TestSink_IgnoresToolEvents(t *testing.T) {
 	require.Empty(t, publisher.events())
 }
 
-func TestSink_PrivilegedProfileWithholdsTextUntilAuthorizedFinalCommit(t *testing.T) {
-	publisher := &recordingPublisher{}
-	sink := newTestSink(t, publisher, Config{})
-	run := testRun()
-	run.ProfileID = model.AgentProfileIAMAdmin
-	require.NoError(t, sink.PublishRuntimeEvent(context.Background(), run, pilotruntime.RuntimeEvent{Kind: pilotruntime.EventStarted}))
-	require.NoError(t, sink.PublishRuntimeEvent(context.Background(), run, pilotruntime.RuntimeEvent{Kind: pilotruntime.EventTextDelta, Text: "privileged session text"}))
-	require.NoError(t, sink.PublishRuntimeEvent(context.Background(), run, pilotruntime.RuntimeEvent{Kind: pilotruntime.EventSettled}))
-
-	require.Eventually(t, func() bool { return len(publisher.events()) == 2 }, time.Second, time.Millisecond)
-	events := publisher.events()
-	require.NotNil(t, events[0].GetBegin())
-	require.NotNil(t, events[1].GetEnd())
-	for _, event := range events {
-		require.Nil(t, event.GetChunk())
-	}
-}
-
 func TestSink_CloseForcesErrorEnd(t *testing.T) {
 	publisher := &recordingPublisher{}
 	sink := newTestSink(t, publisher, Config{})

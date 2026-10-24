@@ -37,8 +37,9 @@ message CreateSessionResponse {
   string session_id = 1;
 }
 
+// 幂等获取当前用户唯一的 Pilot 私聊。
 message CreateAgentSessionRequest {
-  resonance.common.v1.AgentProfile profile = 1;
+  reserved 1;
 }
 
 message CreateAgentSessionResponse {

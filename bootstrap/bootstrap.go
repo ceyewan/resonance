@@ -20,11 +20,10 @@ import (
 
 // Config 初始化所需的配置（复用 logic.yaml）
 type Config struct {
-	Log         clog.Config                `mapstructure:"log"`
-	PostgreSQL  connector.PostgreSQLConfig `mapstructure:"postgres"`
-	Admin       AdminConfig                `mapstructure:"admin"`
-	AgentBot    AgentBotConfig             `mapstructure:"agent_bot"`
-	AgentBudget AgentBudgetConfig          `mapstructure:"agent_budget"`
+	Log        clog.Config                `mapstructure:"log"`
+	PostgreSQL connector.PostgreSQLConfig `mapstructure:"postgres"`
+	Admin      AdminConfig                `mapstructure:"admin"`
+	AgentBot   AgentBotConfig             `mapstructure:"agent_bot"`
 }
 
 // AdminConfig 管理员初始化配置
@@ -37,20 +36,6 @@ type AdminConfig struct {
 type AgentBotConfig struct {
 	Username string `mapstructure:"username"`
 	Nickname string `mapstructure:"nickname"`
-}
-
-// AgentBudgetConfig provisions only the initial default-tenant policy. Once a
-// policy exists, operators must use the versioned Repo/API path rather than
-// silently overwriting live limits during every init restart.
-type AgentBudgetConfig struct {
-	TenantID               string `mapstructure:"tenant_id"`
-	Enabled                bool   `mapstructure:"enabled"`
-	DailyTokenLimit        int64  `mapstructure:"daily_token_limit"`
-	MonthlyTokenLimit      int64  `mapstructure:"monthly_token_limit"`
-	DailyCostLimitMicros   int64  `mapstructure:"daily_cost_limit_micros"`
-	MonthlyCostLimitMicros int64  `mapstructure:"monthly_cost_limit_micros"`
-	MaxAttemptTokens       int64  `mapstructure:"max_attempt_tokens"`
-	MaxAttemptCostMicros   int64  `mapstructure:"max_attempt_cost_micros"`
 }
 
 // Run 执行数据库初始化：建表 + 种子数据
@@ -97,7 +82,7 @@ func Run() (returnedErr error) {
 
 	// 5. Seed 种子数据
 	logger.Info("seeding initial data...")
-	if err := seed(gormDB, &cfg.Admin, &cfg.AgentBot, &cfg.AgentBudget, logger); err != nil {
+	if err := seed(gormDB, &cfg.Admin, &cfg.AgentBot, logger); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
 	logger.Info("seed completed")
@@ -107,7 +92,7 @@ func Run() (returnedErr error) {
 }
 
 // seed 插入种子数据（幂等）
-func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, budgetCfg *AgentBudgetConfig, logger clog.Logger) error {
+func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, logger clog.Logger) error {
 	// 1. 创建默认全员群 (Resonance Room)
 	room := &model.Session{
 		SessionID:     "0",
@@ -143,15 +128,11 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, budget
 		}
 		logger.Info("agent bot ready", clog.String("username", bot.Username))
 	}
-	if err := ensureInitialAgentBudgetPolicy(gormDB, budgetCfg); err != nil {
-		return fmt.Errorf("seed agent budget policy: %w", err)
-	}
-	logger.Info("initial agent budget policy ready", clog.String("tenant_id", budgetCfg.TenantID))
 
 	// 3. 创建管理员账号
 	if adminCfg.Username == "" || adminCfg.Password == "" {
 		logger.Info("admin seed skipped: missing username or password in config")
-		return backfillDefaultTenantIdentities(gormDB)
+		return nil
 	}
 	nickname := adminCfg.Nickname
 	if nickname == "" {
@@ -189,101 +170,20 @@ func seed(gormDB *gorm.DB, adminCfg *AdminConfig, botCfg *AgentBotConfig, budget
 	}
 	logger.Info("admin joined default room", clog.String("username", adminCfg.Username))
 
-	// 5. 将升级前的全局真人用户显式迁入默认租户，并赋予最小 user 系统角色。
-	// SessionMember.Role 仅代表会话角色，不能用于这里的系统授权。
-	if err := backfillDefaultTenantIdentities(gormDB); err != nil {
-		return err
-	}
-
-	// 6. 初始管理员同时持有独立的 iam-admin 系统角色。新授权必须推进成员版本，
-	// 防止授权前签发的普通 Token 直接继承管理员权限。
-	if err := ensureBootstrapSystemRole(gormDB, model.DefaultTenantID, adminCfg.Username, model.SystemRoleIAMAdmin); err != nil {
-		return fmt.Errorf("seed admin system role: %w", err)
-	}
-	logger.Info("admin system role ready", clog.String("username", adminCfg.Username))
-
-	return nil
-}
-
-func ensureInitialAgentBudgetPolicy(gormDB *gorm.DB, config *AgentBudgetConfig) error {
-	if gormDB == nil || config == nil {
-		return fmt.Errorf("agent budget seed configuration is required")
-	}
-	policy := &model.AgentBudgetPolicy{
-		TenantID: config.TenantID, Enabled: config.Enabled,
-		DailyTokenLimit: config.DailyTokenLimit, MonthlyTokenLimit: config.MonthlyTokenLimit,
-		DailyCostLimitMicros: config.DailyCostLimitMicros, MonthlyCostLimitMicros: config.MonthlyCostLimitMicros,
-		MaxAttemptTokens: config.MaxAttemptTokens, MaxAttemptCostMicros: config.MaxAttemptCostMicros,
-		Version: 1,
-	}
-	if err := validateInitialAgentBudgetPolicy(policy); err != nil {
-		return err
-	}
-	result := gormDB.Clauses(clause.OnConflict{DoNothing: true}).Create(policy)
-	if result.Error != nil {
-		return result.Error
-	}
-	return nil
-}
-
-func validateInitialAgentBudgetPolicy(policy *model.AgentBudgetPolicy) error {
-	const maxBridgeExactInteger int64 = 9_007_199_254_740_991
-	if policy == nil || policy.TenantID == "" || len(policy.TenantID) > 64 || !policy.Enabled ||
-		policy.DailyTokenLimit < 1 || policy.MonthlyTokenLimit < policy.DailyTokenLimit ||
-		policy.DailyCostLimitMicros < 1 || policy.MonthlyCostLimitMicros < policy.DailyCostLimitMicros ||
-		policy.MaxAttemptTokens < 1 || policy.MaxAttemptTokens > policy.DailyTokenLimit ||
-		policy.MaxAttemptCostMicros < 1 || policy.MaxAttemptCostMicros > policy.DailyCostLimitMicros ||
-		policy.MaxAttemptTokens > maxBridgeExactInteger || policy.MaxAttemptCostMicros > maxBridgeExactInteger {
-		return fmt.Errorf("enabled initial agent budget policy has invalid limits")
-	}
-	return nil
-}
-
-func ensureBootstrapSystemRole(gormDB *gorm.DB, tenantID, username, role string) error {
+	// 5. 只初始化种子账号的普通 IM 身份，不扫描或回填历史用户。
 	return gormDB.Transaction(func(tx *gorm.DB) error {
-		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(
-			&model.SystemRoleBinding{TenantID: tenantID, Username: username, Role: role},
-		)
-		if result.Error != nil {
-			return result.Error
+		membership := &model.TenantMembership{
+			TenantID: model.DefaultTenantID, Username: admin.Username,
+			Status: model.TenantMembershipStatusActive, Version: 1,
 		}
-		if result.RowsAffected == 0 {
-			return nil
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(membership).Error; err != nil {
+			return fmt.Errorf("seed admin membership: %w", err)
 		}
-		result = tx.Model(&model.TenantMembership{}).
-			Where("tenant_id = ? AND username = ?", tenantID, username).
-			Update("version", gorm.Expr("version + 1"))
-		if result.Error != nil {
-			return result.Error
+		role := &model.SystemRoleBinding{
+			TenantID: model.DefaultTenantID, Username: admin.Username, Role: model.SystemRoleUser,
 		}
-		if result.RowsAffected != 1 {
-			return fmt.Errorf("tenant membership not found")
-		}
-		return nil
-	})
-}
-
-func backfillDefaultTenantIdentities(gormDB *gorm.DB) error {
-	return gormDB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`
-			INSERT INTO t_tenant_membership (tenant_id, username, status, version, created_at, updated_at)
-			SELECT ?, username, ?, 1, NOW(), NOW()
-			FROM t_user
-			WHERE kind = ?
-			ON CONFLICT (tenant_id, username) DO NOTHING`,
-			model.DefaultTenantID, model.TenantMembershipStatusActive, model.UserKindHuman,
-		).Error; err != nil {
-			return fmt.Errorf("backfill default tenant memberships: %w", err)
-		}
-		if err := tx.Exec(`
-			INSERT INTO t_system_role_binding (tenant_id, username, role, created_at, updated_at)
-			SELECT ?, username, ?, NOW(), NOW()
-			FROM t_user
-			WHERE kind = ?
-			ON CONFLICT (tenant_id, username, role) DO NOTHING`,
-			model.DefaultTenantID, model.SystemRoleUser, model.UserKindHuman,
-		).Error; err != nil {
-			return fmt.Errorf("backfill default tenant user roles: %w", err)
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(role).Error; err != nil {
+			return fmt.Errorf("seed admin IM role: %w", err)
 		}
 		return nil
 	})

@@ -103,7 +103,7 @@ func TestAgentRunRepo_ClaimPinsProfileSnapshot(t *testing.T) {
 	ctx := context.Background()
 	base := time.Date(2026, 8, 9, 1, 0, 0, 0, time.UTC)
 	iamRun := newTestAgentRun("run-profile-iam", "tenant-profile", "conversation-iam", 9101, 1, base)
-	iamRun.ProfileID = model.AgentProfileIAMAdmin
+	iamRun.ProfileID = "other-config"
 	userRun := newTestAgentRun("run-profile-user", "tenant-profile", "conversation-user", 9102, 1, base.Add(time.Second))
 	_, err = runRepo.EnqueueAgentRun(ctx, iamRun)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestAgentRunRepo_ClaimPinsProfileSnapshot(t *testing.T) {
 	require.Equal(t, userRun.RunID, claimed.RunID)
 
 	iamClaim := testClaim("tenant-profile", "worker-iam", "token-iam", base.Add(2*time.Second))
-	iamClaim.ProfileID = model.AgentProfileIAMAdmin
+	iamClaim.ProfileID = "other-config"
 	claimed, err = runRepo.ClaimNextAgentRun(ctx, iamClaim)
 	require.NoError(t, err)
 	require.Equal(t, iamRun.RunID, claimed.RunID)
@@ -132,7 +132,7 @@ func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBou
 	base := time.Date(2026, 8, 9, 2, 0, 0, 0, time.UTC)
 	for index := int64(1); index <= 3; index++ {
 		run := newTestAgentRun(fmt.Sprintf("run-revoked-%d", index), "tenant-a", "conversation-revoked", 9200+index, index, base.Add(time.Duration(index)*time.Millisecond))
-		run.ProfileID = model.AgentProfileIAMAdmin
+		run.ProfileID = "other-config"
 		_, err = runRepo.EnqueueAgentRun(ctx, run)
 		require.NoError(t, err)
 	}
@@ -140,14 +140,14 @@ func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBou
 	// available_at/queued_at claim order. The boundary assertion below is about
 	// cancellation scope, not about overriding the queue's FIFO ordering.
 	other := newTestAgentRun("run-other-actor", "tenant-a", "conversation-other", 9301, 1, base.Add(4*time.Millisecond))
-	other.ProfileID = model.AgentProfileIAMAdmin
+	other.ProfileID = "other-config"
 	other.ActorID = "other-user"
 	other.ActorUsername = "other-user"
 	_, err = runRepo.EnqueueAgentRun(ctx, other)
 	require.NoError(t, err)
 
 	claim := testClaim("tenant-a", "worker-iam", "token-iam", base.Add(time.Second))
-	claim.ProfileID = model.AgentProfileIAMAdmin
+	claim.ProfileID = "other-config"
 	claimed, err := runRepo.ClaimNextAgentRun(ctx, claim)
 	require.NoError(t, err)
 	require.Equal(t, "run-revoked-1", claimed.RunID)

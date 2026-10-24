@@ -21,7 +21,6 @@ import (
 	"github.com/ceyewan/resonance/logic/observability"
 	"github.com/ceyewan/resonance/logic/server"
 	"github.com/ceyewan/resonance/logic/service"
-	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pkg/health"
 	"github.com/ceyewan/resonance/pkg/serviceauth"
 	"github.com/ceyewan/resonance/repo"
@@ -65,13 +64,11 @@ type resources struct {
 	instanceIDStop func() error // 实例 ID 保活停止函数
 
 	// Repos
-	userRepo             repo.UserRepo
-	identityRepo         repo.IdentityRepo
-	sessionRepo          repo.SessionRepo
-	messageRepo          repo.MessageRepo
-	routerRepo           repo.RouterRepo
-	agentApprovalRepo    repo.AgentApprovalRepo
-	agentIAMMutationRepo repo.AgentIAMMutationRepo
+	userRepo     repo.UserRepo
+	identityRepo repo.IdentityRepo
+	sessionRepo  repo.SessionRepo
+	messageRepo  repo.MessageRepo
+	routerRepo   repo.RouterRepo
 }
 
 // New 创建 Logic 实例
@@ -183,10 +180,8 @@ func (l *Logic) initComponents() error {
 		logger,
 		service.WithTenantMembershipReader(res.identityRepo),
 		service.WithAgentSessionPolicy(service.AgentSessionPolicy{
-			BotUsername:          l.config.AgentBot.Username,
-			BotNickname:          l.config.AgentBot.Nickname,
-			UserAssistantVersion: l.config.AgentSessions.UserAssistantProfileVersion,
-			IAMAdminVersion:      l.config.AgentSessions.IAMAdminProfileVersion,
+			BotUsername: l.config.AgentBot.Username,
+			BotNickname: l.config.AgentBot.Nickname,
 		}),
 	)
 	authSvc := service.NewAuthService(
@@ -195,54 +190,13 @@ func (l *Logic) initComponents() error {
 	)
 	chatSvc := service.NewChatService(res.sessionRepo, res.messageRepo, res.msgIDGen, res.sequencer, res.mqClient, logger)
 	presenceSvc := service.NewPresenceService(res.routerRepo, logger)
-	agentApprovalSvc := service.NewAgentApprovalService(
-		res.agentApprovalRepo,
-		service.NewIdentitySystemScopeAuthorizer(res.identityRepo),
-		res.msgIDGen,
-		res.mqClient,
-		logger,
-		service.AgentApprovalPolicy{
-			PilotServiceID:   l.config.ServiceAuth.IAMPilotServiceID,
-			ReadScope:        l.config.AgentApproval.ReadScope,
-			DecideScope:      l.config.AgentApproval.DecideScope,
-			AllowSelfApprove: l.config.AgentApproval.AllowSelfApprove,
-		},
-	)
-	agentIAMMutationSvc := service.NewAgentIAMMutationService(
-		res.agentApprovalRepo,
-		res.agentIAMMutationRepo,
-		service.NewIdentitySystemScopeAuthorizer(res.identityRepo),
-		logger,
-		service.AgentIAMMutationPolicy{
-			PilotServiceID: l.config.ServiceAuth.IAMPilotServiceID,
-			WriteScope:     model.ScopeIAMUsersWrite,
-			DecideScope:    model.ScopeAgentApprovalDecide,
-		},
-	)
-
 	// 5. 后台任务
 	l.outboxRelay = job.NewOutboxRelay(res.messageRepo, res.mqClient, logger, &l.config.Outbox)
 
 	// 6. gRPC Server
 	serverOptions := []server.Option{
 		server.WithProtectedActor(l.config.AgentBot.Username),
-		server.WithAgentApprovalService(agentApprovalSvc),
-		server.WithAgentIAMMutationService(agentIAMMutationSvc),
 		server.WithGatewayServiceID(l.config.ServiceAuth.GatewayServiceID),
-	}
-	if l.config.ServiceAuth.PilotSecret != "" {
-		serverOptions = append(serverOptions, server.WithServiceProfile(
-			l.config.ServiceAuth.PilotServiceID,
-			model.AgentProfileUserAssistant,
-			l.config.AgentSessions.UserAssistantProfileVersion,
-		))
-	}
-	if l.config.ServiceAuth.IAMPilotSecret != "" {
-		serverOptions = append(serverOptions, server.WithServiceProfile(
-			l.config.ServiceAuth.IAMPilotServiceID,
-			model.AgentProfileIAMAdmin,
-			l.config.AgentSessions.IAMAdminProfileVersion,
-		))
 	}
 	servicePolicies := map[string]serviceauth.ServicePolicy{
 		l.config.ServiceAuth.GatewayServiceID: {
@@ -258,15 +212,7 @@ func (l *Logic) initComponents() error {
 			Secret:         []byte(l.config.ServiceAuth.PilotSecret),
 			AllowedActors:  map[string]struct{}{l.config.AgentBot.Username: {}},
 			AllowedMethods: userPilotServiceMethods(),
-			AllowedTenants: map[string]struct{}{l.config.ServiceAuth.PilotTenantID: {}},
-		}
-	}
-	if l.config.ServiceAuth.IAMPilotSecret != "" {
-		servicePolicies[l.config.ServiceAuth.IAMPilotServiceID] = serviceauth.ServicePolicy{
-			Secret:         []byte(l.config.ServiceAuth.IAMPilotSecret),
-			AllowedActors:  map[string]struct{}{l.config.AgentBot.Username: {}},
-			AllowedMethods: iamPilotServiceMethods(),
-			AllowedTenants: map[string]struct{}{l.config.ServiceAuth.IAMPilotTenantID: {}},
+			AllowAnyTenant: true,
 		}
 	}
 	nonceStore, err := serviceauth.NewRedisNonceStore(
@@ -301,18 +247,15 @@ func (l *Logic) initComponents() error {
 
 func gatewayServiceMethods() map[string]struct{} {
 	return map[string]struct{}{
-		logicv1.ChatService_SendEvent_FullMethodName:               {},
-		logicv1.SessionService_GetSessionList_FullMethodName:       {},
-		logicv1.SessionService_CreateSession_FullMethodName:        {},
-		logicv1.SessionService_CreateAgentSession_FullMethodName:   {},
-		logicv1.SessionService_GetHistoryEvents_FullMethodName:     {},
-		logicv1.SessionService_GetContactList_FullMethodName:       {},
-		logicv1.SessionService_SearchUser_FullMethodName:           {},
-		logicv1.SessionService_UpdateReadPosition_FullMethodName:   {},
-		logicv1.SessionService_PullInboxDelta_FullMethodName:       {},
-		logicv1.AgentApprovalService_DecideApproval_FullMethodName: {},
-		logicv1.AgentApprovalService_GetApproval_FullMethodName:    {},
-		logicv1.AgentApprovalService_ListApprovals_FullMethodName:  {},
+		logicv1.ChatService_SendEvent_FullMethodName:             {},
+		logicv1.SessionService_GetSessionList_FullMethodName:     {},
+		logicv1.SessionService_CreateSession_FullMethodName:      {},
+		logicv1.SessionService_CreateAgentSession_FullMethodName: {},
+		logicv1.SessionService_GetHistoryEvents_FullMethodName:   {},
+		logicv1.SessionService_GetContactList_FullMethodName:     {},
+		logicv1.SessionService_SearchUser_FullMethodName:         {},
+		logicv1.SessionService_UpdateReadPosition_FullMethodName: {},
+		logicv1.SessionService_PullInboxDelta_FullMethodName:     {},
 	}
 }
 
@@ -321,15 +264,6 @@ func userPilotServiceMethods() map[string]struct{} {
 		logicv1.ChatService_SendEvent_FullMethodName:           {},
 		logicv1.SessionService_GetHistoryEvents_FullMethodName: {},
 	}
-}
-
-func iamPilotServiceMethods() map[string]struct{} {
-	methods := userPilotServiceMethods()
-	methods[logicv1.AgentApprovalService_CreateApproval_FullMethodName] = struct{}{}
-	methods[logicv1.AgentIAMMutationService_PreviewTenantMembershipStatus_FullMethodName] = struct{}{}
-	methods[logicv1.AgentIAMMutationService_GetExecutionApproval_FullMethodName] = struct{}{}
-	methods[logicv1.AgentIAMMutationService_ExecuteTenantMembershipStatus_FullMethodName] = struct{}{}
-	return methods
 }
 
 // initResources 初始化资源
@@ -395,7 +329,7 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 	if err := etcdConn.Connect(l.ctx); err != nil {
 		return nil, fmt.Errorf("etcd connect: %w", err)
 	}
-	reg, err := registry.New(etcdConn, l.config.Registry.ToRegistryConfig(), registry.WithLogger(l.logger), registry.WithMeter(observability.Meter()))
+	reg, err := registry.New(l.config.Registry.ToRegistryConfig(), registry.WithEtcdConnector(etcdConn), registry.WithLogger(l.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}
@@ -447,36 +381,24 @@ func (l *Logic) initResources() (_ *resources, returnedErr error) {
 		return nil, fmt.Errorf("router repo init: %w", err)
 	}
 	cleanup = append(cleanup, routerRepo.Close)
-	agentApprovalRepo, err := repo.NewAgentApprovalRepo(dbInstance)
-	if err != nil {
-		return nil, fmt.Errorf("agent approval repo init: %w", err)
-	}
-	cleanup = append(cleanup, agentApprovalRepo.Close)
-	agentIAMMutationRepo, err := repo.NewAgentIAMMutationRepo(dbInstance, l.config.AgentBot.Username)
-	if err != nil {
-		return nil, fmt.Errorf("agent IAM mutation repo init: %w", err)
-	}
-	cleanup = append(cleanup, agentIAMMutationRepo.Close)
 	l.registry = reg
 
 	return &resources{
-		postgresConn:         postgresConn,
-		redisConn:            redisConn,
-		natsConn:             natsConn,
-		etcdConn:             etcdConn,
-		mqClient:             mqClient,
-		dbInstance:           dbInstance,
-		authenticator:        authenticator,
-		msgIDGen:             msgIDGen,
-		sessionIDGen:         sessionIDGen,
-		sequencer:            sequencer,
-		userRepo:             userRepo,
-		identityRepo:         identityRepo,
-		sessionRepo:          sessionRepo,
-		messageRepo:          messageRepo,
-		routerRepo:           routerRepo,
-		agentApprovalRepo:    agentApprovalRepo,
-		agentIAMMutationRepo: agentIAMMutationRepo,
+		postgresConn:  postgresConn,
+		redisConn:     redisConn,
+		natsConn:      natsConn,
+		etcdConn:      etcdConn,
+		mqClient:      mqClient,
+		dbInstance:    dbInstance,
+		authenticator: authenticator,
+		msgIDGen:      msgIDGen,
+		sessionIDGen:  sessionIDGen,
+		sequencer:     sequencer,
+		userRepo:      userRepo,
+		identityRepo:  identityRepo,
+		sessionRepo:   sessionRepo,
+		messageRepo:   messageRepo,
+		routerRepo:    routerRepo,
 	}, nil
 }
 
@@ -634,12 +556,6 @@ func (l *Logic) close() error {
 		}
 		if l.resources.messageRepo != nil {
 			result = errors.Join(result, l.resources.messageRepo.Close())
-		}
-		if l.resources.agentApprovalRepo != nil {
-			result = errors.Join(result, l.resources.agentApprovalRepo.Close())
-		}
-		if l.resources.agentIAMMutationRepo != nil {
-			result = errors.Join(result, l.resources.agentIAMMutationRepo.Close())
 		}
 		mqCtx, cancelMQ := context.WithTimeout(context.Background(), 10*time.Second)
 		if l.resources.mqClient != nil {

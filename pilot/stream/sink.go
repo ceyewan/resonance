@@ -103,14 +103,6 @@ func (s *Sink) PublishRuntimeEvent(ctx context.Context, run *model.AgentRun, eve
 		event.Kind != pilotruntime.EventSettled && event.Kind != pilotruntime.EventFailed {
 		return nil
 	}
-	// Privileged Session text is withheld until the durable final commit. The
-	// Coordinator rechecks current iam-admin authorization immediately before
-	// that commit, so a mid-Run downgrade cannot leak old administrator context
-	// through best-effort deltas before the revocation is observed.
-	if run.ProfileID == model.AgentProfileIAMAdmin && event.Kind == pilotruntime.EventTextDelta {
-		return nil
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closing {

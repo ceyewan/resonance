@@ -49,9 +49,8 @@ func WithAgentRunRepoLogger(logger clog.Logger) AgentRunRepoOption {
 }
 
 type agentRunRepo struct {
-	db        db.DB
-	logger    clog.Logger
-	budgetNow func(*gorm.DB) (time.Time, error)
+	db     db.DB
+	logger clog.Logger
 }
 
 func NewAgentRunRepo(database db.DB, opts ...AgentRunRepoOption) (AgentRunRepo, error) {
@@ -70,7 +69,7 @@ func NewAgentRunRepo(database db.DB, opts ...AgentRunRepoOption) (AgentRunRepo, 
 	}
 
 	return &agentRunRepo{
-		db: database, logger: logger.WithNamespace("agent_run_repo"), budgetNow: databaseBudgetNow,
+		db: database, logger: logger.WithNamespace("agent_run_repo"),
 	}, nil
 }
 
@@ -191,7 +190,7 @@ func (r *agentRunRepo) ClaimNextAgentRun(ctx context.Context, claim AgentRunClai
 	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
 		var candidate model.AgentRun
 		query := tx.Table(model.AgentRun{}.TableName()+" AS candidate").
-			Where("candidate.tenant_id = ?", claim.TenantID).
+			Where("(? = '' OR candidate.tenant_id = ?)", claim.TenantID, claim.TenantID).
 			Where("candidate.profile_id = ? AND candidate.profile_version = ?", claim.ProfileID, claim.ProfileVersion).
 			Where("candidate.status IN ?", agentRunPendingStatuses).
 			Where("candidate.available_at <= ?", claim.Now).
@@ -458,7 +457,7 @@ func (r *agentRunRepo) ClaimPreparedAgentRun(ctx context.Context, claim AgentRun
 	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
 		var candidate model.AgentRun
 		selected := tx.Table(model.AgentRun{}.TableName()+" AS candidate").
-			Where("candidate.tenant_id = ?", claim.TenantID).
+			Where("(? = '' OR candidate.tenant_id = ?)", claim.TenantID, claim.TenantID).
 			Where("candidate.profile_id = ? AND candidate.profile_version = ?", claim.ProfileID, claim.ProfileVersion).
 			Where("candidate.status IN ?", agentRunPreparedStatuses).
 			Where("candidate.lease_expires_at IS NULL OR candidate.lease_expires_at <= ?", claim.Now).
@@ -623,7 +622,7 @@ func (r *agentRunRepo) CompleteAgentRun(ctx context.Context, completion AgentRun
 }
 
 func (r *agentRunRepo) RecoverExpiredAgentRuns(ctx context.Context, tenantID string, now time.Time) (AgentRunRecoveryResult, error) {
-	if !validBoundedString(tenantID, 64) {
+	if tenantID != "" && !validBoundedString(tenantID, 64) {
 		return AgentRunRecoveryResult{}, fmt.Errorf("tenant_id must contain 1 to 64 bytes")
 	}
 	if now.IsZero() {
@@ -633,7 +632,7 @@ func (r *agentRunRepo) RecoverExpiredAgentRuns(ctx context.Context, tenantID str
 	var recovered AgentRunRecoveryResult
 	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
 		retryable := tx.Model(&model.AgentRun{}).
-			Where("tenant_id = ? AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ? AND attempt < max_attempts", tenantID, agentRunExecutionStatuses, now).
+			Where("(? = '' OR tenant_id = ?) AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ? AND attempt < max_attempts", tenantID, tenantID, agentRunExecutionStatuses, now).
 			Updates(map[string]any{
 				"status":               model.AgentRunStatusFailedRetryable,
 				"available_at":         now,
@@ -652,7 +651,7 @@ func (r *agentRunRepo) RecoverExpiredAgentRuns(ctx context.Context, tenantID str
 		recovered.RetryableExecutions = retryable.RowsAffected
 
 		finalFailures := tx.Model(&model.AgentRun{}).
-			Where("tenant_id = ? AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ? AND attempt >= max_attempts", tenantID, agentRunExecutionStatuses, now).
+			Where("(? = '' OR tenant_id = ?) AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ? AND attempt >= max_attempts", tenantID, tenantID, agentRunExecutionStatuses, now).
 			Updates(map[string]any{
 				"status":               model.AgentRunStatusFailedFinal,
 				"lease_owner":          "",
@@ -671,7 +670,7 @@ func (r *agentRunRepo) RecoverExpiredAgentRuns(ctx context.Context, tenantID str
 		recovered.FinalFailures = finalFailures.RowsAffected
 
 		prepared := tx.Model(&model.AgentRun{}).
-			Where("tenant_id = ? AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?", tenantID, agentRunPreparedStatuses, now).
+			Where("(? = '' OR tenant_id = ?) AND status IN ? AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?", tenantID, tenantID, agentRunPreparedStatuses, now).
 			Updates(map[string]any{
 				"status":           model.AgentRunStatusReadyToCommit,
 				"lease_owner":      "",
@@ -966,7 +965,7 @@ func validateTenantAndRunID(tenantID, runID string) error {
 }
 
 func validateClaim(claim AgentRunClaim) error {
-	if !validBoundedString(claim.TenantID, 64) || !validBoundedString(claim.ProfileID, 64) || claim.ProfileVersion < 1 ||
+	if (claim.TenantID != "" && !validBoundedString(claim.TenantID, 64)) || !validBoundedString(claim.ProfileID, 64) || claim.ProfileVersion < 1 ||
 		!validBoundedString(claim.WorkerID, 128) || !validBoundedString(claim.LeaseToken, 128) {
 		return fmt.Errorf("tenant_id, profile snapshot, worker_id and lease_token are required")
 	}

@@ -107,57 +107,7 @@ func TestUserServiceAuthUnaryInterceptorFailsClosedWithoutSigner(t *testing.T) {
 	require.False(t, called)
 }
 
-func TestUserServiceAuthUnaryInterceptorBindsApprovalPayloadToPrincipalTenant(t *testing.T) {
-	now := time.Date(2026, 8, 9, 10, 0, 0, 0, time.UTC)
-	secret := []byte("gateway-approval-secret-0123456789")
-	signer, err := serviceauth.NewSigner("gateway-service", secret,
-		serviceauth.WithSignerClock(func() time.Time { return now }),
-		serviceauth.WithNonceSource(func() (string, error) { return "77777777777777777777777777777777", nil }),
-	)
-	require.NoError(t, err)
-	verifier, err := serviceauth.NewVerifier(serviceauth.VerifierConfig{
-		MaxSkew: 30 * time.Second,
-		Services: map[string]serviceauth.ServicePolicy{
-			"gateway-service": {
-				Secret: secret, AllowedMethods: map[string]struct{}{
-					logicv1.AgentApprovalService_DecideApproval_FullMethodName: {},
-				},
-				AllowAnyActor: true, AllowAnyTenant: true, RequirePrincipalVersion: true,
-			},
-		},
-	}, serviceauth.WithVerifierClock(func() time.Time { return now }))
-	require.NoError(t, err)
-
-	request := &logicv1.DecideApprovalRequest{
-		TenantId: "tenant-a", CallId: "call-1", ArgsHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		ExpectedVersion: 3, Decision: logicv1.AgentApprovalDecision_AGENT_APPROVAL_DECISION_APPROVE,
-	}
-	ctx := userauth.WithPrincipal(context.Background(), &userauth.Principal{
-		TenantID: "tenant-a", Username: "admin", MembershipVersion: 9,
-	})
-	err = userServiceAuthUnaryInterceptor(signer)(
-		ctx,
-		logicv1.AgentApprovalService_DecideApproval_FullMethodName,
-		request,
-		&logicv1.DecideApprovalResponse{},
-		nil,
-		func(ctx context.Context, method string, req, _ any, _ *grpc.ClientConn, _ ...grpc.CallOption) error {
-			outgoing, ok := metadata.FromOutgoingContext(ctx)
-			require.True(t, ok)
-			incoming := metadata.NewIncomingContext(context.Background(), outgoing.Copy())
-			claims, verifyErr := verifier.VerifyIncoming(incoming, method, req.(*logicv1.DecideApprovalRequest))
-			require.NoError(t, verifyErr)
-			require.Equal(t, "tenant-a", claims.TenantID)
-			require.Equal(t, "admin", claims.Actor)
-			require.Equal(t, int64(9), claims.PrincipalVersion)
-			return nil
-		},
-	)
-	require.NoError(t, err)
-}
-
 func TestUserServicesDoNotUseTransparentGRPCRetryWithSingleNonce(t *testing.T) {
 	require.NotContains(t, serviceConfigJSON, "SessionService")
 	require.NotContains(t, serviceConfigJSON, "ChatService")
-	require.NotContains(t, serviceConfigJSON, "AgentApprovalService")
 }

@@ -11,8 +11,6 @@ import (
 	"github.com/ceyewan/resonance/gateway"
 	"github.com/ceyewan/resonance/logic"
 	"github.com/ceyewan/resonance/pilot"
-	"github.com/ceyewan/resonance/pilot/egressproxy"
-	"github.com/ceyewan/resonance/pilot/runtimehost"
 	"github.com/ceyewan/resonance/task"
 	"github.com/ceyewan/resonance/webserver"
 )
@@ -23,11 +21,11 @@ func main() {
 
 func run() (exitCode int) {
 	var module string
-	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task, pilot, pilot-runtime, egress-proxy, web")
+	flag.StringVar(&module, "module", "", "assign run module: gateway, logic, task, pilot, web")
 	flag.Parse()
 
 	if module == "" {
-		fmt.Println("error: module param required! Available: init, gateway, logic, task, pilot, pilot-runtime, egress-proxy, web")
+		fmt.Println("error: module param required! Available: init, gateway, logic, task, pilot, web")
 		return 1
 	}
 
@@ -124,52 +122,6 @@ func run() (exitCode int) {
 			return 1
 		}
 
-	case "pilot-runtime":
-		host, err := runtimehost.New()
-		if err != nil {
-			fmt.Printf("❌ Failed to create isolated Pilot runtime: %v\n", err)
-			return 1
-		}
-		defer func() {
-			if err := host.Close(); err != nil {
-				fmt.Printf("❌ Pilot runtime shutdown error: %v\n", err)
-				exitCode = 1
-			}
-		}()
-		if err := host.Run(); err != nil {
-			fmt.Printf("❌ Pilot runtime error: %v\n", err)
-			return 1
-		}
-		if err := waitForSignalOrErrorOrDone(host.Errors(), host.Done()); err != nil {
-			fmt.Printf("❌ Pilot runtime background failure: %v\n", err)
-			return 1
-		}
-	case "egress-proxy":
-		cfg, err := egressproxy.Load()
-		if err != nil {
-			fmt.Printf("❌ Failed to load egress proxy config: %v\n", err)
-			return 1
-		}
-		proxy, err := egressproxy.New(*cfg)
-		if err != nil {
-			fmt.Printf("❌ Failed to create egress proxy: %v\n", err)
-			return 1
-		}
-		defer func() {
-			if err := proxy.Close(); err != nil {
-				fmt.Printf("❌ Egress proxy shutdown error: %v\n", err)
-				exitCode = 1
-			}
-		}()
-		if err := proxy.Run(); err != nil {
-			fmt.Printf("❌ Egress proxy error: %v\n", err)
-			return 1
-		}
-		if err := waitForSignalOrError(proxy.Errors()); err != nil {
-			fmt.Printf("❌ Egress proxy background failure: %v\n", err)
-			return 1
-		}
-
 	case "web":
 		w, err := webserver.New()
 		if err != nil {
@@ -190,7 +142,7 @@ func run() (exitCode int) {
 
 	default:
 		fmt.Printf("❌ Unknown module: %s\n", module)
-		fmt.Println("Available modules: init, gateway, logic, task, pilot, pilot-runtime, egress-proxy, web")
+		fmt.Println("Available modules: init, gateway, logic, task, pilot, web")
 		return 1
 	}
 	return 0

@@ -85,7 +85,7 @@ func WithRunIDSource(source func() (string, error)) HandlerOption {
 }
 
 func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionController, options ...HandlerOption) (*Handler, error) {
-	if config.TenantID == "" || config.BotUsername == "" || runs == nil || admission == nil {
+	if config.BotUsername == "" || runs == nil || admission == nil {
 		return nil, fmt.Errorf("agent ingress configuration and dependencies are incomplete")
 	}
 	if config.MaxPromptBytes == 0 {
@@ -137,7 +137,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if !admission.Trigger {
 		return HandleResult{Ignored: true}, nil
 	}
-	if err := validateAdmission(h.config.TenantID, event, admission); err != nil {
+	if err := validateAdmission(admission.TenantID, event, admission); err != nil {
 		return HandleResult{}, permanent(err)
 	}
 
@@ -148,7 +148,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if runID == "" || len(runID) > 52 {
 		return HandleResult{}, fmt.Errorf("generated agent run id is invalid")
 	}
-	sourceHash, err := hashSourceEvent(h.config.TenantID, event)
+	sourceHash, err := hashSourceEvent(admission.TenantID, event)
 	if err != nil {
 		return HandleResult{}, permanent(err)
 	}

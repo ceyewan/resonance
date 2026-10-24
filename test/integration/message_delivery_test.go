@@ -17,7 +17,6 @@ import (
 	"github.com/ceyewan/genesis/db"
 	"github.com/ceyewan/genesis/idgen"
 	"github.com/ceyewan/genesis/mq"
-	"github.com/docker/go-connections/nat"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -408,7 +407,7 @@ func mustStartContainer(t *testing.T, req testcontainers.ContainerRequest, expos
 	}
 	host, err := container.Host(ctx)
 	require.NoError(t, err)
-	mappedPort, err := container.MappedPort(ctx, nat.Port(exposedPort))
+	mappedPort, err := container.MappedPort(ctx, exposedPort)
 	require.NoError(t, err)
 	port, err := strconv.Atoi(mappedPort.Port())
 	require.NoError(t, err)

@@ -314,7 +314,7 @@ func validMembershipStatus(status string) bool {
 }
 
 func validSystemRole(role string) bool {
-	return role == model.SystemRoleUser || role == model.SystemRoleIAMAdmin
+	return role == model.SystemRoleUser
 }
 
 func normalizedRoles(roles []string) []string {

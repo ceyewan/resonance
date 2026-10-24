@@ -93,8 +93,8 @@ func RecordShutdownFlushProbe(logger clog.Logger) {
 	if logger == nil {
 		return
 	}
-	ctx, span := otel.Tracer(TracerName).Start(context.Background(), "stage3.shutdown.flush")
-	logger.InfoContext(ctx, "stage3 shutdown trace flush probe", clog.String("service", ServiceName))
+	ctx, span := otel.Tracer(TracerName).Start(context.Background(), "service.shutdown")
+	logger.InfoContext(ctx, "service shutdown", clog.String("service", ServiceName))
 	span.End()
 }
 

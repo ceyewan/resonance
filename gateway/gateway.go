@@ -219,7 +219,7 @@ func (g *Gateway) initBaseResources() (_ *resources, returnedErr error) {
 	}
 
 	// Registry
-	reg, err := registry.New(etcdConn, g.config.Registry.ToRegistryConfig(), registry.WithLogger(g.logger), registry.WithMeter(observability.Meter()))
+	reg, err := registry.New(g.config.Registry.ToRegistryConfig(), registry.WithEtcdConnector(etcdConn), registry.WithLogger(g.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}

@@ -32,7 +32,6 @@ type Client struct {
 	sessionClient  logicv1.SessionServiceClient
 	chatClient     logicv1.ChatServiceClient
 	presenceClient logicv1.PresenceServiceClient
-	approvalClient logicv1.AgentApprovalServiceClient
 
 	logger        clog.Logger
 	gatewayID     string
@@ -127,7 +126,6 @@ func NewClient(
 	client.sessionClient = logicv1.NewSessionServiceClient(conn)
 	client.chatClient = logicv1.NewChatServiceClient(conn)
 	client.presenceClient = logicv1.NewPresenceServiceClient(conn)
-	client.approvalClient = logicv1.NewAgentApprovalServiceClient(conn)
 
 	return client, nil
 }
@@ -237,10 +235,6 @@ func (c *Client) authSvc() logicv1.AuthServiceClient {
 
 func (c *Client) sessionSvc() logicv1.SessionServiceClient {
 	return c.sessionClient
-}
-
-func (c *Client) approvalSvc() logicv1.AgentApprovalServiceClient {
-	return c.approvalClient
 }
 
 func (c *Client) PresenceSvc() logicv1.PresenceServiceClient {

@@ -63,7 +63,7 @@ func TestSessionRepo_CreateSession(t *testing.T) {
 	t.Run("持久化AI会话权威快照", func(t *testing.T) {
 		session := &model.Session{
 			SessionID: "agent:9001", Type: 1, Kind: model.SessionKindAI,
-			TenantID: "tenant-a", ProfileID: model.AgentProfileIAMAdmin, ProfileVersion: 3,
+			TenantID: "tenant-a", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
 			OwnerUsername: "admin",
 		}
 		require.NoError(t, repo.CreateSession(ctx, session))
@@ -72,8 +72,8 @@ func TestSessionRepo_CreateSession(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, model.SessionKindAI, found.Kind)
 		assert.Equal(t, "tenant-a", found.TenantID)
-		assert.Equal(t, model.AgentProfileIAMAdmin, found.ProfileID)
-		assert.Equal(t, int64(3), found.ProfileVersion)
+		assert.Equal(t, model.AgentProfileUserAssistant, found.ProfileID)
+		assert.Equal(t, int64(1), found.ProfileVersion)
 	})
 
 	t.Run("创建重复会话ID应失败", func(t *testing.T) {
@@ -173,19 +173,20 @@ func TestSessionRepo_CreateSessionWithMembers_AtomicIdempotentAndVersioned(t *te
 		require.Len(t, persistedMembers, 2)
 	})
 
-	t.Run("profile versions coexist", func(t *testing.T) {
-		for version, sessionID := range map[int64]string{1: "agent:version-1", 2: "agent:version-2"} {
+	t.Run("model versions reuse the same conversation", func(t *testing.T) {
+		for index, sessionID := range []string{"agent:version-1", "agent:version-2"} {
 			session := &model.Session{
 				SessionID: sessionID, Type: 1, Kind: model.SessionKindAI, TenantID: "tenant-versioned",
-				OwnerUsername: "alice", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: version,
+				OwnerUsername: "alice", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: int64(index + 1),
 			}
 			members := []*model.SessionMember{
 				{SessionID: sessionID, Username: "alice", Role: 1},
 				{SessionID: sessionID, Username: "resonance-agent"},
 			}
-			_, created, err := sessionRepo.CreateSessionWithMembers(ctx, session, members)
+			persisted, created, err := sessionRepo.CreateSessionWithMembers(ctx, session, members)
 			require.NoError(t, err)
-			require.True(t, created)
+			require.Equal(t, index == 0, created)
+			require.Equal(t, "agent:version-1", persisted.SessionID)
 		}
 	})
 

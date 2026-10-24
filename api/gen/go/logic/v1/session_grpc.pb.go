@@ -8,6 +8,7 @@ package logicv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -34,7 +35,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // SessionService 内部会话接口（Gateway -> Logic，gRPC）
-// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// 身份来自经过服务签名校验的 context，body 不携带
 // DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 type SessionServiceClient interface {
 	GetSessionList(ctx context.Context, in *GetSessionListRequest, opts ...grpc.CallOption) (*GetSessionListResponse, error)
@@ -140,7 +141,7 @@ func (c *sessionServiceClient) PullInboxDelta(ctx context.Context, in *PullInbox
 // for forward compatibility.
 //
 // SessionService 内部会话接口（Gateway -> Logic，gRPC）
-// 身份通过 gRPC metadata 的 x-username 传递，body 不携带
+// 身份来自经过服务签名校验的 context，body 不携带
 // DTO 统一使用 common.v1 视图类型，与 gateway/v1 保持一致
 type SessionServiceServer interface {
 	GetSessionList(context.Context, *GetSessionListRequest) (*GetSessionListResponse, error)

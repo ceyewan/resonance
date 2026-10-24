@@ -3,13 +3,14 @@ import { GlassCard } from "../../components/GlassCard";
 import { useAuthState } from "../../hooks/useAuthState";
 import { useConnectionState } from "../../hooks/useConnectionState";
 import { useSessionTimeline } from "../../hooks/useSessionTimeline";
-import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
+import { SessionKind, SessionType } from "@gen/common/v1/session_pb";
 import { toBigIntId } from "../../lib/id";
 
 function formatSessionReadSummary(
   session: SessionRow,
   currentUsername: string | undefined,
 ): string {
+  if (session.kind === SessionKind.AI) return "Pilot 私聊不展示已读回执";
   if (session.type === SessionType.DIRECT) {
     return toBigIntId(session.readUptoSeqId) > 0n
       ? `对方已读至 #${session.readUptoSeqId}`
@@ -20,9 +21,6 @@ function formatSessionReadSummary(
       ([username, seqId]) => username !== currentUsername && toBigIntId(seqId) > 0n,
     ).length;
     return readCount > 0 ? `${readCount} 位成员已有读回执` : "暂无成员读回执";
-  }
-  if (session.kind === SessionKind.AI) {
-    return "AI 会话不展示已读回执";
   }
   return "暂无读回执信息";
 }
@@ -38,12 +36,6 @@ function formatSessionType(sessionType: SessionType): string {
     return "AI";
   }
   return "UNKNOWN";
-}
-
-function formatAgentProfile(profile: AgentProfile): string {
-  if (profile === AgentProfile.USER_ASSISTANT) return "USER ASSISTANT";
-  if (profile === AgentProfile.IAM_ADMIN) return "IAM ADMIN";
-  return "UNSPECIFIED";
 }
 
 function formatReadMap(session: SessionRow, currentUsername: string | undefined): string[] {
@@ -127,20 +119,9 @@ export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
               </span>
             </div>
             {session.kind === SessionKind.AI ? (
-              <div className="pt-2 border-t border-[var(--color-border)] space-y-2 text-[13px]">
-                <div className="flex justify-between gap-3">
-                  <span className="text-[var(--color-text-muted)] opacity-70">Agent Profile</span>
-                  <span className="text-[var(--color-text)] font-medium">
-                    {formatAgentProfile(session.agentProfile)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-[var(--color-text-muted)] opacity-70">Profile Version</span>
-                  <span className="text-[var(--color-text)] font-medium">
-                    v{session.agentProfileVersion}
-                  </span>
-                </div>
-              </div>
+              <p className="text-[13px] text-[var(--color-text-muted)]">
+                Pilot 私聊 · 独立上下文 · 连续对话
+              </p>
             ) : null}
           </div>
         </section>

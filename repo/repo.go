@@ -168,13 +168,6 @@ type AgentRunRepo interface {
 	RecordAgentRunFinalMessage(ctx context.Context, result AgentRunFinalMessage) (*model.AgentRun, error)
 	CompleteAgentRun(ctx context.Context, completion AgentRunCompletion) (*model.AgentRun, error)
 	RecoverExpiredAgentRuns(ctx context.Context, tenantID string, now time.Time) (AgentRunRecoveryResult, error)
-	PutAgentBudgetPolicy(ctx context.Context, policy *model.AgentBudgetPolicy, expectedVersion int64) (*model.AgentBudgetPolicy, error)
-	GetAgentBudgetPolicy(ctx context.Context, tenantID string) (*model.AgentBudgetPolicy, error)
-	ReserveAgentBudget(ctx context.Context, reservation AgentBudgetReservation) (*model.AgentBudgetAttempt, error)
-	SettleAgentBudget(ctx context.Context, settlement AgentBudgetSettlement) (*model.AgentBudgetAttempt, error)
-	RecoverExpiredAgentBudgetAttempts(ctx context.Context, tenantID string, now time.Time) (int64, error)
-	GetAgentBudgetAttempt(ctx context.Context, tenantID, runID string, attempt int) (*model.AgentBudgetAttempt, error)
-	GetAgentBudgetBucket(ctx context.Context, tenantID, periodKind string, periodStart time.Time) (*model.AgentBudgetBucket, error)
 	GetAgentSessionBinding(ctx context.Context, tenantID, conversationID string) (*model.AgentSessionBinding, error)
 	MarkAgentSessionBindingDirty(ctx context.Context, tenantID, conversationID string, expectedGeneration int64, now time.Time) (*model.AgentSessionBinding, error)
 	// WithAgentSessionGCLock holds a PostgreSQL transaction advisory lock,
@@ -275,8 +268,7 @@ type AgentRunCompletion struct {
 }
 
 type AgentRunRecoveryResult struct {
-	RetryableExecutions   int64
-	FinalFailures         int64
-	PreparedRuns          int64
-	UnknownBudgetAttempts int64
+	RetryableExecutions int64
+	FinalFailures       int64
+	PreparedRuns        int64
 }

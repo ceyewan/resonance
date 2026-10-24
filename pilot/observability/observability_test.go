@@ -143,6 +143,12 @@ func (m *testMeter) Counter(name, _ string, _ ...metrics.MetricOption) (metrics.
 	return counter, nil
 }
 
+func (m *testMeter) UpDownCounter(name, _ string, _ ...metrics.MetricOption) (metrics.UpDownCounter, error) {
+	counter := &testCounter{}
+	m.counters[name] = counter
+	return counter, nil
+}
+
 func (m *testMeter) Gauge(name, _ string, _ ...metrics.MetricOption) (metrics.Gauge, error) {
 	gauge := &testGauge{}
 	m.gauges[name] = gauge

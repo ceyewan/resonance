@@ -16,19 +16,17 @@ import (
 
 // HTTPHandler 实现 Gateway 的 HTTP API
 type HTTPHandler struct {
-	logicClient    *logicclient.Client
-	approvalClient approvalLogicClient
-	logger         clog.Logger
-	authConfig     *middleware.AuthConfig
+	logicClient *logicclient.Client
+	logger      clog.Logger
+	authConfig  *middleware.AuthConfig
 }
 
 // NewHTTPHandler 创建 API Handler
 func NewHTTPHandler(logicClient *logicclient.Client, authenticator auth.Authenticator, logger clog.Logger) *HTTPHandler {
 	return &HTTPHandler{
-		logicClient:    logicClient,
-		approvalClient: logicClient,
-		logger:         logger,
-		authConfig:     middleware.NewAuthConfig(authenticator, logger),
+		logicClient: logicClient,
+		logger:      logger,
+		authConfig:  middleware.NewAuthConfig(authenticator, logger),
 	}
 }
 
@@ -178,8 +176,7 @@ func (h *HTTPHandler) CreateSession(
 	return connect.NewResponse(resp), nil
 }
 
-// CreateAgentSession accepts only a profile enum. The trusted tenant, roles and
-// scopes are resolved again by Logic from the Gateway-signed principal.
+// CreateAgentSession returns the caller's unique Pilot conversation.
 func (h *HTTPHandler) CreateAgentSession(
 	ctx context.Context,
 	req *connect.Request[gatewayv1.CreateAgentSessionRequest],
@@ -189,9 +186,7 @@ func (h *HTTPHandler) CreateAgentSession(
 		return nil, err
 	}
 
-	logicResp, err := h.logicClient.CreateAgentSession(ctx, username, &logicv1.CreateAgentSessionRequest{
-		Profile: req.Msg.Profile,
-	})
+	logicResp, err := h.logicClient.CreateAgentSession(ctx, username, &logicv1.CreateAgentSessionRequest{})
 	if err != nil {
 		h.logger.Error("create agent session failed", clog.Error(err))
 		return nil, toConnectError(err)

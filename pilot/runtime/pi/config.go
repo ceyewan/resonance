@@ -3,8 +3,6 @@ package pi
 import (
 	"bytes"
 	"fmt"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,15 +15,10 @@ import (
 )
 
 const (
-	defaultCapabilityEnvName = "RESONANCE_AGENT_CAPABILITY"
-	toolBrokerURLEnvName     = "RESONANCE_TOOL_BROKER_URL"
-	runIDEnvName             = "RESONANCE_AGENT_RUN_ID"
-	maxTokensEnvName         = "RESONANCE_AGENT_MAX_TOTAL_TOKENS"
-	maxCostEnvName           = "RESONANCE_AGENT_MAX_COST_MICROS"
-	maxProviderCallsEnvName  = "RESONANCE_AGENT_MAX_PROVIDER_CALLS"
-	piAgentDirEnvName        = "PI_CODING_AGENT_DIR"
-	piSettingsFileName       = "settings.json"
-	pinnedPiSettings         = `{
+	maxTokensEnvName   = "RESONANCE_AGENT_MAX_OUTPUT_TOKENS"
+	piAgentDirEnvName  = "PI_CODING_AGENT_DIR"
+	piSettingsFileName = "settings.json"
+	pinnedPiSettings   = `{
   "retry": {
     "enabled": true,
     "maxRetries": 3,
@@ -43,14 +36,12 @@ var environmentNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // Config 是 Pi Adapter 的安全配置。启动参数不提供任意 extra args，避免绕过固定基线。
 type Config struct {
-	Binary            string
-	ExpectedVersion   string
-	ExtensionPath     string
-	WorkDir           string
-	AgentDir          string
-	ToolBrokerURL     string
-	Environment       []string
-	CapabilityEnvName string
+	Binary          string
+	ExpectedVersion string
+	ExtensionPath   string
+	WorkDir         string
+	AgentDir        string
+	Environment     []string
 
 	MaxFrameBytes     int
 	MaxOutputBytes    int64
@@ -66,9 +57,6 @@ type Config struct {
 }
 
 func (c *Config) setDefaults() {
-	if c.CapabilityEnvName == "" {
-		c.CapabilityEnvName = defaultCapabilityEnvName
-	}
 	if c.MaxFrameBytes <= 0 {
 		c.MaxFrameBytes = defaultMaxFrameBytes
 	}
@@ -129,18 +117,6 @@ func (c Config) validate() error {
 	if strings.TrimSpace(c.AgentDir) == "" || !filepath.IsAbs(c.AgentDir) || filepath.Clean(c.AgentDir) != c.AgentDir {
 		return fmt.Errorf("pi pinned agent directory must be an absolute clean path")
 	}
-	brokerURL, err := url.Parse(c.ToolBrokerURL)
-	if err != nil || brokerURL.Scheme != "http" || brokerURL.User != nil || brokerURL.Port() == "" ||
-		(brokerURL.Path != "" && brokerURL.Path != "/") || brokerURL.RawQuery != "" || brokerURL.Fragment != "" {
-		return fmt.Errorf("pi tool broker URL must be an explicit loopback HTTP endpoint")
-	}
-	brokerIP := net.ParseIP(brokerURL.Hostname())
-	if brokerIP == nil || !brokerIP.IsLoopback() {
-		return fmt.Errorf("pi tool broker URL must be an explicit loopback HTTP endpoint")
-	}
-	if !environmentNamePattern.MatchString(c.CapabilityEnvName) {
-		return fmt.Errorf("pi capability environment name is invalid")
-	}
 	seen := make(map[string]struct{}, len(c.Environment))
 	for _, item := range c.Environment {
 		name, _, ok := strings.Cut(item, "=")
@@ -150,8 +126,7 @@ func (c Config) validate() error {
 		if name == "NODE_OPTIONS" || name == "NODE_PATH" {
 			return fmt.Errorf("pi environment entry %s is forbidden", name)
 		}
-		if name == c.CapabilityEnvName || name == toolBrokerURLEnvName || name == runIDEnvName || name == piAgentDirEnvName ||
-			name == maxTokensEnvName || name == maxCostEnvName || name == maxProviderCallsEnvName {
+		if name == piAgentDirEnvName || name == maxTokensEnvName {
 			return fmt.Errorf("pi environment entry %s is reserved", name)
 		}
 		if _, exists := seen[name]; exists {
@@ -184,11 +159,8 @@ func (c Config) buildProcessSpec(req pilotruntime.RunRequest) (ProcessSpec, erro
 	if _, err := secureSessionFile(req.Session.Directory, ""); err != nil {
 		return ProcessSpec{}, err
 	}
-	if req.Capability.IsZero() {
-		return ProcessSpec{}, fmt.Errorf("run capability is required")
-	}
-	if !req.Limits.Valid() {
-		return ProcessSpec{}, fmt.Errorf("run execution limits are required")
+	if req.MaxOutputTokens < 1 {
+		return ProcessSpec{}, fmt.Errorf("output token limit is required")
 	}
 	if req.Session.FilePath != "" {
 		if _, err := secureSessionFile(req.Session.Directory, req.Session.FilePath); err != nil {
@@ -218,13 +190,8 @@ func (c Config) buildProcessSpec(req pilotruntime.RunRequest) (ProcessSpec, erro
 	env := make([]string, 0, len(c.Environment)+7)
 	env = append(env, c.Environment...)
 	env = append(env,
-		c.CapabilityEnvName+"="+req.Capability.Reveal(),
-		toolBrokerURLEnvName+"="+c.ToolBrokerURL,
-		runIDEnvName+"="+req.RunID,
 		piAgentDirEnvName+"="+c.AgentDir,
-		maxTokensEnvName+"="+strconv.FormatInt(req.Limits.MaxTotalTokens, 10),
-		maxCostEnvName+"="+strconv.FormatInt(req.Limits.MaxCostMicros, 10),
-		maxProviderCallsEnvName+"="+strconv.Itoa(req.Limits.MaxProviderCalls),
+		maxTokensEnvName+"="+strconv.FormatInt(req.MaxOutputTokens, 10),
 	)
 	return ProcessSpec{Path: c.Binary, Args: args, Env: env, Dir: c.WorkDir}, nil
 }

@@ -36,9 +36,6 @@ type RunStore interface {
 	RecordAgentRunFinalMessage(ctx context.Context, result repo.AgentRunFinalMessage) (*model.AgentRun, error)
 	CompleteAgentRun(ctx context.Context, completion repo.AgentRunCompletion) (*model.AgentRun, error)
 	RecoverExpiredAgentRuns(ctx context.Context, tenantID string, now time.Time) (repo.AgentRunRecoveryResult, error)
-	ReserveAgentBudget(ctx context.Context, reservation repo.AgentBudgetReservation) (*model.AgentBudgetAttempt, error)
-	SettleAgentBudget(ctx context.Context, settlement repo.AgentBudgetSettlement) (*model.AgentBudgetAttempt, error)
-	RecoverExpiredAgentBudgetAttempts(ctx context.Context, tenantID string, now time.Time) (int64, error)
 }
 
 type ProfileResolver interface {
@@ -47,10 +44,6 @@ type ProfileResolver interface {
 
 type PrincipalResolver interface {
 	ResolvePrincipal(ctx context.Context, tenantID, actorID string) (pilotruntime.ActorPrincipal, error)
-}
-
-type CapabilityIssuer interface {
-	IssueCapability(ctx context.Context, run *model.AgentRun, principal pilotruntime.ActorPrincipal) (pilotruntime.Secret, error)
 }
 
 // HistoryResolver rebuilds a fresh prompt from Logic's authoritative chat
@@ -88,7 +81,6 @@ type Dependencies struct {
 	Sessions      session.Manager
 	Profiles      ProfileResolver
 	Principals    PrincipalResolver
-	Capabilities  CapabilityIssuer
 	History       HistoryResolver
 	FinalMessages FinalMessageWriter
 	Events        EventSink
@@ -103,5 +95,5 @@ type Config struct {
 	HeartbeatInterval time.Duration
 	RunTimeout        time.Duration
 	RetryBackoff      time.Duration
-	MaxProviderCalls  int
+	MaxOutputTokens   int64
 }

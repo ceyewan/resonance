@@ -18,8 +18,7 @@ echo "更新本地 Docker 部署..."
 docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml up -d postgres redis nats etcd
 docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml \
     up -d --build --remove-orphans \
-    provider-egress-proxy pilot-storage-init pilot-runtime pilot-iam-admin-runtime \
-    init logic task gateway web pilot pilot-iam-admin
+    init logic task gateway web pilot
 
 echo ""
 docker compose --env-file .env -p resonance -f deploy/base.yaml -f deploy/services.yaml -f deploy/services.local.yaml ps

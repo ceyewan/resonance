@@ -22,7 +22,7 @@ type sessionRepoOptions struct {
 
 // CreateSessionWithMembers makes session creation atomic and idempotent. AI
 // sessions use the partial unique key
-// (tenant_id, owner_username, profile_id, profile_version);
+// (tenant_id, owner_username); model configuration never creates another chat.
 // ordinary direct sessions use their tenant-derived deterministic session_id.
 func (r *sessionRepo) CreateSessionWithMembers(
 	ctx context.Context,
@@ -78,8 +78,8 @@ func (r *sessionRepo) CreateSessionWithMembers(
 		var existing model.Session
 		query := tx.Where("session_id = ?", session.SessionID)
 		if session.Kind == model.SessionKindAI {
-			query = tx.Where("tenant_id = ? AND owner_username = ? AND profile_id = ? AND profile_version = ? AND kind = ?",
-				session.TenantID, session.OwnerUsername, session.ProfileID, session.ProfileVersion, model.SessionKindAI)
+			query = tx.Where("tenant_id = ? AND owner_username = ? AND kind = ?",
+				session.TenantID, session.OwnerUsername, model.SessionKindAI)
 		}
 		if err := query.Take(&existing).Error; err != nil {
 			return fmt.Errorf("load idempotent session: %w", err)
@@ -111,8 +111,7 @@ func (r *sessionRepo) CreateSessionWithMembers(
 func sameSessionCreationSnapshot(existing, requested *model.Session) bool {
 	return existing != nil && requested != nil &&
 		existing.Type == requested.Type && existing.Kind == requested.Kind &&
-		existing.TenantID == requested.TenantID && existing.ProfileID == requested.ProfileID &&
-		existing.ProfileVersion == requested.ProfileVersion && existing.OwnerUsername == requested.OwnerUsername
+		existing.TenantID == requested.TenantID && existing.OwnerUsername == requested.OwnerUsername
 }
 
 // WithSessionRepoLogger 设置日志记录器
@@ -341,6 +340,13 @@ func (r *sessionRepo) AddMember(ctx context.Context, member *model.SessionMember
 		return fmt.Errorf("username cannot be empty")
 	}
 
+	conversation, err := r.GetSession(ctx, member.SessionID)
+	if err != nil {
+		return err
+	}
+	if conversation.Kind == model.SessionKindAI {
+		return fmt.Errorf("pilot conversations cannot add members")
+	}
 	gormDB := r.db.DB(ctx)
 	if err := gormDB.Create(member).Error; err != nil {
 		r.logger.Error("添加成员失败",

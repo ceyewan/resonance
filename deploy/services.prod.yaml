@@ -15,12 +15,6 @@
 # =============================================================================
 
 services:
-  provider-egress-proxy:
-    environment:
-      # RFC 2544 synthetic DNS compatibility is local-only. Production must
-      # accept only genuinely public resolved addresses.
-      RESONANCE_ALLOW_SYNTHETIC_BENCHMARK_ADDRESSES: "false"
-
   gateway:
     ports: !reset []
     networks:

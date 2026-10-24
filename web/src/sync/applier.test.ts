@@ -10,7 +10,7 @@ import {
   SessionUpdateSchema,
 } from "@gen/common/v1/event_pb";
 import { MessageSchema, MessageType } from "@gen/common/v1/message_pb";
-import { AgentProfile, SessionKind, SessionType } from "@gen/common/v1/session_pb";
+import { SessionKind, SessionType } from "@gen/common/v1/session_pb";
 import { beforeEach, describe, expect, test } from "vitest";
 
 import { getEventsBySession, getSession, putEvent, setMeta, upsertSession } from "../db/repo";
@@ -25,8 +25,6 @@ function makeBaseSession(sessionId: string, type: SessionType): SessionRow {
     name: "session",
     type,
     kind: SessionKind.STANDARD,
-    agentProfile: AgentProfile.UNSPECIFIED,
-    agentProfileVersion: "0",
     avatarUrl: "",
     unreadCount: "0",
     lastReadSeq: "0",

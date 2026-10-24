@@ -1,31 +1,5 @@
-# Local-only deployment overrides. Never include this file in production.
+# Local-only logging overrides; model calls still require an explicit Provider key.
 services:
-  provider-egress-proxy:
-    environment:
-      # Docker Desktop/VPN may synthesize public DNS into RFC 2544
-      # 198.18.0.0/15. The base and production configurations remain closed.
-      RESONANCE_ALLOW_SYNTHETIC_BENCHMARK_ADDRESSES: "true"
-
   pilot:
     environment:
-      RESONANCE_PROFILE_MODEL: resonance-deterministic-v1
-      # Two retries prove retry/finalization semantics while allowing the two
-      # concurrent negative runs to coexist under the default local budget.
-      RESONANCE_WORKER_MAX_ATTEMPTS: "2"
-
-  pilot-iam-admin:
-    environment:
-      RESONANCE_PROFILE_MODEL: resonance-deterministic-v1
-      RESONANCE_WORKER_MAX_ATTEMPTS: "2"
-
-  pilot-runtime:
-    environment:
-      DASHSCOPE_API_KEY: resonance-local-deterministic-key
-      DASHSCOPE_BASE_URL: http://127.0.0.1:18096/compatible-mode/v1
-      DASHSCOPE_MODEL: resonance-deterministic-v1
-
-  pilot-iam-admin-runtime:
-    environment:
-      DASHSCOPE_API_KEY: resonance-local-deterministic-key
-      DASHSCOPE_BASE_URL: http://127.0.0.1:18096/compatible-mode/v1
-      DASHSCOPE_MODEL: resonance-deterministic-v1
+      RESONANCE_LOG_LEVEL: debug
