@@ -31,10 +31,11 @@ type RunEnqueuer interface {
 	EnqueueAgentRun(ctx context.Context, run *model.AgentRun) (*repo.AgentRunEnqueueResult, error)
 }
 
-// BindingInvalidator 让 Pilot 自己丢弃被历史变更污染的本地快照：撤回/编辑是 IM
-// 的核心语义，不应由 Logic 的消息事务反向去改 Pilot 的表。
-type BindingInvalidator interface {
-	InvalidateAgentSessionBinding(ctx context.Context, tenantID, conversationID string, now time.Time) (bool, error)
+// ConversationInvalidator 让 Pilot 自己处理历史变更：撤回/编辑到达时取消该会话
+// 尚未落地的 Run，并丢弃已提交的本地快照。撤回是 IM 的核心语义，不应由 Logic 的
+// 消息事务反向去改 Pilot 的表。
+type ConversationInvalidator interface {
+	InvalidateAgentConversation(ctx context.Context, tenantID, conversationID string, now time.Time) (repo.AgentConversationInvalidation, error)
 }
 
 // AdmissionController 判断事件能否触发 Agent。MQ 中的 from_username 只能在
@@ -52,7 +53,7 @@ type HandlerConfig struct {
 type Handler struct {
 	config    HandlerConfig
 	runs      RunEnqueuer
-	bindings  BindingInvalidator
+	bindings  ConversationInvalidator
 	admission AdmissionController
 	now       func() time.Time
 	runID     func() (string, error)
@@ -79,7 +80,7 @@ func WithRunIDSource(source func() (string, error)) HandlerOption {
 func NewHandler(
 	config HandlerConfig,
 	runs RunEnqueuer,
-	bindings BindingInvalidator,
+	bindings ConversationInvalidator,
 	admission AdmissionController,
 	options ...HandlerOption,
 ) (*Handler, error) {
@@ -147,7 +148,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if !isMessage {
 		// 撤回/编辑改变了权威历史：丢弃该会话已提交的上下文快照，
 		// 下一次 Run 会从 Logic 的有效历史重建。
-		if _, err := h.bindings.InvalidateAgentSessionBinding(
+		if _, err := h.bindings.InvalidateAgentConversation(
 			ctx, conversation.TenantID, conversation.ConversationID, h.now().UTC(),
 		); err != nil {
 			return HandleResult{}, err

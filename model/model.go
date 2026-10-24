@@ -133,7 +133,10 @@ type AgentRun struct {
 	StartedAt             *time.Time
 	PreparedAt            *time.Time
 	CompletedAt           *time.Time
-	BaseSessionGeneration int64   `gorm:"column:base_session_generation;not null;default:0"`
+	BaseSessionGeneration int64 `gorm:"column:base_session_generation;not null;default:0"`
+	// BaseBindingVersion 是 Run 启动时读到的 binding 版本号。提交前若版本已变，
+	// 说明权威历史在本轮执行期间被撤回/编辑改过，候选快照不得晋升为新基线。
+	BaseBindingVersion    int64   `gorm:"column:base_binding_version;not null;default:0"`
 	CandidateSessionID    string  `gorm:"column:candidate_session_id;type:varchar(128);not null;default:''"`
 	CandidateSessionRef   string  `gorm:"column:candidate_session_ref;type:text;not null;default:''"`
 	CandidateChecksum     string  `gorm:"column:candidate_checksum;type:char(64);not null;default:''"`

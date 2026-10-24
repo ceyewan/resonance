@@ -448,6 +448,97 @@ func TestAgentRunRepo_ExpiredFinalAttemptBecomesTerminal(t *testing.T) {
 	require.Equal(t, model.AgentRunStatusClaimed, untouched.Status)
 }
 
+// 兜底：即使最终消息已经写出（无法回滚），也绝不能把基于旧快照的候选晋升成新基线，
+// 同时 Run 必须正常收尾（不能变成无限重试的卡死）。
+func TestAgentRunRepo_StaleBindingVersionIsNotPromoted(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+	runRepo, err := NewAgentRunRepo(database)
+	require.NoError(t, err)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)
+	require.NoError(t, database.DB(ctx).Create(&model.AgentSessionBinding{
+		TenantID: "tenant-a", ConversationID: "conversation-stale", RuntimeVersion: "0.84.1", BridgeVersion: "1.0.0",
+		RuntimeSessionID: "session-old", SessionRef: "sessions/tenant-a/conversation-stale/old.jsonl",
+		Checksum: testDigest("stale-old"), ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
+		Generation: 1, LastCommittedEntryID: "leaf-old", Status: model.AgentSessionBindingStatusActive, Version: 1,
+	}).Error)
+
+	prepared := prepareTestAgentRun(t, ctx, runRepo, newTestAgentRun(
+		"run-stale-binding", "tenant-a", "conversation-stale", 9801, 1, base,
+	), 1, "session-new", base)
+	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(5*time.Second)))
+	require.NoError(t, err)
+	recorded, err := runRepo.RecordAgentRunFinalMessage(ctx, AgentRunFinalMessage{
+		Lease: leaseFor(committing, base.Add(6*time.Second)), EventID: 9802, SeqID: 2, TimestampMs: base.Add(6 * time.Second).UnixMilli(),
+	})
+	require.NoError(t, err)
+
+	// 消息已经写出（无法回滚），此时才到达历史变更：Run 保留，快照被置脏。
+	result, err := runRepo.InvalidateAgentConversation(ctx, "tenant-a", "conversation-stale", base.Add(7*time.Second))
+	require.NoError(t, err)
+	require.Zero(t, result.RunsCancelled, "已写出最终消息的 Run 是既成事实，不能取消")
+
+	completed, err := runRepo.CompleteAgentRun(ctx, AgentRunCompletion{
+		Lease: leaseFor(recorded, base.Add(8*time.Second)), CommittedGeneration: 2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.AgentRunStatusSucceeded, completed.Status)
+	require.Zero(t, completed.CommittedGeneration, "过期快照不得晋升")
+
+	binding, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-stale")
+	require.NoError(t, err)
+	require.Equal(t, model.AgentSessionBindingStatusDirty, binding.Status)
+	require.Equal(t, int64(1), binding.Generation, "旧快照的 generation 不能被推进")
+	require.Equal(t, "session-old", binding.RuntimeSessionID)
+
+	// 重放收尾不能变成 fence-lost，否则这个 Run 会永远卡在 COMMITTING 里重试。
+	replayed, err := runRepo.CompleteAgentRun(ctx, AgentRunCompletion{
+		Lease: leaseFor(recorded, base.Add(9*time.Second)), CommittedGeneration: 2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.AgentRunStatusSucceeded, replayed.Status)
+}
+
+// 撤回/编辑必须取消该会话所有尚未落地的 Run，并保留已写出最终消息的 Run。
+func TestAgentRunRepo_InvalidateAgentConversationCancelsPendingRuns(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+	runRepo, err := NewAgentRunRepo(database)
+	require.NoError(t, err)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
+
+	queued := newTestAgentRun("run-inv-queued", "tenant-a", "conversation-inv", 9901, 1, base)
+	_, err = runRepo.EnqueueAgentRun(ctx, queued)
+	require.NoError(t, err)
+	running := newTestAgentRun("run-inv-running", "tenant-a", "conversation-inv", 9902, 2, base.Add(time.Second))
+	_, err = runRepo.EnqueueAgentRun(ctx, running)
+	require.NoError(t, err)
+	claimed, err := runRepo.ClaimNextAgentRun(ctx, testClaim("tenant-a", "worker-inv", "token-inv", base.Add(2*time.Second)))
+	require.NoError(t, err)
+	require.Equal(t, queued.RunID, claimed.RunID)
+
+	other := newTestAgentRun("run-inv-other", "tenant-a", "conversation-other", 9903, 1, base)
+	_, err = runRepo.EnqueueAgentRun(ctx, other)
+	require.NoError(t, err)
+
+	result, err := runRepo.InvalidateAgentConversation(ctx, "tenant-a", "conversation-inv", base.Add(3*time.Second))
+	require.NoError(t, err)
+	require.Equal(t, int64(2), result.RunsCancelled)
+
+	for _, runID := range []string{queued.RunID, running.RunID} {
+		stored, getErr := runRepo.GetAgentRun(ctx, "tenant-a", runID)
+		require.NoError(t, getErr)
+		require.Equal(t, model.AgentRunStatusCancelled, stored.Status)
+		require.Equal(t, "history_invalidated", stored.LastErrorCode)
+		require.Empty(t, stored.LeaseToken)
+	}
+	untouched, err := runRepo.GetAgentRun(ctx, "tenant-a", other.RunID)
+	require.NoError(t, err)
+	require.Equal(t, model.AgentRunStatusQueued, untouched.Status)
+}
+
 func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeInvalidated(t *testing.T) {
 	database, cleanup := setupTestContext(t)
 	defer cleanup()
@@ -498,25 +589,26 @@ func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeInvalidated(t *testing.
 	require.Equal(t, "session-4", binding.RuntimeSessionID)
 	require.Equal(t, model.AgentSessionBindingStatusActive, binding.Status)
 
-	invalidated, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-a", "conversation-a", base.Add(8*time.Second))
+	invalidated, err := runRepo.InvalidateAgentConversation(ctx, "tenant-a", "conversation-a", base.Add(8*time.Second))
 	require.NoError(t, err)
-	require.True(t, invalidated)
+	require.True(t, invalidated.BindingInvalidated)
 	dirty, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-a")
 	require.NoError(t, err)
 	require.Equal(t, model.AgentSessionBindingStatusDirty, dirty.Status)
 
 	// 幂等：已经过期就不再重复写。
-	replayed, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-a", "conversation-a", base.Add(9*time.Second))
+	replayed, err := runRepo.InvalidateAgentConversation(ctx, "tenant-a", "conversation-a", base.Add(9*time.Second))
 	require.NoError(t, err)
-	require.False(t, replayed)
+	require.False(t, replayed.BindingInvalidated)
 	again, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-a")
 	require.NoError(t, err)
 	require.Equal(t, dirty.Version, again.Version)
 
 	// 没有快照的会话不报错。
-	missing, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-b", "conversation-a", base.Add(9*time.Second))
+	missing, err := runRepo.InvalidateAgentConversation(ctx, "tenant-b", "conversation-a", base.Add(9*time.Second))
 	require.NoError(t, err)
-	require.False(t, missing)
+	require.False(t, missing.BindingInvalidated)
+	require.Zero(t, missing.RunsCancelled)
 	_, err = runRepo.GetAgentSessionBinding(ctx, "tenant-b", "conversation-a")
 	require.ErrorIs(t, err, ErrAgentSessionBindingNotFound)
 
@@ -733,9 +825,17 @@ func prepareTestAgentRun(
 		To:    model.AgentRunStatusRunning,
 	})
 	require.NoError(t, err)
+	// 与 coordinator 一致：启动时读到 binding 的版本号，提交时要求它没有变过。
+	baseBindingVersion := int64(0)
+	if binding, bindingErr := runRepo.GetAgentSessionBinding(ctx, run.TenantID, run.ConversationID); bindingErr == nil {
+		baseBindingVersion = binding.Version
+	} else {
+		require.ErrorIs(t, bindingErr, ErrAgentSessionBindingNotFound)
+	}
 	prepared, err := runRepo.PrepareAgentRun(ctx, AgentRunPreparedResult{
 		Lease:                 leaseFor(running, base.Add(4*time.Second)),
 		BaseSessionGeneration: baseGeneration,
+		BaseBindingVersion:    baseBindingVersion,
 		CandidateSessionID:    candidateSessionID,
 		CandidateSessionRef:   "sessions/" + run.TenantID + "/" + run.ConversationID + "/" + candidateSessionID + ".jsonl",
 		CandidateChecksum:     testDigest(candidateSessionID),

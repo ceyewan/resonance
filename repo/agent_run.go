@@ -144,33 +144,64 @@ func (r *agentRunRepo) GetAgentSessionBinding(ctx context.Context, tenantID, con
 	return loadAgentSessionBinding(r.db.DB(ctx), tenantID, conversationID)
 }
 
-// InvalidateAgentSessionBinding 把一个会话已提交的 Pi 快照标记为过期。
+// InvalidateAgentConversation 在权威历史被撤回/编辑后，丢弃该会话尚未落地的执行
+// 状态与已提交的 Pi 快照。
 //
-// 触发方是 Pilot 自己：它订阅到该会话的 Recall/Edit 事件后丢弃本地上下文快照，
-// 而不是让 Logic 的消息事务反向去写 Pilot 的表。快照不存在时什么都不做。
-func (r *agentRunRepo) InvalidateAgentSessionBinding(
+// 这两张表都属于 Pilot，所以这是一次进程内的自我失效，不是跨域耦合：Logic 的消息
+// 事务不认识 t_agent_*。已经写出最终消息的 Run（final_event_id > 0）不取消：那是
+// 用户可见的既成事实，回滚不了。
+func (r *agentRunRepo) InvalidateAgentConversation(
 	ctx context.Context,
 	tenantID, conversationID string,
 	now time.Time,
-) (bool, error) {
+) (AgentConversationInvalidation, error) {
 	if !validBoundedString(tenantID, 64) || !validBoundedString(conversationID, 64) {
-		return false, fmt.Errorf("tenant_id and conversation_id must contain 1 to 64 bytes")
+		return AgentConversationInvalidation{}, fmt.Errorf("tenant_id and conversation_id must contain 1 to 64 bytes")
 	}
 	if now.IsZero() {
-		return false, fmt.Errorf("current time is required")
+		return AgentConversationInvalidation{}, fmt.Errorf("current time is required")
 	}
-	result := r.db.DB(ctx).Model(&model.AgentSessionBinding{}).
-		Where("tenant_id = ? AND conversation_id = ? AND status = ?",
-			tenantID, conversationID, model.AgentSessionBindingStatusActive).
-		Updates(map[string]any{
-			"status":     model.AgentSessionBindingStatusDirty,
-			"version":    gorm.Expr("version + 1"),
-			"updated_at": now.UTC(),
-		})
-	if result.Error != nil {
-		return false, fmt.Errorf("invalidate agent session binding: %w", result.Error)
+	var result AgentConversationInvalidation
+	statuses := append(append([]string{}, agentRunPendingStatuses...), agentRunCancellableStatuses...)
+	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
+		cancelled := tx.Model(&model.AgentRun{}).
+			Where("tenant_id = ? AND conversation_id = ? AND status IN ? AND final_event_id = 0",
+				tenantID, conversationID, statuses).
+			Updates(map[string]any{
+				"status":               model.AgentRunStatusCancelled,
+				"last_error_code":      "history_invalidated",
+				"last_error_summary":   "authoritative conversation history changed",
+				"last_error_retryable": false,
+				"lease_owner":          "",
+				"lease_token":          "",
+				"lease_expires_at":     nil,
+				"completed_at":         now.UTC(),
+				"version":              gorm.Expr("version + 1"),
+				"updated_at":           now.UTC(),
+			})
+		if cancelled.Error != nil {
+			return fmt.Errorf("cancel agent runs on history invalidation: %w", cancelled.Error)
+		}
+		result.RunsCancelled = cancelled.RowsAffected
+
+		binding := tx.Model(&model.AgentSessionBinding{}).
+			Where("tenant_id = ? AND conversation_id = ? AND status = ?",
+				tenantID, conversationID, model.AgentSessionBindingStatusActive).
+			Updates(map[string]any{
+				"status":     model.AgentSessionBindingStatusDirty,
+				"version":    gorm.Expr("version + 1"),
+				"updated_at": now.UTC(),
+			})
+		if binding.Error != nil {
+			return fmt.Errorf("invalidate agent session binding: %w", binding.Error)
+		}
+		result.BindingInvalidated = binding.RowsAffected == 1
+		return nil
+	})
+	if err != nil {
+		return AgentConversationInvalidation{}, err
 	}
-	return result.RowsAffected == 1, nil
+	return result, nil
 }
 
 func (r *agentRunRepo) ClaimNextAgentRun(ctx context.Context, claim AgentRunClaim) (*model.AgentRun, error) {
@@ -375,6 +406,7 @@ func (r *agentRunRepo) PrepareAgentRun(ctx context.Context, prepared AgentRunPre
 	updates := map[string]any{
 		"status":                  model.AgentRunStatusReadyToCommit,
 		"base_session_generation": prepared.BaseSessionGeneration,
+		"base_binding_version":    prepared.BaseBindingVersion,
 		"candidate_session_id":    prepared.CandidateSessionID,
 		"candidate_session_ref":   prepared.CandidateSessionRef,
 		"candidate_checksum":      prepared.CandidateChecksum,
@@ -528,7 +560,7 @@ func (r *agentRunRepo) CompleteAgentRun(ctx context.Context, completion AgentRun
 			return err
 		}
 		if current.Status == model.AgentRunStatusSucceeded &&
-			current.CommittedGeneration == completion.CommittedGeneration {
+			(current.CommittedGeneration == completion.CommittedGeneration || current.CommittedGeneration == 0) {
 			completed = current
 			return nil
 		}
@@ -545,8 +577,12 @@ func (r *agentRunRepo) CompleteAgentRun(ctx context.Context, completion AgentRun
 			return fmt.Errorf("%w: committed generation must advance the prepared base by one", ErrAgentRunCommitConflict)
 		}
 		committedGeneration := completion.CommittedGeneration
-		if err := commitAgentSessionBinding(tx, current, completion.CommittedGeneration, completion.Lease.Now); err != nil {
+		promoted, err := commitAgentSessionBinding(tx, current, completion.CommittedGeneration, completion.Lease.Now)
+		if err != nil {
 			return err
+		}
+		if !promoted {
+			committedGeneration = 0
 		}
 
 		updated := tx.Model(&model.AgentRun{}).
@@ -774,14 +810,14 @@ func loadAgentSessionBinding(database *gorm.DB, tenantID, conversationID string)
 	return &binding, nil
 }
 
-func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int64, now time.Time) error {
+func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int64, now time.Time) (bool, error) {
 	var current model.AgentSessionBinding
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("tenant_id = ? AND conversation_id = ?", run.TenantID, run.ConversationID).
 		Take(&current).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		if run.BaseSessionGeneration != 0 || generation != 1 {
-			return ErrAgentSessionBindingConflict
+			return false, ErrAgentSessionBindingConflict
 		}
 		binding := model.AgentSessionBinding{
 			TenantID:             run.TenantID,
@@ -803,23 +839,29 @@ func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int6
 			UpdatedAt:            now,
 		}
 		if createErr := tx.Create(&binding).Error; createErr != nil {
-			return fmt.Errorf("create agent session binding: %w", createErr)
+			return false, fmt.Errorf("create agent session binding: %w", createErr)
 		}
-		return nil
+		return true, nil
 	}
 	if err != nil {
-		return fmt.Errorf("lock agent session binding: %w", err)
+		return false, fmt.Errorf("lock agent session binding: %w", err)
 	}
 
 	if current.Generation == generation {
 		if sameCommittedBinding(&current, run) {
-			return nil
+			return true, nil
 		}
-		return ErrAgentSessionBindingConflict
+		return false, ErrAgentSessionBindingConflict
 	}
 	if current.Generation != run.BaseSessionGeneration ||
 		(current.Status != model.AgentSessionBindingStatusActive && current.Status != model.AgentSessionBindingStatusDirty) {
-		return ErrAgentSessionBindingConflict
+		return false, ErrAgentSessionBindingConflict
+	}
+	// 本轮启动之后 binding 又被改过（撤回/编辑把快照置脏）。此时最终消息可能已经
+	// 写出去了，无法回滚，但绝不能把基于旧快照的候选晋升成新基线：保持 DIRTY，
+	// 让下一轮从 Logic 的有效历史重建。
+	if current.Version != run.BaseBindingVersion {
+		return false, nil
 	}
 
 	updated := tx.Model(&model.AgentSessionBinding{}).
@@ -843,12 +885,12 @@ func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int6
 			"updated_at":              now,
 		})
 	if updated.Error != nil {
-		return fmt.Errorf("commit agent session binding: %w", updated.Error)
+		return false, fmt.Errorf("commit agent session binding: %w", updated.Error)
 	}
 	if updated.RowsAffected != 1 {
-		return ErrAgentSessionBindingConflict
+		return false, ErrAgentSessionBindingConflict
 	}
-	return nil
+	return true, nil
 }
 
 func sameCommittedBinding(binding *model.AgentSessionBinding, run *model.AgentRun) bool {
@@ -952,7 +994,8 @@ func validatePreparedResult(prepared AgentRunPreparedResult) error {
 	if err := validateLease(prepared.Lease, true); err != nil {
 		return err
 	}
-	if prepared.BaseSessionGeneration < 0 || !validBoundedString(prepared.CandidateSessionID, 128) ||
+	if prepared.BaseSessionGeneration < 0 || prepared.BaseBindingVersion < 0 ||
+		!validBoundedString(prepared.CandidateSessionID, 128) ||
 		prepared.CandidateSessionRef == "" || !sha256Pattern.MatchString(prepared.CandidateChecksum) ||
 		!validBoundedString(prepared.CandidateLeafEntryID, 128) || prepared.CandidateSessionBytes < 1 ||
 		prepared.CandidateEntryCount < 1 || prepared.FrozenFinalText == "" {

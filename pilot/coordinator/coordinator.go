@@ -145,6 +145,10 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 		return fail("history_unavailable", "source message could not be verified", true, err)
 	}
 	prompt := current.Prompt
+	baseBindingVersion := int64(0)
+	if binding != nil {
+		baseBindingVersion = binding.Version
+	}
 	needsHistory := binding == nil
 	var staging session.Staging
 	if !needsHistory {
@@ -230,6 +234,7 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 	prepared, err := guard.apply(func(run *model.AgentRun, now time.Time) (*model.AgentRun, error) {
 		return c.deps.Runs.PrepareAgentRun(runContext, repo.AgentRunPreparedResult{
 			Lease: guard.lease(run, now), BaseSessionGeneration: staging.BaseGeneration,
+			BaseBindingVersion: baseBindingVersion,
 			CandidateSessionID: candidate.SessionID, CandidateSessionRef: candidate.SessionRef,
 			CandidateChecksum: candidate.Checksum, CandidateLeafEntryID: candidate.LeafEntryID,
 			CandidateSessionBytes: candidate.ByteSize, CandidateEntryCount: candidate.EntryCount,
@@ -280,6 +285,11 @@ func (c *Coordinator) commitPrepared(parent context.Context, claimed *model.Agen
 func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, run *model.AgentRun) (*model.AgentRun, error) {
 	current := run
 	if current.FinalEventID == 0 {
+		// 历史可能在本轮执行期间被撤回/编辑：必须在写入 Logic 之前复查，
+		// 消息一旦落库就收不回来了。
+		if err := c.ensureStillCommittable(ctx, guard); err != nil {
+			return current, err
+		}
 		ack, err := c.deps.FinalMessages.CommitFinalMessage(ctx, FinalMessageRequest{
 			TenantID: current.TenantID, RunID: current.RunID, ConversationID: current.ConversationID,
 			ClientMsgID: current.FinalClientMsgID, Content: current.FrozenFinalText,
@@ -311,6 +321,35 @@ func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, ru
 		return current, fmt.Errorf("commit session binding and complete run: %w", err)
 	}
 	return completed, nil
+}
+
+var errHistoryInvalidated = errors.New("authoritative history changed before final commit")
+
+// ensureStillCommittable 是最终回复写入 Logic 之前的最后一道闸门。撤回/编辑事件由
+// Pilot 自己在 ingress 侧处理，因此这里的复查完全不依赖 Logic 认识 Agent 表。
+func (c *Coordinator) ensureStillCommittable(ctx context.Context, guard *leaseGuard) error {
+	current := guard.snapshot()
+	stored, err := c.deps.Runs.GetAgentRun(ctx, current.TenantID, current.RunID)
+	if err != nil {
+		return fmt.Errorf("reload agent run before final commit: %w", err)
+	}
+	if stored.Status != model.AgentRunStatusCommitting || stored.FinalEventID != 0 {
+		return fmt.Errorf("%w: run is no longer committable", errHistoryInvalidated)
+	}
+	binding, err := c.deps.Runs.GetAgentSessionBinding(ctx, current.TenantID, current.ConversationID)
+	if errors.Is(err, repo.ErrAgentSessionBindingNotFound) {
+		if current.BaseSessionGeneration != 0 || current.BaseBindingVersion != 0 {
+			return fmt.Errorf("%w: session binding disappeared", errHistoryInvalidated)
+		}
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("reload session binding before final commit: %w", err)
+	}
+	if binding.Version != current.BaseBindingVersion {
+		return fmt.Errorf("%w: session snapshot was invalidated during this run", errHistoryInvalidated)
+	}
+	return nil
 }
 
 func (c *Coordinator) newClaim() (repo.AgentRunClaim, error) {

@@ -17,6 +17,7 @@ import (
 var ErrNoWork = errors.New("no agent run work available")
 
 type RunStore interface {
+	GetAgentRun(ctx context.Context, tenantID, runID string) (*model.AgentRun, error)
 	GetAgentSessionBinding(ctx context.Context, tenantID, conversationID string) (*model.AgentSessionBinding, error)
 	ClaimNextAgentRun(ctx context.Context, claim repo.AgentRunClaim) (*model.AgentRun, error)
 	HeartbeatAgentRun(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)

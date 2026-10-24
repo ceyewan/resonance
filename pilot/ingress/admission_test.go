@@ -4,12 +4,30 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	"github.com/ceyewan/resonance/model"
+	"github.com/ceyewan/resonance/repo"
 )
+
+type fakeConversationInvalidator struct {
+	tenantID       string
+	conversationID string
+	calls          int
+	err            error
+	result         repo.AgentConversationInvalidation
+}
+
+func (i *fakeConversationInvalidator) InvalidateAgentConversation(
+	_ context.Context, tenantID, conversationID string, _ time.Time,
+) (repo.AgentConversationInvalidation, error) {
+	i.calls++
+	i.tenantID, i.conversationID = tenantID, conversationID
+	return i.result, i.err
+}
 
 type fakeSessionAuthority struct {
 	session *model.Session
@@ -86,7 +104,7 @@ func TestHandler_IgnoresEventsWithoutTheBotInTargetsBeforeAnyLookup(t *testing.T
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		enqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{err: errors.New("admission must not be consulted")},
+		enqueuer, &fakeConversationInvalidator{}, &fakeAdmissionController{err: errors.New("admission must not be consulted")},
 	)
 	require.NoError(t, err)
 
@@ -111,7 +129,7 @@ func TestHandler_InvalidatesStaleBindingOnHistoryMutation(t *testing.T) {
 	}
 	for name, mutate := range mutations {
 		t.Run(name, func(t *testing.T) {
-			invalidator := &fakeBindingInvalidator{invalidated: true}
+			invalidator := &fakeConversationInvalidator{result: repo.AgentConversationInvalidation{RunsCancelled: 1, BindingInvalidated: true}}
 			handler, err := NewHandler(
 				HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
 				&fakeEnqueuer{}, invalidator, &fakeAdmissionController{conversation: testConversation()},

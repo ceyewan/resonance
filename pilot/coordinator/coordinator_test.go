@@ -74,6 +74,49 @@ func TestCoordinator_PreparedRecoveryDoesNotRerunModel(t *testing.T) {
 	require.Equal(t, "agent:run-coordinator:final", writer.requests[0].ClientMsgID)
 }
 
+// 撤回/编辑发生在 Run 执行期间：最终回复绝不能写进 Logic，Run 也不能把基于旧
+// 快照的候选晋升成新基线。两种失效都要挡住：ingress 取消 Run，以及仅快照被置脏。
+func TestCoordinator_HistoryInvalidatedDuringRunBlocksFinalMessage(t *testing.T) {
+	mutations := map[string]func(*memoryRunStore){
+		"run cancelled": func(store *memoryRunStore) { store.invalidate() },
+		"binding dirtied only": func(store *memoryRunStore) {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			store.binding.Status = model.AgentSessionBindingStatusDirty
+			store.binding.Version++
+		},
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			base := time.Date(2026, 8, 8, 12, 0, 0, 0, time.UTC)
+			recorder := &callRecorder{}
+			run := testCoordinatorRun(base)
+			store := newMemoryRunStore(run, recorder)
+			store.binding = &model.AgentSessionBinding{
+				TenantID: run.TenantID, ConversationID: run.ConversationID,
+				RuntimeVersion: run.RuntimeVersion, BridgeVersion: run.BridgeVersion,
+				RuntimeSessionID: "old-session", SessionRef: "objects/old.jsonl", Checksum: testCoordinatorDigest,
+				ProfileID: run.ProfileID, ProfileVersion: run.ProfileVersion,
+				Generation: 1, LastCommittedEntryID: "leaf-old",
+				Status: model.AgentSessionBindingStatusActive, Version: 5,
+			}
+			runtimeHarness := &fakeRuntime{
+				recorder: recorder, result: testRuntimeResult(),
+				afterRun: func() { mutate(store) },
+			}
+			sessions := &fakeSessionManager{recorder: recorder}
+			writer := &fakeFinalWriter{recorder: recorder, ack: FinalMessageAck{EventID: 8101, SeqID: 89, TimestampMs: 1786153000000}}
+			coordinator := newTestCoordinator(t, func() time.Time { return base }, store, runtimeHarness, sessions, writer, recorder)
+
+			_, err := coordinator.ProcessOne(context.Background())
+			require.ErrorIs(t, err, errHistoryInvalidated)
+			require.Empty(t, writer.requests, "被失效的 Run 不允许写出最终回复")
+			require.NotContains(t, recorder.snapshot(), "final-message")
+			require.NotContains(t, recorder.snapshot(), "complete")
+		})
+	}
+}
+
 func TestCoordinator_HistoryVerificationFailureFailsRun(t *testing.T) {
 	base := time.Date(2026, 8, 8, 11, 0, 0, 0, time.UTC)
 	recorder := &callRecorder{}
@@ -193,6 +236,28 @@ type memoryRunStore struct {
 
 func newMemoryRunStore(run *model.AgentRun, recorder *callRecorder) *memoryRunStore {
 	return &memoryRunStore{run: cloneAgentRun(run), recorder: recorder}
+}
+
+func (s *memoryRunStore) GetAgentRun(context.Context, string, string) (*model.AgentRun, error) {
+	s.recorder.add("reload-run")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	value := *s.run
+	return &value, nil
+}
+
+// invalidate 模拟 ingress 收到撤回/编辑后的自我失效：取消未落地的 Run 并把快照置脏。
+func (s *memoryRunStore) invalidate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run.Status == model.AgentRunStatusCommitting || s.run.Status == model.AgentRunStatusRunning ||
+		s.run.Status == model.AgentRunStatusReadyToCommit || s.run.Status == model.AgentRunStatusClaimed {
+		s.run.Status = model.AgentRunStatusCancelled
+	}
+	if s.binding != nil && s.binding.Status == model.AgentSessionBindingStatusActive {
+		s.binding.Status = model.AgentSessionBindingStatusDirty
+		s.binding.Version++
+	}
 }
 
 func (s *memoryRunStore) GetAgentSessionBinding(context.Context, string, string) (*model.AgentSessionBinding, error) {
@@ -384,6 +449,7 @@ type fakeRuntime struct {
 	request  pilotruntime.RunRequest
 	runErr   error
 	waitErr  error
+	afterRun func()
 }
 
 func (r *fakeRuntime) Run(ctx context.Context, request pilotruntime.RunRequest) (pilotruntime.EventStream, error) {
@@ -397,6 +463,9 @@ func (r *fakeRuntime) Run(ctx context.Context, request pilotruntime.RunRequest) 
 	}
 	if request.Prompt == "" || request.Profile.SystemPrompt == "" {
 		return nil, fmt.Errorf("runtime request incomplete")
+	}
+	if r.afterRun != nil {
+		r.afterRun()
 	}
 	return newFakeEventStream(ctx, r.result, r.delay, r.waitErr), nil
 }

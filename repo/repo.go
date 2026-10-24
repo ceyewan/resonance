@@ -168,7 +168,7 @@ type AgentRunRepo interface {
 	CompleteAgentRun(ctx context.Context, completion AgentRunCompletion) (*model.AgentRun, error)
 	RecoverExpiredAgentRuns(ctx context.Context, tenantID string, now time.Time) (AgentRunRecoveryResult, error)
 	GetAgentSessionBinding(ctx context.Context, tenantID, conversationID string) (*model.AgentSessionBinding, error)
-	InvalidateAgentSessionBinding(ctx context.Context, tenantID, conversationID string, now time.Time) (bool, error)
+	InvalidateAgentConversation(ctx context.Context, tenantID, conversationID string, now time.Time) (AgentConversationInvalidation, error)
 	// WithAgentSessionGCLock holds a PostgreSQL transaction advisory lock,
 	// snapshots live Session references across every tenant sharing the Store,
 	// and invokes prune before releasing the lock.
@@ -223,9 +223,16 @@ type AgentRunCancellation struct {
 	ErrorSummary string
 }
 
+// AgentConversationInvalidation 是历史变更后自我失效的结果。
+type AgentConversationInvalidation struct {
+	RunsCancelled      int64
+	BindingInvalidated bool
+}
+
 type AgentRunPreparedResult struct {
 	Lease                 AgentRunLease
 	BaseSessionGeneration int64
+	BaseBindingVersion    int64
 	CandidateSessionID    string
 	CandidateSessionRef   string
 	CandidateChecksum     string
