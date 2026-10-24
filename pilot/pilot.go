@@ -243,6 +243,9 @@ func (p *Pilot) Run() error {
 				p.logger.Warn("Pilot run failed", clog.Error(err))
 			case err := <-p.maintenance.Errors():
 				p.logger.Warn("Pilot session cleanup failed", clog.Error(err))
+			case err := <-p.ingress.Errors():
+				p.reportFatal(err)
+				return
 			case <-p.ctx.Done():
 				return
 			}
@@ -254,6 +257,18 @@ func (p *Pilot) Run() error {
 }
 func (p *Pilot) Errors() <-chan error  { return p.errors }
 func (p *Pilot) Done() <-chan struct{} { return p.ctx.Done() }
+
+// reportFatal 处理无法自行恢复的后台失败：先摘掉 readiness，再把错误交给 main，
+// 最后取消根 context 让进程带着明确原因退出，避免"进程还在但已经收不到消息"。
+func (p *Pilot) reportFatal(err error) {
+	p.logger.Error("Pilot fatal background failure", clog.Error(err))
+	p.health.SetReady(false)
+	select {
+	case p.errors <- err:
+	default:
+	}
+	p.cancel()
+}
 func (p *Pilot) Close() error {
 	p.closeOnce.Do(func() {
 		if p.health != nil {

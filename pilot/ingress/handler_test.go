@@ -226,6 +226,39 @@ func (e *fakeEnqueuer) EnqueueAgentRun(_ context.Context, run *model.AgentRun) (
 	return &repo.AgentRunEnqueueResult{Run: &clone, Created: true}, nil
 }
 
+func TestConsumer_ReportsUnexpectedSubscriptionEndAsFatal(t *testing.T) {
+	mqClient := &fakeMQ{recorder: &ingressRecorder{}}
+	consumer, err := NewConsumer(ConsumerConfig{
+		Topic: "resonance.chat.event.v1", QueueGroup: "pilot", DLQTopic: "dlq", MaxInflight: 1,
+	}, mqClient, &Handler{})
+	require.NoError(t, err)
+	require.NoError(t, consumer.Start())
+
+	require.NoError(t, mqClient.subscription.Unsubscribe())
+	select {
+	case err := <-consumer.Errors():
+		require.ErrorContains(t, err, "ended unexpectedly")
+	case <-time.After(time.Second):
+		t.Fatal("unexpected subscription end was not reported as fatal")
+	}
+}
+
+func TestConsumer_DoesNotReportPlannedStopAsFatal(t *testing.T) {
+	mqClient := &fakeMQ{recorder: &ingressRecorder{}}
+	consumer, err := NewConsumer(ConsumerConfig{
+		Topic: "resonance.chat.event.v1", QueueGroup: "pilot", DLQTopic: "dlq", MaxInflight: 1,
+	}, mqClient, &Handler{})
+	require.NoError(t, err)
+	require.NoError(t, consumer.Start())
+
+	require.NoError(t, consumer.Stop())
+	select {
+	case err := <-consumer.Errors():
+		t.Fatalf("planned stop must not be reported as fatal: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 type fakeAdmissionController struct {
 	admission Admission
 	err       error
@@ -236,9 +269,10 @@ func (c *fakeAdmissionController) Admit(context.Context, string, *commonv1.ChatE
 }
 
 type fakeMQ struct {
-	recorder   *ingressRecorder
-	publishErr error
-	handler    mq.Handler
+	recorder     *ingressRecorder
+	publishErr   error
+	handler      mq.Handler
+	subscription *fakeSubscription
 }
 
 func (m *fakeMQ) Publish(_ context.Context, topic string, _ []byte, _ ...mq.PublishOption) error {
@@ -248,7 +282,8 @@ func (m *fakeMQ) Publish(_ context.Context, topic string, _ []byte, _ ...mq.Publ
 
 func (m *fakeMQ) Subscribe(_ context.Context, _ string, handler mq.Handler, _ ...mq.SubscribeOption) (mq.Subscription, error) {
 	m.handler = handler
-	return &fakeSubscription{done: make(chan struct{})}, nil
+	m.subscription = &fakeSubscription{done: make(chan struct{})}
+	return m.subscription, nil
 }
 func (*fakeMQ) Close() error                { return nil }
 func (*fakeMQ) Drain(context.Context) error { return nil }
