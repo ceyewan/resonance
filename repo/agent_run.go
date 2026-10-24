@@ -368,6 +368,80 @@ func (r *agentRunRepo) FailAgentRun(ctx context.Context, failure AgentRunFailure
 	return failed, nil
 }
 
+// AbandonInvalidatedAgentRun 把"权威历史在执行期间被撤回/编辑"的 Run 立刻退回队列。
+//
+// 它允许从 READY_TO_COMMIT/COMMITTING 退场：这两个状态下冻结的候选结果对当前历史
+// 已经无效，继续提交是错的。普通失败路径（FailAgentRun）仍然禁止把 prepared 结果
+// 送回执行队列，避免重复计费与结果漂移；这里会连同冻结的候选一起清空。
+func (r *agentRunRepo) AbandonInvalidatedAgentRun(
+	ctx context.Context,
+	lease AgentRunLease,
+	now, retryAt time.Time,
+) (*model.AgentRun, error) {
+	if err := validateLease(lease, false); err != nil {
+		return nil, err
+	}
+	if now.IsZero() || retryAt.Before(now) {
+		return nil, fmt.Errorf("now and a retry time no earlier than now are required")
+	}
+	var abandoned *model.AgentRun
+	err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
+		current, err := lockFencedAgentRun(tx, lease, agentRunCancellableStatuses)
+		if err != nil {
+			return err
+		}
+		status := model.AgentRunStatusFailedFinal
+		completedAt := any(now)
+		availableAt := current.AvailableAt
+		if current.Attempt < current.MaxAttempts {
+			status = model.AgentRunStatusFailedRetryable
+			completedAt = nil
+			availableAt = retryAt
+		}
+		updated := tx.Model(&model.AgentRun{}).
+			Where("tenant_id = ? AND run_id = ? AND version = ?", current.TenantID, current.RunID, current.Version).
+			Updates(map[string]any{
+				"status":                  status,
+				"available_at":            availableAt,
+				"lease_owner":             "",
+				"lease_token":             "",
+				"lease_expires_at":        nil,
+				"last_error_code":         "history_invalidated",
+				"last_error_summary":      "authoritative conversation history changed before final commit",
+				"last_error_retryable":    status == model.AgentRunStatusFailedRetryable,
+				"base_session_generation": 0,
+				"base_binding_version":    0,
+				"candidate_session_id":    "",
+				"candidate_session_ref":   "",
+				"candidate_checksum":      "",
+				"candidate_leaf_entry_id": "",
+				"candidate_session_bytes": 0,
+				"candidate_entry_count":   0,
+				"frozen_final_text":       "",
+				"final_client_msg_id":     "",
+				"final_event_id":          0,
+				"final_seq_id":            0,
+				"final_timestamp_ms":      0,
+				"prepared_at":             nil,
+				"completed_at":            completedAt,
+				"version":                 gorm.Expr("version + 1"),
+				"updated_at":              now.UTC(),
+			})
+		if updated.Error != nil {
+			return fmt.Errorf("abandon invalidated agent run: %w", updated.Error)
+		}
+		if updated.RowsAffected != 1 {
+			return ErrAgentRunFenceLost
+		}
+		abandoned, err = loadAgentRun(tx, current.TenantID, current.RunID)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return abandoned, nil
+}
+
 func (r *agentRunRepo) CancelAgentRun(ctx context.Context, cancellation AgentRunCancellation) (*model.AgentRun, error) {
 	if err := validateLease(cancellation.Lease, false); err != nil {
 		return nil, err

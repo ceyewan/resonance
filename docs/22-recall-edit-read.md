@@ -106,6 +106,27 @@ Edit 已在 Phase 6 完整打通端到端闭环：
 
 ---
 
+## 4.4 撤回/编辑对 Pilot 上下文的影响
+
+历史变了，Bot 的上下文也必须跟着变，但这属于 **Pilot 自己的事**：Logic 的消息事务不认识 `t_agent_*`。
+
+Recall/Edit 事件会流到 Pilot 的 ingress，那里做两件事（同一事务）：
+
+1. 取消该会话所有 `final_event_id = 0` 的未落地 Run（`status = CANCELLED`，`last_error_code = history_invalidated`），清空租约；
+2. 把已提交的 Pi 快照置为 `DIRTY`。
+
+已经写出最终消息的 Run 不取消——那是用户可见的既成事实，回滚不了。
+
+对"执行中途被撤回/编辑"的情况，还有一道写前闸门：Run 在启动时把读到的 `binding.Version` 记进 `base_binding_version`，
+提交最终回复之前重读 Run 与 Binding，要求 Run 仍是 `COMMITTING` 且版本未变；否则立刻把 Run 退回队列（`FAILED_RETRYABLE`），
+**消息不写入 Logic**，下一轮从有效历史重建。
+
+这条闸门是 best-effort 而非原子保证：检查与写入之间有毫秒级窗口。窗口内回复可能发出，但
+`commitAgentSessionBinding` 会因版本不一致拒绝晋升快照（`committed_generation = 0`，快照保持 `DIRTY`），
+所以基线不会被污染，最多是一次基于旧上下文的回答。
+
+---
+
 ## 5. read_receipt（已读回执）
 
 ### 5.1 语义

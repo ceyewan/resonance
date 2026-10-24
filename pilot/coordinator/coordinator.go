@@ -288,6 +288,9 @@ func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, ru
 		// 历史可能在本轮执行期间被撤回/编辑：必须在写入 Logic 之前复查，
 		// 消息一旦落库就收不回来了。
 		if err := c.ensureStillCommittable(ctx, guard); err != nil {
+			if errors.Is(err, errHistoryInvalidated) {
+				c.abandonInvalidatedRun(guard)
+			}
 			return current, err
 		}
 		ack, err := c.deps.FinalMessages.CommitFinalMessage(ctx, FinalMessageRequest{
@@ -324,6 +327,33 @@ func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, ru
 }
 
 var errHistoryInvalidated = errors.New("authoritative history changed before final commit")
+
+// abandonInvalidatedRun 立刻把被失效的 Run 释放回队列。
+//
+// 只返回错误不作为是不行的：worker 对非致命错误只记 Warn，Run 会继续持有租约，
+// 用户要等 lease_ttl(30s) + recovery_interval(15s) + retry_backoff(5s) 才等到基于
+// 新历史的回复。ingress 已经把它取消成终态时这里会 fence lost，属于正常情况。
+func (c *Coordinator) abandonInvalidatedRun(guard *leaseGuard) {
+	guard.stop()
+	current := guard.snapshot()
+	now := c.now().UTC()
+	failed, err := c.deps.Runs.AbandonInvalidatedAgentRun(context.Background(), repo.AgentRunLease{
+		TenantID: current.TenantID, RunID: current.RunID,
+		WorkerID: current.LeaseOwner, LeaseToken: current.LeaseToken,
+		ExpectedVersion: current.Version, Now: now,
+	}, now, now.Add(c.config.RetryBackoff))
+	switch {
+	case errors.Is(err, repo.ErrAgentRunFenceLost):
+		// ingress 的 InvalidateAgentConversation 已经把它取消并清空租约。
+	case err != nil:
+		if c.deps.Logger != nil {
+			c.deps.Logger.Warn("failed to release invalidated agent run", clog.Error(err))
+		}
+	case c.deps.Logger != nil && failed != nil:
+		c.deps.Logger.Info("agent run released for retry after history invalidation",
+			clog.String("run_id", failed.RunID), clog.String("status", failed.Status))
+	}
+}
 
 // ensureStillCommittable 是最终回复写入 Logic 之前的最后一道闸门。撤回/编辑事件由
 // Pilot 自己在 ingress 侧处理，因此这里的复查完全不依赖 Logic 认识 Agent 表。

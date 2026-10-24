@@ -500,6 +500,42 @@ func TestAgentRunRepo_StaleBindingVersionIsNotPromoted(t *testing.T) {
 	require.Equal(t, model.AgentRunStatusSucceeded, replayed.Status)
 }
 
+// 普通失败路径仍然禁止把 prepared 结果送回执行队列；只有"历史失效"能退场，
+// 且必须清空冻结的候选（否则会把旧候选当成新一轮的输入）。
+func TestAgentRunRepo_AbandonInvalidatedRunClearsFrozenCandidate(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+	runRepo, err := NewAgentRunRepo(database)
+	require.NoError(t, err)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
+
+	prepared := prepareTestAgentRun(t, ctx, runRepo, newTestAgentRun(
+		"run-abandon", "tenant-a", "conversation-abandon", 9951, 1, base,
+	), 0, "session-abandon", base)
+	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(5*time.Second)))
+	require.NoError(t, err)
+	require.NotEmpty(t, committing.FrozenFinalText)
+
+	abandoned, err := runRepo.AbandonInvalidatedAgentRun(
+		ctx, leaseFor(committing, base.Add(6*time.Second)), base.Add(6*time.Second), base.Add(11*time.Second),
+	)
+	require.NoError(t, err)
+	require.Equal(t, model.AgentRunStatusFailedRetryable, abandoned.Status)
+	require.Equal(t, "history_invalidated", abandoned.LastErrorCode)
+	require.Empty(t, abandoned.LeaseToken)
+	require.Empty(t, abandoned.FrozenFinalText, "旧候选必须清空")
+	require.Empty(t, abandoned.CandidateSessionRef)
+	require.Empty(t, abandoned.FinalClientMsgID)
+	require.Zero(t, abandoned.FinalEventID)
+	require.Equal(t, base.Add(11*time.Second), abandoned.AvailableAt.UTC())
+
+	// 清空后它是一条普通的重试 Run，可以被重新领取并重新推理。
+	claimed, err := runRepo.ClaimNextAgentRun(ctx, testClaim("tenant-a", "worker-retry", "token-retry", base.Add(12*time.Second)))
+	require.NoError(t, err)
+	require.Equal(t, "run-abandon", claimed.RunID)
+}
+
 // 撤回/编辑必须取消该会话所有尚未落地的 Run，并保留已写出最终消息的 Run。
 func TestAgentRunRepo_InvalidateAgentConversationCancelsPendingRuns(t *testing.T) {
 	database, cleanup := setupTestContext(t)

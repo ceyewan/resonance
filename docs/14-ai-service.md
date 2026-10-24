@@ -40,8 +40,23 @@ Web → Gateway → Logic → Outbox → NATS → Pilot → Pi → 模型
 
 每次 Run 用独立 Pi 子进程，加载该私聊已提交的 Session，成功后提交新快照。
 失败只影响 staging，不污染上一轮。Pi 自动压缩上下文；Session 丢失、历史编辑/撤回或文件过大时，从 Logic 有效历史重建。
-Pilot 自己订阅 Recall/Edit 事件并丢弃该会话的本地快照；Logic 的消息事务不认识 `t_agent_*` 表。
+Pilot 自己订阅 Recall/Edit 事件：取消该会话所有未落地的 Run、把已提交快照置 `DIRTY`，Logic 的消息事务不认识 `t_agent_*` 表。
 每个 Run 执行前都会用 Logic 权威历史校验源事件，被撤回或改写的源消息直接失败重试，不依赖跨模块取消。
+
+### 提交闸门
+
+最终回复写入 Logic 之前必须复查一次，因为消息一旦落库就收不回来：
+
+- Run 启动时把当时读到的 `binding.Version` 记进 `base_binding_version`；
+- 写入前重读 Run 与 Binding，要求 Run 仍是 `COMMITTING` 且 `binding.Version` 未变；
+- 不满足就把 Run 立刻退回队列（`FAILED_RETRYABLE`，`history_invalidated`），不写消息。
+
+这里比的是 **binding 版本而不是 generation**：同一个 `DIRTY(G)` 有两种含义——"本轮执行期间被置脏"（必须拦）
+和"本轮就是从 DIRTY 重建的"（必须放行并晋升）。只比 generation 会把后者也误伤，让会话永远停在 DIRTY。
+
+这是 best-effort 而非原子保证：检查与写入之间有毫秒级窗口。窗口内消息可能发出，但
+`commitAgentSessionBinding` 会因版本不一致拒绝晋升（`committed_generation = 0`，快照保持 `DIRTY`），
+基线不会被污染，下一轮从有效历史重建。
 重建使用有界历史窗口，不承诺无限保存模型逐字记忆；IM 聊天记录仍正常持久化。
 
 ## 最小隔离

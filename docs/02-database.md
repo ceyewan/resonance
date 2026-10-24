@@ -74,6 +74,13 @@ Logic 同事务写 Session 与两名成员；重复打开返回已有会话，�
 本轮仅支持全新数据库，不保留历史多 Profile 会话迁移。
 
 Pilot 仅保留 `t_agent_run` 与 `t_agent_session_binding`：前者负责 durable queue、租约和冻结结果，后者保存每个私聊的已提交 Pi 快照。
+`t_agent_run` 里有两个只服务于提交闸门的字段（语义见 `docs/14`）：
+
+- `base_binding_version`：Run 启动时读到的 `t_agent_session_binding.version`。提交时不一致说明权威历史在本轮
+  执行期间被改动，此时既不写最终消息，也不晋升快照。
+- `committed_generation = 0`：Run 正常成功、但快照没有晋升（历史已失效）。它与 `SUCCEEDED` 组合表示
+  "回复已发出、基线未推进"，下一轮必须从有效历史重建；重放该收尾是幂等的，不会 fence lost。
+
 两者的 `profile_id/profile_version` 不是历史兼容字段，而是**当前助手快照标识**：Run 入队时冻结，领取时用 `profile_id/profile_version` 过滤，
 所以升级助手配置（模型、System Prompt 语义变化）时递增该版本，就能让旧版本排队中的 Run 不被新部署消费。它不参与会话唯一性——
 会话唯一性只由 `uniq_pilot_owner` 决定。

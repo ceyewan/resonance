@@ -160,6 +160,7 @@ type AgentRunRepo interface {
 	HeartbeatAgentRun(ctx context.Context, lease AgentRunLease) (*model.AgentRun, error)
 	AdvanceAgentRun(ctx context.Context, transition AgentRunTransition) (*model.AgentRun, error)
 	FailAgentRun(ctx context.Context, failure AgentRunFailure) (*model.AgentRun, error)
+	AbandonInvalidatedAgentRun(ctx context.Context, lease AgentRunLease, now, retryAt time.Time) (*model.AgentRun, error)
 	CancelAgentRun(ctx context.Context, cancellation AgentRunCancellation) (*model.AgentRun, error)
 	PrepareAgentRun(ctx context.Context, prepared AgentRunPreparedResult) (*model.AgentRun, error)
 	BeginAgentRunCommit(ctx context.Context, lease AgentRunLease) (*model.AgentRun, error)

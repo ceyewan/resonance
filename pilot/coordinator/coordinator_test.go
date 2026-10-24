@@ -109,10 +109,27 @@ func TestCoordinator_HistoryInvalidatedDuringRunBlocksFinalMessage(t *testing.T)
 			coordinator := newTestCoordinator(t, func() time.Time { return base }, store, runtimeHarness, sessions, writer, recorder)
 
 			_, err := coordinator.ProcessOne(context.Background())
-			require.ErrorIs(t, err, errHistoryInvalidated)
+			require.Error(t, err)
 			require.Empty(t, writer.requests, "被失效的 Run 不允许写出最终回复")
 			require.NotContains(t, recorder.snapshot(), "final-message")
 			require.NotContains(t, recorder.snapshot(), "complete")
+
+			// 两种路径都不能占着租约等它过期：worker 对非致命错误只记 Warn，
+			// 用户会等 lease_ttl + recovery_interval + retry_backoff 才看到回复。
+			stored, getErr := store.GetAgentRun(context.Background(), run.TenantID, run.RunID)
+			require.NoError(t, getErr)
+			require.Empty(t, stored.LeaseToken)
+			require.Nil(t, stored.LeaseExpiresAt)
+			if name == "run cancelled" {
+				// ingress 抢先取消：Run 已是终态，worker 后续推进只会 fence lost。
+				require.Equal(t, model.AgentRunStatusCancelled, stored.Status)
+				return
+			}
+			// 只有快照被置脏：写前闸门直接把它退回队列立刻重试。
+			require.ErrorIs(t, err, errHistoryInvalidated)
+			require.Equal(t, model.AgentRunStatusFailedRetryable, stored.Status)
+			require.Equal(t, "history_invalidated", stored.LastErrorCode)
+			require.True(t, stored.LastErrorRetryable)
 		})
 	}
 }
@@ -250,9 +267,14 @@ func (s *memoryRunStore) GetAgentRun(context.Context, string, string) (*model.Ag
 func (s *memoryRunStore) invalidate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.run.Status == model.AgentRunStatusCommitting || s.run.Status == model.AgentRunStatusRunning ||
-		s.run.Status == model.AgentRunStatusReadyToCommit || s.run.Status == model.AgentRunStatusClaimed {
+	switch s.run.Status {
+	case model.AgentRunStatusQueued, model.AgentRunStatusFailedRetryable, model.AgentRunStatusClaimed,
+		model.AgentRunStatusStartingRuntime, model.AgentRunStatusRunning,
+		model.AgentRunStatusReadyToCommit, model.AgentRunStatusCommitting:
 		s.run.Status = model.AgentRunStatusCancelled
+		// 与 repo.InvalidateAgentConversation 一致：取消同时清空租约，
+		// 之后 worker 再想收尾只能拿到 fence lost。
+		s.run.LeaseOwner, s.run.LeaseToken, s.run.LeaseExpiresAt = "", "", nil
 	}
 	if s.binding != nil && s.binding.Status == model.AgentSessionBindingStatusActive {
 		s.binding.Status = model.AgentSessionBindingStatusDirty
@@ -351,6 +373,40 @@ func (s *memoryRunStore) FailAgentRun(_ context.Context, failure repo.AgentRunFa
 	s.run.LeaseOwner, s.run.LeaseToken, s.run.LeaseExpiresAt = "", "", nil
 	s.run.Version++
 	return cloneAgentRun(s.run), nil
+}
+
+func (s *memoryRunStore) AbandonInvalidatedAgentRun(
+	_ context.Context, lease repo.AgentRunLease, now, retryAt time.Time,
+) (*model.AgentRun, error) {
+	s.recorder.add("abandon-invalidated")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.matchesLease(lease) || !s.abandonable(now) {
+		return nil, repo.ErrAgentRunFenceLost
+	}
+	if s.run.Attempt < s.run.MaxAttempts {
+		s.run.Status = model.AgentRunStatusFailedRetryable
+		s.run.LastErrorRetryable = true
+		s.run.AvailableAt = retryAt
+	} else {
+		s.run.Status = model.AgentRunStatusFailedFinal
+		s.run.LastErrorRetryable = false
+	}
+	s.run.LastErrorCode = "history_invalidated"
+	s.run.LeaseOwner, s.run.LeaseToken, s.run.LeaseExpiresAt = "", "", nil
+	s.run.FrozenFinalText, s.run.FinalClientMsgID = "", ""
+	s.run.Version++
+	return cloneAgentRun(s.run), nil
+}
+
+func (s *memoryRunStore) abandonable(now time.Time) bool {
+	switch s.run.Status {
+	case model.AgentRunStatusReadyToCommit, model.AgentRunStatusCommitting:
+		return true
+	case model.AgentRunStatusClaimed, model.AgentRunStatusStartingRuntime, model.AgentRunStatusRunning:
+		return s.run.LeaseExpiresAt != nil && s.run.LeaseExpiresAt.After(now)
+	}
+	return false
 }
 
 func (s *memoryRunStore) CancelAgentRun(_ context.Context, cancellation repo.AgentRunCancellation) (*model.AgentRun, error) {

@@ -23,6 +23,7 @@ type RunStore interface {
 	HeartbeatAgentRun(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)
 	AdvanceAgentRun(ctx context.Context, transition repo.AgentRunTransition) (*model.AgentRun, error)
 	FailAgentRun(ctx context.Context, failure repo.AgentRunFailure) (*model.AgentRun, error)
+	AbandonInvalidatedAgentRun(ctx context.Context, lease repo.AgentRunLease, now, retryAt time.Time) (*model.AgentRun, error)
 	CancelAgentRun(ctx context.Context, cancellation repo.AgentRunCancellation) (*model.AgentRun, error)
 	PrepareAgentRun(ctx context.Context, prepared repo.AgentRunPreparedResult) (*model.AgentRun, error)
 	BeginAgentRunCommit(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)
@@ -38,6 +39,12 @@ type HistoryResolver interface {
 	RebuildPrompt(ctx context.Context, run *model.AgentRun) (string, error)
 }
 
+// FinalMessageWriter 是 Bot 最终消息的唯一写入口。
+//
+// CommitFinalMessage 的 Content 必须来自 Run 的 FrozenFinalText，Pilot 侧不存在
+// 第二个"再生成一条 Bot 消息"的路径——对 FrozenFinalText 与真实内容的恒等性论证
+// 完全依赖这一点。新增写入点前请先读 docs/14 关于提交闸门的说明；
+// pilot/contract_test.go 会断言全仓只有一处调用。
 type FinalMessageWriter interface {
 	CommitFinalMessage(ctx context.Context, request FinalMessageRequest) (FinalMessageAck, error)
 }
