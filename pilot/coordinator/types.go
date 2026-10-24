@@ -87,7 +87,6 @@ type Dependencies struct {
 }
 
 type Config struct {
-	TenantID          string
 	ProfileID         string
 	ProfileVersion    int64
 	WorkerID          string

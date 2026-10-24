@@ -53,7 +53,6 @@ type Admission struct {
 }
 
 type HandlerConfig struct {
-	TenantID       string
 	BotUsername    string
 	MaxPromptBytes int
 }
@@ -127,7 +126,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("prompt is empty, oversized or invalid UTF-8"))
 	}
 
-	admission, err := h.admission.Admit(ctx, h.config.TenantID, event)
+	admission, err := h.admission.Admit(ctx, "", event)
 	if err != nil {
 		if errors.Is(err, ErrAdmissionDenied) {
 			return HandleResult{}, permanent(err)

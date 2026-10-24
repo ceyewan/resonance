@@ -965,9 +965,12 @@ func validateTenantAndRunID(tenantID, runID string) error {
 }
 
 func validateClaim(claim AgentRunClaim) error {
-	if (claim.TenantID != "" && !validBoundedString(claim.TenantID, 64)) || !validBoundedString(claim.ProfileID, 64) || claim.ProfileVersion < 1 ||
+	if claim.TenantID != "" && !validBoundedString(claim.TenantID, 64) {
+		return fmt.Errorf("tenant_id must contain 1 to 64 bytes")
+	}
+	if !validBoundedString(claim.ProfileID, 64) || claim.ProfileVersion < 1 ||
 		!validBoundedString(claim.WorkerID, 128) || !validBoundedString(claim.LeaseToken, 128) {
-		return fmt.Errorf("tenant_id, profile snapshot, worker_id and lease_token are required")
+		return fmt.Errorf("profile snapshot, worker_id and lease_token are required")
 	}
 	if claim.Now.IsZero() {
 		return fmt.Errorf("claim time cannot be zero")

@@ -92,7 +92,7 @@ func (c *Coordinator) ProcessOne(ctx context.Context) (*model.AgentRun, error) {
 
 func (c *Coordinator) Recover(ctx context.Context) (repo.AgentRunRecoveryResult, error) {
 	now := c.now().UTC()
-	return c.deps.Runs.RecoverExpiredAgentRuns(ctx, c.config.TenantID, now)
+	return c.deps.Runs.RecoverExpiredAgentRuns(ctx, "", now)
 }
 
 func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (*model.AgentRun, error) {
@@ -416,7 +416,7 @@ func (c *Coordinator) newClaim() (repo.AgentRunClaim, error) {
 		return repo.AgentRunClaim{}, fmt.Errorf("generate lease token: %w", err)
 	}
 	return repo.AgentRunClaim{
-		TenantID: c.config.TenantID, ProfileID: c.config.ProfileID, ProfileVersion: c.config.ProfileVersion,
+		ProfileID: c.config.ProfileID, ProfileVersion: c.config.ProfileVersion,
 		WorkerID: c.config.WorkerID, LeaseToken: token,
 		Now: c.now().UTC(), LeaseDuration: c.config.LeaseDuration,
 	}, nil
@@ -424,7 +424,7 @@ func (c *Coordinator) newClaim() (repo.AgentRunClaim, error) {
 
 func validateConfig(config Config) error {
 	if config.ProfileID == "" || config.ProfileVersion < 1 || config.WorkerID == "" || config.MaxOutputTokens < 1 {
-		return fmt.Errorf("coordinator tenant, profile snapshot and worker_id are required")
+		return fmt.Errorf("coordinator profile snapshot, worker_id and max_output_tokens are required")
 	}
 	if config.LeaseDuration <= 0 || config.HeartbeatInterval <= 0 || config.RunTimeout <= 0 || config.RetryBackoff < 0 {
 		return fmt.Errorf("coordinator durations are invalid")

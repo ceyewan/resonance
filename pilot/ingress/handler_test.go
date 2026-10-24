@@ -22,7 +22,7 @@ func TestHandler_AdmitsTextEventAndPersistsDurableRun(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	admission := &fakeAdmissionController{admission: testAdmission()}
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot", MaxPromptBytes: 1024},
+		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024},
 		enqueuer,
 		admission,
 		WithClock(func() time.Time { return now }),
@@ -61,7 +61,7 @@ func TestHandler_AdmitsTextEventAndPersistsDurableRun(t *testing.T) {
 func TestHandler_IgnoresBotStreamAndNonMessageEvents(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot"},
 		enqueuer, &fakeAdmissionController{admission: testAdmission()},
 	)
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 	mismatch := testAdmission()
 	mismatch.ActorUsername = "other-user"
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot"},
 		&fakeEnqueuer{}, &fakeAdmissionController{admission: mismatch},
 	)
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 
 	conflictingEnqueuer := &fakeEnqueuer{err: repo.ErrAgentRunSourceConflict}
 	handler, err = NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot"},
 		conflictingEnqueuer, &fakeAdmissionController{admission: testAdmission()},
 		WithRunIDSource(func() (string, error) { return "run-conflict", nil }),
 	)
@@ -114,7 +114,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 func TestHandler_ProfileAdmissionDenialIsPermanentAndNeverEnqueues(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot", MaxPromptBytes: 1024},
+		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024},
 		enqueuer, &fakeAdmissionController{err: ErrAdmissionDenied},
 	)
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestConsumer_AcksOnlyAfterDurableEnqueueAndRoutesPermanentFailuresToDLQ(t *
 	recorder := &ingressRecorder{}
 	enqueuer := &fakeEnqueuer{recorder: recorder}
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot"},
 		enqueuer, &fakeAdmissionController{admission: testAdmission()},
 		WithRunIDSource(func() (string, error) { return "run-consumer", nil }),
 	)
@@ -159,7 +159,7 @@ func TestConsumer_AcksOnlyAfterDurableEnqueueAndRoutesPermanentFailuresToDLQ(t *
 func TestConsumer_NaksTransientFailureAndRetainsMalformedMessageWhenDLQFails(t *testing.T) {
 	recorder := &ingressRecorder{}
 	handler, err := NewHandler(
-		HandlerConfig{TenantID: "tenant-a", BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot"},
 		&fakeEnqueuer{}, &fakeAdmissionController{err: errors.New("authoritative IAM unavailable")},
 	)
 	require.NoError(t, err)
