@@ -24,6 +24,13 @@ Web → Gateway → Logic → Outbox → NATS → Pilot → Pi → 模型
 - Pilot 只将用户文本入队，不响应自己的 Bot 消息。
 - 入口先用 MQ 的 `target_usernames` 判断 Bot 是否为本条事件收件人，再读一次会话：
   普通聊天完全不经过 Pilot 的数据库，也不必为每条全系统消息做一次查询。
+- 这一次会话读取是**有意保留**的：它给出签名所需的 tenant，以及 AI 私聊 + owner
+  三项权威事实。`target_usernames` 蕴含"Bot 是成员"，但那是 Logic 侧的不变量，
+  由被影响的一方在运行时校验一次比跨服务口头约定更可靠。代价是每个 Pilot 对话
+  回合一次主键查询，相对于该回合的写事务与模型调用可以忽略。
+- 不要为省这一次读去给 `MQEvent` 加 `tenant_id`：收益是一次主键查询，代价是
+  协议字段、Logic 侧逐点透传和两处重复事实。真正的杠杆是消息量上来后按 kind
+  拆分 subject，让 Pilot 不再接收全量聊天事件。
 - `source_event_id` 唯一，MQ 重投不会产生第二个 Run。
 - 同一会话按 source sequence 串行执行，不同会话并行，进程数受 Worker 数限制。
 - 最终回复以 `agent:<run_id>:final` 为幂等键，经 Logic 写入；不允许直接改消息表。
