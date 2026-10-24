@@ -7,12 +7,12 @@ managed:
 plugins:
   # 1. 基础 protobuf 消息类型生成器
   # 锁定 v1.36.11 以精确匹配 go.mod 中的 google.golang.org/protobuf v1.36.11
-  - remote: buf.build/protocolbuffers/go:v1.36.11
+  - local: protoc-gen-go
     out: gen/go
     opt: paths=source_relative # 生成的代码路径与 .proto 文件相对路径保持一致
 
   # 2. 标准 gRPC 服务代码生成器
   # 用于所有服务间的内部 RPC 调用（Gateway <-> Logic <-> Task）
-  - remote: buf.build/grpc/go:v1.5.1
+  - local: protoc-gen-go-grpc
     out: gen/go
     opt: paths=source_relative

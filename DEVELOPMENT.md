@@ -1,5 +1,18 @@
 # Resonance 开发路线图
 
+## 本地前置依赖
+
+```bash
+make install-gen   # 幂等安装代码生成器（版本锁定，纯本地、离线可跑）
+```
+
+- Go `1.26.10`、Node `22`、`buf` `1.66.1`。
+- `protoc-gen-go` / `protoc-gen-go-grpc` / `protoc-gen-connect-go` 由 `go install` 装到
+  `$(go env GOPATH)/bin`，`protoc-gen-es` 由 `tools/package.json` 锁定并装在
+  `tools/node_modules/.bin`，`make gen` 会自动把两处加入 PATH。
+- 版本与 `api/buf.gen.*.yaml`、`go.mod`、`web/package.json` 一一对应；插件全部是
+  `local:`，不使用 BSR 远端插件，`make gen` 不依赖网络配额与登录状态。
+
 ## 已有 IM 能力
 
 - [x] ChatEvent + Outbox/NATS/Inbox 消息链路

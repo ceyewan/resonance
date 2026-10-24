@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod down down-prod logs logs-prod clean up-observability down-observability
+.PHONY: help gen install-gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod down down-prod logs logs-prod clean up-observability down-observability
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -18,6 +18,9 @@ COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml 
 PRETTIER := ./tools/node_modules/.bin/prettier
 MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2
 GOLANGCI_LINT_VERSION ?= 2.12.2
+# 本地代码生成器路径：go install 的插件 + tools/ 下 npm 安装的 protoc-gen-es
+GEN_PLUGIN_PATH := $(shell go env GOPATH)/bin:$(CURDIR)/tools/node_modules/.bin
+
 GOLANGCI_LINT_VERSION_NORMALIZED := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
 
 # ============================================================================
@@ -34,11 +37,14 @@ help: ## 显示帮助信息
 # ============================================================================
 # 代码生成
 # ============================================================================
-gen: ## 生成 protobuf 代码
+install-gen: ## 幂等安装本地 protobuf 生成器（版本锁定，不走 BSR）
+	@./tools/install-gen-tools.sh
+
+gen: install-gen ## 生成 protobuf 代码（本地插件，离线可跑）
 	@echo "🔧 生成 protobuf 代码..."
-	@cd api && buf generate --template buf.gen.go.yaml
-	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
-	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.go.yaml
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ 代码生成完成"
 
 tidy: ## 整理 Go 依赖

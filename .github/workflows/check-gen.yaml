@@ -29,6 +29,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
 
       - name: Install buf
         run: |
@@ -36,10 +38,10 @@ jobs:
           curl -sSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-$(uname -s)-$(uname -m)" -o /usr/local/bin/buf
           chmod +x /usr/local/bin/buf
 
-      - name: Install protoc-gen-go and protoc-gen-connect-go
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install connectrpc.com/connect/cmd/protoc-gen-connect-go@latest
+      # 生成器全部本地安装、版本锁定，与 api/buf.gen.*.yaml 的 local 插件一一对应。
+      # 不使用 BSR 远端插件，避免云端配额成为门禁的隐性依赖。
+      - name: Install pinned protobuf generators
+        run: ./tools/install-gen-tools.sh
 
       - name: Generate code
         run: make gen

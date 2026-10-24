@@ -11,6 +11,6 @@ plugins:
   # Connect-ES v2 起不再需要独立的 connectrpc/es 插件：
   # bufbuild/es v2 会一并生成 message / enum / service definitions，
   # Connect-Web v2 运行时直接消费 *_pb.ts 即可。
-  - remote: buf.build/bufbuild/es:v2.11.0
+  - local: protoc-gen-es
     out: gen/ts
     opt: target=ts
