@@ -17,6 +17,10 @@ import (
 	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
 )
 
+// taskQueueGroup 是 Task 消费同一条聊天事件流时使用的 queue group，写在
+// configs/task.yaml。Pilot 允许空跑，但不能和它同名。
+const taskQueueGroup = "resonance_group_chat_event"
+
 type Config struct {
 	Service struct {
 		Name     string `mapstructure:"name"`
@@ -118,19 +122,36 @@ func Load() (*Config, error) {
 	if err = loader.Close(); err != nil {
 		return nil, err
 	}
-	if c.AgentBot == "" || c.Assistant.Provider != "dashscope" || c.Assistant.Model == "" || c.Assistant.SystemPrompt == "" || c.Assistant.MaxOutputTokens < 1 || c.Assistant.MaxOutputTokens > 32768 {
-		return nil, fmt.Errorf("pilot assistant configuration is incomplete")
-	}
-	if c.ServiceAuth.ServiceID == "" || len(c.ServiceAuth.Secret) < 32 {
-		return nil, fmt.Errorf("pilot requires a separate service signing secret of at least 32 bytes")
-	}
-	if !filepath.IsAbs(c.Runtime.Binary) || !filepath.IsAbs(c.Runtime.ExtensionPath) || !filepath.IsAbs(c.Runtime.WorkDir) || !filepath.IsAbs(c.Runtime.AgentDir) || c.Runtime.ExpectedVersion == "" {
-		return nil, fmt.Errorf("pi requires absolute paths and a pinned version")
-	}
-	if c.Worker.Count < 1 || c.Worker.MaxAttempts < 1 || c.Worker.ShutdownDrainTimeout <= 0 {
-		return nil, fmt.Errorf("pilot worker limits are invalid")
+	if err := c.Validate(); err != nil {
+		return nil, err
 	}
 	return &c, nil
+}
+
+// Validate 把配置不变量集中在一处，方便单测直接构造 Config 覆盖边界。
+func (c *Config) Validate() error {
+	if c.AgentBot == "" || c.Assistant.Provider != "dashscope" || c.Assistant.Model == "" || c.Assistant.SystemPrompt == "" || c.Assistant.MaxOutputTokens < 1 || c.Assistant.MaxOutputTokens > 32768 {
+		return fmt.Errorf("pilot assistant configuration is incomplete")
+	}
+	if c.ServiceAuth.ServiceID == "" || len(c.ServiceAuth.Secret) < 32 {
+		return fmt.Errorf("pilot requires a separate service signing secret of at least 32 bytes")
+	}
+	if !filepath.IsAbs(c.Runtime.Binary) || !filepath.IsAbs(c.Runtime.ExtensionPath) || !filepath.IsAbs(c.Runtime.WorkDir) || !filepath.IsAbs(c.Runtime.AgentDir) || c.Runtime.ExpectedVersion == "" {
+		return fmt.Errorf("pi requires absolute paths and a pinned version")
+	}
+	if c.Worker.Count < 1 || c.Worker.MaxAttempts < 1 || c.Worker.ShutdownDrainTimeout <= 0 {
+		return fmt.Errorf("pilot worker limits are invalid")
+	}
+	// 与 Task 共用同一条事件流时，queue group 是唯一的隔离手段：配成 Task 的组
+	// 会把本该写扩散的消息抢到 Pilot 手里，任务侧静默丢消息。
+	if c.Ingress.QueueGroup == taskQueueGroup {
+		return fmt.Errorf("pilot ingress must not share the Task queue group %q", taskQueueGroup)
+	}
+	// 分块上限超过待发上限会让流控失效：待发队列永远先满，分块永远发不出去。
+	if c.Stream.MaxChunkBytes < 1 || c.Stream.MaxChunkBytes > c.Stream.MaxPendingBytes {
+		return fmt.Errorf("pilot stream max_chunk_bytes must be positive and not exceed max_pending_bytes")
+	}
+	return nil
 }
 func (c *Config) HTTPAddr() string { return fmt.Sprintf(":%d", c.Service.HTTPPort) }
 
