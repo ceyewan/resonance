@@ -539,6 +539,48 @@ func TestAgentRunRepo_InvalidateAgentConversationCancelsPendingRuns(t *testing.T
 	require.Equal(t, model.AgentRunStatusQueued, untouched.Status)
 }
 
+// 合法路径不能被闸门误伤：从 DIRTY 快照重建出来的 Run 必须能晋升回 ACTIVE。
+// 否则会话会永远停在 DIRTY，每一轮都重建、永远不前进。
+func TestAgentRunRepo_RebuildFromDirtyBindingPromotes(t *testing.T) {
+	database, cleanup := setupTestContext(t)
+	defer cleanup()
+	runRepo, err := NewAgentRunRepo(database)
+	require.NoError(t, err)
+	ctx := context.Background()
+	base := time.Date(2026, 8, 10, 11, 0, 0, 0, time.UTC)
+	require.NoError(t, database.DB(ctx).Create(&model.AgentSessionBinding{
+		TenantID: "tenant-a", ConversationID: "conversation-rebuild", RuntimeVersion: "0.84.1", BridgeVersion: "1.0.0",
+		RuntimeSessionID: "session-old", SessionRef: "sessions/tenant-a/conversation-rebuild/old.jsonl",
+		Checksum: testDigest("rebuild-old"), ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
+		Generation: 1, LastCommittedEntryID: "leaf-old", Status: model.AgentSessionBindingStatusActive, Version: 1,
+	}).Error)
+	_, err = runRepo.InvalidateAgentConversation(ctx, "tenant-a", "conversation-rebuild", base)
+	require.NoError(t, err)
+
+	prepared := prepareTestAgentRun(t, ctx, runRepo, newTestAgentRun(
+		"run-rebuild", "tenant-a", "conversation-rebuild", 9851, 1, base.Add(time.Minute),
+	), 1, "session-rebuilt", base.Add(time.Minute))
+	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(time.Minute+5*time.Second)))
+	require.NoError(t, err)
+	recorded, err := runRepo.RecordAgentRunFinalMessage(ctx, AgentRunFinalMessage{
+		Lease: leaseFor(committing, base.Add(time.Minute+6*time.Second)), EventID: 9852, SeqID: 2,
+		TimestampMs: base.Add(time.Minute + 6*time.Second).UnixMilli(),
+	})
+	require.NoError(t, err)
+	completed, err := runRepo.CompleteAgentRun(ctx, AgentRunCompletion{
+		Lease: leaseFor(recorded, base.Add(time.Minute+7*time.Second)), CommittedGeneration: 2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, model.AgentRunStatusSucceeded, completed.Status)
+	require.Equal(t, int64(2), completed.CommittedGeneration)
+
+	binding, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-rebuild")
+	require.NoError(t, err)
+	require.Equal(t, model.AgentSessionBindingStatusActive, binding.Status)
+	require.Equal(t, int64(2), binding.Generation)
+	require.Equal(t, "session-rebuilt", binding.RuntimeSessionID)
+}
+
 func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeInvalidated(t *testing.T) {
 	database, cleanup := setupTestContext(t)
 	defer cleanup()
