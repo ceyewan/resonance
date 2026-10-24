@@ -117,10 +117,8 @@ type AgentRun struct {
 	ActorUsername         string     `gorm:"column:actor_username;type:varchar(64);not null"`
 	ProfileID             string     `gorm:"column:profile_id;type:varchar(64);not null"`
 	ProfileVersion        int64      `gorm:"column:profile_version;type:bigint;not null"`
-	RuntimeKind           string     `gorm:"column:runtime_kind;type:varchar(32);not null"`
 	RuntimeVersion        string     `gorm:"column:runtime_version;type:varchar(64);not null"`
 	BridgeVersion         string     `gorm:"column:bridge_version;type:varchar(64);not null"`
-	ModelProvider         string     `gorm:"column:model_provider;type:varchar(64);not null"`
 	ModelID               string     `gorm:"column:model_id;type:varchar(128);not null"`
 	Status                string     `gorm:"column:status;type:varchar(32);not null;index:idx_agent_run_queue,priority:1;index:idx_agent_run_lease,priority:1"`
 	Attempt               int        `gorm:"column:attempt;type:int;not null;default:0"`
@@ -168,7 +166,6 @@ type AgentRun struct {
 type AgentSessionBinding struct {
 	TenantID             string `gorm:"primaryKey;column:tenant_id;type:varchar(64);not null;index:idx_agent_session_binding_status,priority:1"`
 	ConversationID       string `gorm:"primaryKey;column:conversation_id;type:varchar(64);not null"`
-	RuntimeKind          string `gorm:"column:runtime_kind;type:varchar(32);not null"`
 	RuntimeVersion       string `gorm:"column:runtime_version;type:varchar(64);not null"`
 	BridgeVersion        string `gorm:"column:bridge_version;type:varchar(64);not null"`
 	RuntimeSessionID     string `gorm:"column:runtime_session_id;type:varchar(128);not null"`

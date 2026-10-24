@@ -195,7 +195,7 @@ func New() (_ *Pilot, err error) {
 	if err != nil {
 		return nil, err
 	}
-	admission, err := ingress.NewConversationAdmission(cfg.AgentBot, conversations, users, ingress.Admission{ProfileID: assistant.ID, ProfileVersion: assistant.Version, RuntimeKind: "pi", RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1", ModelProvider: assistant.Provider, ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts})
+	admission, err := ingress.NewConversationAdmission(cfg.AgentBot, conversations, users, ingress.Admission{ProfileID: assistant.ID, ProfileVersion: assistant.Version, RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1", ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts})
 	if err != nil {
 		return nil, err
 	}

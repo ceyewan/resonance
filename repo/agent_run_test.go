@@ -460,7 +460,6 @@ func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeMarkedDirty(t *testing.
 	initial := &model.AgentSessionBinding{
 		TenantID:             "tenant-a",
 		ConversationID:       "conversation-a",
-		RuntimeKind:          "pi",
 		RuntimeVersion:       "0.50.1",
 		BridgeVersion:        "1.0.0",
 		RuntimeSessionID:     "pi-session-3",
@@ -586,7 +585,7 @@ func TestAgentRunRepo_SessionGCLockSnapshotsAllTenantReferencesAndSerializesColl
 	liveCandidateRef := "objects/bb/" + testDigest("candidate") + ".jsonl"
 	terminalOrphanRef := "objects/cc/" + testDigest("orphan") + ".jsonl"
 	require.NoError(t, database.DB(ctx).Create(&model.AgentSessionBinding{
-		TenantID: "tenant-b", ConversationID: "conversation-gc", RuntimeKind: "pi", RuntimeVersion: "0.84.1",
+		TenantID: "tenant-b", ConversationID: "conversation-gc", RuntimeVersion: "0.84.1",
 		BridgeVersion: "1.0.0", RuntimeSessionID: "session-gc", SessionRef: liveBindingRef,
 		Checksum: testDigest("binding"), ProfileID: "user-assistant", ProfileVersion: 1,
 		Generation: 1, LastCommittedEntryID: "leaf-gc", Status: model.AgentSessionBindingStatusActive, Version: 1,
@@ -664,10 +663,8 @@ func newTestAgentRun(runID, tenantID, conversationID string, eventID, seqID int6
 		ActorUsername:     "user-1",
 		ProfileID:         "user-assistant",
 		ProfileVersion:    1,
-		RuntimeKind:       "pi",
 		RuntimeVersion:    "0.50.1",
 		BridgeVersion:     "1.0.0",
-		ModelProvider:     "anthropic",
 		ModelID:           "claude-sonnet-4-5",
 		MaxAttempts:       3,
 		QueuedAt:          queuedAt,

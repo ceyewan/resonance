@@ -168,8 +168,7 @@ func testCoordinatorRun(now time.Time) *model.AgentRun {
 		SourceEventID: 1001, SourceSeqID: 1, SourceTimestampMs: now.UnixMilli(), SourceHash: testCoordinatorDigest,
 		Prompt: "hello pilot", ActorID: "user-1", ActorUsername: "user-1",
 		ProfileID: "user-assistant", ProfileVersion: 1,
-		RuntimeKind: "pi", RuntimeVersion: "0.84.1", BridgeVersion: "1",
-		ModelProvider: "dashscope", ModelID: "qwen3.8-max",
+		RuntimeVersion: "0.84.1", BridgeVersion: "1", ModelID: "qwen3.8-max",
 		Status: model.AgentRunStatusQueued, MaxAttempts: 3, Version: 1,
 		AvailableAt: now, QueuedAt: now,
 	}

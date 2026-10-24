@@ -200,8 +200,7 @@ func testAdmission() Admission {
 		Trigger: true, TenantID: "tenant-a", ConversationID: "conversation-a",
 		ActorID: "user-1", ActorUsername: "user-1",
 		ProfileID: "user-assistant", ProfileVersion: 1,
-		RuntimeKind: "pi", RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0",
-		ModelProvider: "anthropic", ModelID: "claude-sonnet-4-5", MaxAttempts: 3,
+		RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0", ModelID: "claude-sonnet-4-5", MaxAttempts: 3,
 	}
 }
 

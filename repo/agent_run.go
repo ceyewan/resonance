@@ -802,7 +802,6 @@ func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int6
 		binding := model.AgentSessionBinding{
 			TenantID:             run.TenantID,
 			ConversationID:       run.ConversationID,
-			RuntimeKind:          run.RuntimeKind,
 			RuntimeVersion:       run.RuntimeVersion,
 			BridgeVersion:        run.BridgeVersion,
 			RuntimeSessionID:     run.CandidateSessionID,
@@ -844,7 +843,6 @@ func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int6
 			current.TenantID, current.ConversationID, current.Generation, current.Version,
 			[]string{model.AgentSessionBindingStatusActive, model.AgentSessionBindingStatusDirty}).
 		Updates(map[string]any{
-			"runtime_kind":            run.RuntimeKind,
 			"runtime_version":         run.RuntimeVersion,
 			"bridge_version":          run.BridgeVersion,
 			"runtime_session_id":      run.CandidateSessionID,
@@ -870,8 +868,7 @@ func commitAgentSessionBinding(tx *gorm.DB, run *model.AgentRun, generation int6
 }
 
 func sameCommittedBinding(binding *model.AgentSessionBinding, run *model.AgentRun) bool {
-	return binding.RuntimeKind == run.RuntimeKind &&
-		binding.RuntimeVersion == run.RuntimeVersion &&
+	return binding.RuntimeVersion == run.RuntimeVersion &&
 		binding.BridgeVersion == run.BridgeVersion &&
 		binding.RuntimeSessionID == run.CandidateSessionID &&
 		binding.SessionRef == run.CandidateSessionRef &&
@@ -911,9 +908,8 @@ func validateNewAgentRun(run *model.AgentRun) error {
 		return fmt.Errorf("trace_context exceeds 16 KiB")
 	}
 	if !validBoundedString(run.ProfileID, 64) || run.ProfileVersion <= 0 ||
-		!validBoundedString(run.RuntimeKind, 32) || !validBoundedString(run.RuntimeVersion, 64) ||
-		!validBoundedString(run.BridgeVersion, 64) ||
-		!validBoundedString(run.ModelProvider, 64) || !validBoundedString(run.ModelID, 128) {
+		!validBoundedString(run.RuntimeVersion, 64) || !validBoundedString(run.BridgeVersion, 64) ||
+		!validBoundedString(run.ModelID, 128) {
 		return fmt.Errorf("profile, runtime and model snapshot is incomplete")
 	}
 	if run.MaxAttempts < 1 || run.MaxAttempts > 100 {

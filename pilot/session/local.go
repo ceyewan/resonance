@@ -111,7 +111,7 @@ func (m *LocalManager) Start(_ context.Context, run *model.AgentRun, binding *mo
 		if binding.Generation < 1 || binding.RuntimeSessionID == "" || binding.SessionRef == "" || binding.Checksum == "" {
 			return Staging{}, fmt.Errorf("session binding is incomplete")
 		}
-		if binding.RuntimeKind != run.RuntimeKind || binding.RuntimeVersion != run.RuntimeVersion ||
+		if binding.RuntimeVersion != run.RuntimeVersion ||
 			binding.BridgeVersion != run.BridgeVersion || binding.ProfileID != run.ProfileID ||
 			binding.ProfileVersion != run.ProfileVersion {
 			return Staging{}, ErrBindingNeedsRebuild

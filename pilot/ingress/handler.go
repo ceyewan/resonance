@@ -44,10 +44,8 @@ type Admission struct {
 	ActorUsername  string
 	ProfileID      string
 	ProfileVersion int64
-	RuntimeKind    string
 	RuntimeVersion string
 	BridgeVersion  string
-	ModelProvider  string
 	ModelID        string
 	MaxAttempts    int
 }
@@ -162,9 +160,9 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		SourceHash: sourceHash, Prompt: message.Content, TraceContext: traceContext,
 		ActorID: admission.ActorID, ActorUsername: admission.ActorUsername,
 		ProfileID: admission.ProfileID, ProfileVersion: admission.ProfileVersion,
-		RuntimeKind: admission.RuntimeKind, RuntimeVersion: admission.RuntimeVersion, BridgeVersion: admission.BridgeVersion,
-		ModelProvider: admission.ModelProvider, ModelID: admission.ModelID,
-		Status: model.AgentRunStatusQueued, MaxAttempts: admission.MaxAttempts,
+		RuntimeVersion: admission.RuntimeVersion, BridgeVersion: admission.BridgeVersion,
+		ModelID: admission.ModelID,
+		Status:  model.AgentRunStatusQueued, MaxAttempts: admission.MaxAttempts,
 		QueuedAt: now, AvailableAt: now,
 	}
 	enqueued, err := h.runs.EnqueueAgentRun(ctx, run)
@@ -182,9 +180,9 @@ func validateAdmission(tenantID string, event *commonv1.ChatEvent, admission Adm
 		admission.ActorID == "" || admission.ActorUsername != event.FromUsername {
 		return ErrAdmissionMismatch
 	}
-	if admission.ProfileID == "" || admission.ProfileVersion <= 0 || admission.RuntimeKind == "" ||
-		admission.RuntimeVersion == "" || admission.BridgeVersion == "" || admission.ModelProvider == "" ||
-		admission.ModelID == "" || admission.MaxAttempts < 1 || admission.MaxAttempts > 100 {
+	if admission.ProfileID == "" || admission.ProfileVersion <= 0 || admission.RuntimeVersion == "" ||
+		admission.BridgeVersion == "" || admission.ModelID == "" ||
+		admission.MaxAttempts < 1 || admission.MaxAttempts > 100 {
 		return ErrAdmissionMismatch
 	}
 	return nil

@@ -541,8 +541,7 @@ func createAgentMessageFixture(t *testing.T, gormDB *gorm.DB, conversationID str
 	}).Error)
 	require.NoError(t, gormDB.Create(&model.AgentSessionBinding{
 		TenantID: "tenant-a", ConversationID: conversationID,
-		RuntimeKind: "pi", RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0",
-		RuntimeSessionID: "base-" + conversationID, SessionRef: "sessions/tenant-a/" + conversationID + "/base.jsonl",
+		RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0", RuntimeSessionID: "base-" + conversationID, SessionRef: "sessions/tenant-a/" + conversationID + "/base.jsonl",
 		Checksum: testDigest("base-" + conversationID), ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
 		Generation: 1, LastCommittedEntryID: "base-leaf", Status: model.AgentSessionBindingStatusActive, Version: 1,
 		CreatedAt: base,
