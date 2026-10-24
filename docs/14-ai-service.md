@@ -22,6 +22,8 @@ Web → Gateway → Logic → Outbox → NATS → Pilot → Pi → 模型
 
 - 用户消息和最终回复复用现有 ChatEvent、Outbox、Inbox、历史与离线同步。
 - Pilot 只将用户文本入队，不响应自己的 Bot 消息。
+- 入口先用 MQ 的 `target_usernames` 判断 Bot 是否为本条事件收件人，再读一次会话：
+  普通聊天完全不经过 Pilot 的数据库，也不必为每条全系统消息做一次查询。
 - `source_event_id` 唯一，MQ 重投不会产生第二个 Run。
 - 同一会话按 source sequence 串行执行，不同会话并行，进程数受 Worker 数限制。
 - 最终回复以 `agent:<run_id>:final` 为幂等键，经 Logic 写入；不允许直接改消息表。
