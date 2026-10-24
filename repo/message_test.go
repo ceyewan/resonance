@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
-	"gorm.io/gorm"
 
 	commonv1 "github.com/ceyewan/resonance/api/gen/go/common/v1"
 	mqv1 "github.com/ceyewan/resonance/api/gen/go/mq/v1"
@@ -157,105 +156,6 @@ func TestMessageRepo_RecallWithOutboxAdvancesSessionMaxSeq(t *testing.T) {
 	var session model.Session
 	require.NoError(t, gormDB.Where("session_id = ?", "s_recall_seq").First(&session).Error)
 	require.Equal(t, int64(2), session.MaxSeqID)
-}
-
-func TestMessageRepo_HistoryMutationCancelsUncommittedAgentRunsAndDirtiesBinding(t *testing.T) {
-	database, cleanup := setupTestContext(t)
-	t.Cleanup(cleanup)
-	messageRepo, err := NewMessageRepo(database, WithMessageRepoLogger(getTestLogger(t)))
-	require.NoError(t, err)
-	runRepo, err := NewAgentRunRepo(database)
-	require.NoError(t, err)
-	ctx := context.Background()
-	base := time.Date(2026, 8, 9, 5, 0, 0, 0, time.UTC)
-	createAgentMessageFixture(t, database.DB(ctx), "conversation-history-cancel", 9401, base)
-
-	active := newTestAgentRun("run-history-active", "tenant-a", "conversation-history-cancel", 9401, 1, base)
-	prepared := prepareTestAgentRun(t, ctx, runRepo, active, 1, "candidate-history-active", base)
-	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(5*time.Second)))
-	require.NoError(t, err)
-	queued := newTestAgentRun("run-history-queued", "tenant-a", "conversation-history-cancel", 9402, 2, base.Add(6*time.Second))
-	_, err = runRepo.EnqueueAgentRun(ctx, queued)
-	require.NoError(t, err)
-
-	err = messageRepo.RecallMessageWithOutbox(ctx, 9401, base.Add(7*time.Second), historyMutationOutbox(t,
-		"conversation-history-cancel", 9403, 3, &commonv1.ChatEvent_Recall{Recall: &commonv1.MessageRecall{TargetEventId: 9401}}, base.Add(7*time.Second)))
-	require.NoError(t, err)
-
-	for _, runID := range []string{committing.RunID, queued.RunID} {
-		cancelled, getErr := runRepo.GetAgentRun(ctx, "tenant-a", runID)
-		require.NoError(t, getErr)
-		require.Equal(t, model.AgentRunStatusCancelled, cancelled.Status)
-		require.NotNil(t, cancelled.SessionInvalidatedAt)
-		require.Equal(t, "history_invalidated", cancelled.LastErrorCode)
-		require.Empty(t, cancelled.LeaseToken)
-	}
-	binding, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-history-cancel")
-	require.NoError(t, err)
-	require.Equal(t, model.AgentSessionBindingStatusDirty, binding.Status)
-
-	_, err = messageRepo.SaveMessageWithOutbox(ctx, &model.MessageContent{
-		EventID: 9404, SessionID: committing.ConversationID, SenderUsername: "resonance-agent", SeqID: 4,
-		Content: committing.FrozenFinalText, MsgType: int(commonv1.MessageType_MESSAGE_TYPE_TEXT),
-		ClientMsgID: committing.FinalClientMsgID, IdempotencyHash: testDigest("cancelled-final"), CreatedAt: base.Add(8 * time.Second),
-	}, testMessageOutbox(9404))
-	require.ErrorIs(t, err, ErrAgentFinalMessageNotCommittable)
-}
-
-func TestMessageRepo_HistoryMutationAfterFinalFactKeepsMessageAndSkipsStaleSessionCommit(t *testing.T) {
-	database, cleanup := setupTestContext(t)
-	t.Cleanup(cleanup)
-	messageRepo, err := NewMessageRepo(database, WithMessageRepoLogger(getTestLogger(t)))
-	require.NoError(t, err)
-	runRepo, err := NewAgentRunRepo(database)
-	require.NoError(t, err)
-	ctx := context.Background()
-	base := time.Date(2026, 8, 9, 6, 0, 0, 0, time.UTC)
-	createAgentMessageFixture(t, database.DB(ctx), "conversation-history-fact", 9501, base)
-
-	run := newTestAgentRun("run-history-fact", "tenant-a", "conversation-history-fact", 9501, 1, base)
-	prepared := prepareTestAgentRun(t, ctx, runRepo, run, 1, "candidate-history-fact", base)
-	committing, err := runRepo.BeginAgentRunCommit(ctx, leaseFor(prepared, base.Add(5*time.Second)))
-	require.NoError(t, err)
-	finalMessage := &model.MessageContent{
-		EventID: 9502, SessionID: committing.ConversationID, SenderUsername: "resonance-agent", SeqID: 2,
-		Content: committing.FrozenFinalText, MsgType: int(commonv1.MessageType_MESSAGE_TYPE_TEXT),
-		ClientMsgID: committing.FinalClientMsgID, IdempotencyHash: testDigest("history-final-fact"), CreatedAt: base.Add(6 * time.Second),
-	}
-	saved, err := messageRepo.SaveMessageWithOutbox(ctx, finalMessage, testMessageOutbox(9502))
-	require.NoError(t, err)
-	require.True(t, saved.Created)
-
-	err = messageRepo.EditMessageWithOutbox(ctx, 9501, "edited authoritative prompt", base.Add(7*time.Second), historyMutationOutbox(t,
-		"conversation-history-fact", 9503, 3, &commonv1.ChatEvent_Edit{Edit: &commonv1.MessageEdit{TargetEventId: 9501, NewContent: "edited authoritative prompt"}}, base.Add(7*time.Second)))
-	require.NoError(t, err)
-	invalidated, err := runRepo.GetAgentRun(ctx, "tenant-a", committing.RunID)
-	require.NoError(t, err)
-	require.Equal(t, model.AgentRunStatusCommitting, invalidated.Status)
-	require.NotNil(t, invalidated.SessionInvalidatedAt)
-	require.Equal(t, committing.Version, invalidated.Version, "history marker must not break the in-flight final ACK fence")
-
-	recorded, err := runRepo.RecordAgentRunFinalMessage(ctx, AgentRunFinalMessage{
-		Lease: leaseFor(invalidated, base.Add(8*time.Second)), EventID: finalMessage.EventID,
-		SeqID: finalMessage.SeqID, TimestampMs: finalMessage.CreatedAt.UnixMilli(),
-	})
-	require.NoError(t, err)
-	completed, err := runRepo.CompleteAgentRun(ctx, AgentRunCompletion{
-		Lease: leaseFor(recorded, base.Add(9*time.Second)), CommittedGeneration: 2,
-	})
-	require.NoError(t, err)
-	require.Equal(t, model.AgentRunStatusSucceeded, completed.Status)
-	require.Zero(t, completed.CommittedGeneration, "invalidated Candidate must remain an orphan")
-
-	binding, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-history-fact")
-	require.NoError(t, err)
-	require.Equal(t, model.AgentSessionBindingStatusDirty, binding.Status)
-	require.Equal(t, int64(1), binding.Generation)
-	var finalCount int64
-	require.NoError(t, database.DB(ctx).Model(&model.MessageContent{}).
-		Where("session_id = ? AND client_msg_id = ?", committing.ConversationID, committing.FinalClientMsgID).
-		Count(&finalCount).Error)
-	require.Equal(t, int64(1), finalCount)
 }
 
 func TestMessageRepo_SaveMessageWithOutbox_IdempotentRetry(t *testing.T) {
@@ -518,60 +418,5 @@ func testMessageOutbox(eventID int64) *model.MessageOutbox {
 		Payload:       []byte{byte(eventID)},
 		Status:        model.OutboxStatusPending,
 		NextRetryTime: time.Unix(eventID, 0).UTC(),
-	}
-}
-
-func createAgentMessageFixture(t *testing.T, gormDB *gorm.DB, conversationID string, sourceEventID int64, base time.Time) {
-	t.Helper()
-	require.NoError(t, gormDB.Create(&model.User{
-		Username: "resonance-agent", Password: "disabled", Kind: model.UserKindAgentBot, CreatedAt: base,
-	}).Error)
-	require.NoError(t, gormDB.Create(&model.Session{
-		SessionID: conversationID, Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
-		TenantID: "tenant-a", ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
-		OwnerUsername: "user-1", MaxSeqID: 1, CreatedAt: base,
-	}).Error)
-	require.NoError(t, gormDB.Create(&[]*model.SessionMember{
-		{SessionID: conversationID, Username: "user-1", Role: 1, CreatedAt: base},
-		{SessionID: conversationID, Username: "resonance-agent", Role: 0, CreatedAt: base},
-	}).Error)
-	require.NoError(t, gormDB.Create(&model.MessageContent{
-		EventID: sourceEventID, SessionID: conversationID, SenderUsername: "user-1", SeqID: 1,
-		Content: "original authoritative prompt", MsgType: int(commonv1.MessageType_MESSAGE_TYPE_TEXT), CreatedAt: base,
-	}).Error)
-	require.NoError(t, gormDB.Create(&model.AgentSessionBinding{
-		TenantID: "tenant-a", ConversationID: conversationID,
-		RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0", RuntimeSessionID: "base-" + conversationID, SessionRef: "sessions/tenant-a/" + conversationID + "/base.jsonl",
-		Checksum: testDigest("base-" + conversationID), ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
-		Generation: 1, LastCommittedEntryID: "base-leaf", Status: model.AgentSessionBindingStatusActive, Version: 1,
-		CreatedAt: base,
-	}).Error)
-}
-
-func historyMutationOutbox(
-	t *testing.T,
-	conversationID string,
-	eventID, seqID int64,
-	payload any,
-	at time.Time,
-) *model.MessageOutbox {
-	t.Helper()
-	event := &commonv1.ChatEvent{
-		EventId: eventID, SeqId: seqID, SessionId: conversationID,
-		FromUsername: "user-1", TimestampMs: at.UnixMilli(),
-	}
-	switch value := payload.(type) {
-	case *commonv1.ChatEvent_Recall:
-		event.Payload = value
-	case *commonv1.ChatEvent_Edit:
-		event.Payload = value
-	default:
-		t.Fatalf("unsupported history mutation payload %T", payload)
-	}
-	encoded, err := proto.Marshal(&mqv1.MQEvent{Event: event, TargetUsernames: []string{"user-1", "resonance-agent"}})
-	require.NoError(t, err)
-	return &model.MessageOutbox{
-		EventID: eventID, Topic: "resonance.chat.event.v1", Payload: encoded,
-		Status: model.OutboxStatusPending, NextRetryTime: at,
 	}
 }

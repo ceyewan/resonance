@@ -200,7 +200,7 @@ func New() (_ *Pilot, err error) {
 		RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1",
 		ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts,
 	}
-	handler, err := ingress.NewHandler(ingress.HandlerConfig{BotUsername: cfg.AgentBot, MaxPromptBytes: cfg.Ingress.MaxPromptBytes, Assistant: assistantSnapshot}, runs, admission)
+	handler, err := ingress.NewHandler(ingress.HandlerConfig{BotUsername: cfg.AgentBot, MaxPromptBytes: cfg.Ingress.MaxPromptBytes, Assistant: assistantSnapshot}, runs, runs, admission)
 	if err != nil {
 		return nil, err
 	}

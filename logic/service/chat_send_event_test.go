@@ -254,28 +254,6 @@ func TestChatService_SendEvent_IdempotencyConflict(t *testing.T) {
 	require.Nil(t, messageRepo.savedMessage)
 }
 
-func TestChatService_SendEvent_ReportsInvalidatedAgentFinalAsAborted(t *testing.T) {
-	sessionRepo := &testSessionRepo{
-		getMembersFn: func(context.Context, string) ([]*model.SessionMember, error) {
-			return []*model.SessionMember{{Username: "bot"}}, nil
-		},
-	}
-	messageRepo := &testMessageRepo{
-		saveMessageWithOutboxFn: func(context.Context, *model.MessageContent, *model.MessageOutbox) (*repo.MessageSaveResult, error) {
-			return nil, repo.ErrAgentFinalMessageNotCommittable
-		},
-	}
-	svc := NewChatService(sessionRepo, messageRepo, &testGenerator{next: 8101}, &testSequencer{}, &testMQ{}, testLogger())
-
-	_, err := svc.SendEvent(newTestIncomingContext("bot"), &logicv1.SendEventRequest{
-		SessionId: "s_1",
-		Payload: &logicv1.SendEventRequest_Message{Message: &commonv1.Message{
-			Type: commonv1.MessageType_MESSAGE_TYPE_TEXT, Content: "stale result", ClientMsgId: "agent:run-invalidated:final",
-		}},
-	})
-	require.Equal(t, codes.Aborted, status.Code(err))
-}
-
 func TestChatService_SendEvent_ConcurrentWinnerDoesNotRepublish(t *testing.T) {
 	createdAt := time.Date(2026, 8, 8, 2, 3, 4, 0, time.UTC)
 	published := make(chan struct{}, 1)

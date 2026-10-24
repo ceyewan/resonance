@@ -86,7 +86,7 @@ func TestHandler_IgnoresEventsWithoutTheBotInTargetsBeforeAnyLookup(t *testing.T
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		enqueuer, &fakeAdmissionController{err: errors.New("admission must not be consulted")},
+		enqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{err: errors.New("admission must not be consulted")},
 	)
 	require.NoError(t, err)
 
@@ -96,6 +96,38 @@ func TestHandler_IgnoresEventsWithoutTheBotInTargetsBeforeAnyLookup(t *testing.T
 	require.NoError(t, err)
 	require.True(t, result.Ignored)
 	require.Empty(t, enqueuer.runs)
+}
+
+// 撤回/编辑改变了权威历史：Pilot 自己丢弃该会话的本地上下文快照，下一次 Run
+// 会从 Logic 的有效历史重建，不需要 Logic 的消息事务反向改 Pilot 的表。
+func TestHandler_InvalidatesStaleBindingOnHistoryMutation(t *testing.T) {
+	mutations := map[string]func(*commonv1.ChatEvent){
+		"recall": func(event *commonv1.ChatEvent) {
+			event.Payload = &commonv1.ChatEvent_Recall{Recall: &commonv1.MessageRecall{TargetEventId: 7}}
+		},
+		"edit": func(event *commonv1.ChatEvent) {
+			event.Payload = &commonv1.ChatEvent_Edit{Edit: &commonv1.MessageEdit{TargetEventId: 7, NewContent: "fixed"}}
+		},
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			invalidator := &fakeBindingInvalidator{invalidated: true}
+			handler, err := NewHandler(
+				HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
+				&fakeEnqueuer{}, invalidator, &fakeAdmissionController{conversation: testConversation()},
+			)
+			require.NoError(t, err)
+
+			event := testMQEvent()
+			mutate(event.Event)
+			result, err := handler.Handle(context.Background(), event)
+			require.NoError(t, err)
+			require.True(t, result.Ignored)
+			require.Equal(t, 1, invalidator.calls)
+			require.Equal(t, "tenant-a", invalidator.tenantID)
+			require.Equal(t, "conversation-a", invalidator.conversationID)
+		})
+	}
 }
 
 func pilotChatEvent(from string) *commonv1.ChatEvent {

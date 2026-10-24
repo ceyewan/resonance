@@ -31,6 +31,8 @@ Web → Gateway → Logic → Outbox → NATS → Pilot → Pi → 模型
 
 每次 Run 用独立 Pi 子进程，加载该私聊已提交的 Session，成功后提交新快照。
 失败只影响 staging，不污染上一轮。Pi 自动压缩上下文；Session 丢失、历史编辑/撤回或文件过大时，从 Logic 有效历史重建。
+Pilot 自己订阅 Recall/Edit 事件并丢弃该会话的本地快照；Logic 的消息事务不认识 `t_agent_*` 表。
+每个 Run 执行前都会用 Logic 权威历史校验源事件，被撤回或改写的源消息直接失败重试，不依赖跨模块取消。
 重建使用有界历史窗口，不承诺无限保存模型逐字记忆；IM 聊天记录仍正常持久化。
 
 ## 最小隔离

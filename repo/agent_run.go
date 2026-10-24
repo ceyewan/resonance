@@ -144,41 +144,33 @@ func (r *agentRunRepo) GetAgentSessionBinding(ctx context.Context, tenantID, con
 	return loadAgentSessionBinding(r.db.DB(ctx), tenantID, conversationID)
 }
 
-func (r *agentRunRepo) MarkAgentSessionBindingDirty(
+// InvalidateAgentSessionBinding 把一个会话已提交的 Pi 快照标记为过期。
+//
+// 触发方是 Pilot 自己：它订阅到该会话的 Recall/Edit 事件后丢弃本地上下文快照，
+// 而不是让 Logic 的消息事务反向去写 Pilot 的表。快照不存在时什么都不做。
+func (r *agentRunRepo) InvalidateAgentSessionBinding(
 	ctx context.Context,
 	tenantID, conversationID string,
-	expectedGeneration int64,
 	now time.Time,
-) (*model.AgentSessionBinding, error) {
+) (bool, error) {
 	if !validBoundedString(tenantID, 64) || !validBoundedString(conversationID, 64) {
-		return nil, fmt.Errorf("tenant_id and conversation_id must contain 1 to 64 bytes")
+		return false, fmt.Errorf("tenant_id and conversation_id must contain 1 to 64 bytes")
 	}
-	if expectedGeneration < 1 || now.IsZero() {
-		return nil, fmt.Errorf("expected_generation and current time are required")
+	if now.IsZero() {
+		return false, fmt.Errorf("current time is required")
 	}
-
 	result := r.db.DB(ctx).Model(&model.AgentSessionBinding{}).
-		Where("tenant_id = ? AND conversation_id = ? AND generation = ? AND status = ?",
-			tenantID, conversationID, expectedGeneration, model.AgentSessionBindingStatusActive).
+		Where("tenant_id = ? AND conversation_id = ? AND status = ?",
+			tenantID, conversationID, model.AgentSessionBindingStatusActive).
 		Updates(map[string]any{
 			"status":     model.AgentSessionBindingStatusDirty,
 			"version":    gorm.Expr("version + 1"),
 			"updated_at": now.UTC(),
 		})
 	if result.Error != nil {
-		return nil, fmt.Errorf("mark agent session binding dirty: %w", result.Error)
+		return false, fmt.Errorf("invalidate agent session binding: %w", result.Error)
 	}
-	if result.RowsAffected == 0 {
-		existing, err := loadAgentSessionBinding(r.db.DB(ctx), tenantID, conversationID)
-		if err != nil {
-			return nil, err
-		}
-		if existing.Generation == expectedGeneration && existing.Status == model.AgentSessionBindingStatusDirty {
-			return existing, nil
-		}
-		return nil, ErrAgentSessionBindingConflict
-	}
-	return loadAgentSessionBinding(r.db.DB(ctx), tenantID, conversationID)
+	return result.RowsAffected == 1, nil
 }
 
 func (r *agentRunRepo) ClaimNextAgentRun(ctx context.Context, claim AgentRunClaim) (*model.AgentRun, error) {
@@ -536,8 +528,7 @@ func (r *agentRunRepo) CompleteAgentRun(ctx context.Context, completion AgentRun
 			return err
 		}
 		if current.Status == model.AgentRunStatusSucceeded &&
-			(current.CommittedGeneration == completion.CommittedGeneration ||
-				(current.SessionInvalidatedAt != nil && current.CommittedGeneration == 0)) {
+			current.CommittedGeneration == completion.CommittedGeneration {
 			completed = current
 			return nil
 		}
@@ -554,15 +545,8 @@ func (r *agentRunRepo) CompleteAgentRun(ctx context.Context, completion AgentRun
 			return fmt.Errorf("%w: committed generation must advance the prepared base by one", ErrAgentRunCommitConflict)
 		}
 		committedGeneration := completion.CommittedGeneration
-		if current.SessionInvalidatedAt == nil {
-			if err := commitAgentSessionBinding(tx, current, completion.CommittedGeneration, completion.Lease.Now); err != nil {
-				return err
-			}
-		} else {
-			// The final ChatEvent is already a durable Logic fact and cannot be
-			// rolled back. Keep the Binding dirty/absent and let GC reclaim the
-			// stale Candidate instead of promoting invalidated history.
-			committedGeneration = 0
+		if err := commitAgentSessionBinding(tx, current, completion.CommittedGeneration, completion.Lease.Now); err != nil {
+			return err
 		}
 
 		updated := tx.Model(&model.AgentRun{}).

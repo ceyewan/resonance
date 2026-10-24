@@ -204,27 +204,6 @@ func (s *memoryRunStore) GetAgentSessionBinding(context.Context, string, string)
 	return nil, repo.ErrAgentSessionBindingNotFound
 }
 
-func (s *memoryRunStore) MarkAgentSessionBindingDirty(
-	_ context.Context,
-	_, _ string,
-	expectedGeneration int64,
-	_ time.Time,
-) (*model.AgentSessionBinding, error) {
-	s.recorder.add("binding-dirty")
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.binding == nil {
-		return nil, repo.ErrAgentSessionBindingNotFound
-	}
-	if s.binding.Generation != expectedGeneration {
-		return nil, repo.ErrAgentSessionBindingConflict
-	}
-	s.binding.Status = model.AgentSessionBindingStatusDirty
-	s.binding.Version++
-	clone := *s.binding
-	return &clone, nil
-}
-
 func (s *memoryRunStore) ClaimNextAgentRun(_ context.Context, claim repo.AgentRunClaim) (*model.AgentRun, error) {
 	s.recorder.add("claim-execution")
 	s.mu.Lock()

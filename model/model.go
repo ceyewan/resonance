@@ -133,31 +133,30 @@ type AgentRun struct {
 	StartedAt             *time.Time
 	PreparedAt            *time.Time
 	CompletedAt           *time.Time
-	SessionInvalidatedAt  *time.Time `gorm:"column:session_invalidated_at"`
-	BaseSessionGeneration int64      `gorm:"column:base_session_generation;not null;default:0"`
-	CandidateSessionID    string     `gorm:"column:candidate_session_id;type:varchar(128);not null;default:''"`
-	CandidateSessionRef   string     `gorm:"column:candidate_session_ref;type:text;not null;default:''"`
-	CandidateChecksum     string     `gorm:"column:candidate_checksum;type:char(64);not null;default:''"`
-	CandidateLeafEntryID  string     `gorm:"column:candidate_leaf_entry_id;type:varchar(128);not null;default:''"`
-	CandidateSessionBytes int64      `gorm:"column:candidate_session_bytes;not null;default:0"`
-	CandidateEntryCount   int64      `gorm:"column:candidate_entry_count;not null;default:0"`
-	FrozenFinalText       string     `gorm:"column:frozen_final_text;type:text;not null;default:''"`
-	FinalClientMsgID      string     `gorm:"column:final_client_msg_id;type:varchar(64);not null;default:''"`
-	FinalEventID          int64      `gorm:"column:final_event_id;not null;default:0"`
-	FinalSeqID            int64      `gorm:"column:final_seq_id;not null;default:0"`
-	FinalTimestampMs      int64      `gorm:"column:final_timestamp_ms;not null;default:0"`
-	CommittedGeneration   int64      `gorm:"column:committed_generation;not null;default:0"`
-	InputTokens           int64      `gorm:"column:input_tokens;not null;default:0"`
-	OutputTokens          int64      `gorm:"column:output_tokens;not null;default:0"`
-	CacheReadTokens       int64      `gorm:"column:cache_read_tokens;not null;default:0"`
-	CacheWriteTokens      int64      `gorm:"column:cache_write_tokens;not null;default:0"`
-	TotalTokens           int64      `gorm:"column:total_tokens;not null;default:0"`
-	UsageState            string     `gorm:"column:usage_state;type:varchar(16);not null;default:''"`
-	CostMicros            int64      `gorm:"column:cost_micros;not null;default:0"`
-	Cost                  float64    `gorm:"column:cost;type:double precision;not null;default:0"`
-	LastErrorCode         string     `gorm:"column:last_error_code;type:varchar(64);not null;default:''"`
-	LastErrorSummary      string     `gorm:"column:last_error_summary;type:varchar(512);not null;default:''"`
-	LastErrorRetryable    bool       `gorm:"column:last_error_retryable;not null;default:false"`
+	BaseSessionGeneration int64   `gorm:"column:base_session_generation;not null;default:0"`
+	CandidateSessionID    string  `gorm:"column:candidate_session_id;type:varchar(128);not null;default:''"`
+	CandidateSessionRef   string  `gorm:"column:candidate_session_ref;type:text;not null;default:''"`
+	CandidateChecksum     string  `gorm:"column:candidate_checksum;type:char(64);not null;default:''"`
+	CandidateLeafEntryID  string  `gorm:"column:candidate_leaf_entry_id;type:varchar(128);not null;default:''"`
+	CandidateSessionBytes int64   `gorm:"column:candidate_session_bytes;not null;default:0"`
+	CandidateEntryCount   int64   `gorm:"column:candidate_entry_count;not null;default:0"`
+	FrozenFinalText       string  `gorm:"column:frozen_final_text;type:text;not null;default:''"`
+	FinalClientMsgID      string  `gorm:"column:final_client_msg_id;type:varchar(64);not null;default:''"`
+	FinalEventID          int64   `gorm:"column:final_event_id;not null;default:0"`
+	FinalSeqID            int64   `gorm:"column:final_seq_id;not null;default:0"`
+	FinalTimestampMs      int64   `gorm:"column:final_timestamp_ms;not null;default:0"`
+	CommittedGeneration   int64   `gorm:"column:committed_generation;not null;default:0"`
+	InputTokens           int64   `gorm:"column:input_tokens;not null;default:0"`
+	OutputTokens          int64   `gorm:"column:output_tokens;not null;default:0"`
+	CacheReadTokens       int64   `gorm:"column:cache_read_tokens;not null;default:0"`
+	CacheWriteTokens      int64   `gorm:"column:cache_write_tokens;not null;default:0"`
+	TotalTokens           int64   `gorm:"column:total_tokens;not null;default:0"`
+	UsageState            string  `gorm:"column:usage_state;type:varchar(16);not null;default:''"`
+	CostMicros            int64   `gorm:"column:cost_micros;not null;default:0"`
+	Cost                  float64 `gorm:"column:cost;type:double precision;not null;default:0"`
+	LastErrorCode         string  `gorm:"column:last_error_code;type:varchar(64);not null;default:''"`
+	LastErrorSummary      string  `gorm:"column:last_error_summary;type:varchar(512);not null;default:''"`
+	LastErrorRetryable    bool    `gorm:"column:last_error_retryable;not null;default:false"`
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

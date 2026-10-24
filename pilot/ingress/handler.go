@@ -31,6 +31,12 @@ type RunEnqueuer interface {
 	EnqueueAgentRun(ctx context.Context, run *model.AgentRun) (*repo.AgentRunEnqueueResult, error)
 }
 
+// BindingInvalidator 让 Pilot 自己丢弃被历史变更污染的本地快照：撤回/编辑是 IM
+// 的核心语义，不应由 Logic 的消息事务反向去改 Pilot 的表。
+type BindingInvalidator interface {
+	InvalidateAgentSessionBinding(ctx context.Context, tenantID, conversationID string, now time.Time) (bool, error)
+}
+
 // AdmissionController 判断事件能否触发 Agent。MQ 中的 from_username 只能在
 // 通行会话事实被核对后使用，不能自行成为 Principal。
 type AdmissionController interface {
@@ -46,6 +52,7 @@ type HandlerConfig struct {
 type Handler struct {
 	config    HandlerConfig
 	runs      RunEnqueuer
+	bindings  BindingInvalidator
 	admission AdmissionController
 	now       func() time.Time
 	runID     func() (string, error)
@@ -69,8 +76,14 @@ func WithRunIDSource(source func() (string, error)) HandlerOption {
 	}
 }
 
-func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionController, options ...HandlerOption) (*Handler, error) {
-	if config.BotUsername == "" || runs == nil || admission == nil {
+func NewHandler(
+	config HandlerConfig,
+	runs RunEnqueuer,
+	bindings BindingInvalidator,
+	admission AdmissionController,
+	options ...HandlerOption,
+) (*Handler, error) {
+	if config.BotUsername == "" || runs == nil || bindings == nil || admission == nil {
 		return nil, fmt.Errorf("agent ingress configuration and dependencies are incomplete")
 	}
 	if config.MaxPromptBytes == 0 {
@@ -82,7 +95,7 @@ func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionContr
 	if err := validateAssistant(config.Assistant); err != nil {
 		return nil, err
 	}
-	handler := &Handler{config: config, runs: runs, admission: admission, now: time.Now, runID: randomRunID}
+	handler := &Handler{config: config, runs: runs, bindings: bindings, admission: admission, now: time.Now, runID: randomRunID}
 	for _, option := range options {
 		option(handler)
 	}
@@ -105,19 +118,16 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if !slices.Contains(envelope.TargetUsernames, h.config.BotUsername) {
 		return HandleResult{Ignored: true}, nil
 	}
-	message := event.GetMessage()
-	if message == nil || message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT ||
-		event.FromUsername == h.config.BotUsername {
+	// Bot 自己发出的消息不能反过来触发新一轮推理，也不做准入查询。
+	if event.FromUsername == h.config.BotUsername {
 		return HandleResult{Ignored: true}, nil
 	}
 	if event.EventId <= 0 || event.SeqId <= 0 || event.TimestampMs <= 0 || event.SessionId == "" || event.FromUsername == "" {
 		return HandleResult{}, permanent(fmt.Errorf("chat event identity is incomplete"))
 	}
-	if message.ClientMsgId != "" && strings.HasPrefix(message.ClientMsgId, "agent:") {
+	isMessage := event.GetMessage() != nil
+	if !isMessage && event.GetRecall() == nil && event.GetEdit() == nil {
 		return HandleResult{Ignored: true}, nil
-	}
-	if message.Content == "" || len(message.Content) > h.config.MaxPromptBytes || !utf8.ValidString(message.Content) {
-		return HandleResult{}, permanent(fmt.Errorf("prompt is empty, oversized or invalid UTF-8"))
 	}
 
 	conversation, err := h.admission.Admit(ctx, event)
@@ -133,6 +143,27 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 
 	if conversation.ConversationID != event.SessionId {
 		return HandleResult{}, permanent(ErrAdmissionMismatch)
+	}
+	if !isMessage {
+		// 撤回/编辑改变了权威历史：丢弃该会话已提交的上下文快照，
+		// 下一次 Run 会从 Logic 的有效历史重建。
+		if _, err := h.bindings.InvalidateAgentSessionBinding(
+			ctx, conversation.TenantID, conversation.ConversationID, h.now().UTC(),
+		); err != nil {
+			return HandleResult{}, err
+		}
+		return HandleResult{Ignored: true}, nil
+	}
+	message := event.GetMessage()
+	// 目前只对文本推理：其它消息类型是正常流量，不是错误。
+	if message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT {
+		return HandleResult{Ignored: true}, nil
+	}
+	if message.ClientMsgId != "" && strings.HasPrefix(message.ClientMsgId, "agent:") {
+		return HandleResult{Ignored: true}, nil
+	}
+	if message.Content == "" || len(message.Content) > h.config.MaxPromptBytes || !utf8.ValidString(message.Content) {
+		return HandleResult{}, permanent(fmt.Errorf("prompt is empty, oversized or invalid UTF-8"))
 	}
 	runID, err := h.runID()
 	if err != nil {

@@ -24,6 +24,7 @@ func TestHandler_AdmitsTextEventAndPersistsDurableRun(t *testing.T) {
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024, Assistant: testAssistant()},
 		enqueuer,
+		&fakeBindingInvalidator{},
 		admission,
 		WithClock(func() time.Time { return now }),
 		WithRunIDSource(func() (string, error) { return "run-ingress-1", nil }),
@@ -62,7 +63,7 @@ func TestHandler_IgnoresBotStreamAndNonMessageEvents(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		enqueuer, &fakeAdmissionController{conversation: testConversation()},
+		enqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{conversation: testConversation()},
 	)
 	require.NoError(t, err)
 
@@ -92,7 +93,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 	mismatch.ConversationID = "another-conversation"
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		&fakeEnqueuer{}, &fakeAdmissionController{conversation: mismatch},
+		&fakeEnqueuer{}, &fakeBindingInvalidator{}, &fakeAdmissionController{conversation: mismatch},
 	)
 	require.NoError(t, err)
 	_, err = handler.Handle(context.Background(), event)
@@ -102,7 +103,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 	conflictingEnqueuer := &fakeEnqueuer{err: repo.ErrAgentRunSourceConflict}
 	handler, err = NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		conflictingEnqueuer, &fakeAdmissionController{conversation: testConversation()},
+		conflictingEnqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{conversation: testConversation()},
 		WithRunIDSource(func() (string, error) { return "run-conflict", nil }),
 	)
 	require.NoError(t, err)
@@ -115,7 +116,7 @@ func TestHandler_ProfileAdmissionDenialIsPermanentAndNeverEnqueues(t *testing.T)
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024, Assistant: testAssistant()},
-		enqueuer, &fakeAdmissionController{err: ErrAdmissionDenied},
+		enqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{err: ErrAdmissionDenied},
 	)
 	require.NoError(t, err)
 
@@ -130,7 +131,7 @@ func TestConsumer_AcksOnlyAfterDurableEnqueueAndRoutesPermanentFailuresToDLQ(t *
 	enqueuer := &fakeEnqueuer{recorder: recorder}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		enqueuer, &fakeAdmissionController{conversation: testConversation()},
+		enqueuer, &fakeBindingInvalidator{}, &fakeAdmissionController{conversation: testConversation()},
 		WithRunIDSource(func() (string, error) { return "run-consumer", nil }),
 	)
 	require.NoError(t, err)
@@ -160,7 +161,7 @@ func TestConsumer_NaksTransientFailureAndRetainsMalformedMessageWhenDLQFails(t *
 	recorder := &ingressRecorder{}
 	handler, err := NewHandler(
 		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
-		&fakeEnqueuer{}, &fakeAdmissionController{err: errors.New("authoritative IAM unavailable")},
+		&fakeEnqueuer{}, &fakeBindingInvalidator{}, &fakeAdmissionController{err: errors.New("authoritative IAM unavailable")},
 	)
 	require.NoError(t, err)
 	consumer, err := NewConsumer(ConsumerConfig{Topic: "topic", QueueGroup: "agent-group", DLQTopic: "dlq", MaxInflight: 1}, &fakeMQ{recorder: recorder}, handler)
@@ -258,6 +259,20 @@ func TestConsumer_DoesNotReportPlannedStopAsFatal(t *testing.T) {
 		t.Fatalf("planned stop must not be reported as fatal: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
+}
+
+type fakeBindingInvalidator struct {
+	tenantID       string
+	conversationID string
+	invalidated    bool
+	err            error
+	calls          int
+}
+
+func (i *fakeBindingInvalidator) InvalidateAgentSessionBinding(_ context.Context, tenantID, conversationID string, _ time.Time) (bool, error) {
+	i.calls++
+	i.tenantID, i.conversationID = tenantID, conversationID
+	return i.invalidated, i.err
 }
 
 type fakeAdmissionController struct {

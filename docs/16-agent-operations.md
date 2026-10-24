@@ -28,7 +28,7 @@ Genesis 使用正式版 `v1.0.0`，Go 工具链为 `1.26.10`（Genesis 要求至
 ```bash
 go build ./...
 go test ./pilot/... ./logic/service ./logic/server ./logic/config ./gateway/logicclient ./pkg/iam
-go test ./repo -run 'TestPilotConversationIsUniquePerTenantAndOwner|SQLiteContract'
+go test ./repo -run TestPilotConversationIsUniquePerTenantAndOwner
 npm --prefix pilot/bridge run typecheck
 npm --prefix web run type-check
 ```

@@ -197,9 +197,6 @@ func (s *ChatService) handleMessage(ctx context.Context, req *logicv1.SendEventR
 		if errors.Is(err, repo.ErrMessageIdempotencyConflict) {
 			return nil, status.Error(codes.AlreadyExists, "client_msg_id is already used by another message")
 		}
-		if errors.Is(err, repo.ErrAgentFinalMessageNotCommittable) {
-			return nil, status.Error(codes.Aborted, "agent result is no longer committable")
-		}
 		s.logger.Error("failed to publish message to mq", clog.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to save message")
 	}

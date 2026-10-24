@@ -448,7 +448,7 @@ func TestAgentRunRepo_ExpiredFinalAttemptBecomesTerminal(t *testing.T) {
 	require.Equal(t, model.AgentRunStatusClaimed, untouched.Status)
 }
 
-func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeMarkedDirty(t *testing.T) {
+func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeInvalidated(t *testing.T) {
 	database, cleanup := setupTestContext(t)
 	defer cleanup()
 
@@ -498,14 +498,25 @@ func TestAgentRunRepo_SessionBindingAdvancesByCASAndCanBeMarkedDirty(t *testing.
 	require.Equal(t, "session-4", binding.RuntimeSessionID)
 	require.Equal(t, model.AgentSessionBindingStatusActive, binding.Status)
 
-	dirty, err := runRepo.MarkAgentSessionBindingDirty(ctx, "tenant-a", "conversation-a", 4, base.Add(8*time.Second))
+	invalidated, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-a", "conversation-a", base.Add(8*time.Second))
+	require.NoError(t, err)
+	require.True(t, invalidated)
+	dirty, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-a")
 	require.NoError(t, err)
 	require.Equal(t, model.AgentSessionBindingStatusDirty, dirty.Status)
-	replayedDirty, err := runRepo.MarkAgentSessionBindingDirty(ctx, "tenant-a", "conversation-a", 4, base.Add(9*time.Second))
+
+	// 幂等：已经过期就不再重复写。
+	replayed, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-a", "conversation-a", base.Add(9*time.Second))
 	require.NoError(t, err)
-	require.Equal(t, dirty.Version, replayedDirty.Version)
-	_, err = runRepo.MarkAgentSessionBindingDirty(ctx, "tenant-a", "conversation-a", 3, base.Add(9*time.Second))
-	require.ErrorIs(t, err, ErrAgentSessionBindingConflict)
+	require.False(t, replayed)
+	again, err := runRepo.GetAgentSessionBinding(ctx, "tenant-a", "conversation-a")
+	require.NoError(t, err)
+	require.Equal(t, dirty.Version, again.Version)
+
+	// 没有快照的会话不报错。
+	missing, err := runRepo.InvalidateAgentSessionBinding(ctx, "tenant-b", "conversation-a", base.Add(9*time.Second))
+	require.NoError(t, err)
+	require.False(t, missing)
 	_, err = runRepo.GetAgentSessionBinding(ctx, "tenant-b", "conversation-a")
 	require.ErrorIs(t, err, ErrAgentSessionBindingNotFound)
 
