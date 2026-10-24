@@ -9,7 +9,6 @@ import (
 	"github.com/ceyewan/genesis/clog"
 
 	"github.com/ceyewan/resonance/model"
-	"github.com/ceyewan/resonance/pilot/identity"
 	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
 	"github.com/ceyewan/resonance/pilot/session"
@@ -28,7 +27,6 @@ func New(config Config, dependencies Dependencies, options ...Option) (*Coordina
 		return nil, err
 	}
 	if dependencies.Runs == nil || dependencies.Runtime == nil || dependencies.Sessions == nil ||
-		dependencies.Profiles == nil || dependencies.Principals == nil ||
 		dependencies.History == nil || dependencies.FinalMessages == nil {
 		return nil, fmt.Errorf("coordinator dependencies are incomplete")
 	}
@@ -134,26 +132,11 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 	}
 
 	current := guard.snapshot()
-	profile, err := c.deps.Profiles.ResolveProfile(runContext, current.TenantID, current.ProfileID, current.ProfileVersion)
-	if err != nil {
-		return fail("profile_unavailable", "agent profile could not be resolved", true, err)
-	}
-	if profile.ID != current.ProfileID || profile.Version != current.ProfileVersion ||
-		profile.Provider != current.ModelProvider || profile.Model != current.ModelID || profile.SystemPrompt == "" {
-		return fail("profile_mismatch", "resolved profile did not match the queued snapshot", false, ErrProfileMismatch)
-	}
 	binding, err := c.deps.Runs.GetAgentSessionBinding(runContext, current.TenantID, current.ConversationID)
 	if errors.Is(err, repo.ErrAgentSessionBindingNotFound) {
 		binding = nil
 	} else if err != nil {
 		return fail("session_binding_unavailable", "session binding could not be loaded", true, err)
-	}
-	err = c.authorizeRun(runContext, current)
-	if err != nil {
-		if isProfileAccessDenied(err) {
-			return c.cancelUnauthorized(guard, err)
-		}
-		return fail("principal_unavailable", "actor principal could not be resolved", true, err)
 	}
 	// Validate the source through Logic on every turn, even when resuming Pi.
 	// This closes the MQ-lag window where a source was edited/recalled before enqueue.
@@ -195,7 +178,7 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 	}
 	stream, err := c.deps.Runtime.Run(runContext, pilotruntime.RunRequest{
 		RunID: starting.RunID, ConversationID: starting.ConversationID, Prompt: prompt,
-		Session: staging.Snapshot, Profile: profile,
+		Session: staging.Snapshot, Profile: c.config.Assistant,
 		MaxOutputTokens: c.config.MaxOutputTokens,
 	})
 	if err != nil {
@@ -239,18 +222,11 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 		}
 		return fail("runtime_failed", "agent runtime did not produce a settled result", true, runtimeErr)
 	}
-	err = c.authorizeRun(runContext, guard.snapshot())
-	if err != nil {
-		if isProfileAccessDenied(err) {
-			return c.cancelUnauthorized(guard, err)
-		}
-		return fail("principal_recheck_unavailable", "actor principal could not be rechecked", true, err)
-	}
 	candidate, err := c.deps.Sessions.PrepareCandidate(runContext, staging, result)
 	if err != nil {
 		return fail("session_prepare_failed", "runtime session candidate could not be prepared", true, err)
 	}
-	usage := normalizedBudgetUsage(result.Usage)
+	usage := normalizedUsage(result.Usage)
 	prepared, err := guard.apply(func(run *model.AgentRun, now time.Time) (*model.AgentRun, error) {
 		return c.deps.Runs.PrepareAgentRun(runContext, repo.AgentRunPreparedResult{
 			Lease: guard.lease(run, now), BaseSessionGeneration: staging.BaseGeneration,
@@ -277,74 +253,7 @@ func (c *Coordinator) execute(parent context.Context, claimed *model.AgentRun) (
 	return c.commitWithGuard(runContext, guard, committing)
 }
 
-func (c *Coordinator) authorizeRun(
-	ctx context.Context,
-	run *model.AgentRun,
-) error {
-	principal, err := c.deps.Principals.ResolvePrincipal(ctx, run.TenantID, run.ActorID)
-	if err != nil {
-		if errors.Is(err, identity.ErrPrincipalUnauthorized) {
-			return fmt.Errorf("%w: %v", ErrProfileAccessDenied, err)
-		}
-		return err
-	}
-	if principal.TenantID != run.TenantID || principal.ActorID != run.ActorID || principal.Username != run.ActorUsername {
-		return fmt.Errorf("%w: %v", ErrProfileAccessDenied, ErrPrincipalMismatch)
-	}
-	return nil
-}
-
-func isProfileAccessDenied(err error) bool {
-	return errors.Is(err, ErrProfileAccessDenied) || errors.Is(err, identity.ErrPrincipalUnauthorized)
-}
-
-func (c *Coordinator) cancelUnauthorized(
-	guard *leaseGuard,
-	cause error,
-) (*model.AgentRun, error) {
-	guard.stop()
-	current := guard.snapshot()
-	now := c.now().UTC()
-	var cleanupErrors []error
-
-	binding, err := c.deps.Runs.GetAgentSessionBinding(context.Background(), current.TenantID, current.ConversationID)
-	if err == nil && binding.Status == model.AgentSessionBindingStatusActive {
-		_, err = c.deps.Runs.MarkAgentSessionBindingDirty(
-			context.Background(), current.TenantID, current.ConversationID, binding.Generation, now,
-		)
-	}
-	if err != nil && !errors.Is(err, repo.ErrAgentSessionBindingNotFound) {
-		cleanupErrors = append(cleanupErrors, fmt.Errorf("invalidate privileged session binding: %w", err))
-	}
-
-	_, err = c.deps.Runs.CancelPendingAgentRuns(context.Background(), repo.AgentPendingRunCancellation{
-		TenantID: current.TenantID, ActorID: current.ActorID,
-		ProfileID: current.ProfileID, ProfileVersion: current.ProfileVersion,
-		ErrorCode: "principal_revoked", ErrorSummary: "agent profile access is no longer authorized", Now: now,
-	})
-	if err != nil {
-		cleanupErrors = append(cleanupErrors, fmt.Errorf("cancel queued profile runs: %w", err))
-	}
-
-	cancelled, err := c.deps.Runs.CancelAgentRun(context.Background(), repo.AgentRunCancellation{
-		Lease: repo.AgentRunLease{
-			TenantID: current.TenantID, RunID: current.RunID,
-			WorkerID: current.LeaseOwner, LeaseToken: current.LeaseToken,
-			ExpectedVersion: current.Version, Now: now,
-		},
-		ErrorCode: "principal_revoked", ErrorSummary: "agent profile access is no longer authorized",
-	})
-	if err != nil {
-		cleanupErrors = append(cleanupErrors, fmt.Errorf("cancel active profile run: %w", err))
-	}
-	combined := errors.Join(append([]error{cause}, cleanupErrors...)...)
-	if cancelled == nil {
-		return nil, combined
-	}
-	return cancelled, combined
-}
-
-func normalizedBudgetUsage(usage *pilotruntime.Usage) *pilotruntime.Usage {
+func normalizedUsage(usage *pilotruntime.Usage) *pilotruntime.Usage {
 	if usage == nil {
 		return &pilotruntime.Usage{State: pilotruntime.UsageStateUnknown}
 	}
@@ -371,12 +280,6 @@ func (c *Coordinator) commitPrepared(parent context.Context, claimed *model.Agen
 func (c *Coordinator) commitWithGuard(ctx context.Context, guard *leaseGuard, run *model.AgentRun) (*model.AgentRun, error) {
 	current := run
 	if current.FinalEventID == 0 {
-		if err := c.authorizeRun(ctx, current); err != nil {
-			if isProfileAccessDenied(err) {
-				return c.cancelUnauthorized(guard, err)
-			}
-			return current, fmt.Errorf("recheck actor authorization before final commit: %w", err)
-		}
 		ack, err := c.deps.FinalMessages.CommitFinalMessage(ctx, FinalMessageRequest{
 			TenantID: current.TenantID, RunID: current.RunID, ConversationID: current.ConversationID,
 			ClientMsgID: current.FinalClientMsgID, Content: current.FrozenFinalText,
@@ -425,6 +328,10 @@ func (c *Coordinator) newClaim() (repo.AgentRunClaim, error) {
 func validateConfig(config Config) error {
 	if config.ProfileID == "" || config.ProfileVersion < 1 || config.WorkerID == "" || config.MaxOutputTokens < 1 {
 		return fmt.Errorf("coordinator profile snapshot, worker_id and max_output_tokens are required")
+	}
+	if config.Assistant.ID == "" || config.Assistant.Version < 1 || config.Assistant.Provider == "" ||
+		config.Assistant.Model == "" || config.Assistant.SystemPrompt == "" {
+		return fmt.Errorf("coordinator assistant snapshot is incomplete")
 	}
 	if config.LeaseDuration <= 0 || config.HeartbeatInterval <= 0 || config.RunTimeout <= 0 || config.RetryBackoff < 0 {
 		return fmt.Errorf("coordinator durations are invalid")

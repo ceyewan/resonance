@@ -161,7 +161,6 @@ type AgentRunRepo interface {
 	AdvanceAgentRun(ctx context.Context, transition AgentRunTransition) (*model.AgentRun, error)
 	FailAgentRun(ctx context.Context, failure AgentRunFailure) (*model.AgentRun, error)
 	CancelAgentRun(ctx context.Context, cancellation AgentRunCancellation) (*model.AgentRun, error)
-	CancelPendingAgentRuns(ctx context.Context, cancellation AgentPendingRunCancellation) (int64, error)
 	PrepareAgentRun(ctx context.Context, prepared AgentRunPreparedResult) (*model.AgentRun, error)
 	BeginAgentRunCommit(ctx context.Context, lease AgentRunLease) (*model.AgentRun, error)
 	ClaimPreparedAgentRun(ctx context.Context, claim AgentRunClaim) (*model.AgentRun, error)
@@ -222,16 +221,6 @@ type AgentRunCancellation struct {
 	Lease        AgentRunLease
 	ErrorCode    string
 	ErrorSummary string
-}
-
-type AgentPendingRunCancellation struct {
-	TenantID       string
-	ActorID        string
-	ProfileID      string
-	ProfileVersion int64
-	ErrorCode      string
-	ErrorSummary   string
-	Now            time.Time
 }
 
 type AgentRunPreparedResult struct {

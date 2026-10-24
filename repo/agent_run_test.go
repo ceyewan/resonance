@@ -122,7 +122,7 @@ func TestAgentRunRepo_ClaimPinsProfileSnapshot(t *testing.T) {
 	require.Equal(t, iamRun.RunID, claimed.RunID)
 }
 
-func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBoundary(t *testing.T) {
+func TestAgentRunRepo_CancelAgentRunLeavesOtherActorsUntouched(t *testing.T) {
 	database, cleanup := setupTestContext(t)
 	defer cleanup()
 
@@ -136,7 +136,7 @@ func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBou
 		_, err = runRepo.EnqueueAgentRun(ctx, run)
 		require.NoError(t, err)
 	}
-	// Keep the unrelated actor behind the revoked fixture in the documented
+	// Keep the unrelated actor behind the cancelled fixture in the documented
 	// available_at/queued_at claim order. The boundary assertion below is about
 	// cancellation scope, not about overriding the queue's FIFO ordering.
 	other := newTestAgentRun("run-other-actor", "tenant-a", "conversation-other", 9301, 1, base.Add(4*time.Millisecond))
@@ -152,25 +152,20 @@ func TestAgentRunRepo_ProfileRevocationCancelsClaimedAndPendingRunsOnlyWithinBou
 	require.NoError(t, err)
 	require.Equal(t, "run-revoked-1", claimed.RunID)
 
-	cancelledPending, err := runRepo.CancelPendingAgentRuns(ctx, AgentPendingRunCancellation{
-		TenantID: "tenant-a", ActorID: claimed.ActorID, ProfileID: claimed.ProfileID, ProfileVersion: claimed.ProfileVersion,
-		ErrorCode: "principal_revoked", ErrorSummary: "profile access was revoked", Now: base.Add(2 * time.Second),
-	})
-	require.NoError(t, err)
-	require.Equal(t, int64(2), cancelledPending)
-
 	cancelled, err := runRepo.CancelAgentRun(ctx, AgentRunCancellation{
-		Lease: leaseFor(claimed, base.Add(2*time.Second)), ErrorCode: "principal_revoked", ErrorSummary: "profile access was revoked",
+		Lease: leaseFor(claimed, base.Add(2*time.Second)), ErrorCode: "operator_cancelled", ErrorSummary: "operator cancelled the run",
 	})
 	require.NoError(t, err)
 	require.Equal(t, model.AgentRunStatusCancelled, cancelled.Status)
 	require.NotNil(t, cancelled.CompletedAt)
 	require.Empty(t, cancelled.LeaseToken)
 
+	// CancelAgentRun 只作用于当前租约持有的那一条 Run，同会话排队中的其它 Run 不受影响。
 	for index := int64(1); index <= 3; index++ {
 		stored, getErr := runRepo.GetAgentRun(ctx, "tenant-a", fmt.Sprintf("run-revoked-%d", index))
 		require.NoError(t, getErr)
-		require.Equal(t, model.AgentRunStatusCancelled, stored.Status)
+		expected := map[bool]string{true: model.AgentRunStatusCancelled, false: model.AgentRunStatusQueued}[index == 1]
+		require.Equal(t, expected, stored.Status)
 	}
 	untouched, err := runRepo.GetAgentRun(ctx, "tenant-a", other.RunID)
 	require.NoError(t, err)

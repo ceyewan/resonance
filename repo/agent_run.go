@@ -366,35 +366,6 @@ func (r *agentRunRepo) CancelAgentRun(ctx context.Context, cancellation AgentRun
 	})
 }
 
-func (r *agentRunRepo) CancelPendingAgentRuns(
-	ctx context.Context,
-	cancellation AgentPendingRunCancellation,
-) (int64, error) {
-	if !validBoundedString(cancellation.TenantID, 64) || !validBoundedString(cancellation.ActorID, 64) ||
-		!validBoundedString(cancellation.ProfileID, 64) || cancellation.ProfileVersion < 1 || cancellation.Now.IsZero() {
-		return 0, fmt.Errorf("tenant, actor, profile snapshot and current time are required")
-	}
-	if err := validateCancellationReason(cancellation.ErrorCode, cancellation.ErrorSummary); err != nil {
-		return 0, err
-	}
-	result := r.db.DB(ctx).Model(&model.AgentRun{}).
-		Where("tenant_id = ? AND actor_id = ? AND profile_id = ? AND profile_version = ? AND status IN ?",
-			cancellation.TenantID, cancellation.ActorID, cancellation.ProfileID, cancellation.ProfileVersion, agentRunPendingStatuses).
-		Updates(map[string]any{
-			"status":               model.AgentRunStatusCancelled,
-			"last_error_code":      cancellation.ErrorCode,
-			"last_error_summary":   cancellation.ErrorSummary,
-			"last_error_retryable": false,
-			"completed_at":         cancellation.Now,
-			"version":              gorm.Expr("version + 1"),
-			"updated_at":           cancellation.Now,
-		})
-	if result.Error != nil {
-		return 0, fmt.Errorf("cancel pending agent runs: %w", result.Error)
-	}
-	return result.RowsAffected, nil
-}
-
 func validateCancellationReason(code, summary string) error {
 	if !validBoundedString(code, 64) {
 		return fmt.Errorf("cancellation error_code must contain 1 to 64 bytes")

@@ -21,7 +21,6 @@ import (
 	"github.com/ceyewan/resonance/model"
 	"github.com/ceyewan/resonance/pilot/config"
 	"github.com/ceyewan/resonance/pilot/coordinator"
-	"github.com/ceyewan/resonance/pilot/identity"
 	"github.com/ceyewan/resonance/pilot/ingress"
 	"github.com/ceyewan/resonance/pilot/logicclient"
 	pilotobservability "github.com/ceyewan/resonance/pilot/observability"
@@ -135,10 +134,6 @@ func New() (_ *Pilot, err error) {
 	if err != nil {
 		return nil, err
 	}
-	principals, err := identity.NewPrincipalResolver(users)
-	if err != nil {
-		return nil, err
-	}
 	sessions, err := session.NewLocalManager(session.LocalConfig{Root: cfg.Session.Root, MaxSnapshotBytes: cfg.Session.MaxSnapshotBytes, RolloverBytes: cfg.Session.RolloverBytes, RolloverEntryCount: cfg.Session.RolloverEntryCount})
 	if err != nil {
 		return nil, err
@@ -166,10 +161,6 @@ func New() (_ *Pilot, err error) {
 		return nil, err
 	}
 	assistant := pilotruntime.ProfileSnapshot{ID: model.AgentProfileUserAssistant, Version: 1, Provider: cfg.Assistant.Provider, Model: cfg.Assistant.Model, SystemPrompt: cfg.Assistant.SystemPrompt}
-	profiles, err := identity.NewStaticProfileResolver(assistant)
-	if err != nil {
-		return nil, err
-	}
 	signer, err := serviceauth.NewSigner(cfg.ServiceAuth.ServiceID, []byte(cfg.ServiceAuth.Secret))
 	if err != nil {
 		return nil, err
@@ -196,7 +187,7 @@ func New() (_ *Pilot, err error) {
 		return nil, err
 	}
 	host, _ := os.Hostname()
-	processor, err := coordinator.New(coordinator.Config{ProfileID: assistant.ID, ProfileVersion: assistant.Version, WorkerID: fmt.Sprintf("pilot:%s:%d", host, os.Getpid()), LeaseDuration: cfg.Worker.LeaseTTL, HeartbeatInterval: cfg.Worker.HeartbeatInterval, RunTimeout: cfg.Worker.RunTimeout, RetryBackoff: cfg.Worker.RetryBackoff, MaxOutputTokens: cfg.Assistant.MaxOutputTokens}, coordinator.Dependencies{Logger: logger, Runs: runs, Runtime: p.runtime, Sessions: sessions, Profiles: profiles, Principals: principals, History: history, FinalMessages: writer, Events: events})
+	processor, err := coordinator.New(coordinator.Config{Assistant: assistant, ProfileID: assistant.ID, ProfileVersion: assistant.Version, WorkerID: fmt.Sprintf("pilot:%s:%d", host, os.Getpid()), LeaseDuration: cfg.Worker.LeaseTTL, HeartbeatInterval: cfg.Worker.HeartbeatInterval, RunTimeout: cfg.Worker.RunTimeout, RetryBackoff: cfg.Worker.RetryBackoff, MaxOutputTokens: cfg.Assistant.MaxOutputTokens}, coordinator.Dependencies{Logger: logger, Runs: runs, Runtime: p.runtime, Sessions: sessions, History: history, FinalMessages: writer, Events: events})
 	if err != nil {
 		return nil, err
 	}

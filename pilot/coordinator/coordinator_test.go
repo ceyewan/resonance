@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ceyewan/resonance/model"
-	"github.com/ceyewan/resonance/pilot/identity"
 	pilotruntime "github.com/ceyewan/resonance/pilot/runtime"
 	"github.com/ceyewan/resonance/pilot/session"
 	"github.com/ceyewan/resonance/repo"
@@ -41,9 +40,9 @@ func TestCoordinator_ExecutesEndToEnd(t *testing.T) {
 	require.True(t, sessions.discarded.Load())
 
 	requireOrder(t, recorder.snapshot(),
-		"claim-prepared", "claim-execution", "profile", "binding", "principal", "history",
+		"claim-prepared", "claim-execution", "binding", "history",
 		"session-start", "advance-STARTING_RUNTIME", "runtime-run", "advance-RUNNING",
-		"principal", "session-prepare", "prepare-result", "begin-commit", "principal", "final-message", "record-final", "complete",
+		"session-prepare", "prepare-result", "begin-commit", "final-message", "record-final", "complete",
 	)
 }
 
@@ -73,27 +72,6 @@ func TestCoordinator_PreparedRecoveryDoesNotRerunModel(t *testing.T) {
 	require.Zero(t, runtimeHarness.runCount.Load(), "prepared recovery must not rerun the model")
 	require.Len(t, writer.requests, 1)
 	require.Equal(t, "agent:run-coordinator:final", writer.requests[0].ClientMsgID)
-}
-
-func TestCoordinator_UnauthorizedActorCancelsRun(t *testing.T) {
-	base := time.Date(2026, 8, 8, 10, 0, 0, 0, time.UTC)
-	recorder := &callRecorder{}
-	run := testCoordinatorRun(base)
-	store := newMemoryRunStore(run, recorder)
-	store.binding = activeTestBinding(run)
-	runtimeHarness := &fakeRuntime{recorder: recorder, result: testRuntimeResult()}
-	writer := &fakeFinalWriter{recorder: recorder}
-	deps := testDependencies(store, runtimeHarness, &fakeSessionManager{recorder: recorder}, writer, recorder)
-	deps.Principals = fakePrincipalResolver{recorder: recorder, err: identity.ErrPrincipalUnauthorized}
-	coordinator, err := New(testCoordinatorConfig(), deps, WithClock(func() time.Time { return base }), WithLeaseTokenSource(func() (string, error) { return "token-fixed", nil }))
-	require.NoError(t, err)
-
-	cancelled, err := coordinator.ProcessOne(context.Background())
-	require.ErrorIs(t, err, ErrProfileAccessDenied)
-	require.Equal(t, model.AgentRunStatusCancelled, cancelled.Status)
-	require.Equal(t, model.AgentSessionBindingStatusDirty, store.binding.Status)
-	require.Zero(t, runtimeHarness.runCount.Load())
-	require.Empty(t, writer.requests)
 }
 
 func TestCoordinator_HistoryVerificationFailureFailsRun(t *testing.T) {
@@ -157,6 +135,9 @@ func newTestCoordinator(
 
 func testCoordinatorConfig() Config {
 	return Config{
+		Assistant: pilotruntime.ProfileSnapshot{
+			ID: "user-assistant", Version: 1, Provider: "dashscope", Model: "qwen3.8-max", SystemPrompt: "pilot assistant",
+		},
 		ProfileID:         "user-assistant",
 		ProfileVersion:    1,
 		WorkerID:          "worker-a",
@@ -177,12 +158,6 @@ func testDependencies(
 ) Dependencies {
 	return Dependencies{
 		Runs: store, Runtime: runtimeHarness, Sessions: sessions,
-		Profiles: fakeProfileResolver{recorder: recorder, profile: pilotruntime.ProfileSnapshot{
-			ID: "user-assistant", Version: 1, Provider: "dashscope", Model: "qwen3.8-max", SystemPrompt: "pilot assistant",
-		}},
-		Principals: fakePrincipalResolver{recorder: recorder, principal: pilotruntime.ActorPrincipal{
-			TenantID: "tenant-a", ActorID: "user-1", Username: "user-1",
-		}},
 		History: fakeHistoryResolver{recorder: recorder}, FinalMessages: writer,
 	}
 }
@@ -197,16 +172,6 @@ func testCoordinatorRun(now time.Time) *model.AgentRun {
 		ModelProvider: "dashscope", ModelID: "qwen3.8-max",
 		Status: model.AgentRunStatusQueued, MaxAttempts: 3, Version: 1,
 		AvailableAt: now, QueuedAt: now,
-	}
-}
-
-func activeTestBinding(run *model.AgentRun) *model.AgentSessionBinding {
-	return &model.AgentSessionBinding{
-		TenantID: run.TenantID, ConversationID: run.ConversationID,
-		RuntimeKind: run.RuntimeKind, RuntimeVersion: run.RuntimeVersion, BridgeVersion: run.BridgeVersion,
-		RuntimeSessionID: "old-session", SessionRef: "objects/old-session.jsonl",
-		Checksum: testCoordinatorDigest, ProfileID: run.ProfileID, ProfileVersion: run.ProfileVersion,
-		Generation: 3, LastCommittedEntryID: "leaf-old", Status: model.AgentSessionBindingStatusActive, Version: 1,
 	}
 }
 
@@ -359,11 +324,6 @@ func (s *memoryRunStore) CancelAgentRun(_ context.Context, cancellation repo.Age
 	s.run.LeaseOwner, s.run.LeaseToken, s.run.LeaseExpiresAt = "", "", nil
 	s.run.Version++
 	return cloneAgentRun(s.run), nil
-}
-
-func (s *memoryRunStore) CancelPendingAgentRuns(_ context.Context, _ repo.AgentPendingRunCancellation) (int64, error) {
-	s.recorder.add("cancel-pending")
-	return 0, nil
 }
 
 func (s *memoryRunStore) PrepareAgentRun(_ context.Context, prepared repo.AgentRunPreparedResult) (*model.AgentRun, error) {
@@ -535,27 +495,6 @@ func (m *fakeSessionManager) Discard(context.Context, session.Staging) error {
 	return nil
 }
 func (*fakeSessionManager) Close() error { return nil }
-
-type fakeProfileResolver struct {
-	recorder *callRecorder
-	profile  pilotruntime.ProfileSnapshot
-}
-
-func (r fakeProfileResolver) ResolveProfile(context.Context, string, string, int64) (pilotruntime.ProfileSnapshot, error) {
-	r.recorder.add("profile")
-	return r.profile, nil
-}
-
-type fakePrincipalResolver struct {
-	recorder  *callRecorder
-	principal pilotruntime.ActorPrincipal
-	err       error
-}
-
-func (r fakePrincipalResolver) ResolvePrincipal(context.Context, string, string) (pilotruntime.ActorPrincipal, error) {
-	r.recorder.add("principal")
-	return r.principal, r.err
-}
 
 type fakeHistoryResolver struct {
 	recorder *callRecorder

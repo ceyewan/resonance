@@ -14,12 +14,7 @@ import (
 	"github.com/ceyewan/resonance/repo"
 )
 
-var (
-	ErrNoWork              = errors.New("no agent run work available")
-	ErrProfileMismatch     = errors.New("resolved agent profile does not match queued snapshot")
-	ErrPrincipalMismatch   = errors.New("resolved actor principal does not match queued identity")
-	ErrProfileAccessDenied = errors.New("actor is not currently authorized for agent profile")
-)
+var ErrNoWork = errors.New("no agent run work available")
 
 type RunStore interface {
 	GetAgentSessionBinding(ctx context.Context, tenantID, conversationID string) (*model.AgentSessionBinding, error)
@@ -29,21 +24,12 @@ type RunStore interface {
 	AdvanceAgentRun(ctx context.Context, transition repo.AgentRunTransition) (*model.AgentRun, error)
 	FailAgentRun(ctx context.Context, failure repo.AgentRunFailure) (*model.AgentRun, error)
 	CancelAgentRun(ctx context.Context, cancellation repo.AgentRunCancellation) (*model.AgentRun, error)
-	CancelPendingAgentRuns(ctx context.Context, cancellation repo.AgentPendingRunCancellation) (int64, error)
 	PrepareAgentRun(ctx context.Context, prepared repo.AgentRunPreparedResult) (*model.AgentRun, error)
 	BeginAgentRunCommit(ctx context.Context, lease repo.AgentRunLease) (*model.AgentRun, error)
 	ClaimPreparedAgentRun(ctx context.Context, claim repo.AgentRunClaim) (*model.AgentRun, error)
 	RecordAgentRunFinalMessage(ctx context.Context, result repo.AgentRunFinalMessage) (*model.AgentRun, error)
 	CompleteAgentRun(ctx context.Context, completion repo.AgentRunCompletion) (*model.AgentRun, error)
 	RecoverExpiredAgentRuns(ctx context.Context, tenantID string, now time.Time) (repo.AgentRunRecoveryResult, error)
-}
-
-type ProfileResolver interface {
-	ResolveProfile(ctx context.Context, tenantID, profileID string, version int64) (pilotruntime.ProfileSnapshot, error)
-}
-
-type PrincipalResolver interface {
-	ResolvePrincipal(ctx context.Context, tenantID, actorID string) (pilotruntime.ActorPrincipal, error)
 }
 
 // HistoryResolver rebuilds a fresh prompt from Logic's authoritative chat
@@ -79,14 +65,16 @@ type Dependencies struct {
 	Runs          RunStore
 	Runtime       pilotruntime.AgentRuntime
 	Sessions      session.Manager
-	Profiles      ProfileResolver
-	Principals    PrincipalResolver
 	History       HistoryResolver
 	FinalMessages FinalMessageWriter
 	Events        EventSink
 }
 
 type Config struct {
+	// Assistant is the server-owned frozen model/prompt snapshot written into
+	// each Run. There is exactly one configuration, so it is data, not a
+	// resolver.
+	Assistant         pilotruntime.ProfileSnapshot
 	ProfileID         string
 	ProfileVersion    int64
 	WorkerID          string

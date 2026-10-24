@@ -29,7 +29,6 @@ type ProfileSnapshot struct {
 	Version                       int64
 	Provider, Model, SystemPrompt string
 }
-type ActorPrincipal struct{ TenantID, ActorID, Username string }
 
 type EventKind string
 
