@@ -122,10 +122,6 @@ func New() (_ *Pilot, err error) {
 		return nil, err
 	}
 	p.cleanup = append(p.cleanup, connection.Close)
-	users, err := repo.NewUserRepo(database)
-	if err != nil {
-		return nil, err
-	}
 	conversations, err := repo.NewSessionRepo(database, repo.WithSessionRepoLogger(logger))
 	if err != nil {
 		return nil, err
@@ -195,11 +191,16 @@ func New() (_ *Pilot, err error) {
 	if err != nil {
 		return nil, err
 	}
-	admission, err := ingress.NewConversationAdmission(cfg.AgentBot, conversations, users, ingress.Admission{ProfileID: assistant.ID, ProfileVersion: assistant.Version, RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1", ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts})
+	admission, err := ingress.NewConversationAdmission(cfg.AgentBot, conversations)
 	if err != nil {
 		return nil, err
 	}
-	handler, err := ingress.NewHandler(ingress.HandlerConfig{BotUsername: cfg.AgentBot, MaxPromptBytes: cfg.Ingress.MaxPromptBytes}, runs, admission)
+	assistantSnapshot := ingress.Assistant{
+		ProfileID: assistant.ID, ProfileVersion: assistant.Version,
+		RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1",
+		ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts,
+	}
+	handler, err := ingress.NewHandler(ingress.HandlerConfig{BotUsername: cfg.AgentBot, MaxPromptBytes: cfg.Ingress.MaxPromptBytes, Assistant: assistantSnapshot}, runs, admission)
 	if err != nil {
 		return nil, err
 	}

@@ -20,9 +20,9 @@ import (
 func TestHandler_AdmitsTextEventAndPersistsDurableRun(t *testing.T) {
 	now := time.Date(2026, 8, 8, 11, 0, 0, 0, time.UTC)
 	enqueuer := &fakeEnqueuer{}
-	admission := &fakeAdmissionController{admission: testAdmission()}
+	admission := &fakeAdmissionController{conversation: testConversation()}
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024},
+		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024, Assistant: testAssistant()},
 		enqueuer,
 		admission,
 		WithClock(func() time.Time { return now }),
@@ -61,8 +61,8 @@ func TestHandler_AdmitsTextEventAndPersistsDurableRun(t *testing.T) {
 func TestHandler_IgnoresBotStreamAndNonMessageEvents(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot"},
-		enqueuer, &fakeAdmissionController{admission: testAdmission()},
+		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
+		enqueuer, &fakeAdmissionController{conversation: testConversation()},
 	)
 	require.NoError(t, err)
 
@@ -88,11 +88,11 @@ func TestHandler_IgnoresBotStreamAndNonMessageEvents(t *testing.T) {
 
 func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 	event := testMQEvent()
-	mismatch := testAdmission()
-	mismatch.ActorUsername = "other-user"
+	mismatch := testConversation()
+	mismatch.ConversationID = "another-conversation"
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot"},
-		&fakeEnqueuer{}, &fakeAdmissionController{admission: mismatch},
+		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
+		&fakeEnqueuer{}, &fakeAdmissionController{conversation: mismatch},
 	)
 	require.NoError(t, err)
 	_, err = handler.Handle(context.Background(), event)
@@ -101,8 +101,8 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 
 	conflictingEnqueuer := &fakeEnqueuer{err: repo.ErrAgentRunSourceConflict}
 	handler, err = NewHandler(
-		HandlerConfig{BotUsername: "agent-bot"},
-		conflictingEnqueuer, &fakeAdmissionController{admission: testAdmission()},
+		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
+		conflictingEnqueuer, &fakeAdmissionController{conversation: testConversation()},
 		WithRunIDSource(func() (string, error) { return "run-conflict", nil }),
 	)
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestHandler_FailsClosedOnAdmissionMismatchAndSourceConflict(t *testing.T) {
 func TestHandler_ProfileAdmissionDenialIsPermanentAndNeverEnqueues(t *testing.T) {
 	enqueuer := &fakeEnqueuer{}
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024},
+		HandlerConfig{BotUsername: "agent-bot", MaxPromptBytes: 1024, Assistant: testAssistant()},
 		enqueuer, &fakeAdmissionController{err: ErrAdmissionDenied},
 	)
 	require.NoError(t, err)
@@ -129,8 +129,8 @@ func TestConsumer_AcksOnlyAfterDurableEnqueueAndRoutesPermanentFailuresToDLQ(t *
 	recorder := &ingressRecorder{}
 	enqueuer := &fakeEnqueuer{recorder: recorder}
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot"},
-		enqueuer, &fakeAdmissionController{admission: testAdmission()},
+		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
+		enqueuer, &fakeAdmissionController{conversation: testConversation()},
 		WithRunIDSource(func() (string, error) { return "run-consumer", nil }),
 	)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ func TestConsumer_AcksOnlyAfterDurableEnqueueAndRoutesPermanentFailuresToDLQ(t *
 func TestConsumer_NaksTransientFailureAndRetainsMalformedMessageWhenDLQFails(t *testing.T) {
 	recorder := &ingressRecorder{}
 	handler, err := NewHandler(
-		HandlerConfig{BotUsername: "agent-bot"},
+		HandlerConfig{BotUsername: "agent-bot", Assistant: testAssistant()},
 		&fakeEnqueuer{}, &fakeAdmissionController{err: errors.New("authoritative IAM unavailable")},
 	)
 	require.NoError(t, err)
@@ -195,13 +195,15 @@ func testMQEvent() *mqv1.MQEvent {
 	}
 }
 
-func testAdmission() Admission {
-	return Admission{
-		Trigger: true, TenantID: "tenant-a", ConversationID: "conversation-a",
-		ActorID: "user-1", ActorUsername: "user-1",
+func testAssistant() Assistant {
+	return Assistant{
 		ProfileID: "user-assistant", ProfileVersion: 1,
 		RuntimeVersion: "0.50.1", BridgeVersion: "1.0.0", ModelID: "claude-sonnet-4-5", MaxAttempts: 3,
 	}
+}
+
+func testConversation() Conversation {
+	return Conversation{Found: true, TenantID: "tenant-a", ConversationID: "conversation-a", ActorUsername: "user-1"}
 }
 
 type fakeEnqueuer struct {
@@ -259,12 +261,12 @@ func TestConsumer_DoesNotReportPlannedStopAsFatal(t *testing.T) {
 }
 
 type fakeAdmissionController struct {
-	admission Admission
-	err       error
+	conversation Conversation
+	err          error
 }
 
-func (c *fakeAdmissionController) Admit(context.Context, string, *commonv1.ChatEvent) (Admission, error) {
-	return c.admission, c.err
+func (c *fakeAdmissionController) Admit(context.Context, *commonv1.ChatEvent) (Conversation, error) {
+	return c.conversation, c.err
 }
 
 type fakeMQ struct {

@@ -10,70 +10,77 @@ import (
 
 type SessionAuthority interface {
 	GetSession(context.Context, string) (*model.Session, error)
-	GetMembers(context.Context, string) ([]*model.SessionMember, error)
-}
-type UserAuthority interface {
-	GetUserByUsername(context.Context, string) (*model.User, error)
 }
 
-// Admission checks the existing IM conversation boundary, for every tenant.
+// Assistant 是服务端唯一助手的冻结快照：入队时写进每一行 Run，客户端不可选择。
+type Assistant struct {
+	ProfileID      string
+	ProfileVersion int64
+	RuntimeVersion string
+	BridgeVersion  string
+	ModelID        string
+	MaxAttempts    int
+}
+
+// Conversation 是准入结论：这条事件属于哪个租户的哪个 Pilot 私聊。
+type Conversation struct {
+	Found          bool
+	TenantID       string
+	ConversationID string
+	ActorUsername  string
+}
+
+// ConversationAdmission 只回答一个问题：这条 ChatEvent 是否发生在 Bot 的私人会话里。
+//
+// 它不再查成员表和用户表：Logic 的 SendEvent 已经在写主事实的同一个调用里验证了
+// 签名身份、租户、成员资格和"发送者是真人"，再查一遍是对自己上游的不信任，而且
+// 会让 Pilot 为全系统每一条消息都做一次额外查询。
 type ConversationAdmission struct {
 	bot      string
 	sessions SessionAuthority
-	users    UserAuthority
-	snapshot Admission
 }
 
-func NewConversationAdmission(bot string, sessions SessionAuthority, users UserAuthority, snapshot Admission) (*ConversationAdmission, error) {
-	if bot == "" || sessions == nil || users == nil {
-		return nil, fmt.Errorf("pilot admission dependencies are incomplete")
+func NewConversationAdmission(bot string, sessions SessionAuthority) (*ConversationAdmission, error) {
+	if bot == "" || sessions == nil {
+		return nil, fmt.Errorf("pilot admission requires a bot and a session reader")
 	}
-	return &ConversationAdmission{bot: bot, sessions: sessions, users: users, snapshot: snapshot}, nil
+	return &ConversationAdmission{bot: bot, sessions: sessions}, nil
 }
-func (a *ConversationAdmission) Admit(ctx context.Context, _ string, event *commonv1.ChatEvent) (Admission, error) {
+
+func (a *ConversationAdmission) Admit(ctx context.Context, event *commonv1.ChatEvent) (Conversation, error) {
 	if event == nil {
-		return Admission{}, ErrAdmissionMismatch
+		return Conversation{}, ErrAdmissionMismatch
 	}
 	conversation, err := a.sessions.GetSession(ctx, event.SessionId)
 	if err != nil {
-		return Admission{}, err
+		return Conversation{}, err
 	}
-	if conversation.Kind != model.SessionKindAI {
-		return Admission{}, nil
+	if conversation == nil {
+		return Conversation{}, ErrAdmissionMismatch
 	}
-	if conversation.TenantID == "" || conversation.OwnerUsername != event.FromUsername || conversation.Type != 1 {
-		return Admission{}, ErrAdmissionDenied
+	// 普通会话与 Bot 无关，属于正常流量，直接忽略而不是拒绝。
+	if conversation.Kind != model.SessionKindAI || conversation.Type != 1 {
+		return Conversation{}, nil
 	}
-	members, err := a.sessions.GetMembers(ctx, event.SessionId)
-	if err != nil {
-		return Admission{}, err
+	// AI 私聊只可能是 owner 与 Bot 两人的对话：owner 只能由 owner 本人触发，
+	// Bot 自己的消息不能反过来触发新一轮推理。
+	if conversation.TenantID == "" || conversation.OwnerUsername != event.FromUsername ||
+		event.FromUsername == a.bot {
+		return Conversation{}, ErrAdmissionDenied
 	}
-	if len(members) != 2 {
-		return Admission{}, ErrAdmissionDenied
+	return Conversation{
+		Found:          true,
+		TenantID:       conversation.TenantID,
+		ConversationID: conversation.SessionID,
+		ActorUsername:  event.FromUsername,
+	}, nil
+}
+
+func validateAssistant(assistant Assistant) error {
+	if assistant.ProfileID == "" || assistant.ProfileVersion < 1 ||
+		assistant.RuntimeVersion == "" || assistant.BridgeVersion == "" || assistant.ModelID == "" ||
+		assistant.MaxAttempts < 1 || assistant.MaxAttempts > 100 {
+		return fmt.Errorf("pilot assistant snapshot is incomplete")
 	}
-	owner, bot := false, false
-	for _, m := range members {
-		if m == nil {
-			return Admission{}, ErrAdmissionDenied
-		}
-		owner = owner || m.Username == conversation.OwnerUsername
-		bot = bot || m.Username == a.bot
-	}
-	if !owner || !bot || conversation.OwnerUsername == a.bot {
-		return Admission{}, ErrAdmissionDenied
-	}
-	user, err := a.users.GetUserByUsername(ctx, conversation.OwnerUsername)
-	if err != nil {
-		return Admission{}, err
-	}
-	if user == nil || user.Kind != model.UserKindHuman {
-		return Admission{}, ErrAdmissionDenied
-	}
-	result := a.snapshot
-	result.Trigger = true
-	result.TenantID = conversation.TenantID
-	result.ConversationID = conversation.SessionID
-	result.ActorID = user.Username
-	result.ActorUsername = user.Username
-	return result, nil
+	return nil
 }

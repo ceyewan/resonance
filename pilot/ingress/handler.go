@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,36 +24,23 @@ import (
 
 var (
 	ErrAdmissionMismatch = errors.New("agent ingress admission snapshot does not match chat event")
-	ErrAdmissionDenied   = errors.New("agent profile admission is not currently authorized")
+	ErrAdmissionDenied   = errors.New("chat event does not belong to a pilot private conversation")
 )
 
 type RunEnqueuer interface {
 	EnqueueAgentRun(ctx context.Context, run *model.AgentRun) (*repo.AgentRunEnqueueResult, error)
 }
 
-// AdmissionController 必须从权威 Session/IAM 数据判断事件能否触发 Agent。
-// MQ 中的 from_username 只能作为待核验输入，不能自行成为 Principal。
+// AdmissionController 判断事件能否触发 Agent。MQ 中的 from_username 只能在
+// 通行会话事实被核对后使用，不能自行成为 Principal。
 type AdmissionController interface {
-	Admit(ctx context.Context, tenantID string, event *commonv1.ChatEvent) (Admission, error)
-}
-
-type Admission struct {
-	Trigger        bool
-	TenantID       string
-	ConversationID string
-	ActorID        string
-	ActorUsername  string
-	ProfileID      string
-	ProfileVersion int64
-	RuntimeVersion string
-	BridgeVersion  string
-	ModelID        string
-	MaxAttempts    int
+	Admit(ctx context.Context, event *commonv1.ChatEvent) (Conversation, error)
 }
 
 type HandlerConfig struct {
 	BotUsername    string
 	MaxPromptBytes int
+	Assistant      Assistant
 }
 
 type Handler struct {
@@ -91,6 +79,9 @@ func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionContr
 	if config.MaxPromptBytes < 1 {
 		return nil, fmt.Errorf("max prompt bytes must be positive")
 	}
+	if err := validateAssistant(config.Assistant); err != nil {
+		return nil, err
+	}
 	handler := &Handler{config: config, runs: runs, admission: admission, now: time.Now, runID: randomRunID}
 	for _, option := range options {
 		option(handler)
@@ -109,6 +100,11 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("chat event is missing"))
 	}
 	event := envelope.Event
+	// Bot 不是这条事件的目标，说明它不是 Pilot 私聊消息。这一步不查库，
+	// 让全系统的普通聊天完全不经过 Pilot 的数据库。
+	if !slices.Contains(envelope.TargetUsernames, h.config.BotUsername) {
+		return HandleResult{Ignored: true}, nil
+	}
 	message := event.GetMessage()
 	if message == nil || message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT ||
 		event.FromUsername == h.config.BotUsername {
@@ -124,20 +120,20 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("prompt is empty, oversized or invalid UTF-8"))
 	}
 
-	admission, err := h.admission.Admit(ctx, "", event)
+	conversation, err := h.admission.Admit(ctx, event)
 	if err != nil {
-		if errors.Is(err, ErrAdmissionDenied) {
+		if errors.Is(err, ErrAdmissionDenied) || errors.Is(err, ErrAdmissionMismatch) {
 			return HandleResult{}, permanent(err)
 		}
 		return HandleResult{}, err
 	}
-	if !admission.Trigger {
+	if !conversation.Found {
 		return HandleResult{Ignored: true}, nil
 	}
-	if err := validateAdmission(admission.TenantID, event, admission); err != nil {
-		return HandleResult{}, permanent(err)
-	}
 
+	if conversation.ConversationID != event.SessionId {
+		return HandleResult{}, permanent(ErrAdmissionMismatch)
+	}
 	runID, err := h.runID()
 	if err != nil {
 		return HandleResult{}, fmt.Errorf("generate agent run id: %w", err)
@@ -145,7 +141,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if runID == "" || len(runID) > 52 {
 		return HandleResult{}, fmt.Errorf("generated agent run id is invalid")
 	}
-	sourceHash, err := hashSourceEvent(admission.TenantID, event)
+	sourceHash, err := hashSourceEvent(conversation.TenantID, event)
 	if err != nil {
 		return HandleResult{}, permanent(err)
 	}
@@ -154,15 +150,16 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("trace context is invalid or oversized"))
 	}
 	now := h.now().UTC()
+	assistant := h.config.Assistant
 	run := &model.AgentRun{
-		RunID: runID, TenantID: admission.TenantID, ConversationID: admission.ConversationID,
+		RunID: runID, TenantID: conversation.TenantID, ConversationID: conversation.ConversationID,
 		SourceEventID: event.EventId, SourceSeqID: event.SeqId, SourceTimestampMs: event.TimestampMs,
 		SourceHash: sourceHash, Prompt: message.Content, TraceContext: traceContext,
-		ActorID: admission.ActorID, ActorUsername: admission.ActorUsername,
-		ProfileID: admission.ProfileID, ProfileVersion: admission.ProfileVersion,
-		RuntimeVersion: admission.RuntimeVersion, BridgeVersion: admission.BridgeVersion,
-		ModelID: admission.ModelID,
-		Status:  model.AgentRunStatusQueued, MaxAttempts: admission.MaxAttempts,
+		ActorID: conversation.ActorUsername, ActorUsername: conversation.ActorUsername,
+		ProfileID: assistant.ProfileID, ProfileVersion: assistant.ProfileVersion,
+		RuntimeVersion: assistant.RuntimeVersion, BridgeVersion: assistant.BridgeVersion,
+		ModelID: assistant.ModelID,
+		Status:  model.AgentRunStatusQueued, MaxAttempts: assistant.MaxAttempts,
 		QueuedAt: now, AvailableAt: now,
 	}
 	enqueued, err := h.runs.EnqueueAgentRun(ctx, run)
@@ -173,19 +170,6 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, err
 	}
 	return HandleResult{Run: enqueued.Run, Created: enqueued.Created}, nil
-}
-
-func validateAdmission(tenantID string, event *commonv1.ChatEvent, admission Admission) error {
-	if admission.TenantID != tenantID || admission.ConversationID != event.SessionId ||
-		admission.ActorID == "" || admission.ActorUsername != event.FromUsername {
-		return ErrAdmissionMismatch
-	}
-	if admission.ProfileID == "" || admission.ProfileVersion <= 0 || admission.RuntimeVersion == "" ||
-		admission.BridgeVersion == "" || admission.ModelID == "" ||
-		admission.MaxAttempts < 1 || admission.MaxAttempts > 100 {
-		return ErrAdmissionMismatch
-	}
-	return nil
 }
 
 func hashSourceEvent(tenantID string, event *commonv1.ChatEvent) (string, error) {
