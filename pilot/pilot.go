@@ -197,7 +197,7 @@ func New() (_ *Pilot, err error) {
 	}
 	assistantSnapshot := ingress.Assistant{
 		ProfileID: assistant.ID, ProfileVersion: assistant.Version,
-		RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: "1",
+		RuntimeVersion: cfg.Runtime.ExpectedVersion, BridgeVersion: cfg.Runtime.ExpectedBridgeProtocol,
 		ModelID: assistant.Model, MaxAttempts: cfg.Worker.MaxAttempts,
 	}
 	handler, err := ingress.NewHandler(ingress.HandlerConfig{BotUsername: cfg.AgentBot, MaxPromptBytes: cfg.Ingress.MaxPromptBytes, Assistant: assistantSnapshot}, runs, runs, admission)

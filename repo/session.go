@@ -340,15 +340,20 @@ func (r *sessionRepo) AddMember(ctx context.Context, member *model.SessionMember
 		return fmt.Errorf("username cannot be empty")
 	}
 
-	conversation, err := r.GetSession(ctx, member.SessionID)
-	if err != nil {
-		return err
-	}
-	if conversation.Kind == model.SessionKindAI {
-		return fmt.Errorf("pilot conversations cannot add members")
-	}
-	gormDB := r.db.DB(ctx)
-	if err := gormDB.Create(member).Error; err != nil {
+	// 与写入放在同一事务里：Pilot 私聊的成员集合是不可变事实，读到 AI 会话就
+	// 必须拒写，不能出现"检查时还不是 AI 会话"的时间窗。
+	if err := r.db.Transaction(ctx, func(_ context.Context, tx *gorm.DB) error {
+		var conversation model.Session
+		if err := tx.Select("session_id", "kind").
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("session_id = ?", member.SessionID).Take(&conversation).Error; err != nil {
+			return fmt.Errorf("load session for member insert: %w", err)
+		}
+		if conversation.Kind == model.SessionKindAI {
+			return fmt.Errorf("pilot conversations cannot add members")
+		}
+		return tx.Create(member).Error
+	}); err != nil {
 		r.logger.Error("添加成员失败",
 			clog.String("session_id", member.SessionID),
 			clog.String("username", member.Username),

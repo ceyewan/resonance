@@ -84,6 +84,10 @@ type RuntimeConfig struct {
 	ExtensionPath   string `mapstructure:"extension_path"`
 	WorkDir         string `mapstructure:"work_dir"`
 	AgentDir        string `mapstructure:"agent_dir"`
+	// ExpectedBridgeProtocol 是 pilot/bridge 在 readiness 命令里自报的
+	// bridge_protocol，写进每个 Run/Binding 快照；协议升级后旧快照不再被复用，
+	// 所以它必须和 src/index.ts 一起改，值只在 configs/pilot.yaml 出现一次。
+	ExpectedBridgeProtocol string `mapstructure:"expected_bridge_protocol"`
 }
 type SessionConfig struct {
 	Root               string        `mapstructure:"root"`
@@ -138,6 +142,9 @@ func (c *Config) Validate() error {
 	}
 	if !filepath.IsAbs(c.Runtime.Binary) || !filepath.IsAbs(c.Runtime.ExtensionPath) || !filepath.IsAbs(c.Runtime.WorkDir) || !filepath.IsAbs(c.Runtime.AgentDir) || c.Runtime.ExpectedVersion == "" {
 		return fmt.Errorf("pi requires absolute paths and a pinned version")
+	}
+	if c.Runtime.ExpectedBridgeProtocol == "" {
+		return fmt.Errorf("pilot requires the trusted bridge protocol version")
 	}
 	if c.Worker.Count < 1 || c.Worker.MaxAttempts < 1 || c.Worker.ShutdownDrainTimeout <= 0 {
 		return fmt.Errorf("pilot worker limits are invalid")

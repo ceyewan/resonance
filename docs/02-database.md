@@ -74,6 +74,9 @@ Logic 同事务写 Session 与两名成员；重复打开返回已有会话，�
 本轮仅支持全新数据库，不保留历史多 Profile 会话迁移。
 
 Pilot 仅保留 `t_agent_run` 与 `t_agent_session_binding`：前者负责 durable queue、租约和冻结结果，后者保存每个私聊的已提交 Pi 快照。
+两者的 `profile_id/profile_version` 不是历史兼容字段，而是**当前助手快照标识**：Run 入队时冻结，领取时用 `profile_id/profile_version` 过滤，
+所以升级助手配置（模型、System Prompt 语义变化）时递增该版本，就能让旧版本排队中的 Run 不被新部署消费。它不参与会话唯一性——
+会话唯一性只由 `uniq_pilot_owner` 决定。
 审批、工具执行、IAM Mutation、审计哈希链及预算账本表已从模型和初始化中删除，不提供旧库迁移脚本。
 
 `MaxSeqID` 是会话序列号的持久化锚点。Logic 在事务内通过 CAS 更新它，Redis 中的原子计数器以它为初始值。当 Redis 键不存在时，Logic 会先用 `MaxSeqID` 初始化计数器，再递增，避免序列号从 1 开始导致冲突。

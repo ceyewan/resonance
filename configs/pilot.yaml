@@ -66,6 +66,8 @@ worker:
 runtime:
   binary: /opt/resonance/bridge/node_modules/.bin/pi
   expected_version: 0.84.1
+  # 与 pilot/bridge/src/index.ts 的 bridge_protocol 保持一致
+  expected_bridge_protocol: "1"
   extension_path: /opt/resonance/bridge/src/index.ts
   work_dir: /var/lib/resonance-pilot/work
   agent_dir: /var/lib/resonance-pilot/agent

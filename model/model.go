@@ -2,7 +2,11 @@ package model
 
 import "time"
 
-// Router is the Redis mapping from a user to its online Gateway.
+// ============================================================================
+// 非持久化模型（Redis）
+// ============================================================================
+
+// Router 存储用户与在线 Gateway 的映射，通常存放在 Redis 中。
 type Router struct {
 	Username  string `json:"username"`
 	GatewayID string `json:"gateway_id"`
@@ -10,6 +14,13 @@ type Router struct {
 	Timestamp int64  `json:"timestamp"`
 }
 
+// ============================================================================
+// 持久化模型（PostgreSQL）
+// 以下结构体的 GORM tag 是表结构的唯一真相来源，由 `go run main.go -module init`
+// 调用 AutoMigrate 创建/更新。
+// ============================================================================
+
+// User 用户账号表。索引：PK(username)。
 type User struct {
 	Username  string `gorm:"primaryKey;column:username;type:varchar(64);not null"`
 	Nickname  string `gorm:"column:nickname;type:varchar(64)"`
@@ -20,7 +31,10 @@ type User struct {
 	UpdatedAt time.Time
 }
 
-// TenantMembership remains the IM authentication boundary, not an Agent tool.
+// TenantMembership 是用户名在租户中的权威成员关系，也是 IM 的鉴权边界。
+// User.Username 目前全局唯一，但所有 IAM 读写都必须同时携带 tenant_id。
+// 索引：PK(tenant_id, username) + idx_tenant_membership_username(反查某用户的租户)
+//   - idx_tenant_membership_status(按状态批量筛选)。
 type TenantMembership struct {
 	TenantID  string `gorm:"primaryKey;column:tenant_id;type:varchar(64);not null"`
 	Username  string `gorm:"primaryKey;column:username;type:varchar(64);not null;index:idx_tenant_membership_username"`
@@ -30,6 +44,8 @@ type TenantMembership struct {
 	UpdatedAt time.Time
 }
 
+// SystemRoleBinding 是租户级系统角色绑定，不得与 SessionMember.Role（会话角色）混用。
+// 索引：PK(tenant_id, username, role) + idx_system_role_binding_username。
 type SystemRoleBinding struct {
 	TenantID  string `gorm:"primaryKey;column:tenant_id;type:varchar(64);not null"`
 	Username  string `gorm:"primaryKey;column:username;type:varchar(64);not null;index:idx_system_role_binding_username"`
@@ -38,6 +54,10 @@ type SystemRoleBinding struct {
 	UpdatedAt time.Time
 }
 
+// Session 会话表（单聊/群聊）。
+// 索引：PK(session_id) + uniq_pilot_owner(tenant_id, owner_username) WHERE kind = 1。
+// uniq_pilot_owner 是"每个用户在每个租户只有一个 Pilot 私聊"的并发兜底，
+// 同时也是并发建聊时唯一的幂等键。
 type Session struct {
 	SessionID string `gorm:"primaryKey;column:session_id;type:varchar(64);not null"`
 	Type      int    `gorm:"column:type;type:smallint;not null"`
@@ -54,6 +74,10 @@ type Session struct {
 	UpdatedAt      time.Time
 }
 
+// SessionMember 会话成员表。
+// 索引：PK(session_id, username) + idx_member_username(username)。
+//   - PK：按会话查成员、快速判断某用户是否在某会话中
+//   - idx_member_username：反查某用户加入的所有会话（联系人列表、会话列表）
 type SessionMember struct {
 	SessionID   string `gorm:"primaryKey;column:session_id;type:varchar(64);not null"`
 	Username    string `gorm:"primaryKey;column:username;type:varchar(64);not null;index:idx_member_username"`
@@ -63,6 +87,13 @@ type SessionMember struct {
 	UpdatedAt   time.Time
 }
 
+// MessageContent 消息主事实。
+// 索引：
+//   - PK(event_id)
+//   - idx_sess_seq(session_id, seq_id)：按会话拉历史，seq_id 游标分页
+//     典型查询: WHERE session_id = ? AND seq_id > ? ORDER BY seq_id LIMIT ?
+//   - uniq_message_client_id(session_id, sender_username, client_msg_id)
+//     WHERE client_msg_id <> ”：发送端幂等键，空 client_msg_id 不参与唯一约束
 type MessageContent struct {
 	EventID         int64      `gorm:"primaryKey;column:event_id;type:bigint;autoIncrement:false"`
 	SessionID       string     `gorm:"column:session_id;type:varchar(64);not null;index:idx_sess_seq,priority:1;uniqueIndex:uniq_message_client_id,priority:1"`
@@ -79,6 +110,9 @@ type MessageContent struct {
 	CreatedAt       time.Time
 }
 
+// Inbox 用户信箱（写扩散目标，存完整 ChatEvent）。
+// 索引：PK(id) + uniq_owner_sess_seq(owner_username, session_id, seq_id)
+//   - idx_owner_id(owner_username, id) + idx_owner_sess(owner_username, session_id)。
 type Inbox struct {
 	ID            int64  `gorm:"primaryKey;column:id;autoIncrement"`
 	OwnerUsername string `gorm:"column:owner_username;type:varchar(64);not null;uniqueIndex:uniq_owner_sess_seq,priority:1;index:idx_owner_id,priority:1;index:idx_owner_sess,priority:1"`
@@ -90,6 +124,10 @@ type Inbox struct {
 	CreatedAt     time.Time
 }
 
+// MessageOutbox 本地消息表（Outbox 模式，可靠投递）。
+// 索引：PK(id) + idx_event_id(event_id) + idx_status_next_retry(status, next_retry_time)。
+//   - idx_event_id：按事件 ID 查投递状态（发送确认、幂等检查）
+//   - idx_status_next_retry：定时任务轮询待重试消息
 type MessageOutbox struct {
 	ID            int64     `gorm:"primaryKey;column:id;autoIncrement"`
 	EventID       int64     `gorm:"column:event_id;type:bigint;not null;index:idx_event_id"`
@@ -102,7 +140,16 @@ type MessageOutbox struct {
 	UpdatedAt     time.Time
 }
 
-// AgentRun is the durable queue. Frozen replies are retried without calling the model again.
+// AgentRun 是 Pilot 的持久化执行队列与状态机。
+//
+// 同一会话允许排队多个 Run，但从 CLAIMED 到 COMMITTING 最多只有一个 Active Run；
+// READY_TO_COMMIT 之后的字段是不可变提交事实，租约恢复不得让它重新推理。
+// 索引：PK(run_id) + uniq_agent_run_source(tenant_id, source_event_id)
+//   - uniq_agent_run_active_conversation(tenant_id, conversation_id) WHERE 活跃状态
+//   - idx_agent_run_queue(status, available_at, queued_at)
+//   - idx_agent_run_lease(status, lease_expires_at)
+//
+// 状态值同时写进部分唯一索引，修改状态集合必须配套迁移。
 type AgentRun struct {
 	RunID                 string     `gorm:"primaryKey;column:run_id;type:varchar(64);not null"`
 	TenantID              string     `gorm:"column:tenant_id;type:varchar(64);not null;uniqueIndex:uniq_agent_run_source,priority:1;uniqueIndex:uniq_agent_run_active_conversation,priority:1,where:status = 'CLAIMED' OR status = 'STARTING_RUNTIME' OR status = 'RUNNING' OR status = 'READY_TO_COMMIT' OR status = 'COMMITTING';index:idx_agent_run_conversation,priority:1"`
@@ -164,7 +211,10 @@ type AgentRun struct {
 	UpdatedAt             time.Time
 }
 
-// Each conversation owns one committed Pi snapshot. Failed attempts only modify staging files.
+// AgentSessionBinding 保存每个私聊当前已提交的 Pi Session 快照。
+// SessionRef 是不透明对象引用，业务代码不得解析 Pi JSONL 来推导身份或授权。
+// 每一次提交都推进 generation；撤回/编辑把 status 置 DIRTY，下一轮从权威历史重建。
+// 索引：PK(tenant_id, conversation_id) + idx_agent_session_binding_status。
 type AgentSessionBinding struct {
 	TenantID             string `gorm:"primaryKey;column:tenant_id;type:varchar(64);not null;index:idx_agent_session_binding_status,priority:1"`
 	ConversationID       string `gorm:"primaryKey;column:conversation_id;type:varchar(64);not null"`

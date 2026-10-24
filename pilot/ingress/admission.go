@@ -59,7 +59,7 @@ func (a *ConversationAdmission) Admit(ctx context.Context, event *commonv1.ChatE
 		return Conversation{}, ErrAdmissionMismatch
 	}
 	// 普通会话与 Bot 无关，属于正常流量，直接忽略而不是拒绝。
-	if conversation.Kind != model.SessionKindAI || conversation.Type != 1 {
+	if conversation.Kind != model.SessionKindAI || conversation.Type != int(commonv1.SessionType_SESSION_TYPE_DIRECT) {
 		return Conversation{}, nil
 	}
 	// AI 私聊只可能是 owner 与 Bot 两人的对话：owner 只能由 owner 本人触发，

@@ -20,6 +20,7 @@ func validConfig() *Config {
 	c.Runtime.WorkDir = "/var/lib/resonance-pilot/work"
 	c.Runtime.AgentDir = "/var/lib/resonance-pilot/agent"
 	c.Runtime.ExpectedVersion = "0.84.1"
+	c.Runtime.ExpectedBridgeProtocol = "1"
 	c.Ingress.QueueGroup = "resonance_group_pilot"
 	c.Stream.MaxPendingBytes = 262144
 	c.Stream.MaxChunkBytes = 16384
