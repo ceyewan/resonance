@@ -51,13 +51,10 @@ var (
 	errAgentSessionBotUnavailable = errors.New("configured agent bot is unavailable")
 )
 
-// AgentSessionPolicy is server-owned configuration for the only AI profiles
-// that can be selected by CreateAgentSession.
+// AgentSessionPolicy configures the one system Bot, never a user-selected profile.
 type AgentSessionPolicy struct {
-	BotUsername          string
-	BotNickname          string
-	UserAssistantVersion int64
-	IAMAdminVersion      int64
+	BotUsername string
+	BotNickname string
 }
 
 type SessionServiceOption func(*SessionService)
@@ -117,7 +114,7 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		return nil, err
 	}
 	username := principal.Username
-	if s.agentPolicy.BotUsername != "" && s.agentPolicy.UserAssistantVersion > 0 {
+	if s.agentPolicy.BotUsername != "" {
 		if _, ensureErr := s.EnsureDefaultAgentSession(ctx, principal.TenantID, username); ensureErr != nil {
 			observability.RecordDefaultAgentSessionProvision(ctx, "session_list_repair", "failed")
 			s.logger.Warn("failed to repair default agent session", clog.Error(ensureErr))
@@ -224,16 +221,14 @@ func (s *SessionService) GetSessionList(ctx context.Context, req *logicv1.GetSes
 		}
 
 		sessionInfos = append(sessionInfos, &commonv1.SessionInfo{
-			SessionId:           sess.SessionID,
-			Name:                sessionName,
-			Type:                commonv1.SessionType(sess.Type),
-			AvatarUrl:           "",
-			UnreadCount:         unread,
-			LastReadSeq:         lastReadSeq,
-			LastEvent:           lastEvent,
-			Kind:                sessionKindToProto(sess.Kind),
-			AgentProfile:        agentProfileToProto(sess.ProfileID),
-			AgentProfileVersion: sess.ProfileVersion,
+			SessionId:   sess.SessionID,
+			Name:        sessionName,
+			Type:        commonv1.SessionType(sess.Type),
+			AvatarUrl:   "",
+			UnreadCount: unread,
+			LastReadSeq: lastReadSeq,
+			LastEvent:   lastEvent,
+			Kind:        sessionKindToProto(sess.Kind),
 		})
 	}
 
@@ -345,24 +340,13 @@ func (s *SessionService) CreateSession(ctx context.Context, req *logicv1.CreateS
 	return &logicv1.CreateSessionResponse{SessionId: persisted.SessionID}, nil
 }
 
-// CreateAgentSession creates a new, profile-pinned AI conversation. Tenant,
-// actor, roles and scopes come only from the authenticated UserPrincipal.
+// CreateAgentSession returns the user's unique Pilot conversation.
 func (s *SessionService) CreateAgentSession(ctx context.Context, req *logicv1.CreateAgentSessionRequest) (*logicv1.CreateAgentSessionResponse, error) {
 	principal, err := s.requireUserPrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireActiveTenantMember(ctx, principal.TenantID, principal.Username); err != nil {
-		return nil, err
-	}
-	profileID, profileVersion, requiredRole, requiredScope, displayName, ok := s.resolveAgentProfile(req.GetProfile())
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "unsupported agent profile")
-	}
-	if !containsString(principal.Scopes, requiredScope) || (requiredRole != "" && !containsString(principal.Roles, requiredRole)) {
-		return nil, status.Error(codes.PermissionDenied, "agent profile is not permitted")
-	}
-	persisted, err := s.createPinnedAgentSession(ctx, principal.TenantID, principal.Username, profileID, profileVersion, displayName)
+	sessionID, err := s.EnsureDefaultAgentSession(ctx, principal.TenantID, principal.Username)
 	if err != nil {
 		switch {
 		case errors.Is(err, errAgentSessionActorNotHuman):
@@ -373,13 +357,12 @@ func (s *SessionService) CreateAgentSession(ctx context.Context, req *logicv1.Cr
 		s.logger.Error("failed to create agent session", clog.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create agent session")
 	}
-	return &logicv1.CreateAgentSessionResponse{SessionId: persisted.SessionID}, nil
+	return &logicv1.CreateAgentSessionResponse{SessionId: sessionID}, nil
 }
 
-// EnsureDefaultAgentSession is the idempotent provisioning and lazy-repair
-// path for the ordinary assistant. IAM profiles are never provisioned here.
+// EnsureDefaultAgentSession provisions or returns the user's unique Pilot private chat.
 func (s *SessionService) EnsureDefaultAgentSession(ctx context.Context, tenantID, username string) (string, error) {
-	if tenantID == "" || username == "" || s.agentPolicy.BotUsername == "" || s.agentPolicy.UserAssistantVersion < 1 {
+	if tenantID == "" || username == "" || s.agentPolicy.BotUsername == "" {
 		return "", fmt.Errorf("default agent session policy is unavailable")
 	}
 	if s.memberships == nil {
@@ -394,20 +377,16 @@ func (s *SessionService) EnsureDefaultAgentSession(ctx context.Context, tenantID
 	if name == "" {
 		name = "AI Assistant"
 	}
-	persisted, err := s.createPinnedAgentSession(
-		ctx, tenantID, username, model.AgentProfileUserAssistant, s.agentPolicy.UserAssistantVersion, name,
-	)
+	persisted, err := s.createPilotSession(ctx, tenantID, username, name)
 	if err != nil {
 		return "", err
 	}
 	return persisted.SessionID, nil
 }
 
-func (s *SessionService) createPinnedAgentSession(
+func (s *SessionService) createPilotSession(
 	ctx context.Context,
-	tenantID, username, profileID string,
-	profileVersion int64,
-	displayName string,
+	tenantID, username, displayName string,
 ) (*model.Session, error) {
 	creator, err := s.userRepo.GetUserByUsername(ctx, username)
 	if err != nil || creator == nil || creator.Kind != model.UserKindHuman || creator.Username != username {
@@ -417,10 +396,10 @@ func (s *SessionService) createPinnedAgentSession(
 	if err != nil || bot == nil || bot.Kind != model.UserKindAgentBot || bot.Username != s.agentPolicy.BotUsername {
 		return nil, errAgentSessionBotUnavailable
 	}
-	sessionID := generateAgentSessionID(tenantID, username, profileID, profileVersion)
+	sessionID := generateAgentSessionID(tenantID, username)
 	session := &model.Session{
 		SessionID: sessionID, Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
-		TenantID: tenantID, ProfileID: profileID, ProfileVersion: profileVersion,
+		TenantID: tenantID, ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
 		Name: displayName, OwnerUsername: username,
 	}
 	members := []*model.SessionMember{
@@ -434,30 +413,6 @@ func (s *SessionService) createPinnedAgentSession(
 	return persisted, nil
 }
 
-func (s *SessionService) resolveAgentProfile(profile commonv1.AgentProfile) (profileID string, version int64, role, scope, name string, ok bool) {
-	if s.agentPolicy.BotUsername == "" {
-		return "", 0, "", "", "", false
-	}
-	switch profile {
-	case commonv1.AgentProfile_AGENT_PROFILE_USER_ASSISTANT:
-		if s.agentPolicy.UserAssistantVersion < 1 {
-			return "", 0, "", "", "", false
-		}
-		name = s.agentPolicy.BotNickname
-		if name == "" {
-			name = "AI Assistant"
-		}
-		return model.AgentProfileUserAssistant, s.agentPolicy.UserAssistantVersion, "", model.ScopeChatUse, name, true
-	case commonv1.AgentProfile_AGENT_PROFILE_IAM_ADMIN:
-		if s.agentPolicy.IAMAdminVersion < 1 {
-			return "", 0, "", "", "", false
-		}
-		return model.AgentProfileIAMAdmin, s.agentPolicy.IAMAdminVersion, model.SystemRoleIAMAdmin, model.ScopeIAMUsersRead, "IAM Admin Assistant", true
-	default:
-		return "", 0, "", "", "", false
-	}
-}
-
 func containsString(values []string, target string) bool {
 	return slices.Contains(values, target)
 }
@@ -467,17 +422,6 @@ func sessionKindToProto(kind int) commonv1.SessionKind {
 		return commonv1.SessionKind_SESSION_KIND_AI
 	}
 	return commonv1.SessionKind_SESSION_KIND_STANDARD
-}
-
-func agentProfileToProto(profileID string) commonv1.AgentProfile {
-	switch profileID {
-	case model.AgentProfileUserAssistant:
-		return commonv1.AgentProfile_AGENT_PROFILE_USER_ASSISTANT
-	case model.AgentProfileIAMAdmin:
-		return commonv1.AgentProfile_AGENT_PROFILE_IAM_ADMIN
-	default:
-		return commonv1.AgentProfile_AGENT_PROFILE_UNSPECIFIED
-	}
 }
 
 func (s *SessionService) sendSessionCreatedSystemMessage(ctx context.Context, sessionID, creatorUsername string, req *logicv1.CreateSessionRequest) error {
@@ -562,8 +506,8 @@ func generateDirectSessionID(tenantID, user1, user2 string) string {
 	return "direct:" + stableSessionDigest("direct-v1", tenantID, user1, user2)
 }
 
-func generateAgentSessionID(tenantID, owner, profileID string, profileVersion int64) string {
-	return "agent:" + stableSessionDigest("agent-v1", tenantID, owner, profileID, fmt.Sprintf("%d", profileVersion))
+func generateAgentSessionID(tenantID, owner string) string {
+	return "agent:" + stableSessionDigest("pilot-v1", tenantID, owner)
 }
 
 func stableSessionDigest(parts ...string) string {

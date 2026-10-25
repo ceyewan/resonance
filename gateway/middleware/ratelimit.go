@@ -180,18 +180,6 @@ var PredefinedRateLimits = struct {
 			Rate:  20, // 搜索用户
 			Burst: 50,
 		},
-		"/resonance.gateway.v1.AgentApprovalService/GetApproval": {
-			Rate:  30,
-			Burst: 60,
-		},
-		"/resonance.gateway.v1.AgentApprovalService/ListApprovals": {
-			Rate:  20,
-			Burst: 40,
-		},
-		"/resonance.gateway.v1.AgentApprovalService/DecideApproval": {
-			Rate:  5,
-			Burst: 10,
-		},
 	},
 	DefaultLimit: ratelimit.Limit{
 		Rate:  100,

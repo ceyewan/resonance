@@ -54,11 +54,11 @@ type historyMessage struct {
 }
 
 func (b *HistoryPromptBuilder) RebuildPrompt(ctx context.Context, run *model.AgentRun) (string, error) {
-	if run == nil || run.TenantID == "" || run.ConversationID == "" || run.SourceEventID <= 0 ||
+	if run == nil || run.TenantID == "" || run.ConversationID == "" || run.SourceEventID <= 0 || run.SourceSeqID <= 0 ||
 		run.ActorUsername == "" || run.Prompt == "" {
 		return "", fmt.Errorf("agent run is incomplete for history rebuild")
 	}
-	request := &logicv1.GetHistoryEventsRequest{SessionId: run.ConversationID, Limit: b.limit}
+	request := &logicv1.GetHistoryEventsRequest{SessionId: run.ConversationID, Limit: b.limit, BeforeSeq: run.SourceSeqID + 1}
 	payloadHash, err := serviceauth.PayloadHash(request)
 	if err != nil {
 		return "", fmt.Errorf("hash history request: %w", err)
@@ -101,7 +101,7 @@ func (b *HistoryPromptBuilder) RebuildPrompt(ctx context.Context, run *model.Age
 			return "", fmt.Errorf("authoritative history contains an unsupported message")
 		}
 		if event.EventId == run.SourceEventID {
-			if event.FromUsername != run.ActorUsername || message.Content != run.Prompt {
+			if event.SeqId != run.SourceSeqID || event.FromUsername != run.ActorUsername || message.Content != run.Prompt {
 				return "", fmt.Errorf("current source event does not match the durable run")
 			}
 			foundCurrent = true

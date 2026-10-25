@@ -8,6 +8,6 @@ plugins:
   # ConnectRPC 生成器（Go 语言版本）
   # 锁定 v1.19.1 以匹配 go.mod 中的 connectrpc.com/connect v1.19.1
   # 注意：ConnectRPC 仅用于 gateway/v1/api.proto (对外提供的 HTTP/JSON 接口)
-  - remote: buf.build/connectrpc/go:v1.19.1
+  - local: protoc-gen-connect-go
     out: gen/go
     opt: paths=source_relative

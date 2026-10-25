@@ -1,15 +1,13 @@
 import Dexie, { type EntityTable, type Table } from "dexie";
 import type { SessionUpdateKind } from "@gen/common/v1/event_pb";
 import type { MessageType } from "@gen/common/v1/message_pb";
-import { AgentProfile, SessionKind, type SessionType } from "@gen/common/v1/session_pb";
+import { SessionKind, type SessionType } from "@gen/common/v1/session_pb";
 
 export type SessionRow = {
   sessionId: string;
   name: string;
   type: SessionType;
   kind: SessionKind;
-  agentProfile: AgentProfile;
-  agentProfileVersion: string;
   avatarUrl: string;
   unreadCount: string;
   lastReadSeq: string;
@@ -95,8 +93,6 @@ export class ResonanceDb extends Dexie {
           .toCollection()
           .modify((session) => {
             session.kind ??= SessionKind.UNSPECIFIED;
-            session.agentProfile ??= AgentProfile.UNSPECIFIED;
-            session.agentProfileVersion ??= "0";
           }),
       );
   }

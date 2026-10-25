@@ -31,6 +31,7 @@ type Consumer struct {
 	mu       sync.Mutex
 	stopping bool
 	inflight sync.WaitGroup
+	errors   chan error
 }
 
 func NewConsumer(config ConsumerConfig, mqClient mq.MQ, handler *Handler) (*Consumer, error) {
@@ -38,7 +39,7 @@ func NewConsumer(config ConsumerConfig, mqClient mq.MQ, handler *Handler) (*Cons
 		return nil, fmt.Errorf("agent ingress consumer configuration is incomplete")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Consumer{config: config, mq: mqClient, handler: handler, ctx: ctx, cancel: cancel}, nil
+	return &Consumer{config: config, mq: mqClient, handler: handler, ctx: ctx, cancel: cancel, errors: make(chan error, 1)}, nil
 }
 
 func (c *Consumer) Start() error {
@@ -57,8 +58,27 @@ func (c *Consumer) Start() error {
 		return fmt.Errorf("subscribe agent ingress: %w", err)
 	}
 	c.subscription = subscription
+	go c.watch(subscription)
 	return nil
 }
+
+// watch 把"订阅意外结束"上报为致命错误。正常 Stop 期间的结束不上报：
+// 事件入口静默失效时进程仍然是 ready 状态，这是唯一能观测到的信号。
+func (c *Consumer) watch(subscription mq.Subscription) {
+	<-subscription.Done()
+	c.mu.Lock()
+	stopping := c.stopping
+	c.mu.Unlock()
+	if stopping {
+		return
+	}
+	select {
+	case c.errors <- fmt.Errorf("agent ingress subscription ended unexpectedly"):
+	default:
+	}
+}
+
+func (c *Consumer) Errors() <-chan error { return c.errors }
 
 func (c *Consumer) handleMessage(message mq.Message) error {
 	c.mu.Lock()

@@ -1,7 +1,7 @@
 # Resonance Makefile - 任务编排
 # 所有配置统一在 .env 文件中管理
 
-.PHONY: help gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod rollback-agent-validate down down-prod logs logs-prod clean up-observability verify-local-v1 recovery-local-v1 alerts-local-v1 benchmark-local down-observability
+.PHONY: help gen install-gen tidy format format-go format-proto format-prettier format-markdown lint lint-go lint-security lint-proto lint-prettier lint-markdown lint-web test test-go init dev up-infra down-infra logs-infra up update-local up-prod down down-prod logs logs-prod clean up-observability down-observability
 
 # 默认目标：显示帮助
 .DEFAULT_GOAL := help
@@ -18,6 +18,9 @@ COMPOSE_PROD := docker compose --env-file .env -p resonance -f deploy/base.yaml 
 PRETTIER := ./tools/node_modules/.bin/prettier
 MARKDOWNLINT := ./tools/node_modules/.bin/markdownlint-cli2
 GOLANGCI_LINT_VERSION ?= 2.12.2
+# 本地代码生成器路径：go install 的插件 + tools/ 下 npm 安装的 protoc-gen-es
+GEN_PLUGIN_PATH := $(shell go env GOPATH)/bin:$(CURDIR)/tools/node_modules/.bin
+
 GOLANGCI_LINT_VERSION_NORMALIZED := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
 
 # ============================================================================
@@ -34,11 +37,14 @@ help: ## 显示帮助信息
 # ============================================================================
 # 代码生成
 # ============================================================================
-gen: ## 生成 protobuf 代码
+install-gen: ## 幂等安装本地 protobuf 生成器（版本锁定，不走 BSR）
+	@./tools/install-gen-tools.sh
+
+gen: install-gen ## 生成 protobuf 代码（本地插件，离线可跑）
 	@echo "🔧 生成 protobuf 代码..."
-	@cd api && buf generate --template buf.gen.go.yaml
-	@cd api && buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/agent_approval.proto
-	@cd api && buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/agent_approval.proto --path proto/gateway/v1/packet.proto --path proto/common
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.go.yaml
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.connect.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto
+	@cd api && PATH="$(GEN_PLUGIN_PATH):$$PATH" buf generate --template buf.gen.ts.yaml --path proto/gateway/v1/auth.proto --path proto/gateway/v1/session.proto --path proto/gateway/v1/packet.proto --path proto/common
 	@echo "✅ 代码生成完成"
 
 tidy: ## 整理 Go 依赖
@@ -209,9 +215,6 @@ up-prod: ## 启动生产配置（Caddy 反代，不暴露业务端口）
 	@chmod +x deploy/scripts/deploy-production.sh
 	@./deploy/scripts/deploy-production.sh latest
 
-rollback-agent-validate: ## 只校验 Agent 回滚的 control/runtime 不变 digest 组合
-	@./deploy/scripts/rollback-agent.sh --validate-only
-
 down: ## 停止所有服务
 	@echo "🛑 停止服务..."
 	@$(COMPOSE) down
@@ -233,34 +236,10 @@ clean: ## 清理所有数据（包括 volumes）
 	@$(COMPOSE) down -v
 	@echo "✅ 已清理"
 
-up-observability: ## 从精确 v1 候选构建并启动隔离的本地完整环境
+up-observability: ## 启动独立的本地可观测环境
 	@chmod +x deploy/scripts/local-v1.sh
 	@./deploy/scripts/local-v1.sh up
-
-verify-local-v1: ## 验证业务 E2E 与 Prometheus/Loki/Tempo 数据链路
-	@chmod +x deploy/scripts/verify-local-v1.sh
-	@./deploy/scripts/verify-local-v1.sh
-
-recovery-local-v1: ## 非破坏性执行服务、依赖与 telemetry 恢复验证
-	@chmod +x deploy/scripts/recovery-local-v1.sh
-	@./deploy/scripts/recovery-local-v1.sh
-
-alerts-local-v1: ## 实际触发并保存本地告警证据
-	@chmod +x deploy/scripts/alerts-local-v1.sh
-	@./deploy/scripts/alerts-local-v1.sh
-
-benchmark-local: ## 生成固定参数、机器可读的本地性能基线
-	@chmod +x deploy/scripts/benchmark-local.sh
-	@./deploy/scripts/benchmark-local.sh
 
 down-observability: ## 停止隔离环境但保留全部 volumes
 	@chmod +x deploy/scripts/local-v1.sh
 	@./deploy/scripts/local-v1.sh down
-
-finalize-stage3-rc2: ## 从 stopped main 运行并归档 Genesis RC2 阶段三最终矩阵
-	@chmod +x deploy/scripts/finalize-stage3-rc2.sh
-	@./deploy/scripts/finalize-stage3-rc2.sh
-
-test-stage3-evidence-gates: ## 运行阶段三证据门禁的正反向 fixture
-	@chmod +x deploy/scripts/test-stage3-evidence-gates.sh deploy/scripts/validate-stage3-evidence.sh
-	@./deploy/scripts/test-stage3-evidence-gates.sh

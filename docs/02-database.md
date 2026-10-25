@@ -54,8 +54,8 @@ type Session struct {
     Type          int    // 1-单聊, 2-群聊
     Kind          int    // 0-普通, 1-AI
     TenantID      string // AI 准入的权威租户
-    ProfileID     string // AI Profile，不接受客户端自由输入
-    ProfileVersion int64 // 创建时固定的不可变版本
+    ProfileID     string // 内部单助手配置标识，不供客户端选择
+    ProfileVersion int64 // Runtime 配置快照，不影响会话唯一性
     Name          string // 群聊名称
     AvatarURL     string // 群头像
     OwnerUsername string // 创建者
@@ -65,29 +65,26 @@ type Session struct {
 }
 ```
 
-普通 direct/group 会话的 `Kind=0` 且 Profile 字段为空。AI 会话的 Type 仍为
-direct，但 `Kind=1`，并持久化 `tenant_id + profile_id + profile_version`。AI 会话
-与普通直聊分别使用 tenant 派生的 `agent:<sha256-prefix>` 和
-`direct:<sha256-prefix>` ID，输入采用长度无歧义的固定顺序，结果不超过 64 字节。
-AI ID 还包含 Profile Version，
-因此升级后可新建隔离上下文；普通直聊也不会因同一全局用户名组合跨租户复用。
-Pilot 在消费事件时必须用这些字段核对自己的固定 tenant/profile
-快照；只凭成员中存在 Bot 不足以获得 AI 准入。
+普通 direct/group 会话的 `Kind=0`。Pilot 私聊 Type=direct、Kind=1，成员严格为 owner 与 Bot。
+Pilot 会话 ID 只由 tenant + owner 派生，不包含模型或配置版本；不同用户/租户不会共享上下文。
+内部 Runtime 配置变化不能创建第二个私聊。
 
-历史 `single:<user>:<user>` 会话不会依赖 ID 解析继续扩散：Logic 先按
-`tenant_id + type + kind + 精确两名成员` 查找并复用旧会话；只有不存在时才创建
-新的 tenant-derived direct ID。若历史数据在同一租户存在多个相同成员直聊，则
-创建请求 fail closed，必须先消除歧义。
+Pilot 会话部分唯一索引为 `uniq_pilot_owner(tenant_id, owner_username) WHERE kind = 1`。
+Logic 同事务写 Session 与两名成员；重复打开返回已有会话，成员写入失败整体回滚，禁止追加第三人。
+本轮仅支持全新数据库，不保留历史多 Profile 会话迁移。
 
-新增列的数据库默认值 `default` 只用于原单租户数据的兼容升级。已有多租户环境必须
-在启用新 Logic 前，根据权威租户归属审计并回填每条历史 Session；无法唯一确定租户的
-会话必须隔离处理并阻止上线，不能把列默认值当作多租户迁移结果。
+Pilot 仅保留 `t_agent_run` 与 `t_agent_session_binding`：前者负责 durable queue、租约和冻结结果，后者保存每个私聊的已提交 Pi 快照。
+`t_agent_run` 里有两个只服务于提交闸门的字段（语义见 `docs/14`）：
 
-AI 会话还有部分唯一索引
-`uniq_ai_session_profile(tenant_id, owner_username, profile_id, profile_version) WHERE kind = 1`。
-Logic 在一个数据库事务里写 Session 与全部成员；完全相同的并发重投返回已存在
-Session，任一成员写入失败则整体回滚。上线前若历史数据违反该键，AutoMigrate 会
-失败，必须先审计并制定迁移方案，不能静默合并不同安全上下文。
+- `base_binding_version`：Run 启动时读到的 `t_agent_session_binding.version`。提交时不一致说明权威历史在本轮
+  执行期间被改动，此时既不写最终消息，也不晋升快照，Run 直接取消（撤回窗口只有 2 分钟，补回答是错的）。
+- `committed_generation = 0`：Run 正常成功、但快照没有晋升（历史已失效）。它与 `SUCCEEDED` 组合表示
+  "回复已发出、基线未推进"，下一轮必须从有效历史重建；重放该收尾是幂等的，不会 fence lost。
+
+两者的 `profile_id/profile_version` 不是历史兼容字段，而是**当前助手快照标识**：Run 入队时冻结，领取时用 `profile_id/profile_version` 过滤，
+所以升级助手配置（模型、System Prompt 语义变化）时递增该版本，就能让旧版本排队中的 Run 不被新部署消费。它不参与会话唯一性——
+会话唯一性只由 `uniq_pilot_owner` 决定。
+审批、工具执行、IAM Mutation、审计哈希链及预算账本表已从模型和初始化中删除，不提供旧库迁移脚本。
 
 `MaxSeqID` 是会话序列号的持久化锚点。Logic 在事务内通过 CAS 更新它，Redis 中的原子计数器以它为初始值。当 Redis 键不存在时，Logic 会先用 `MaxSeqID` 初始化计数器，再递增，避免序列号从 1 开始导致冲突。
 

@@ -24,19 +24,17 @@ const (
 // SessionInfo 是会话列表/会话概览的跨层视图对象
 // gateway/v1 与 logic/v1 均直接引用，避免镜像复制
 type SessionInfo struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
-	SessionId           string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Name                string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Type                SessionType            `protobuf:"varint,3,opt,name=type,proto3,enum=resonance.common.v1.SessionType" json:"type,omitempty"`
-	AvatarUrl           string                 `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
-	UnreadCount         int64                  `protobuf:"varint,5,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
-	LastReadSeq         int64                  `protobuf:"varint,6,opt,name=last_read_seq,json=lastReadSeq,proto3" json:"last_read_seq,omitempty"`
-	LastEvent           *ChatEvent             `protobuf:"bytes,7,opt,name=last_event,json=lastEvent,proto3" json:"last_event,omitempty"`
-	Kind                SessionKind            `protobuf:"varint,8,opt,name=kind,proto3,enum=resonance.common.v1.SessionKind" json:"kind,omitempty"`
-	AgentProfile        AgentProfile           `protobuf:"varint,9,opt,name=agent_profile,json=agentProfile,proto3,enum=resonance.common.v1.AgentProfile" json:"agent_profile,omitempty"`
-	AgentProfileVersion int64                  `protobuf:"varint,10,opt,name=agent_profile_version,json=agentProfileVersion,proto3" json:"agent_profile_version,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type          SessionType            `protobuf:"varint,3,opt,name=type,proto3,enum=resonance.common.v1.SessionType" json:"type,omitempty"`
+	AvatarUrl     string                 `protobuf:"bytes,4,opt,name=avatar_url,json=avatarUrl,proto3" json:"avatar_url,omitempty"`
+	UnreadCount   int64                  `protobuf:"varint,5,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
+	LastReadSeq   int64                  `protobuf:"varint,6,opt,name=last_read_seq,json=lastReadSeq,proto3" json:"last_read_seq,omitempty"`
+	LastEvent     *ChatEvent             `protobuf:"bytes,7,opt,name=last_event,json=lastEvent,proto3" json:"last_event,omitempty"`
+	Kind          SessionKind            `protobuf:"varint,8,opt,name=kind,proto3,enum=resonance.common.v1.SessionKind" json:"kind,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SessionInfo) Reset() {
@@ -123,20 +121,6 @@ func (x *SessionInfo) GetKind() SessionKind {
 		return x.Kind
 	}
 	return SessionKind_SESSION_KIND_UNSPECIFIED
-}
-
-func (x *SessionInfo) GetAgentProfile() AgentProfile {
-	if x != nil {
-		return x.AgentProfile
-	}
-	return AgentProfile_AGENT_PROFILE_UNSPECIFIED
-}
-
-func (x *SessionInfo) GetAgentProfileVersion() int64 {
-	if x != nil {
-		return x.AgentProfileVersion
-	}
-	return 0
 }
 
 // ContactInfo 是联系人列表/用户搜索的跨层视图对象
@@ -258,7 +242,7 @@ var File_common_v1_view_proto protoreflect.FileDescriptor
 
 const file_common_v1_view_proto_rawDesc = "" +
 	"\n" +
-	"\x14common/v1/view.proto\x12\x13resonance.common.v1\x1a\x15common/v1/event.proto\x1a\x17common/v1/session.proto\"\xcd\x03\n" +
+	"\x14common/v1/view.proto\x12\x13resonance.common.v1\x1a\x15common/v1/event.proto\x1a\x17common/v1/session.proto\"\xdd\x02\n" +
 	"\vSessionInfo\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -270,10 +254,9 @@ const file_common_v1_view_proto_rawDesc = "" +
 	"\rlast_read_seq\x18\x06 \x01(\x03R\vlastReadSeq\x12=\n" +
 	"\n" +
 	"last_event\x18\a \x01(\v2\x1e.resonance.common.v1.ChatEventR\tlastEvent\x124\n" +
-	"\x04kind\x18\b \x01(\x0e2 .resonance.common.v1.SessionKindR\x04kind\x12F\n" +
-	"\ragent_profile\x18\t \x01(\x0e2!.resonance.common.v1.AgentProfileR\fagentProfile\x122\n" +
-	"\x15agent_profile_version\x18\n" +
-	" \x01(\x03R\x13agentProfileVersion\"d\n" +
+	"\x04kind\x18\b \x01(\x0e2 .resonance.common.v1.SessionKindR\x04kindJ\x04\b\t\x10\n" +
+	"J\x04\b\n" +
+	"\x10\v\"d\n" +
 	"\vContactInfo\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bnickname\x18\x02 \x01(\tR\bnickname\x12\x1d\n" +
@@ -305,19 +288,17 @@ var file_common_v1_view_proto_goTypes = []any{
 	(SessionType)(0),    // 3: resonance.common.v1.SessionType
 	(*ChatEvent)(nil),   // 4: resonance.common.v1.ChatEvent
 	(SessionKind)(0),    // 5: resonance.common.v1.SessionKind
-	(AgentProfile)(0),   // 6: resonance.common.v1.AgentProfile
 }
 var file_common_v1_view_proto_depIdxs = []int32{
 	3, // 0: resonance.common.v1.SessionInfo.type:type_name -> resonance.common.v1.SessionType
 	4, // 1: resonance.common.v1.SessionInfo.last_event:type_name -> resonance.common.v1.ChatEvent
 	5, // 2: resonance.common.v1.SessionInfo.kind:type_name -> resonance.common.v1.SessionKind
-	6, // 3: resonance.common.v1.SessionInfo.agent_profile:type_name -> resonance.common.v1.AgentProfile
-	4, // 4: resonance.common.v1.InboxEvent.event:type_name -> resonance.common.v1.ChatEvent
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 3: resonance.common.v1.InboxEvent.event:type_name -> resonance.common.v1.ChatEvent
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_common_v1_view_proto_init() }

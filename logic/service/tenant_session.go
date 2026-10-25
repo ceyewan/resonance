@@ -54,10 +54,23 @@ func requireSessionTenant(ctx context.Context, sessions repo.SessionRepo, sessio
 		return status.Error(codes.PermissionDenied, "session belongs to another tenant")
 	}
 	if _, _, servicePrincipal := ServicePrincipalFromCtx(ctx); servicePrincipal {
-		profile, ok := ServiceProfileFromCtx(ctx)
-		if !ok || session.Kind != model.SessionKindAI || session.ProfileID != profile.ProfileID ||
-			session.ProfileVersion != profile.ProfileVersion {
-			return status.Error(codes.PermissionDenied, "service workload cannot access this session profile")
+		if session.Kind != model.SessionKindAI || session.Type != 1 {
+			return status.Error(codes.PermissionDenied, "Pilot can only access private AI conversations")
+		}
+		members, memberErr := sessions.GetMembers(ctx, sessionID)
+		actor, actorOK := UsernameFromCtx(ctx)
+		if memberErr != nil || len(members) != 2 || !actorOK || actor == session.OwnerUsername {
+			return status.Error(codes.PermissionDenied, "invalid Pilot conversation")
+		}
+		ownerPresent, botPresent := false, false
+		for _, member := range members {
+			if member != nil {
+				ownerPresent = ownerPresent || member.Username == session.OwnerUsername
+				botPresent = botPresent || member.Username == actor
+			}
+		}
+		if !ownerPresent || !botPresent {
+			return status.Error(codes.PermissionDenied, "invalid Pilot conversation members")
 		}
 	}
 	return nil

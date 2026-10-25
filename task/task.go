@@ -237,7 +237,7 @@ func (t *Task) initResources() (_ *resources, returnedErr error) {
 	}
 
 	// Registry
-	reg, err := registry.New(etcdConn, t.config.Registry.ToRegistryConfig(), registry.WithLogger(t.logger), registry.WithMeter(observability.Meter()))
+	reg, err := registry.New(t.config.Registry.ToRegistryConfig(), registry.WithEtcdConnector(etcdConn), registry.WithLogger(t.logger), registry.WithMeter(observability.Meter()))
 	if err != nil {
 		return nil, fmt.Errorf("registry init: %w", err)
 	}

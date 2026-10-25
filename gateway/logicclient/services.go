@@ -80,20 +80,6 @@ func (c *Client) PullInboxDelta(ctx context.Context, _ string, req *logicv1.Pull
 	return c.sessionSvc().PullInboxDelta(ctx, req)
 }
 
-// ==================== AgentApprovalService 接口 ====================
-
-func (c *Client) GetAgentApproval(ctx context.Context, req *logicv1.GetApprovalRequest) (*logicv1.GetApprovalResponse, error) {
-	return c.approvalSvc().GetApproval(ctx, req)
-}
-
-func (c *Client) ListAgentApprovals(ctx context.Context, req *logicv1.ListApprovalsRequest) (*logicv1.ListApprovalsResponse, error) {
-	return c.approvalSvc().ListApprovals(ctx, req)
-}
-
-func (c *Client) DecideAgentApproval(ctx context.Context, req *logicv1.DecideApprovalRequest) (*logicv1.DecideApprovalResponse, error) {
-	return c.approvalSvc().DecideApproval(ctx, req)
-}
-
 // ==================== PresenceService 接口 ====================
 
 func (c *Client) SyncUserOnline(ctx context.Context, username string, remoteIP string) error {

@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## 架构状态：Phase 0–8 已完成，Phase 9 生产验证中
+## 架构状态：IM 主链路完成，Pilot 收敛为固定私人助手
 
-事件驱动 IM 骨架、撤回/编辑/已读、Go Pilot + Pi Runtime、tenant-scoped AI Session、IAM 审批/Mutation 和 Agent Stream 已落地。当前重点是固定 Runtime 发布、业务 Eval 和多实例生产验收；一手依据见 `docs/14-ai-service.md`、`docs/15-agent-harness.md`、`docs/16-agent-operations.md` 与 `DEVELOPMENT.md`。
+Pilot 是全局不可登录 Bot，每个用户在当前租户只有一个固定连续私聊，复用 Pi Runtime；不做 IAM 管理、审批、多 Profile 或租户预算平台。基础组件使用 Genesis v1.0.0 正式版。当前依据见 `docs/14-ai-service.md`、`docs/15-agent-harness.md`、`docs/16-agent-operations.md` 与 `DEVELOPMENT.md`。
 
 设计决策的**一手依据**已迁移到 `docs/`：
 
@@ -44,7 +44,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 | **Gateway** | 协议转换 + 连接管理 + 鉴权中间件 | 业务规则、持久化 |
 | **Logic** | 业务规则 + 事件生成 + Outbox 事务一致性 | 推送、写扩散 |
 | **Task** | 消费 MQ,按事件类型落地 + 推送到 Gateway | 业务判断 |
-| **Pilot** | Go 控制面调度隔离的 Pi Runtime，以 Actor 权限调用 Go Tool Broker，并以 Bot 身份回复 | 连接管理、Agent Loop、绕过 Logic 写主事实 |
+| **Pilot** | 固定 Bot 私聊、durable Run、受控 Pi 子进程与流式回复 | IAM/审批、业务工具、连接管理、Agent Loop、绕过 Logic 写主事实 |
 
 ### 核心抽象:ChatEvent
 
@@ -64,7 +64,7 @@ Web ──HTTP/ConnectRPC──▶ Gateway ──gRPC──▶ Logic ──MQ(NA
 
 ## 技术栈
 
-- **后端**:Go 1.26+、[Genesis v1.0.0-rc.1](https://github.com/ceyewan/genesis/releases/tag/v1.0.0-rc.1)（已发布 Go module，禁止本地 `replace`）、gRPC、NATS
+- **后端**:Go 1.26.10+、[Genesis v1.0.0](https://github.com/ceyewan/genesis/releases/tag/v1.0.0)（已发布 Go module，禁止本地 `replace`）、gRPC、NATS
 - **存储**:PostgreSQL 17(消息/用户/会话)、Redis(路由映射、缓存)
 - **前端**:React 18 + TypeScript + Vite + Zustand + ConnectRPC + Dexie(IndexedDB)
 - **协议**:Protobuf(`api/proto/`),`make gen` 生成 Go + TS 代码

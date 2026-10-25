@@ -77,13 +77,8 @@ func TestPiRuntime_SettledReturnsAuthoritativeFinalText(t *testing.T) {
 		require.True(t, hasArg(spec.Args, required), "missing secure flag %s", required)
 	}
 	require.True(t, hasArgPair(spec.Args, "--extension", "/opt/resonance/bridge/index.ts"))
-	require.Contains(t, spec.Env, "RESONANCE_AGENT_CAPABILITY=capability-for-test")
-	require.Contains(t, spec.Env, "RESONANCE_TOOL_BROKER_URL=http://127.0.0.1:15094")
-	require.Contains(t, spec.Env, "RESONANCE_AGENT_RUN_ID=run-normal")
 	require.Contains(t, spec.Env, piAgentDirEnvName+"="+adapter.config.AgentDir)
-	require.Contains(t, spec.Env, "RESONANCE_AGENT_MAX_TOTAL_TOKENS=20000")
-	require.Contains(t, spec.Env, "RESONANCE_AGENT_MAX_COST_MICROS=100000")
-	require.Contains(t, spec.Env, "RESONANCE_AGENT_MAX_PROVIDER_CALLS=8")
+	require.Contains(t, spec.Env, "RESONANCE_AGENT_MAX_OUTPUT_TOKENS=8192")
 	require.NotContains(t, spec.Env, "SHOULD_NOT_LEAK=host-secret")
 }
 
@@ -917,7 +912,6 @@ func testAdapterConfig(t *testing.T, overrides Config) Config {
 		ExtensionPath:     "/opt/resonance/bridge/index.ts",
 		WorkDir:           t.TempDir(),
 		AgentDir:          agentDir,
-		ToolBrokerURL:     "http://127.0.0.1:15094",
 		Environment:       []string{"PATH=/usr/local/bin:/usr/bin"},
 		MaxFrameBytes:     1 << 20,
 		MaxOutputBytes:    8 << 20,
@@ -981,9 +975,7 @@ func testRunRequest(t *testing.T, runID string) pilotruntime.RunRequest {
 			Model:        "test-model",
 			SystemPrompt: "You are a business assistant.",
 		},
-		Actor:      pilotruntime.ActorPrincipal{ActorID: "actor-1", Username: "alice"},
-		Capability: pilotruntime.NewSecret("capability-for-test"),
-		Limits:     pilotruntime.ExecutionLimits{MaxTotalTokens: 20_000, MaxCostMicros: 100_000, MaxProviderCalls: 8},
+		MaxOutputTokens: 8192,
 	}
 }
 
@@ -1238,9 +1230,7 @@ func serveFakeStats(process *fakeProcess, reader *bufio.Reader, data any) error 
 	if command["type"] == "get_commands" {
 		readiness, marshalErr := json.Marshal(map[string]any{
 			"bridge_protocol": 1,
-			"profile_id":      "user-assistant",
-			"profile_version": 1,
-			"tool_count":      1,
+			"tool_count":      0,
 		})
 		if marshalErr != nil {
 			return marshalErr

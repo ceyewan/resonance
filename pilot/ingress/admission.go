@@ -9,118 +9,78 @@ import (
 )
 
 type SessionAuthority interface {
-	GetSession(ctx context.Context, sessionID string) (*model.Session, error)
-	GetMembers(ctx context.Context, sessionID string) ([]*model.SessionMember, error)
+	GetSession(context.Context, string) (*model.Session, error)
 }
 
-type UserAuthority interface {
-	GetUserByUsername(ctx context.Context, username string) (*model.User, error)
+// Assistant 是服务端唯一助手的冻结快照：入队时写进每一行 Run，客户端不可选择。
+type Assistant struct {
+	ProfileID      string
+	ProfileVersion int64
+	RuntimeVersion string
+	BridgeVersion  string
+	ModelID        string
+	MaxAttempts    int
 }
 
-type ProfileAuthorizer interface {
-	AuthorizeProfile(ctx context.Context, tenantID, actorID, profileID string) (bool, error)
+// Conversation 是准入结论：这条事件属于哪个租户的哪个 Pilot 私聊。
+type Conversation struct {
+	Found          bool
+	TenantID       string
+	ConversationID string
+	ActorUsername  string
 }
 
-// SingleTenantAdmission pins one Pilot instance to one tenant and one immutable
-// profile snapshot, and checks both against the authoritative Session row.
-type SingleTenantAdmission struct {
-	tenantID string
+// ConversationAdmission 只回答一个问题：这条 ChatEvent 是否发生在 Bot 的私人会话里。
+//
+// 它不再查成员表和用户表：Logic 的 SendEvent 已经在写主事实的同一个调用里验证了
+// 签名身份、租户、成员资格和"发送者是真人"，再查一遍是对自己上游的不信任，而且
+// 会让 Pilot 为全系统每一条消息都做一次额外查询。
+type ConversationAdmission struct {
 	bot      string
 	sessions SessionAuthority
-	users    UserAuthority
-	auth     ProfileAuthorizer
-	profile  Admission
 }
 
-func NewSingleTenantAdmission(
-	tenantID, botUsername string,
-	sessions SessionAuthority,
-	users UserAuthority,
-	authorizer ProfileAuthorizer,
-	profile Admission,
-) (*SingleTenantAdmission, error) {
-	if tenantID == "" || botUsername == "" || sessions == nil || users == nil || authorizer == nil {
-		return nil, fmt.Errorf("single-tenant admission dependencies are incomplete")
+func NewConversationAdmission(bot string, sessions SessionAuthority) (*ConversationAdmission, error) {
+	if bot == "" || sessions == nil {
+		return nil, fmt.Errorf("pilot admission requires a bot and a session reader")
 	}
-	profile.TenantID = tenantID
-	profile.Trigger = true
-	if profile.ProfileID == "" || profile.ProfileVersion <= 0 || profile.RuntimeKind == "" ||
-		profile.RuntimeVersion == "" || profile.BridgeVersion == "" || profile.ModelProvider == "" ||
-		profile.ModelID == "" || profile.MaxAttempts < 1 {
-		return nil, fmt.Errorf("single-tenant admission profile is incomplete")
+	return &ConversationAdmission{bot: bot, sessions: sessions}, nil
+}
+
+func (a *ConversationAdmission) Admit(ctx context.Context, event *commonv1.ChatEvent) (Conversation, error) {
+	if event == nil {
+		return Conversation{}, ErrAdmissionMismatch
 	}
-	return &SingleTenantAdmission{
-		tenantID: tenantID, bot: botUsername, sessions: sessions, users: users, auth: authorizer, profile: profile,
+	conversation, err := a.sessions.GetSession(ctx, event.SessionId)
+	if err != nil {
+		return Conversation{}, err
+	}
+	if conversation == nil {
+		return Conversation{}, ErrAdmissionMismatch
+	}
+	// 普通会话与 Bot 无关，属于正常流量，直接忽略而不是拒绝。
+	if conversation.Kind != model.SessionKindAI || conversation.Type != int(commonv1.SessionType_SESSION_TYPE_DIRECT) {
+		return Conversation{}, nil
+	}
+	// AI 私聊只可能是 owner 与 Bot 两人的对话：owner 只能由 owner 本人触发，
+	// Bot 自己的消息不能反过来触发新一轮推理。
+	if conversation.TenantID == "" || conversation.OwnerUsername != event.FromUsername ||
+		event.FromUsername == a.bot {
+		return Conversation{}, ErrAdmissionDenied
+	}
+	return Conversation{
+		Found:          true,
+		TenantID:       conversation.TenantID,
+		ConversationID: conversation.SessionID,
+		ActorUsername:  event.FromUsername,
 	}, nil
 }
 
-func (a *SingleTenantAdmission) Admit(ctx context.Context, tenantID string, event *commonv1.ChatEvent) (Admission, error) {
-	if tenantID != a.tenantID || event == nil || event.SessionId == "" || event.FromUsername == "" {
-		return Admission{}, ErrAdmissionMismatch
+func validateAssistant(assistant Assistant) error {
+	if assistant.ProfileID == "" || assistant.ProfileVersion < 1 ||
+		assistant.RuntimeVersion == "" || assistant.BridgeVersion == "" || assistant.ModelID == "" ||
+		assistant.MaxAttempts < 1 || assistant.MaxAttempts > 100 {
+		return fmt.Errorf("pilot assistant snapshot is incomplete")
 	}
-	session, err := a.sessions.GetSession(ctx, event.SessionId)
-	if err != nil {
-		return Admission{}, fmt.Errorf("load authoritative session: %w", err)
-	}
-	if session.Kind != model.SessionKindAI {
-		return Admission{Trigger: false}, nil
-	}
-	if session.SessionID != event.SessionId || session.TenantID != a.tenantID {
-		return Admission{}, ErrAdmissionMismatch
-	}
-	// Another profile-specific Pilot instance owns this session. Ignore it so
-	// independent queue groups can consume the same durable event topic safely.
-	if session.ProfileID != a.profile.ProfileID {
-		return Admission{Trigger: false}, nil
-	}
-	if session.ProfileVersion != a.profile.ProfileVersion {
-		return Admission{}, ErrAdmissionMismatch
-	}
-	if session.Type != int(commonv1.SessionType_SESSION_TYPE_DIRECT) {
-		return Admission{}, fmt.Errorf("AI session must be direct")
-	}
-	members, err := a.sessions.GetMembers(ctx, event.SessionId)
-	if err != nil {
-		return Admission{}, fmt.Errorf("load authoritative session members: %w", err)
-	}
-	if len(members) != 2 {
-		return Admission{}, fmt.Errorf("AI session must contain exactly one human and one bot")
-	}
-	present := make(map[string]struct{}, len(members))
-	for _, member := range members {
-		if member == nil || member.Username == "" {
-			return Admission{}, fmt.Errorf("AI session contains an invalid member")
-		}
-		present[member.Username] = struct{}{}
-	}
-	if _, ok := present[a.bot]; !ok {
-		return Admission{}, fmt.Errorf("AI session is missing the configured agent bot")
-	}
-	if _, ok := present[event.FromUsername]; !ok || event.FromUsername == a.bot {
-		return Admission{}, fmt.Errorf("event actor is not the human member of the AI session")
-	}
-	bot, err := a.users.GetUserByUsername(ctx, a.bot)
-	if err != nil || bot.Kind != model.UserKindAgentBot {
-		return Admission{}, fmt.Errorf("configured agent bot identity is invalid")
-	}
-	actor, err := a.users.GetUserByUsername(ctx, event.FromUsername)
-	if err != nil {
-		return Admission{}, fmt.Errorf("load authoritative actor: %w", err)
-	}
-	if actor.Kind != model.UserKindHuman {
-		return Admission{}, fmt.Errorf("AI session actor must be a human account")
-	}
-	allowed, err := a.auth.AuthorizeProfile(ctx, a.tenantID, actor.Username, a.profile.ProfileID)
-	if err != nil {
-		return Admission{}, fmt.Errorf("authorize agent profile: %w", err)
-	}
-	if !allowed {
-		return Admission{}, ErrAdmissionDenied
-	}
-
-	admission := a.profile
-	admission.ConversationID = event.SessionId
-	admission.ActorID = actor.Username
-	admission.ActorUsername = actor.Username
-	return admission, nil
+	return nil
 }

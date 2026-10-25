@@ -8,6 +8,7 @@
     "lint:prettier": "prettier --config ../.prettierrc.yaml --ignore-path ../.prettierignore --check .."
   },
   "devDependencies": {
+    "@bufbuild/protoc-gen-es": "2.11.0",
     "markdownlint-cli2": "^0.18.1",
     "prettier": "^3.6.2"
   }

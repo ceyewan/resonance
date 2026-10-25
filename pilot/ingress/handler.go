@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,44 +24,36 @@ import (
 
 var (
 	ErrAdmissionMismatch = errors.New("agent ingress admission snapshot does not match chat event")
-	ErrAdmissionDenied   = errors.New("agent profile admission is not currently authorized")
+	ErrAdmissionDenied   = errors.New("chat event does not belong to a pilot private conversation")
 )
 
 type RunEnqueuer interface {
 	EnqueueAgentRun(ctx context.Context, run *model.AgentRun) (*repo.AgentRunEnqueueResult, error)
 }
 
-// AdmissionController 必须从权威 Session/IAM 数据判断事件能否触发 Agent。
-// MQ 中的 from_username 只能作为待核验输入，不能自行成为 Principal。
-type AdmissionController interface {
-	Admit(ctx context.Context, tenantID string, event *commonv1.ChatEvent) (Admission, error)
+// ConversationInvalidator 让 Pilot 自己处理历史变更：撤回/编辑到达时取消该会话
+// 尚未落地的 Run，并丢弃已提交的本地快照。撤回是 IM 的核心语义，不应由 Logic 的
+// 消息事务反向去改 Pilot 的表。
+type ConversationInvalidator interface {
+	InvalidateAgentConversation(ctx context.Context, tenantID, conversationID string, now time.Time) (repo.AgentConversationInvalidation, error)
 }
 
-type Admission struct {
-	Trigger        bool
-	TenantID       string
-	ConversationID string
-	ActorID        string
-	ActorUsername  string
-	ProfileID      string
-	ProfileVersion int64
-	RuntimeKind    string
-	RuntimeVersion string
-	BridgeVersion  string
-	ModelProvider  string
-	ModelID        string
-	MaxAttempts    int
+// AdmissionController 判断事件能否触发 Agent。MQ 中的 from_username 只能在
+// 通行会话事实被核对后使用，不能自行成为 Principal。
+type AdmissionController interface {
+	Admit(ctx context.Context, event *commonv1.ChatEvent) (Conversation, error)
 }
 
 type HandlerConfig struct {
-	TenantID       string
 	BotUsername    string
 	MaxPromptBytes int
+	Assistant      Assistant
 }
 
 type Handler struct {
 	config    HandlerConfig
 	runs      RunEnqueuer
+	bindings  ConversationInvalidator
 	admission AdmissionController
 	now       func() time.Time
 	runID     func() (string, error)
@@ -84,8 +77,14 @@ func WithRunIDSource(source func() (string, error)) HandlerOption {
 	}
 }
 
-func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionController, options ...HandlerOption) (*Handler, error) {
-	if config.TenantID == "" || config.BotUsername == "" || runs == nil || admission == nil {
+func NewHandler(
+	config HandlerConfig,
+	runs RunEnqueuer,
+	bindings ConversationInvalidator,
+	admission AdmissionController,
+	options ...HandlerOption,
+) (*Handler, error) {
+	if config.BotUsername == "" || runs == nil || bindings == nil || admission == nil {
 		return nil, fmt.Errorf("agent ingress configuration and dependencies are incomplete")
 	}
 	if config.MaxPromptBytes == 0 {
@@ -94,7 +93,10 @@ func NewHandler(config HandlerConfig, runs RunEnqueuer, admission AdmissionContr
 	if config.MaxPromptBytes < 1 {
 		return nil, fmt.Errorf("max prompt bytes must be positive")
 	}
-	handler := &Handler{config: config, runs: runs, admission: admission, now: time.Now, runID: randomRunID}
+	if err := validateAssistant(config.Assistant); err != nil {
+		return nil, err
+	}
+	handler := &Handler{config: config, runs: runs, bindings: bindings, admission: admission, now: time.Now, runID: randomRunID}
 	for _, option := range options {
 		option(handler)
 	}
@@ -112,13 +114,51 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("chat event is missing"))
 	}
 	event := envelope.Event
-	message := event.GetMessage()
-	if message == nil || message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT ||
-		event.FromUsername == h.config.BotUsername {
+	// Bot 不是这条事件的目标，说明它不是 Pilot 私聊消息。这一步不查库，
+	// 让全系统的普通聊天完全不经过 Pilot 的数据库。
+	if !slices.Contains(envelope.TargetUsernames, h.config.BotUsername) {
+		return HandleResult{Ignored: true}, nil
+	}
+	// Bot 自己发出的消息不能反过来触发新一轮推理，也不做准入查询。
+	if event.FromUsername == h.config.BotUsername {
 		return HandleResult{Ignored: true}, nil
 	}
 	if event.EventId <= 0 || event.SeqId <= 0 || event.TimestampMs <= 0 || event.SessionId == "" || event.FromUsername == "" {
 		return HandleResult{}, permanent(fmt.Errorf("chat event identity is incomplete"))
+	}
+	isMessage := event.GetMessage() != nil
+	if !isMessage && event.GetRecall() == nil && event.GetEdit() == nil {
+		return HandleResult{Ignored: true}, nil
+	}
+
+	conversation, err := h.admission.Admit(ctx, event)
+	if err != nil {
+		if errors.Is(err, ErrAdmissionDenied) || errors.Is(err, ErrAdmissionMismatch) {
+			return HandleResult{}, permanent(err)
+		}
+		return HandleResult{}, err
+	}
+	if !conversation.Found {
+		return HandleResult{Ignored: true}, nil
+	}
+
+	if conversation.ConversationID != event.SessionId {
+		return HandleResult{}, permanent(ErrAdmissionMismatch)
+	}
+	if !isMessage {
+		// 撤回/编辑改变了权威历史：丢弃该会话已提交的上下文快照，
+		// 下一次 Run 会从 Logic 的有效历史重建。
+		if _, err := h.bindings.InvalidateAgentConversation(
+			ctx, conversation.TenantID, conversation.ConversationID, h.now().UTC(),
+		); err != nil {
+			return HandleResult{}, err
+		}
+		return HandleResult{Ignored: true}, nil
+	}
+	message := event.GetMessage()
+	// 目前只对文本推理：其它消息类型是正常流量，不是错误。
+	if message.Type != commonv1.MessageType_MESSAGE_TYPE_TEXT {
+		return HandleResult{Ignored: true}, nil
 	}
 	if message.ClientMsgId != "" && strings.HasPrefix(message.ClientMsgId, "agent:") {
 		return HandleResult{Ignored: true}, nil
@@ -126,21 +166,6 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if message.Content == "" || len(message.Content) > h.config.MaxPromptBytes || !utf8.ValidString(message.Content) {
 		return HandleResult{}, permanent(fmt.Errorf("prompt is empty, oversized or invalid UTF-8"))
 	}
-
-	admission, err := h.admission.Admit(ctx, h.config.TenantID, event)
-	if err != nil {
-		if errors.Is(err, ErrAdmissionDenied) {
-			return HandleResult{}, permanent(err)
-		}
-		return HandleResult{}, err
-	}
-	if !admission.Trigger {
-		return HandleResult{Ignored: true}, nil
-	}
-	if err := validateAdmission(h.config.TenantID, event, admission); err != nil {
-		return HandleResult{}, permanent(err)
-	}
-
 	runID, err := h.runID()
 	if err != nil {
 		return HandleResult{}, fmt.Errorf("generate agent run id: %w", err)
@@ -148,7 +173,7 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 	if runID == "" || len(runID) > 52 {
 		return HandleResult{}, fmt.Errorf("generated agent run id is invalid")
 	}
-	sourceHash, err := hashSourceEvent(h.config.TenantID, event)
+	sourceHash, err := hashSourceEvent(conversation.TenantID, event)
 	if err != nil {
 		return HandleResult{}, permanent(err)
 	}
@@ -157,15 +182,16 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, permanent(fmt.Errorf("trace context is invalid or oversized"))
 	}
 	now := h.now().UTC()
+	assistant := h.config.Assistant
 	run := &model.AgentRun{
-		RunID: runID, TenantID: admission.TenantID, ConversationID: admission.ConversationID,
+		RunID: runID, TenantID: conversation.TenantID, ConversationID: conversation.ConversationID,
 		SourceEventID: event.EventId, SourceSeqID: event.SeqId, SourceTimestampMs: event.TimestampMs,
 		SourceHash: sourceHash, Prompt: message.Content, TraceContext: traceContext,
-		ActorID: admission.ActorID, ActorUsername: admission.ActorUsername,
-		ProfileID: admission.ProfileID, ProfileVersion: admission.ProfileVersion,
-		RuntimeKind: admission.RuntimeKind, RuntimeVersion: admission.RuntimeVersion, BridgeVersion: admission.BridgeVersion,
-		ModelProvider: admission.ModelProvider, ModelID: admission.ModelID,
-		Status: model.AgentRunStatusQueued, MaxAttempts: admission.MaxAttempts,
+		ActorID: conversation.ActorUsername, ActorUsername: conversation.ActorUsername,
+		ProfileID: assistant.ProfileID, ProfileVersion: assistant.ProfileVersion,
+		RuntimeVersion: assistant.RuntimeVersion, BridgeVersion: assistant.BridgeVersion,
+		ModelID: assistant.ModelID,
+		Status:  model.AgentRunStatusQueued, MaxAttempts: assistant.MaxAttempts,
 		QueuedAt: now, AvailableAt: now,
 	}
 	enqueued, err := h.runs.EnqueueAgentRun(ctx, run)
@@ -176,19 +202,6 @@ func (h *Handler) Handle(ctx context.Context, envelope *mqv1.MQEvent) (HandleRes
 		return HandleResult{}, err
 	}
 	return HandleResult{Run: enqueued.Run, Created: enqueued.Created}, nil
-}
-
-func validateAdmission(tenantID string, event *commonv1.ChatEvent, admission Admission) error {
-	if admission.TenantID != tenantID || admission.ConversationID != event.SessionId ||
-		admission.ActorID == "" || admission.ActorUsername != event.FromUsername {
-		return ErrAdmissionMismatch
-	}
-	if admission.ProfileID == "" || admission.ProfileVersion <= 0 || admission.RuntimeKind == "" ||
-		admission.RuntimeVersion == "" || admission.BridgeVersion == "" || admission.ModelProvider == "" ||
-		admission.ModelID == "" || admission.MaxAttempts < 1 || admission.MaxAttempts > 100 {
-		return ErrAdmissionMismatch
-	}
-	return nil
 }
 
 func hashSourceEvent(tenantID string, event *commonv1.ChatEvent) (string, error) {

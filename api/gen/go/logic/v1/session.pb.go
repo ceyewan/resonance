@@ -206,9 +206,9 @@ func (x *CreateSessionResponse) GetSessionId() string {
 	return ""
 }
 
+// 幂等获取当前用户唯一的 Pilot 私聊，不接受 Profile 或用户身份。
 type CreateAgentSessionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Profile       v1.AgentProfile        `protobuf:"varint,1,opt,name=profile,proto3,enum=resonance.common.v1.AgentProfile" json:"profile,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -241,13 +241,6 @@ func (x *CreateAgentSessionRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CreateAgentSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateAgentSessionRequest) Descriptor() ([]byte, []int) {
 	return file_logic_v1_session_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *CreateAgentSessionRequest) GetProfile() v1.AgentProfile {
-	if x != nil {
-		return x.Profile
-	}
-	return v1.AgentProfile(0)
 }
 
 type CreateAgentSessionResponse struct {
@@ -788,9 +781,8 @@ const file_logic_v1_session_proto_rawDesc = "" +
 	"\x04type\x18\x03 \x01(\x0e2 .resonance.common.v1.SessionTypeR\x04type\"6\n" +
 	"\x15CreateSessionResponse\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x01 \x01(\tR\tsessionId\"X\n" +
-	"\x19CreateAgentSessionRequest\x12;\n" +
-	"\aprofile\x18\x01 \x01(\x0e2!.resonance.common.v1.AgentProfileR\aprofile\";\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"!\n" +
+	"\x19CreateAgentSessionRequestJ\x04\b\x01\x10\x02\";\n" +
 	"\x1aCreateAgentSessionResponse\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"m\n" +
@@ -866,40 +858,38 @@ var file_logic_v1_session_proto_goTypes = []any{
 	(*PullInboxDeltaResponse)(nil),     // 15: resonance.logic.v1.PullInboxDeltaResponse
 	(*v1.SessionInfo)(nil),             // 16: resonance.common.v1.SessionInfo
 	(v1.SessionType)(0),                // 17: resonance.common.v1.SessionType
-	(v1.AgentProfile)(0),               // 18: resonance.common.v1.AgentProfile
-	(*v1.ChatEvent)(nil),               // 19: resonance.common.v1.ChatEvent
-	(*v1.ContactInfo)(nil),             // 20: resonance.common.v1.ContactInfo
-	(*v1.InboxEvent)(nil),              // 21: resonance.common.v1.InboxEvent
+	(*v1.ChatEvent)(nil),               // 18: resonance.common.v1.ChatEvent
+	(*v1.ContactInfo)(nil),             // 19: resonance.common.v1.ContactInfo
+	(*v1.InboxEvent)(nil),              // 20: resonance.common.v1.InboxEvent
 }
 var file_logic_v1_session_proto_depIdxs = []int32{
 	16, // 0: resonance.logic.v1.GetSessionListResponse.sessions:type_name -> resonance.common.v1.SessionInfo
 	17, // 1: resonance.logic.v1.CreateSessionRequest.type:type_name -> resonance.common.v1.SessionType
-	18, // 2: resonance.logic.v1.CreateAgentSessionRequest.profile:type_name -> resonance.common.v1.AgentProfile
-	19, // 3: resonance.logic.v1.GetHistoryEventsResponse.events:type_name -> resonance.common.v1.ChatEvent
-	20, // 4: resonance.logic.v1.GetContactListResponse.contacts:type_name -> resonance.common.v1.ContactInfo
-	20, // 5: resonance.logic.v1.SearchUserResponse.users:type_name -> resonance.common.v1.ContactInfo
-	21, // 6: resonance.logic.v1.PullInboxDeltaResponse.events:type_name -> resonance.common.v1.InboxEvent
-	0,  // 7: resonance.logic.v1.SessionService.GetSessionList:input_type -> resonance.logic.v1.GetSessionListRequest
-	2,  // 8: resonance.logic.v1.SessionService.CreateSession:input_type -> resonance.logic.v1.CreateSessionRequest
-	4,  // 9: resonance.logic.v1.SessionService.CreateAgentSession:input_type -> resonance.logic.v1.CreateAgentSessionRequest
-	6,  // 10: resonance.logic.v1.SessionService.GetHistoryEvents:input_type -> resonance.logic.v1.GetHistoryEventsRequest
-	8,  // 11: resonance.logic.v1.SessionService.GetContactList:input_type -> resonance.logic.v1.GetContactListRequest
-	10, // 12: resonance.logic.v1.SessionService.SearchUser:input_type -> resonance.logic.v1.SearchUserRequest
-	12, // 13: resonance.logic.v1.SessionService.UpdateReadPosition:input_type -> resonance.logic.v1.UpdateReadPositionRequest
-	14, // 14: resonance.logic.v1.SessionService.PullInboxDelta:input_type -> resonance.logic.v1.PullInboxDeltaRequest
-	1,  // 15: resonance.logic.v1.SessionService.GetSessionList:output_type -> resonance.logic.v1.GetSessionListResponse
-	3,  // 16: resonance.logic.v1.SessionService.CreateSession:output_type -> resonance.logic.v1.CreateSessionResponse
-	5,  // 17: resonance.logic.v1.SessionService.CreateAgentSession:output_type -> resonance.logic.v1.CreateAgentSessionResponse
-	7,  // 18: resonance.logic.v1.SessionService.GetHistoryEvents:output_type -> resonance.logic.v1.GetHistoryEventsResponse
-	9,  // 19: resonance.logic.v1.SessionService.GetContactList:output_type -> resonance.logic.v1.GetContactListResponse
-	11, // 20: resonance.logic.v1.SessionService.SearchUser:output_type -> resonance.logic.v1.SearchUserResponse
-	13, // 21: resonance.logic.v1.SessionService.UpdateReadPosition:output_type -> resonance.logic.v1.UpdateReadPositionResponse
-	15, // 22: resonance.logic.v1.SessionService.PullInboxDelta:output_type -> resonance.logic.v1.PullInboxDeltaResponse
-	15, // [15:23] is the sub-list for method output_type
-	7,  // [7:15] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	18, // 2: resonance.logic.v1.GetHistoryEventsResponse.events:type_name -> resonance.common.v1.ChatEvent
+	19, // 3: resonance.logic.v1.GetContactListResponse.contacts:type_name -> resonance.common.v1.ContactInfo
+	19, // 4: resonance.logic.v1.SearchUserResponse.users:type_name -> resonance.common.v1.ContactInfo
+	20, // 5: resonance.logic.v1.PullInboxDeltaResponse.events:type_name -> resonance.common.v1.InboxEvent
+	0,  // 6: resonance.logic.v1.SessionService.GetSessionList:input_type -> resonance.logic.v1.GetSessionListRequest
+	2,  // 7: resonance.logic.v1.SessionService.CreateSession:input_type -> resonance.logic.v1.CreateSessionRequest
+	4,  // 8: resonance.logic.v1.SessionService.CreateAgentSession:input_type -> resonance.logic.v1.CreateAgentSessionRequest
+	6,  // 9: resonance.logic.v1.SessionService.GetHistoryEvents:input_type -> resonance.logic.v1.GetHistoryEventsRequest
+	8,  // 10: resonance.logic.v1.SessionService.GetContactList:input_type -> resonance.logic.v1.GetContactListRequest
+	10, // 11: resonance.logic.v1.SessionService.SearchUser:input_type -> resonance.logic.v1.SearchUserRequest
+	12, // 12: resonance.logic.v1.SessionService.UpdateReadPosition:input_type -> resonance.logic.v1.UpdateReadPositionRequest
+	14, // 13: resonance.logic.v1.SessionService.PullInboxDelta:input_type -> resonance.logic.v1.PullInboxDeltaRequest
+	1,  // 14: resonance.logic.v1.SessionService.GetSessionList:output_type -> resonance.logic.v1.GetSessionListResponse
+	3,  // 15: resonance.logic.v1.SessionService.CreateSession:output_type -> resonance.logic.v1.CreateSessionResponse
+	5,  // 16: resonance.logic.v1.SessionService.CreateAgentSession:output_type -> resonance.logic.v1.CreateAgentSessionResponse
+	7,  // 17: resonance.logic.v1.SessionService.GetHistoryEvents:output_type -> resonance.logic.v1.GetHistoryEventsResponse
+	9,  // 18: resonance.logic.v1.SessionService.GetContactList:output_type -> resonance.logic.v1.GetContactListResponse
+	11, // 19: resonance.logic.v1.SessionService.SearchUser:output_type -> resonance.logic.v1.SearchUserResponse
+	13, // 20: resonance.logic.v1.SessionService.UpdateReadPosition:output_type -> resonance.logic.v1.UpdateReadPositionResponse
+	15, // 21: resonance.logic.v1.SessionService.PullInboxDelta:output_type -> resonance.logic.v1.PullInboxDeltaResponse
+	14, // [14:22] is the sub-list for method output_type
+	6,  // [6:14] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_logic_v1_session_proto_init() }

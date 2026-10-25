@@ -41,14 +41,7 @@ func (s *GRPCServer) authUnaryInterceptor(ctx context.Context, req any, info *gr
 			}
 			ctx = service.WithUserPrincipal(ctx, principal)
 		} else {
-			if profile, ok := s.serviceProfiles[claims.ServiceID]; ok {
-				ctx = service.WithProfiledServicePrincipal(
-					ctx, claims.ServiceID, claims.TenantID, claims.Actor,
-					profile.ProfileID, profile.ProfileVersion,
-				)
-			} else {
-				ctx = service.WithServicePrincipal(ctx, claims.ServiceID, claims.TenantID, claims.Actor)
-			}
+			ctx = service.WithServicePrincipal(ctx, claims.ServiceID, claims.TenantID, claims.Actor)
 		}
 		username = claims.Actor
 	} else if md, ok := metadata.FromIncomingContext(ctx); ok {
@@ -84,6 +77,5 @@ func (s *GRPCServer) authUnaryInterceptor(ctx context.Context, req any, info *gr
 
 func shouldRequireUsername(fullMethod string) bool {
 	return strings.HasPrefix(fullMethod, "/resonance.logic.v1.ChatService/") ||
-		strings.HasPrefix(fullMethod, "/resonance.logic.v1.SessionService/") ||
-		strings.HasPrefix(fullMethod, "/resonance.logic.v1.AgentApprovalService/")
+		strings.HasPrefix(fullMethod, "/resonance.logic.v1.SessionService/")
 }

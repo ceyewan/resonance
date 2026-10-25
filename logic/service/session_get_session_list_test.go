@@ -29,12 +29,12 @@ func TestSessionService_GetSessionList_Empty(t *testing.T) {
 	require.Empty(t, resp.Sessions)
 }
 
-func TestSessionService_GetSessionList_ExposesPinnedAgentProfile(t *testing.T) {
+func TestSessionService_GetSessionList_ExposesPilotConversation(t *testing.T) {
 	sessionRepo := &testSessionRepo{getUserSessionLFn: func(context.Context, string) ([]*model.Session, error) {
 		return []*model.Session{{
 			SessionID: "agent:test", Type: int(commonv1.SessionType_SESSION_TYPE_DIRECT), Kind: model.SessionKindAI,
-			TenantID: model.DefaultTenantID, ProfileID: model.AgentProfileIAMAdmin, ProfileVersion: 4,
-			Name: "IAM Admin Assistant",
+			TenantID: model.DefaultTenantID, ProfileID: model.AgentProfileUserAssistant, ProfileVersion: 1,
+			Name: "Pilot",
 		}}, nil
 	}}
 	svc := NewSessionService(sessionRepo, &testMessageRepo{}, &testUserRepo{}, nil, nil, nil, nil, testLogger())
@@ -43,8 +43,6 @@ func TestSessionService_GetSessionList_ExposesPinnedAgentProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, response.Sessions, 1)
 	require.Equal(t, commonv1.SessionKind_SESSION_KIND_AI, response.Sessions[0].Kind)
-	require.Equal(t, commonv1.AgentProfile_AGENT_PROFILE_IAM_ADMIN, response.Sessions[0].AgentProfile)
-	require.Equal(t, int64(4), response.Sessions[0].AgentProfileVersion)
 }
 
 func TestSessionService_GetSessionList_DirectNicknameUnreadAndLastEvent(t *testing.T) {

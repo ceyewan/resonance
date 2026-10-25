@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ceyewan/genesis/clog"
 	"github.com/ceyewan/genesis/metrics"
 	genesistrace "github.com/ceyewan/genesis/trace"
 	"go.opentelemetry.io/otel"
@@ -157,17 +156,6 @@ func (t *Telemetry) Close(ctx context.Context) error {
 	return t.closeErr
 }
 
-// RecordShutdownFlushProbe creates a service-specific span immediately before
-// the trace provider is flushed. Its context-bound log is the recovery proof.
-func RecordShutdownFlushProbe(logger clog.Logger) {
-	if logger == nil {
-		return
-	}
-	ctx, span := otel.Tracer(tracerName).Start(context.Background(), "stage3.shutdown.flush")
-	logger.InfoContext(ctx, "stage3 shutdown trace flush probe", clog.String("service", serviceName))
-	span.End()
-}
-
 func (t *Telemetry) recordUsage(ctx context.Context, usage *pilotruntime.Usage) {
 	if usage == nil {
 		return
@@ -278,7 +266,7 @@ func (s *ObservedEventSink) observe(ctx context.Context, run *model.AgentRun, ev
 		if observation == nil {
 			observation = &runObservation{startedAt: now}
 			s.active[run.RunID] = observation
-			s.telemetry.activeRuns.Inc(ctx)
+			s.telemetry.activeRuns.Set(ctx, float64(len(s.active)))
 			if !run.QueuedAt.IsZero() && now.After(run.QueuedAt) {
 				s.telemetry.runQueueWait.Record(ctx, now.Sub(run.QueuedAt).Seconds())
 			}
@@ -304,8 +292,8 @@ func (s *ObservedEventSink) observe(ctx context.Context, run *model.AgentRun, ev
 				outcome = "failed"
 			}
 			s.telemetry.runDuration.Record(ctx, now.Sub(observation.startedAt).Seconds(), metrics.L("outcome", outcome))
-			s.telemetry.activeRuns.Dec(ctx)
 			delete(s.active, run.RunID)
+			s.telemetry.activeRuns.Set(ctx, float64(len(s.active)))
 		}
 		if event.Kind == pilotruntime.EventSettled {
 			s.telemetry.recordUsage(ctx, event.Usage)

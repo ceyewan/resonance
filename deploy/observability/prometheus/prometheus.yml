@@ -11,7 +11,7 @@ scrape_configs:
     # and alerts intentionally consume the Prometheus legacy underscore form.
     metric_name_validation_scheme: legacy
     static_configs:
-      - targets: ["logic:9091", "gateway:9092", "task:9090", "pilot:9093", "pilot-iam-admin:9093"]
+      - targets: ["logic:9091", "gateway:9092", "task:9090", "pilot:9093"]
   - job_name: prometheus
     static_configs:
       - targets: ["prometheus:9090"]

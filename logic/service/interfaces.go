@@ -38,19 +38,10 @@ type PresenceServiceInterface interface {
 	SyncStatus(ctx context.Context, req *logicv1.SyncStatusRequest) (*logicv1.SyncStatusResponse, error)
 }
 
-// AgentApprovalServiceInterface 审批事实服务接口；该接口不执行 Tool。
-type AgentApprovalServiceInterface interface {
-	CreateApproval(ctx context.Context, req *logicv1.CreateApprovalRequest) (*logicv1.CreateApprovalResponse, error)
-	DecideApproval(ctx context.Context, req *logicv1.DecideApprovalRequest) (*logicv1.DecideApprovalResponse, error)
-	GetApproval(ctx context.Context, req *logicv1.GetApprovalRequest) (*logicv1.GetApprovalResponse, error)
-	ListApprovals(ctx context.Context, req *logicv1.ListApprovalsRequest) (*logicv1.ListApprovalsResponse, error)
-}
-
 // 确保实现了接口
 var (
-	_ AuthServiceInterface          = (*AuthService)(nil)
-	_ SessionServiceInterface       = (*SessionService)(nil)
-	_ ChatServiceInterface          = (*ChatService)(nil)
-	_ PresenceServiceInterface      = (*PresenceService)(nil)
-	_ AgentApprovalServiceInterface = (*AgentApprovalService)(nil)
+	_ AuthServiceInterface     = (*AuthService)(nil)
+	_ SessionServiceInterface  = (*SessionService)(nil)
+	_ ChatServiceInterface     = (*ChatService)(nil)
+	_ PresenceServiceInterface = (*PresenceService)(nil)
 )

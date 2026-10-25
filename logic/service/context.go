@@ -13,7 +13,6 @@ const metadataUsernameKey = "x-username"
 type usernameCtxKey struct{}
 type tenantCtxKey struct{}
 type serviceIDCtxKey struct{}
-type serviceProfileCtxKey struct{}
 type userPrincipalCtxKey struct{}
 
 type UserPrincipal struct {
@@ -24,11 +23,6 @@ type UserPrincipal struct {
 	Scopes   []string
 }
 
-type ServiceProfile struct {
-	ProfileID      string
-	ProfileVersion int64
-}
-
 func WithUsername(ctx context.Context, username string) context.Context {
 	return context.WithValue(ctx, usernameCtxKey{}, username)
 }
@@ -37,17 +31,6 @@ func WithServicePrincipal(ctx context.Context, serviceID, tenantID, actor string
 	ctx = context.WithValue(ctx, serviceIDCtxKey{}, serviceID)
 	ctx = context.WithValue(ctx, tenantCtxKey{}, tenantID)
 	return WithUsername(ctx, actor)
-}
-
-func WithProfiledServicePrincipal(
-	ctx context.Context,
-	serviceID, tenantID, actor, profileID string,
-	profileVersion int64,
-) context.Context {
-	ctx = WithServicePrincipal(ctx, serviceID, tenantID, actor)
-	return context.WithValue(ctx, serviceProfileCtxKey{}, ServiceProfile{
-		ProfileID: profileID, ProfileVersion: profileVersion,
-	})
 }
 
 func WithUserPrincipal(ctx context.Context, principal *UserPrincipal) context.Context {
@@ -89,11 +72,6 @@ func ServicePrincipalFromCtx(ctx context.Context) (serviceID, tenantID string, o
 	serviceID, serviceOK := ctx.Value(serviceIDCtxKey{}).(string)
 	tenantID, tenantOK := ctx.Value(tenantCtxKey{}).(string)
 	return serviceID, tenantID, serviceOK && tenantOK && serviceID != "" && tenantID != ""
-}
-
-func ServiceProfileFromCtx(ctx context.Context) (ServiceProfile, bool) {
-	profile, ok := ctx.Value(serviceProfileCtxKey{}).(ServiceProfile)
-	return profile, ok && profile.ProfileID != "" && profile.ProfileVersion > 0
 }
 
 func UsernameFromCtx(ctx context.Context) (string, bool) {

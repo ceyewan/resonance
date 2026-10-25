@@ -28,10 +28,7 @@ type GRPCServer struct {
 	sessionSvc              *service.SessionService
 	chatSvc                 *service.ChatService
 	presenceSvc             *service.PresenceService
-	agentApprovalSvc        *service.AgentApprovalService
-	agentIAMMutationSvc     *service.AgentIAMMutationService
 	serviceAuth             *serviceauth.Verifier
-	serviceProfiles         map[string]service.ServiceProfile
 	protectedActors         map[string]struct{}
 	allowLegacyUsernameAuth bool
 }
@@ -48,28 +45,6 @@ func WithServiceAuth(verifier *serviceauth.Verifier) Option {
 
 func WithGatewayServiceID(serviceID string) Option {
 	return func(server *GRPCServer) { server.gatewayServiceID = serviceID }
-}
-
-func WithServiceProfile(serviceID, profileID string, profileVersion int64) Option {
-	return func(server *GRPCServer) {
-		if serviceID == "" || profileID == "" || profileVersion < 1 {
-			return
-		}
-		if server.serviceProfiles == nil {
-			server.serviceProfiles = make(map[string]service.ServiceProfile)
-		}
-		server.serviceProfiles[serviceID] = service.ServiceProfile{
-			ProfileID: profileID, ProfileVersion: profileVersion,
-		}
-	}
-}
-
-func WithAgentApprovalService(approvalService *service.AgentApprovalService) Option {
-	return func(server *GRPCServer) { server.agentApprovalSvc = approvalService }
-}
-
-func WithAgentIAMMutationService(mutationService *service.AgentIAMMutationService) Option {
-	return func(server *GRPCServer) { server.agentIAMMutationSvc = mutationService }
 }
 
 // WithLegacyUsernameAuthForTests enables the pre-IAM x-username path for
@@ -139,12 +114,6 @@ func (s *GRPCServer) Start() error {
 	logicv1.RegisterSessionServiceServer(s.server, s.sessionSvc)
 	logicv1.RegisterChatServiceServer(s.server, s.chatSvc)
 	logicv1.RegisterPresenceServiceServer(s.server, s.presenceSvc)
-	if s.agentApprovalSvc != nil {
-		logicv1.RegisterAgentApprovalServiceServer(s.server, s.agentApprovalSvc)
-	}
-	if s.agentIAMMutationSvc != nil {
-		logicv1.RegisterAgentIAMMutationServiceServer(s.server, s.agentIAMMutationSvc)
-	}
 
 	lis, err := net.Listen("tcp", s.addr)
 	if err != nil {

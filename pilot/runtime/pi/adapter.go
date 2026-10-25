@@ -245,7 +245,7 @@ func (a *Adapter) Run(ctx context.Context, req pilotruntime.RunRequest) (pilotru
 		commands, err = run.client.GetCommands(commandCtx)
 		cancel()
 		if err == nil {
-			err = verifyBridgeCommands(commands, req.Profile)
+			err = verifyBridgeCommands(commands)
 		}
 	}
 	if err == nil {
